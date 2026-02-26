@@ -7,6 +7,8 @@ import {
     getCoreRowModel,
     useReactTable,
     getPaginationRowModel,
+    getSortedRowModel,
+    SortingState,
 } from '@tanstack/react-table';
 
 import {
@@ -19,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -46,19 +48,54 @@ interface EmployeesTableProps {
 }
 
 export function EmployeesTable({ data, onEdit, onDelete }: EmployeesTableProps) {
+    const [sorting, setSorting] = useState<SortingState>([]);
+
     const columns: ColumnDef<Employee>[] = [
         {
             accessorKey: 'name',
-            header: 'Name',
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="-ml-4 h-8 px-4"
+                    >
+                        Name
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
             cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
         },
         {
             accessorKey: 'role',
-            header: 'Role',
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="-ml-4 h-8 px-4"
+                    >
+                        Role
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
         },
         {
             accessorKey: 'monthlySalary',
-            header: 'Monthly Salary',
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="-ml-4 h-8 px-4"
+                    >
+                        Monthly Salary
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
             cell: ({ row }) => {
                 const amount = parseFloat(row.getValue('monthlySalary'));
                 const formatted = new Intl.NumberFormat('en-US', {
@@ -70,7 +107,18 @@ export function EmployeesTable({ data, onEdit, onDelete }: EmployeesTableProps) 
         },
         {
             accessorKey: 'costPerHour',
-            header: 'Cost / Hr',
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="-ml-4 h-8 px-4"
+                    >
+                        Cost / Hr
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            },
             cell: ({ row }) => {
                 const amount = parseFloat(row.getValue('costPerHour'));
                 const formatted = new Intl.NumberFormat('en-US', {
@@ -127,6 +175,11 @@ export function EmployeesTable({ data, onEdit, onDelete }: EmployeesTableProps) 
         columns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        onSortingChange: setSorting,
+        state: {
+            sorting,
+        },
     });
 
     return (

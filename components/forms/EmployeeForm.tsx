@@ -34,7 +34,7 @@ export type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
-    onSubmit: (data: EmployeeFormValues) => void;
+    onSubmit: (data: EmployeeFormValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
@@ -50,8 +50,8 @@ export function EmployeeForm({ initialData, onSubmit, onCancel }: EmployeeFormPr
         },
     });
 
-    const handleSubmit = (data: EmployeeFormValues) => {
-        onSubmit(data);
+    const handleSubmit = async (data: EmployeeFormValues) => {
+        await onSubmit(data);
     };
 
     return (
@@ -155,7 +155,9 @@ export function EmployeeForm({ initialData, onSubmit, onCancel }: EmployeeFormPr
                             </Button>
                         </DialogClose>
                     )}
-                    <Button type="submit">Save Employee</Button>
+                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                        {form.formState.isSubmitting ? "Saving..." : "Save Employee"}
+                    </Button>
                 </div>
             </form>
         </Form>

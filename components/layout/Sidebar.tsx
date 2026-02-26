@@ -26,7 +26,7 @@ const routes = [
     {
         label: 'Organization',
         icon: Users,
-        href: '/organization/employees',
+        href: '/organization',
         color: 'text-violet-500',
     },
     {

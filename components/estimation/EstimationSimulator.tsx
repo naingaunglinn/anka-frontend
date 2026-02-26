@@ -17,6 +17,12 @@ type FeatureResource = {
     costRate: number;
 };
 
+type ProjectOverhead = {
+    id: string;
+    name: string;
+    cost: number;
+};
+
 const ROLES = [
     { name: 'Senior Developer', rate: 65 },
     { name: 'Mid Developer', rate: 45 },
@@ -31,13 +37,21 @@ export function EstimationSimulator() {
         { id: '2', featureName: 'Database Design', role: 'Mid Developer', hours: 60, costRate: 45 },
     ]);
 
+    const [overheads, setOverheads] = useState<ProjectOverhead[]>([
+        { id: '1', name: 'Server Architecture Design Audit', cost: 1500 }
+    ]);
+
     const [margin, setMargin] = useState([30]); // Target Margin %
     const [version, setVersion] = useState<string>('v1.0 (Draft)');
 
-    // Form states for new entry
+    // Form states for new feature
     const [newFeature, setNewFeature] = useState('');
     const [newRole, setNewRole] = useState(ROLES[0].name);
     const [newHours, setNewHours] = useState('');
+
+    // Form states for new overhead
+    const [newOverheadName, setNewOverheadName] = useState('');
+    const [newOverheadCost, setNewOverheadCost] = useState('');
 
     const handleAdd = () => {
         if (!newFeature || !newHours) return;
@@ -60,8 +74,26 @@ export function EstimationSimulator() {
         setResources(resources.filter(r => r.id !== id));
     };
 
+    const handleAddOverhead = () => {
+        if (!newOverheadName || !newOverheadCost) return;
+        setOverheads([...overheads, {
+            id: Math.random().toString(),
+            name: newOverheadName,
+            cost: Number(newOverheadCost)
+        }]);
+        setNewOverheadName('');
+        setNewOverheadCost('');
+    };
+
+    const handleRemoveOverhead = (id: string) => {
+        setOverheads(overheads.filter(o => o.id !== id));
+    };
+
     // Calculations
-    const totalCost = resources.reduce((sum, r) => sum + (r.hours * r.costRate), 0);
+    const laborCost = resources.reduce((sum, r) => sum + (r.hours * r.costRate), 0);
+    const totalOverheadCost = overheads.reduce((sum, o) => sum + o.cost, 0);
+    const totalCost = laborCost + totalOverheadCost;
+
     // Margin = (Price - Cost) / Price  => Price = Cost / (1 - Margin/100)
     const targetMarginDecimal = margin[0] / 100;
     const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
@@ -74,8 +106,8 @@ export function EstimationSimulator() {
                     <CardHeader className="pb-4 border-b">
                         <div className="flex justify-between items-center">
                             <div>
-                                <CardTitle className="text-lg">Feature Breakdown & Resource Assignment</CardTitle>
-                                <CardDescription>Itemize the project scope to calculate base costs.</CardDescription>
+                                <CardTitle className="text-lg">Project Scope & Labor</CardTitle>
+                                <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
                             </div>
                             <Select value={version} onValueChange={setVersion}>
                                 <SelectTrigger className="w-[160px] h-8 text-xs bg-slate-50">
@@ -147,6 +179,56 @@ export function EstimationSimulator() {
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card className="shadow-sm border-slate-100">
+                    <CardHeader className="pb-4 border-b">
+                        <CardTitle className="text-lg">Project-Specific Overhead</CardTitle>
+                        <CardDescription>Add one-time expenses specific to this contract (travel, audits, specialized licenses).</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead>Overhead Category / Description</TableHead>
+                                    <TableHead className="text-right">Project Cost</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {overheads.map((ov) => (
+                                    <TableRow key={ov.id}>
+                                        <TableCell className="font-medium">{ov.name}</TableCell>
+                                        <TableCell className="text-right font-medium text-rose-600">${ov.cost.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemoveOverhead(ov.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {overheads.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">No specific overheads added.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+
+                        <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
+                            <div className="flex-1 space-y-1">
+                                <label className="text-xs font-medium text-slate-500">Expense Name</label>
+                                <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9" />
+                            </div>
+                            <div className="w-[150px] space-y-1">
+                                <label className="text-xs font-medium text-slate-500">Cost ($)</label>
+                                <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9" />
+                            </div>
+                            <Button onClick={handleAddOverhead} className="h-9 bg-slate-900 gap-2">
+                                <Plus className="h-4 w-4" /> Add
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="space-y-6">
@@ -176,8 +258,16 @@ export function EstimationSimulator() {
 
                         <div className="pt-4 border-t border-slate-800 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Total Project Cost</span>
-                                <span className="font-medium">${totalCost.toLocaleString()}</span>
+                                <span className="text-slate-400">Total Labor Cost</span>
+                                <span className="font-medium">${laborCost.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-400">Total Project Overhead</span>
+                                <span className="font-medium text-rose-400">${totalOverheadCost.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-800 pt-2">
+                                <span className="text-slate-300">Total Project Cost</span>
+                                <span>${totalCost.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-400">Expected Profit</span>
