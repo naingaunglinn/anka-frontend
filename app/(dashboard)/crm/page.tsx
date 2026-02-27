@@ -63,7 +63,7 @@ export default function CRMPage() {
                 </Card>
             </div>
 
-            <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <KanbanBoard onMetricsUpdate={(total, weighted) => {
                     setPipelineTotal(total);
                     setWeightedTotal(weighted);
