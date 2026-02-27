@@ -24,6 +24,12 @@ const routes = [
         color: 'text-sky-500',
     },
     {
+        label: 'Deals & Pipeline',
+        icon: FolderKanban,
+        href: '/deals',
+        color: 'text-amber-600',
+    },
+    {
         label: 'Organization',
         icon: Users,
         href: '/organization',
