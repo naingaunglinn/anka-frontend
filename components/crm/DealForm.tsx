@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Deal } from './KanbanBoard';
+import { Deal } from '@/types/business';
 
 interface DealFormProps {
     isOpen: boolean;
@@ -25,10 +25,10 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     useEffect(() => {
         if (initialData && isOpen) {
             setName(initialData.name);
-            setClient(initialData.client);
-            setEstimatedValue(initialData.estimatedValue);
-            setWinProbability(initialData.winProbability);
-            setColumnId(initialData.columnId);
+            setClient(initialData.client || '');
+            setEstimatedValue(initialData.estimatedValue || 0);
+            setWinProbability(initialData.winProbability || 0);
+            setColumnId(initialData.columnId || 'lead');
         } else if (isOpen) {
             setName('');
             setClient('');
@@ -47,6 +47,9 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             estimatedValue: Number(estimatedValue) || 0,
             winProbability: Number(winProbability) || 0,
             columnId,
+            estimationResources: initialData?.estimationResources || [],
+            projectOverheads: initialData?.projectOverheads || [],
+            targetMargin: initialData?.targetMargin || 30,
         };
 
         if (initialData) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,64 +8,52 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Calculator, Save } from 'lucide-react';
-
-type FeatureResource = {
-    id: string;
-    featureName: string;
-    role: string;
-    hours: number;
-    costRate: number;
-};
-
-type ProjectOverhead = {
-    id: string;
-    name: string;
-    cost: number;
-};
-
-const ROLES = [
-    { name: 'Senior Developer', rate: 65 },
-    { name: 'Mid Developer', rate: 45 },
-    { name: 'UI/UX Designer', rate: 55 },
-    { name: 'Project Manager', rate: 70 },
-    { name: 'QA Engineer', rate: 40 },
-];
+import { useBusinessStore } from '@/store/businessStore';
+import { EstimationResource, ProjectOverhead } from '@/types/business';
 
 export function EstimationSimulator() {
-    const [resources, setResources] = useState<FeatureResource[]>([
-        { id: '1', featureName: 'Authentication', role: 'Senior Developer', hours: 40, costRate: 65 },
-        { id: '2', featureName: 'Database Design', role: 'Mid Developer', hours: 60, costRate: 45 },
-    ]);
+    const store = useBusinessStore();
 
-    const [overheads, setOverheads] = useState<ProjectOverhead[]>([
-        { id: '1', name: 'Server Architecture Design Audit', cost: 1500 }
-    ]);
-
-    const [margin, setMargin] = useState([30]); // Target Margin %
+    // UI selections
+    const [selectedDealId, setSelectedDealId] = useState<string>('');
     const [version, setVersion] = useState<string>('v1.0 (Draft)');
 
-    // Form states for new feature
-    const [newFeature, setNewFeature] = useState('');
-    const [newRole, setNewRole] = useState(ROLES[0].name);
-    const [newHours, setNewHours] = useState('');
+    // Local estimation state before saving
+    const [resources, setResources] = useState<EstimationResource[]>([]);
+    const [overheads, setOverheads] = useState<ProjectOverhead[]>([]);
+    const [margin, setMargin] = useState([30]);
 
-    // Form states for new overhead
+    // Form inputs
+    const [newFeature, setNewFeature] = useState('');
+    const [newRoleId, setNewRoleId] = useState('');
+    const [newHours, setNewHours] = useState('');
     const [newOverheadName, setNewOverheadName] = useState('');
     const [newOverheadCost, setNewOverheadCost] = useState('');
 
+    useEffect(() => {
+        // Load data if deal selected
+        if (selectedDealId) {
+            const deal = store.deals.find(d => d.id === selectedDealId);
+            if (deal) {
+                setResources(deal.estimationResources || []);
+                setOverheads(deal.projectOverheads || []);
+                setMargin([deal.targetMargin || 30]);
+            }
+        } else {
+            setResources([]);
+            setOverheads([]);
+            setMargin([30]);
+        }
+    }, [selectedDealId, store.deals]);
+
     const handleAdd = () => {
-        if (!newFeature || !newHours) return;
-
-        const roleOpt = ROLES.find(r => r.name === newRole) || ROLES[0];
-
+        if (!newFeature || !newHours || !newRoleId) return;
         setResources([...resources, {
             id: Math.random().toString(),
             featureName: newFeature,
-            role: roleOpt.name,
+            roleId: newRoleId,
             hours: Number(newHours),
-            costRate: roleOpt.rate,
         }]);
-
         setNewFeature('');
         setNewHours('');
     };
@@ -89,12 +77,26 @@ export function EstimationSimulator() {
         setOverheads(overheads.filter(o => o.id !== id));
     };
 
+    const handleSave = () => {
+        if (!selectedDealId) return;
+        store.updateDeal(selectedDealId, {
+            estimationResources: resources,
+            projectOverheads: overheads,
+            targetMargin: margin[0]
+        });
+        alert('Estimation saved to Deal successfully!');
+    };
+
     // Calculations
-    const laborCost = resources.reduce((sum, r) => sum + (r.hours * r.costRate), 0);
+    const laborCost = resources.reduce((sum, res) => {
+        const role = store.roles.find(r => r.id === res.roleId);
+        const costRate = role ? (role.rate * 0.5) : 50; // Assume cost is 50% of bill rate for simulation
+        return sum + (res.hours * costRate);
+    }, 0);
+
     const totalOverheadCost = overheads.reduce((sum, o) => sum + o.cost, 0);
     const totalCost = laborCost + totalOverheadCost;
 
-    // Margin = (Price - Cost) / Price  => Price = Cost / (1 - Margin/100)
     const targetMarginDecimal = margin[0] / 100;
     const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
     const expectedProfit = suggestedPrice - totalCost;
@@ -102,7 +104,28 @@ export function EstimationSimulator() {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-                <Card className="shadow-sm border-slate-100">
+
+                <Card className="shadow-sm border-slate-100 bg-slate-50">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-sm uppercase tracking-wider text-slate-500">Target Deal</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Select value={selectedDealId} onValueChange={setSelectedDealId}>
+                            <SelectTrigger className="w-full bg-white">
+                                <SelectValue placeholder="Select a deal from CRM to estimate..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {store.deals.map(deal => (
+                                    <SelectItem key={deal.id} value={deal.id}>
+                                        {deal.name} ({deal.client})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </CardContent>
+                </Card>
+
+                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
                         <div className="flex justify-between items-center">
                             <div>
@@ -127,51 +150,55 @@ export function EstimationSimulator() {
                                 <TableRow>
                                     <TableHead>Feature</TableHead>
                                     <TableHead>Role</TableHead>
-                                    <TableHead className="text-right">Rate/hr</TableHead>
+                                    <TableHead className="text-right">Rate/hr (Cost)</TableHead>
                                     <TableHead className="text-right">Hours</TableHead>
                                     <TableHead className="text-right">Cost</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {resources.map((res) => (
-                                    <TableRow key={res.id}>
-                                        <TableCell className="font-medium">{res.featureName}</TableCell>
-                                        <TableCell>{res.role}</TableCell>
-                                        <TableCell className="text-right">${res.costRate}</TableCell>
-                                        <TableCell className="text-right">{res.hours}</TableCell>
-                                        <TableCell className="text-right font-medium">${(res.hours * res.costRate).toLocaleString()}</TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(res.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {resources.map((res) => {
+                                    const role = store.roles.find(r => r.id === res.roleId);
+                                    const costRate = role ? (role.rate * 0.5) : 50;
+                                    return (
+                                        <TableRow key={res.id}>
+                                            <TableCell className="font-medium">{res.featureName}</TableCell>
+                                            <TableCell>{role?.title || 'Unknown Role'}</TableCell>
+                                            <TableCell className="text-right">${costRate}</TableCell>
+                                            <TableCell className="text-right">{res.hours}</TableCell>
+                                            <TableCell className="text-right font-medium">${(res.hours * costRate).toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(res.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
 
                         <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
                                 <label className="text-xs font-medium text-slate-500">Feature Name</label>
-                                <Input value={newFeature} onChange={e => setNewFeature(e.target.value)} placeholder="e.g. User Profile" className="h-9" />
+                                <Input value={newFeature} onChange={e => setNewFeature(e.target.value)} placeholder="e.g. User Profile" className="h-9 bg-white" />
                             </div>
                             <div className="w-[200px] space-y-1">
                                 <label className="text-xs font-medium text-slate-500">Role</label>
-                                <Select value={newRole} onValueChange={setNewRole}>
+                                <Select value={newRoleId} onValueChange={setNewRoleId}>
                                     <SelectTrigger className="h-9 bg-white">
-                                        <SelectValue />
+                                        <SelectValue placeholder="Select role..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {ROLES.map(r => (
-                                            <SelectItem key={r.name} value={r.name}>{r.name} (${r.rate}/hr)</SelectItem>
+                                        {store.roles.map(r => (
+                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: ${r.rate})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="w-[100px] space-y-1">
                                 <label className="text-xs font-medium text-slate-500">Hours</label>
-                                <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9" />
+                                <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAdd} className="h-9 bg-slate-900 gap-2">
                                 <Plus className="h-4 w-4" /> Add
@@ -180,7 +207,7 @@ export function EstimationSimulator() {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-100">
+                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
                         <CardTitle className="text-lg">Project-Specific Overhead</CardTitle>
                         <CardDescription>Add one-time expenses specific to this contract (travel, audits, specialized licenses).</CardDescription>
@@ -217,11 +244,11 @@ export function EstimationSimulator() {
                         <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
                                 <label className="text-xs font-medium text-slate-500">Expense Name</label>
-                                <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9" />
+                                <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
                                 <label className="text-xs font-medium text-slate-500">Cost ($)</label>
-                                <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9" />
+                                <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-slate-900 gap-2">
                                 <Plus className="h-4 w-4" /> Add
@@ -231,7 +258,7 @@ export function EstimationSimulator() {
                 </Card>
             </div>
 
-            <div className="space-y-6">
+            <div className={`space-y-6 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                 <Card className="shadow-sm border-slate-100 bg-slate-900 text-white">
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg text-white">
@@ -281,7 +308,7 @@ export function EstimationSimulator() {
                             </div>
                         </div>
 
-                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 mt-4">
+                        <Button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 mt-4">
                             <Save className="h-4 w-4" /> Save Estimate {version}
                         </Button>
                     </CardContent>

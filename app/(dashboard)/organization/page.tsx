@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { EmployeesTable, Employee } from '@/components/tables/EmployeesTable';
+import { EmployeesTable, Employee as TableEmployee } from '@/components/tables/EmployeesTable';
 import { EmployeeForm, EmployeeFormValues } from '@/components/forms/EmployeeForm';
-import { DepartmentsTable, Department } from '@/components/tables/DepartmentsTable';
+import { DepartmentsTable, Department as TableDepartment } from '@/components/tables/DepartmentsTable';
 import { DepartmentForm, DepartmentFormValues } from '@/components/forms/DepartmentForm';
-import { RolesTable, Role } from '@/components/tables/RolesTable';
+import { RolesTable, Role as TableRole } from '@/components/tables/RolesTable';
 import { RoleForm, RoleFormValues } from '@/components/forms/RoleForm';
-import { OverheadsTable, Overhead } from '@/components/tables/OverheadsTable';
+import { OverheadsTable, Overhead as TableOverhead } from '@/components/tables/OverheadsTable';
 import { OverheadForm, OverheadFormValues } from '@/components/forms/OverheadForm';
 import {
     Dialog,
@@ -22,48 +22,28 @@ import { Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-
-const mockEmployees: Employee[] = [
-    { id: '1', name: 'John Doe', role: 'Developer', monthlySalary: 5000, workableHours: 160, costPerHour: 31.25, status: 'Active' },
-    { id: '2', name: 'Jane Smith', role: 'Designer', monthlySalary: 4500, workableHours: 160, costPerHour: 28.12, status: 'Active' },
-    { id: '3', name: 'Bob Johnson', role: 'Project Manager', monthlySalary: 6000, workableHours: 160, costPerHour: 37.5, status: 'On Leave' },
-];
-
-const mockDepartments: Department[] = [
-    { id: '1', name: 'Engineering', manager: 'Alice Roberts', headcount: 12 },
-    { id: '2', name: 'Design', manager: 'Mark Smith', headcount: 4 },
-];
-
-const mockRoles: Role[] = [
-    { id: '1', title: 'Senior Developer', department: 'Engineering', rate: 150 },
-    { id: '2', title: 'UI/UX Designer', department: 'Design', rate: 120 },
-];
-
-const mockOverheads: Overhead[] = [
-    { id: '1', category: 'Software Licenses', description: 'AWS, GitHub, Slack, Figma', monthlyCost: 5200 },
-    { id: '2', category: 'Office Rent', description: 'HQ Lease', monthlyCost: 12000 },
-];
+import { useBusinessStore } from '@/store/businessStore';
+import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
 
 export default function EmployeesPage() {
+    // Connect to Store
+    const store = useBusinessStore();
+
     // Employees State
-    const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
     const [isEmpDialogOpen, setIsEmpDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
     // Departments State
-    const [departments, setDepartments] = useState<Department[]>(mockDepartments);
     const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
     const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
 
     // Roles State
-    const [roles, setRoles] = useState<Role[]>(mockRoles);
     const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
 
     // Overheads State
-    const [overheads, setOverheads] = useState<Overhead[]>(mockOverheads);
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
-    const [editingOverhead, setEditingOverhead] = useState<Overhead | null>(null);
+    const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
 
     // Salary Structure State
     const [salaryMultiplier, setSalaryMultiplier] = useState({ taxes: 8, benefits: 12 });
@@ -72,7 +52,7 @@ export default function EmployeesPage() {
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        const newEmployee: Employee = {
+        store.addEmployee({
             id: Math.random().toString(),
             name: data.name,
             role: data.role,
@@ -80,68 +60,63 @@ export default function EmployeesPage() {
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
             status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        };
-        setEmployees([...employees, newEmployee]);
+        });
         setIsEmpDialogOpen(false);
     };
 
     const handleEditEmployee = async (data: EmployeeFormValues) => {
         if (!editingEmployee) return;
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setEmployees(employees.map(emp => emp.id === editingEmployee.id ? {
-            ...emp,
+        store.updateEmployee(editingEmployee.id, {
             name: data.name,
             role: data.role,
             monthlySalary: data.monthlySalary,
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
             status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        } : emp));
+        });
         setEditingEmployee(null);
     };
 
     // --- Department Handlers ---
     const handleAddDepartment = async (data: DepartmentFormValues) => {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        const newDept: Department = { id: Math.random().toString(), ...data };
-        setDepartments([...departments, newDept]);
+        store.addDepartment({ id: Math.random().toString(), ...data, headcount: 0 });
         setIsDeptDialogOpen(false);
     };
 
     const handleEditDepartment = async (data: DepartmentFormValues) => {
         if (!editingDepartment) return;
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setDepartments(departments.map(d => d.id === editingDepartment.id ? { ...d, ...data } : d));
+        store.updateDepartment(editingDepartment.id, data);
         setEditingDepartment(null);
     };
 
     // --- Role Handlers ---
     const handleAddRole = async (data: RoleFormValues) => {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        const newRole: Role = { id: Math.random().toString(), ...data };
-        setRoles([...roles, newRole]);
+        store.addRole({ id: Math.random().toString(), ...data });
         setIsRoleDialogOpen(false);
     };
 
     const handleEditRole = async (data: RoleFormValues) => {
         if (!editingRole) return;
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setRoles(roles.map(r => r.id === editingRole.id ? { ...r, ...data } : r));
+        store.updateRole(editingRole.id, data);
         setEditingRole(null);
     };
 
     // --- Overhead Handlers ---
     const handleAddOverhead = async (data: OverheadFormValues) => {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        const newOverhead: Overhead = { id: Math.random().toString(), ...data };
-        setOverheads([...overheads, newOverhead]);
+        store.addGlobalOverhead({ id: Math.random().toString(), ...data });
         setIsOverheadDialogOpen(false);
     };
 
     const handleEditOverhead = async (data: OverheadFormValues) => {
         if (!editingOverhead) return;
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setOverheads(overheads.map(o => o.id === editingOverhead.id ? { ...o, ...data } : o));
+        store.updateGlobalOverhead(editingOverhead.id, data);
         setEditingOverhead(null);
     };
 
@@ -192,9 +167,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <DepartmentsTable
-                        data={departments}
-                        onEdit={setEditingDepartment}
-                        onDelete={(id) => setDepartments(departments.filter(d => d.id !== id))}
+                        data={store.departments as any}
+                        onEdit={(dept) => setEditingDepartment(dept as any)}
+                        onDelete={(id) => store.deleteDepartment(id)}
                     />
 
                     <Dialog open={!!editingDepartment} onOpenChange={(open) => !open && setEditingDepartment(null)}>
@@ -237,9 +212,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <RolesTable
-                        data={roles}
-                        onEdit={setEditingRole}
-                        onDelete={(id) => setRoles(roles.filter(r => r.id !== id))}
+                        data={store.roles as any}
+                        onEdit={(role) => setEditingRole(role as any)}
+                        onDelete={(id) => store.deleteRole(id)}
                     />
 
                     <Dialog open={!!editingRole} onOpenChange={(open) => !open && setEditingRole(null)}>
@@ -282,9 +257,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <EmployeesTable
-                        data={employees}
-                        onEdit={setEditingEmployee}
-                        onDelete={(id) => setEmployees(employees.filter(emp => emp.id !== id))}
+                        data={store.employees as any}
+                        onEdit={(emp) => setEditingEmployee(emp as any)}
+                        onDelete={(id) => store.deleteEmployee(id)}
                     />
 
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
@@ -365,9 +340,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <OverheadsTable
-                        data={overheads}
-                        onEdit={setEditingOverhead}
-                        onDelete={(id) => setOverheads(overheads.filter(o => o.id !== id))}
+                        data={store.globalOverheads as any}
+                        onEdit={(oh) => setEditingOverhead(oh as any)}
+                        onDelete={(id) => store.deleteGlobalOverhead(id)}
                     />
 
                     <Dialog open={!!editingOverhead} onOpenChange={(open) => !open && setEditingOverhead(null)}>

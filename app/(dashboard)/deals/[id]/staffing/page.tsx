@@ -112,7 +112,7 @@ export default function StaffingPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Hard Booking Staffing</h1>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
                         Assigning engineers for <strong className="text-foreground">{deal.name}</strong>
-                        <Badge variant="outline">{deal.ghostRoles.length} Roles Required</Badge>
+                        <Badge variant="outline">{(deal.ghostRoles || []).length} Roles Required</Badge>
                     </p>
                 </div>
             </div>
@@ -184,7 +184,7 @@ export default function StaffingPage() {
                             <CardTitle>Deal Requirements</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {deal.ghostRoles.map((gr) => (
+                            {(deal.ghostRoles || []).map((gr) => (
                                 <div key={gr.id} className="flex justify-between items-center py-2 border-b last:border-0 last:pb-0">
                                     <div className="flex flex-col">
                                         <span className="capitalize font-medium">{gr.role}</span>
@@ -195,7 +195,7 @@ export default function StaffingPage() {
                             ))}
                             <div className="pt-4 flex justify-between font-medium">
                                 <span>Total Budget</span>
-                                <span>${deal.clientBudget.toLocaleString()}</span>
+                                <span>${(deal.clientBudget || 0).toLocaleString()}</span>
                             </div>
                             <Button
                                 className="w-full mt-4"

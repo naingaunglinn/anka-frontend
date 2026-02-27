@@ -27,7 +27,7 @@ export default function PipelineKanbanPage() {
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-        updateDealStage(draggableId, destination.droppableId as Deal["stage"]);
+        updateDealStage(draggableId, destination.droppableId);
     };
 
     const getMarginColor = (budget: number, profit: number) => {
@@ -47,7 +47,7 @@ export default function PipelineKanbanPage() {
                     <Badge variant="secondary">{columnDeals.length}</Badge>
                 </div>
 
-                <Droppable droppableId={stage}>
+                <Droppable droppableId={stage || 'inquiry'}>
                     {(provided, snapshot) => (
                         <div
                             {...provided.droppableProps}
@@ -78,16 +78,16 @@ export default function PipelineKanbanPage() {
                                                 <CardContent className="p-4 pt-0 space-y-2 text-sm">
                                                     <div className="flex justify-between mt-2">
                                                         <span className="text-muted-foreground">Budget:</span>
-                                                        <span className="font-medium">${deal.clientBudget.toLocaleString()}</span>
+                                                        <span className="font-medium">${(deal.clientBudget || 0).toLocaleString()}</span>
                                                     </div>
                                                     <div className="flex justify-between">
                                                         <span className="text-muted-foreground">Est. Cost:</span>
-                                                        <span className="font-medium">${deal.totalEstimatedCost.toLocaleString()}</span>
+                                                        <span className="font-medium">${(deal.totalEstimatedCost || 0).toLocaleString()}</span>
                                                     </div>
                                                     <div className="flex justify-between">
                                                         <span className="text-muted-foreground">Profit:</span>
-                                                        <span className={getMarginColor(deal.clientBudget, deal.estimatedGrossProfit)}>
-                                                            ${deal.estimatedGrossProfit.toLocaleString()}
+                                                        <span className={getMarginColor(deal.clientBudget || 0, deal.estimatedGrossProfit || 0)}>
+                                                            ${(deal.estimatedGrossProfit || 0).toLocaleString()}
                                                         </span>
                                                     </div>
 

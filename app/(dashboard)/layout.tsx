@@ -1,20 +1,36 @@
+"use client";
+
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { cn } from '@/lib/utils';
+import { useUIStore } from '@/store/uiStore';
+import { useEffect, useState } from 'react';
 
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const { isSidebarCollapsed } = useUIStore();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => setMounted(true), []);
+
     return (
         <div className="h-full relative overflow-hidden bg-slate-50">
             {/* Sidebar - fixed on desktop */}
-            <div className="hidden h-full md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-[80] bg-slate-900">
+            <div className={cn(
+                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-slate-900 transition-all duration-300",
+                mounted && isSidebarCollapsed ? "md:w-20" : "md:w-64"
+            )}>
                 <Sidebar />
             </div>
 
             {/* Main content wrapper */}
-            <main className="md:pl-64 flex flex-col h-full bg-slate-50">
+            <main className={cn(
+                "flex flex-col h-full bg-slate-50 transition-all duration-300",
+                mounted && isSidebarCollapsed ? "md:pl-20" : "md:pl-64"
+            )}>
                 <Header />
 
                 {/* Scrollable content area */}

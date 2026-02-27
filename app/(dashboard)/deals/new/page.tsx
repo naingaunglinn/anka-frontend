@@ -24,7 +24,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 
 const ghostRoleSchema = z.object({
-    role: z.enum(["frontend", "backend", "pm", "qa"]),
+    role: z.string(),
     quantity: z.coerce.number().min(1, "At least 1"),
     months: z.coerce.number().min(1, "At least 1 month"),
     avgMonthlySalary: z.coerce.number().min(0, "Must be positive"),
