@@ -66,7 +66,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Acme Corp",
         estimatedValue: 120000,
         winProbability: 100,
-        columnId: "won",
+        status: "won",
         targetMargin: 30,
         estimationResources: [
             { id: "res1", featureName: "Architecture Setup", roleId: "r1", hours: 100 },
@@ -80,7 +80,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Startup Inc",
         estimatedValue: 85000,
         winProbability: 75,
-        columnId: "proposal",
+        status: "proposal",
         targetMargin: 40,
         estimationResources: [
             { id: "res3", featureName: "UI/UX Design", roleId: "r3", hours: 120 },
@@ -94,7 +94,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Global Tech",
         estimatedValue: 45000,
         winProbability: 20,
-        columnId: "lead",
+        status: "lead",
         targetMargin: 25,
         estimationResources: [],
         projectOverheads: [],
@@ -160,7 +160,7 @@ export interface BusinessState {
     addDeal: (deal: Deal) => void;
     updateDeal: (id: string, updates: Partial<Deal>) => void;
     deleteDeal: (id: string) => void;
-    updateDealStage: (id: string, columnId: string, probability?: number) => void;
+    updateDealStage: (id: string, status: string, probability?: number) => void;
     assignEngineer: (dealId: string, engineerId: string, allocatedHours: number) => void;
 
 
@@ -220,8 +220,8 @@ export const useBusinessStore = create<BusinessState>()(
             addDeal: (deal) => set((state) => ({ deals: [...state.deals, deal] })),
             updateDeal: (id, updates) => set((state) => ({ deals: state.deals.map(d => d.id === id ? { ...d, ...updates } : d) })),
             deleteDeal: (id) => set((state) => ({ deals: state.deals.filter(d => d.id !== id) })),
-            updateDealStage: (id, columnId, probability) => set((state) => ({
-                deals: state.deals.map(d => d.id === id ? { ...d, columnId, winProbability: probability } : d)
+            updateDealStage: (id, status, probability) => set((state) => ({
+                deals: state.deals.map(d => d.id === id ? { ...d, status: status as any, winProbability: probability } : d)
             })),
 
             winDeal: (dealId) => {
@@ -237,14 +237,15 @@ export const useBusinessStore = create<BusinessState>()(
                     id: `CON-${Math.floor(Math.random() * 10000)}`,
                     dealId: deal.id,
                     client: deal.client || "Client",
-                    totalValue: deal.estimatedValue || deal.clientBudget || 0,
+                    totalValue: deal.clientBudget || deal.estimatedValue || 0,
                     revenueRecognized: 0,
                     status: 'Active'
                 };
 
                 // Auto-generate Project
                 const est = get().getDealEstimation(dealId);
-                const totalHours = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
+                const totalHoursLegacy = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
+                const totalHours = deal.workloadHours || totalHoursLegacy || 0;
 
                 const newProject: Project = {
                     id: `PRJ-${Math.floor(Math.random() * 10000)}`,
@@ -280,6 +281,18 @@ export const useBusinessStore = create<BusinessState>()(
                 const deal = state.deals.find(d => d.id === dealId);
                 if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
 
+                // If deal has the new calculated fields from the unified form, return them
+                if (deal.totalEstimatedCost !== undefined) {
+                    return {
+                        laborCost: deal.baseLaborCost || 0,
+                        overheadCost: (deal.overheadCost || 0) + (deal.bufferCost || 0),
+                        suggestedPrice: deal.clientBudget || 0,
+                        expectedProfit: deal.estimatedGrossProfit || 0,
+                        totalCost: deal.totalEstimatedCost || 0
+                    };
+                }
+
+                // Fallback to old dynamic calculation for legacy deals
                 let laborCost = 0;
                 (deal.estimationResources || []).forEach(res => {
                     const role = state.roles.find(r => r.id === res.roleId);
@@ -346,11 +359,10 @@ export const useBusinessStore = create<BusinessState>()(
                 });
 
                 state.deals.forEach((deal) => {
-                    // Check logic depending on columnId OR stage
-                    const stage = deal.columnId || deal.stage || 'inquiry';
-                    if (stage === "lost") return;
+                    const status = deal.status || 'inquiry';
+                    if (status === "lost") return;
 
-                    if (stage === "won" || stage === "contract") {
+                    if (status === "won" || status === "contract") {
                         const hardAssignments = deal.hardAssignments || [];
                         hardAssignments.forEach((assignment) => {
                             const eng = state.engineers.find((e) => e.id === assignment.engineerId);
@@ -361,7 +373,7 @@ export const useBusinessStore = create<BusinessState>()(
                     } else {
                         (deal.ghostRoles || []).forEach((gr) => {
                             const totalRequiredHours = gr.quantity * 160;
-                            const prob = deal.winProbability || deal.probability || 0;
+                            const prob = deal.winProbability || 0;
                             const softBooked = calculateSoftBookedHours(totalRequiredHours, prob);
                             if (pool[gr.role]) {
                                 pool[gr.role].softBookedHours += softBooked;

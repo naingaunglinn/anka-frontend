@@ -37,8 +37,8 @@ export default function PipelineKanbanPage() {
         return "text-green-500 font-bold";
     };
 
-    const StageColumn = ({ stage, title }: { stage: Deal["stage"]; title: string }) => {
-        const columnDeals = deals.filter((d) => d.stage === stage);
+    const StageColumn = ({ status, title }: { status: Deal["status"]; title: string }) => {
+        const columnDeals = deals.filter((d) => d.status === status);
 
         return (
             <div className="flex flex-col w-80 bg-muted/40 rounded-xl p-4 shrink-0">
@@ -47,7 +47,7 @@ export default function PipelineKanbanPage() {
                     <Badge variant="secondary">{columnDeals.length}</Badge>
                 </div>
 
-                <Droppable droppableId={stage || 'inquiry'}>
+                <Droppable droppableId={status || 'inquiry'}>
                     {(provided, snapshot) => (
                         <div
                             {...provided.droppableProps}
@@ -93,9 +93,9 @@ export default function PipelineKanbanPage() {
 
                                                     <div className="flex items-center justify-between pt-2">
                                                         <Badge variant="outline" className="text-xs font-normal">
-                                                            {deal.probability}% Win
+                                                            {deal.winProbability}% Win
                                                         </Badge>
-                                                        {deal.stage === "won" ? (
+                                                        {deal.status === "won" ? (
                                                             <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">Hard Booked</Badge>
                                                         ) : (
                                                             <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300">Soft Booked</Badge>
@@ -108,7 +108,7 @@ export default function PipelineKanbanPage() {
                                                             Edit Deal
                                                         </Button>
                                                     </Link>
-                                                    {deal.stage === "won" && (
+                                                    {deal.status === "won" && (
                                                         <Link href={`/deals/${deal.id}/staffing`} className="w-full">
                                                             <Button variant="default" size="sm" className="w-full bg-blue-600 hover:bg-blue-700">
                                                                 Staffing
@@ -148,10 +148,10 @@ export default function PipelineKanbanPage() {
             <div className="flex-1 overflow-x-auto overflow-y-hidden">
                 <div className="flex h-full gap-6 pb-4">
                     <DragDropContext onDragEnd={onDragEnd}>
-                        <StageColumn stage="inquiry" title="Inquiry" />
-                        <StageColumn stage="proposal" title="Proposal" />
-                        <StageColumn stage="won" title="Won - Hard Booked" />
-                        <StageColumn stage="lost" title="Lost" />
+                        <StageColumn status="inquiry" title="Inquiry" />
+                        <StageColumn status="proposal" title="Proposal" />
+                        <StageColumn status="won" title="Won - Hard Booked" />
+                        <StageColumn status="lost" title="Lost" />
                     </DragDropContext>
                 </div>
             </div>

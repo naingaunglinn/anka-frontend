@@ -86,14 +86,12 @@ export interface Deal {
     client?: string;
     estimatedValue?: number;
     winProbability?: number;
-    columnId?: string; // 'lead', 'opportunity', 'proposal', 'contract', 'won', 'lost'
+    status?: "lead" | "opportunity" | "inquiry" | "proposal" | "contract" | "won" | "lost";
 
     // Legacy fields for Deals UI
     clientBudget?: number;
     timelineMonths?: number;
     workloadHours?: number;
-    probability?: number;
-    stage?: "inquiry" | "proposal" | "won" | "lost";
     ghostRoles?: GhostRole[];
     hardAssignments?: HardAssignment[];
     baseLaborCost?: number;

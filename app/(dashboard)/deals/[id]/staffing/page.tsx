@@ -58,7 +58,7 @@ export default function StaffingPage() {
         let booked = 0;
         deals.forEach((d) => {
             // Only count won deals, and exclude the current deal (since we're editing it)
-            if (d.stage === "won" && d.id !== deal.id) {
+            if (d.status === "won" && d.id !== deal.id) {
                 const assignment = d.hardAssignments?.find((a) => a.engineerId === engineerId);
                 if (assignment) {
                     booked += assignment.allocatedHours;

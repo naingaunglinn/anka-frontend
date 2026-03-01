@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 
 const ghostRoleSchema = z.object({
@@ -35,7 +36,7 @@ const dealSchema = z.object({
     clientBudget: z.coerce.number().min(1, "Budget is required"),
     timelineMonths: z.coerce.number().min(1, "Timeline is required"),
     workloadHours: z.coerce.number().min(1, "Workload is required"),
-    probability: z.coerce.number().min(0).max(100),
+    winProbability: z.coerce.number().min(0).max(100),
     ghostRoles: z.array(ghostRoleSchema),
 });
 
@@ -53,7 +54,7 @@ export default function NewDealPage() {
             clientBudget: 0,
             timelineMonths: 1,
             workloadHours: 0,
-            probability: 50,
+            winProbability: 50,
             ghostRoles: [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
         },
     });
@@ -63,7 +64,6 @@ export default function NewDealPage() {
         name: "ghostRoles",
     });
 
-    // Watch values for live calculations
     const ghostRoles = form.watch("ghostRoles");
     const clientBudget = form.watch("clientBudget");
 
@@ -99,8 +99,8 @@ export default function NewDealPage() {
             clientBudget: data.clientBudget,
             timelineMonths: data.timelineMonths,
             workloadHours: data.workloadHours,
-            probability: data.probability,
-            stage: "inquiry",
+            winProbability: data.winProbability,
+            status: "inquiry",
             ghostRoles: roles,
             hardAssignments: [],
             baseLaborCost,
@@ -108,196 +108,228 @@ export default function NewDealPage() {
             bufferCost,
             totalEstimatedCost,
             estimatedGrossProfit,
+            targetMargin: 30, // Default target margin
         };
 
         addDeal(newDeal);
-        router.push("/deals");
+        router.push("/crm");
     }
 
     return (
         <div className="container mx-auto p-6 max-w-5xl space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Phase 1: Estimation</h1>
-                <p className="text-muted-foreground">Draft a new deal and estimate costs via Ghost Roles.</p>
+                <h1 className="text-3xl font-bold tracking-tight">Draft New Deal</h1>
+                <p className="text-muted-foreground mt-1">Structure the client context, estimate costs, and prepare deliverables.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Deal Details</CardTitle>
+                            <CardTitle>Deal Profile</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                    <Tabs defaultValue="context" className="w-full">
+                                        <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
+                                            <TabsTrigger value="context">Sales Context</TabsTrigger>
+                                            <TabsTrigger value="estimation">Staffing & Est.</TabsTrigger>
+                                            <TabsTrigger value="contracts">Contracts</TabsTrigger>
+                                        </TabsList>
 
-                                    <FormField
-                                        control={form.control}
-                                        name="name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Deal Name</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="e.g. Acme Corp Web App" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                        <TabsContent value="context" className="space-y-6">
+                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100 space-y-6">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="name"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Deal Name</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="clientBudget"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Client Budget ($)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="timelineMonths"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Timeline (Months)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="workloadHours"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Total Workload (Hours)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="probability"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Win Probability (%)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="pt-4 border-t">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-lg font-medium">Ghost Roles</h3>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => append({ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
-                                            >
-                                                <Plus className="h-4 w-4 mr-2" /> Add Role
-                                            </Button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {fields.map((field, index) => (
-                                                <div key={field.id} className="flex gap-4 items-end bg-muted/50 p-4 rounded-lg">
+                                                <div className="grid grid-cols-2 gap-6">
                                                     <FormField
                                                         control={form.control}
-                                                        name={`ghostRoles.${index}.role`}
+                                                        name="clientBudget"
                                                         render={({ field }) => (
-                                                            <FormItem className="flex-1">
-                                                                <FormLabel>Role</FormLabel>
-                                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                                    <FormControl>
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="Select" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="frontend">Frontend</SelectItem>
-                                                                        <SelectItem value="backend">Backend</SelectItem>
-                                                                        <SelectItem value="pm">Project Manager</SelectItem>
-                                                                        <SelectItem value="qa">QA</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`ghostRoles.${index}.quantity`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="w-24">
-                                                                <FormLabel>Qty</FormLabel>
+                                                            <FormItem>
+                                                                <FormLabel>Client Budget ($)</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" {...field} />
+                                                                    <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
-
                                                     <FormField
                                                         control={form.control}
-                                                        name={`ghostRoles.${index}.months`}
+                                                        name="winProbability"
                                                         render={({ field }) => (
-                                                            <FormItem className="w-24">
-                                                                <FormLabel>Months</FormLabel>
+                                                            <FormItem>
+                                                                <FormLabel>Win Probability (%)</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" {...field} />
+                                                                    <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
-
                                                     <FormField
                                                         control={form.control}
-                                                        name={`ghostRoles.${index}.avgMonthlySalary`}
+                                                        name="timelineMonths"
                                                         render={({ field }) => (
-                                                            <FormItem className="w-32">
-                                                                <FormLabel>Mo. Salary</FormLabel>
+                                                            <FormItem>
+                                                                <FormLabel>Timeline (Months)</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" {...field} />
+                                                                    <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="workloadHours"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Total Workload (Hours)</FormLabel>
+                                                                <FormControl>
+                                                                    <Input type="number" className="bg-white" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </TabsContent>
 
+                                        <TabsContent value="estimation" className="space-y-6">
+                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                                                <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
+                                                        <p className="text-xs text-muted-foreground mt-1">Estimate the shape of the team needed to deliver this deal.</p>
+                                                    </div>
                                                     <Button
                                                         type="button"
-                                                        variant="destructive"
-                                                        size="icon"
-                                                        onClick={() => remove(index)}
-                                                        disabled={fields.length === 1}
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="bg-white shadow-sm"
+                                                        onClick={() => append({ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
+                                                        <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
 
-                                    <div className="flex justify-end pt-4">
-                                        <Button type="submit" size="lg">Save Draft Deal</Button>
+                                                <div className="space-y-4">
+                                                    {fields.map((field, index) => (
+                                                        <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`ghostRoles.${index}.role`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex-1">
+                                                                        <FormLabel className="text-xs text-slate-500">Role</FormLabel>
+                                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                            <FormControl>
+                                                                                <SelectTrigger>
+                                                                                    <SelectValue placeholder="Select" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="frontend">Frontend Eng.</SelectItem>
+                                                                                <SelectItem value="backend">Backend Eng.</SelectItem>
+                                                                                <SelectItem value="pm">Project Manager</SelectItem>
+                                                                                <SelectItem value="qa">QA Engineer</SelectItem>
+                                                                                <SelectItem value="design">UI/UX Designer</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`ghostRoles.${index}.quantity`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="w-20">
+                                                                        <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
+                                                                        <FormControl>
+                                                                            <Input type="number" {...field} />
+                                                                        </FormControl>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`ghostRoles.${index}.months`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="w-20">
+                                                                        <FormLabel className="text-xs text-slate-500">Mos.</FormLabel>
+                                                                        <FormControl>
+                                                                            <Input type="number" {...field} />
+                                                                        </FormControl>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`ghostRoles.${index}.avgMonthlySalary`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="w-28">
+                                                                        <FormLabel className="text-xs text-slate-500">Mo. Salary</FormLabel>
+                                                                        <FormControl>
+                                                                            <Input type="number" {...field} />
+                                                                        </FormControl>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                onClick={() => remove(index)}
+                                                                disabled={fields.length === 1}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </TabsContent>
+
+                                        <TabsContent value="contracts" className="space-y-6">
+                                            <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3">
+                                                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                    <ArrowRight className="h-6 w-6 text-indigo-600" />
+                                                </div>
+                                                <h3 className="text-lg font-semibold text-slate-800">Deliverables & Invoicing</h3>
+                                                <p className="text-sm text-slate-500 max-w-sm">
+                                                    Contract generation, milestone planning, and project scaffolding will unlock once this deal transitions to the <b>Contract</b> stage.
+                                                </p>
+                                            </div>
+                                        </TabsContent>
+                                    </Tabs>
+
+                                    <div className="flex justify-end pt-6 border-t mt-6">
+                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm">Save Draft Deal</Button>
                                     </div>
                                 </form>
                             </Form>
@@ -307,41 +339,42 @@ export default function NewDealPage() {
 
                 {/* Live Calculation Output Sidebar */}
                 <div className="space-y-6">
-                    <Card className="sticky top-6">
-                        <CardHeader className="bg-muted/40 pb-4 border-b">
-                            <CardTitle>Live Financials</CardTitle>
+                    <Card className="sticky top-6 shadow-sm border-slate-100">
+                        <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100 rounded-t-xl">
+                            <CardTitle className="text-lg">Live Financials</CardTitle>
                             <CardDescription>Estimated metrics based on inputs</CardDescription>
                         </CardHeader>
-                        <CardContent className="pt-6 space-y-4">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Base Labor Cost</span>
-                                <span className="font-medium">${baseLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Overhead ({companySettings.overheadPercentage}%)</span>
-                                <span className="font-medium text-red-500/80">+${overheadCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Risk Buffer ({companySettings.bufferPercentage}%)</span>
-                                <span className="font-medium text-red-500/80">+${bufferCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <CardContent className="pt-6 space-y-5">
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-500">Base Labor Cost</span>
+                                    <span className="font-medium text-slate-700">${baseLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-500">Overhead ({companySettings.overheadPercentage}%)</span>
+                                    <span className="font-medium text-red-500/80">+${overheadCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-500">Risk Buffer ({companySettings.bufferPercentage}%)</span>
+                                    <span className="font-medium text-red-500/80">+${bufferCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
                             </div>
 
-                            <div className="border-t pt-4 mt-2">
-                                <div className="flex justify-between font-bold text-lg mb-2">
+                            <div className="border-t border-slate-100 pt-5">
+                                <div className="flex justify-between font-bold text-slate-800 mb-3">
                                     <span>Total Est. Cost</span>
                                     <span>${totalEstimatedCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                 </div>
-                                <div className="flex justify-between font-bold text-xl">
-                                    <span>Gross Profit</span>
-                                    <span className={getMarginColor(profitMargin)}>
-                                        ${estimatedGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between text-sm mt-1">
-                                    <span className="text-muted-foreground">Est. Margin</span>
-                                    <span className={`font-medium ${getMarginColor(profitMargin)}`}>
-                                        {profitMargin.toFixed(1)}%
-                                    </span>
+                                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                    <span className="font-bold text-slate-800">Gross Profit</span>
+                                    <div className="flex flex-col items-end">
+                                        <span className={`font-bold text-lg ${getMarginColor(profitMargin)}`}>
+                                            ${estimatedGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </span>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)} bg-${getMarginColor(profitMargin).split('-')[1]}-50 border border-${getMarginColor(profitMargin).split('-')[1]}-100`}>
+                                            {profitMargin.toFixed(1)}% Margin
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
