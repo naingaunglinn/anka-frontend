@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Target, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DollarSign, Target, TrendingUp, Plus } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 
@@ -19,9 +21,16 @@ export default function CRMPage() {
 
     return (
         <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">CRM & Sales Pipeline</h2>
-                <p className="text-muted-foreground mt-1">Manage leads, track opportunities, and forecast revenue.</p>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">CRM & Sales Pipeline</h2>
+                    <p className="text-muted-foreground mt-1">Manage leads, track opportunities, and forecast revenue.</p>
+                </div>
+                <Link href="/crm/new">
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" /> New Deal
+                    </Button>
+                </Link>
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">

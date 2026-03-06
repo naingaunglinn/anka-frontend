@@ -18,7 +18,6 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
-    Handshake
 } from 'lucide-react';
 
 const routes = [
@@ -40,12 +39,7 @@ const routes = [
         href: '/crm',
         color: 'text-pink-700',
     },
-    {
-        label: 'Deals',
-        icon: Handshake,
-        href: '/deals',
-        color: 'text-rose-500',
-    },
+
     {
         label: 'Estimation',
         icon: Calculator,

@@ -277,7 +277,6 @@ export default function EditDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.quantity`}
@@ -291,7 +290,6 @@ export default function EditDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.months`}
@@ -305,7 +303,6 @@ export default function EditDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.avgMonthlySalary`}
@@ -319,7 +316,6 @@ export default function EditDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <Button
                                                                 type="button"
                                                                 variant="ghost"
@@ -392,7 +388,7 @@ export default function EditDealPage() {
                                         <span className={`font-bold text-lg ${getMarginColor(profitMargin)}`}>
                                             ${estimatedGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                         </span>
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)} bg-${getMarginColor(profitMargin).split('-')[1]}-50 border border-${getMarginColor(profitMargin).split('-')[1]}-100`}>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)}`}>
                                             {profitMargin.toFixed(1)}% Margin
                                         </span>
                                     </div>
@@ -401,7 +397,6 @@ export default function EditDealPage() {
                         </CardContent>
                     </Card>
                 </div>
-
             </div>
         </div>
     );

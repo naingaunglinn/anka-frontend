@@ -108,7 +108,7 @@ export default function NewDealPage() {
             bufferCost,
             totalEstimatedCost,
             estimatedGrossProfit,
-            targetMargin: 30, // Default target margin
+            targetMargin: 30,
         };
 
         addDeal(newDeal);
@@ -256,7 +256,6 @@ export default function NewDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.quantity`}
@@ -270,7 +269,6 @@ export default function NewDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.months`}
@@ -284,7 +282,6 @@ export default function NewDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <FormField
                                                                 control={form.control}
                                                                 name={`ghostRoles.${index}.avgMonthlySalary`}
@@ -298,7 +295,6 @@ export default function NewDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-
                                                             <Button
                                                                 type="button"
                                                                 variant="ghost"
@@ -371,7 +367,7 @@ export default function NewDealPage() {
                                         <span className={`font-bold text-lg ${getMarginColor(profitMargin)}`}>
                                             ${estimatedGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                         </span>
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)} bg-${getMarginColor(profitMargin).split('-')[1]}-50 border border-${getMarginColor(profitMargin).split('-')[1]}-100`}>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)}`}>
                                             {profitMargin.toFixed(1)}% Margin
                                         </span>
                                     </div>
@@ -380,7 +376,6 @@ export default function NewDealPage() {
                         </CardContent>
                     </Card>
                 </div>
-
             </div>
         </div>
     );
