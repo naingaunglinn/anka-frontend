@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useEffect, useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 
 export default function DashboardLayout({
     children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
 
     return (
         <div className="h-full relative overflow-hidden bg-slate-50">
+            <Toaster position="top-right" />
             {/* Sidebar - fixed on desktop */}
             <div className={cn(
                 "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-slate-900 transition-all duration-300",

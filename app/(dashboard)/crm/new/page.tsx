@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -17,12 +18,14 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ArrowRight } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Upload } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
+import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 
 const ghostRoleSchema = z.object({
     role: z.string(),
@@ -37,6 +40,7 @@ const dealSchema = z.object({
     timelineMonths: z.coerce.number().min(1, "Timeline is required"),
     workloadHours: z.coerce.number().min(1, "Workload is required"),
     winProbability: z.coerce.number().min(0).max(100),
+    workloadDescription: z.string().optional(),
     ghostRoles: z.array(ghostRoleSchema),
 });
 
@@ -47,6 +51,9 @@ export default function NewDealPage() {
     const addDeal = useBusinessStore((state) => state.addDeal);
     const companySettings = useBusinessStore((state) => state.companySettings);
 
+    const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
+    const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealSchema) as any,
         defaultValues: {
@@ -55,6 +62,7 @@ export default function NewDealPage() {
             timelineMonths: 1,
             workloadHours: 0,
             winProbability: 50,
+            workloadDescription: "",
             ghostRoles: [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
         },
     });
@@ -66,6 +74,21 @@ export default function NewDealPage() {
 
     const ghostRoles = form.watch("ghostRoles");
     const clientBudget = form.watch("clientBudget");
+    const timelineMonths = form.watch("timelineMonths");
+    const workloadHours = form.watch("workloadHours");
+    const workloadDescription = form.watch("workloadDescription") || "";
+
+    async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.type === 'text/plain') {
+            const text = await file.text();
+            setWorkloadDocText(text);
+            setUploadedFileName(file.name);
+        }
+    }
+
+    const dealId = uuidv4();
 
     const baseLaborCost = ghostRoles.reduce((total, role) => {
         return total + (role.quantity || 0) * (role.months || 0) * (role.avgMonthlySalary || 0);
@@ -208,6 +231,45 @@ export default function NewDealPage() {
                                                         )}
                                                     />
                                                 </div>
+
+                                                <FormField
+                                                    control={form.control}
+                                                    name="workloadDescription"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Project Scope / Workload Description</FormLabel>
+                                                            <FormControl>
+                                                                <Textarea
+                                                                    placeholder="Describe the project scope, deliverables, tech stack requirements, and any other details that will help AI assemble the right team..."
+                                                                    className="bg-white min-h-[100px]"
+                                                                    {...field}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+
+                                                <div>
+                                                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                                        Upload Brief (.txt) <span className="text-muted-foreground font-normal">— optional</span>
+                                                    </label>
+                                                    <div className="mt-2 flex items-center gap-3">
+                                                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
+                                                            <Upload className="h-4 w-4" />
+                                                            Choose file
+                                                            <input
+                                                                type="file"
+                                                                accept=".txt"
+                                                                className="hidden"
+                                                                onChange={handleFileUpload}
+                                                            />
+                                                        </label>
+                                                        {uploadedFileName && (
+                                                            <span className="text-xs text-slate-500">{uploadedFileName}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </TabsContent>
 
@@ -327,6 +389,15 @@ export default function NewDealPage() {
                                     <div className="flex justify-end pt-6 border-t mt-6">
                                         <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm">Save Draft Deal</Button>
                                     </div>
+
+                                    <AITeamBuilder
+                                        dealId={dealId}
+                                        clientBudget={clientBudget}
+                                        timelineMonths={timelineMonths}
+                                        workloadHours={workloadHours}
+                                        workloadDescription={workloadDescription}
+                                        workloadDocumentText={workloadDocText}
+                                    />
                                 </form>
                             </Form>
                         </CardContent>
