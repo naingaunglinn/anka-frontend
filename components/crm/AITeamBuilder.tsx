@@ -15,6 +15,7 @@ interface Props {
     workloadHours: number
     workloadDescription: string
     workloadDocumentText?: string
+    onAccept?: (result: AITeamBuilderResult) => void
 }
 
 const LOADING_STEPS = [
@@ -120,6 +121,7 @@ export function AITeamBuilder(props: Props) {
                     dealId={props.dealId}
                     clientBudget={props.clientBudget}
                     onRegenerate={handleBuild}
+                    onAccept={props.onAccept}
                 />
             )}
         </div>

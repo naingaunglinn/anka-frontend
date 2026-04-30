@@ -19,6 +19,7 @@ interface Props {
     dealId: string
     clientBudget: number
     onRegenerate: () => void
+    onAccept?: (result: AITeamBuilderResult) => void
 }
 
 function fmt(n: number): string {
@@ -30,8 +31,15 @@ export function AITeamBuilderResultPanel({
     dealId,
     clientBudget,
     onRegenerate,
+    onAccept,
 }: Props) {
     function handleAccept() {
+        if (onAccept) {
+            onAccept(result)
+            toast.success('AI team recommendation accepted!')
+            return
+        }
+
         const store = useBusinessStore.getState()
 
         store.updateDeal(dealId, {

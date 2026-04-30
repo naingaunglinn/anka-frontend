@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/aiTeamBuilder'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 
-const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview'
+const GEMINI_MODEL = 'gemini-2.0-flash-lite'
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 export async function POST(req: NextRequest) {

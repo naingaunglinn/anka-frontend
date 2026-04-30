@@ -92,6 +92,7 @@ export interface Deal {
     clientBudget?: number;
     timelineMonths?: number;
     workloadHours?: number;
+    workloadDescription?: string;
     ghostRoles?: GhostRole[];
     hardAssignments?: HardAssignment[];
     baseLaborCost?: number;

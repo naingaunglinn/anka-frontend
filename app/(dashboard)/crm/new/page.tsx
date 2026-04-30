@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,8 +52,10 @@ export default function NewDealPage() {
     const addDeal = useBusinessStore((state) => state.addDeal);
     const companySettings = useBusinessStore((state) => state.companySettings);
 
+    const [dealId] = useState(() => uuidv4());
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+    const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealSchema) as any,
@@ -88,8 +91,6 @@ export default function NewDealPage() {
         }
     }
 
-    const dealId = uuidv4();
-
     const baseLaborCost = ghostRoles.reduce((total, role) => {
         return total + (role.quantity || 0) * (role.months || 0) * (role.avgMonthlySalary || 0);
     }, 0);
@@ -117,20 +118,23 @@ export default function NewDealPage() {
         }));
 
         const newDeal: Deal = {
-            id: uuidv4(),
+            id: dealId,
             name: data.name,
             clientBudget: data.clientBudget,
             timelineMonths: data.timelineMonths,
             workloadHours: data.workloadHours,
             winProbability: data.winProbability,
+            workloadDescription: data.workloadDescription,
             status: "inquiry",
             ghostRoles: roles,
-            hardAssignments: [],
-            baseLaborCost,
-            overheadCost,
-            bufferCost,
-            totalEstimatedCost,
-            estimatedGrossProfit,
+            hardAssignments: acceptedAIResult
+                ? acceptedAIResult.team.map(m => ({ engineerId: m.employeeId, allocatedHours: m.allocatedHours }))
+                : [],
+            baseLaborCost: acceptedAIResult?.baseLaborCost ?? baseLaborCost,
+            overheadCost: acceptedAIResult?.overheadCost ?? overheadCost,
+            bufferCost: acceptedAIResult?.bufferCost ?? bufferCost,
+            totalEstimatedCost: acceptedAIResult?.totalEstimatedCost ?? totalEstimatedCost,
+            estimatedGrossProfit: acceptedAIResult?.estimatedGrossProfit ?? estimatedGrossProfit,
             targetMargin: 30,
         };
 
@@ -397,6 +401,7 @@ export default function NewDealPage() {
                                         workloadHours={workloadHours}
                                         workloadDescription={workloadDescription}
                                         workloadDocumentText={workloadDocText}
+                                        onAccept={setAcceptedAIResult}
                                     />
                                 </form>
                             </Form>
