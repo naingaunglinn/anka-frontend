@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
     // Pipeline Deals
     const pipelineDeals = store.deals
-        .filter(d => d.columnId !== 'won' && d.columnId !== 'lost')
+        .filter(d => d.status !== 'won' && d.status !== 'lost')
         .map(d => ({
             name: d.name,
             weightedValue: (d.estimatedValue || 0) * ((d.winProbability || 0) / 100),
@@ -87,7 +87,7 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatCurrency(store.deals.reduce((sum, d) => d.columnId !== 'won' && d.columnId !== 'lost' ? sum + (d.estimatedValue || d.clientBudget || 0) : sum, 0))}
+                            {formatCurrency(store.deals.reduce((sum, d) => d.status !== 'won' && d.status !== 'lost' ? sum + (d.estimatedValue || d.clientBudget || 0) : sum, 0))}
                         </div>
                         <p className="text-xs text-muted-foreground">Total un-won deal targets</p>
                     </CardContent>

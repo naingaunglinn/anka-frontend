@@ -1,22 +1,39 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Target, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DollarSign, Target, TrendingUp, Plus } from 'lucide-react';
+
+import { useBusinessStore } from '@/store/businessStore';
 
 export default function CRMPage() {
     const [pipelineTotal, setPipelineTotal] = useState(0);
     const [weightedTotal, setWeightedTotal] = useState(0);
 
+    const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
+    const capacityPool = getCapacityPool();
+
+    const totalSoftBooked = capacityPool.reduce((acc, curr) => acc + curr.softBookedHours, 0);
+    const totalHardBooked = capacityPool.reduce((acc, curr) => acc + curr.hardBookedHours, 0);
+
     return (
         <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">CRM & Sales Pipeline</h2>
-                <p className="text-muted-foreground mt-1">Manage leads, track opportunities, and forecast revenue.</p>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">CRM & Sales Pipeline</h2>
+                    <p className="text-muted-foreground mt-1">Manage leads, track opportunities, and forecast revenue.</p>
+                </div>
+                <Link href="/crm/new">
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" /> New Deal
+                    </Button>
+                </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
                 <Card className="bg-white border-slate-100 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Pipeline Value</CardTitle>
@@ -58,6 +75,23 @@ export default function CRMPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Average pipeline health
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-white border-slate-100 shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Capacity Bookings</CardTitle>
+                        <Target className="h-4 w-4 text-orange-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold flex gap-2">
+                            <span className="text-slate-500">{totalSoftBooked.toFixed(0)}</span>
+                            <span className="text-slate-300">/</span>
+                            <span className="text-slate-900">{totalHardBooked.toFixed(0)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Soft vs Hard Booked Hrs
                         </p>
                     </CardContent>
                 </Card>

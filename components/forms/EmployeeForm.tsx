@@ -32,13 +32,16 @@ const employeeSchema = z.object({
 
 export type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
+import { Role } from '@/types/business';
+
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
+    roles: Role[];
     onSubmit: (data: EmployeeFormValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function EmployeeForm({ initialData, onSubmit, onCancel }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, roles, onSubmit, onCancel }: EmployeeFormProps) {
     const form = useForm<EmployeeFormValues>({
         resolver: zodResolver(employeeSchema) as any,
         defaultValues: initialData || {
@@ -83,10 +86,9 @@ export function EmployeeForm({ initialData, onSubmit, onCancel }: EmployeeFormPr
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="Developer">Developer</SelectItem>
-                                    <SelectItem value="Designer">Designer</SelectItem>
-                                    <SelectItem value="Project Manager">Project Manager</SelectItem>
-                                    <SelectItem value="QA">QA</SelectItem>
+                                    {roles.map(r => (
+                                        <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                             <FormMessage />

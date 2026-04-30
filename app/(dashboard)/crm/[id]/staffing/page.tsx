@@ -47,18 +47,15 @@ export default function StaffingPage() {
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>Deal not found.</AlertDescription>
                 </Alert>
-                <Button className="mt-4" onClick={() => router.push("/deals")}>Back to Pipeline</Button>
+                <Button className="mt-4" onClick={() => router.push("/crm")}>Back to Pipeline</Button>
             </div>
         );
     }
 
-    // Calculate capacities
-    // We need to know how much each engineer is structurally booked across ALL other won deals
     const getEngineerBookedHours = (engineerId: string) => {
         let booked = 0;
         deals.forEach((d) => {
-            // Only count won deals, and exclude the current deal (since we're editing it)
-            if (d.stage === "won" && d.id !== deal.id) {
+            if (d.status === "won" && d.id !== deal.id) {
                 const assignment = d.hardAssignments?.find((a) => a.engineerId === engineerId);
                 if (assignment) {
                     booked += assignment.allocatedHours;
@@ -88,22 +85,19 @@ export default function StaffingPage() {
             return;
         }
 
-        // Save all assignments for this deal
         engineers.forEach((eng) => {
             const allocated = allocations[eng.id] || 0;
-            // We can just call assignEngineer for each. 
-            // It handles adding/updating/removing if hours = 0.
             assignEngineer(deal.id, eng.id, allocated);
         });
 
         toast.success("Staffing saved successfully!");
-        router.push("/deals");
+        router.push("/crm");
     };
 
     return (
         <div className="container mx-auto p-6 max-w-5xl space-y-6">
             <div className="flex items-center gap-4 mb-6">
-                <Link href="/deals">
+                <Link href="/crm">
                     <Button variant="outline" size="icon">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>

@@ -17,6 +17,14 @@ import {
     RoleType,
 } from "../types/business";
 import { calculateSoftBookedHours } from "../lib/calculations";
+import {
+    insertDepartment, updateDepartmentDB, deleteDepartmentDB,
+    insertRole, updateRoleDB, deleteRoleDB,
+    insertEmployee, updateEmployeeDB, deleteEmployeeDB,
+    insertGlobalOverhead, updateGlobalOverheadDB, deleteGlobalOverheadDB,
+    upsertCompanySettings,
+} from '@/lib/supabaseOrganization';
+import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
 
@@ -66,7 +74,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Acme Corp",
         estimatedValue: 120000,
         winProbability: 100,
-        columnId: "won",
+        status: "won",
         targetMargin: 30,
         estimationResources: [
             { id: "res1", featureName: "Architecture Setup", roleId: "r1", hours: 100 },
@@ -80,7 +88,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Startup Inc",
         estimatedValue: 85000,
         winProbability: 75,
-        columnId: "proposal",
+        status: "proposal",
         targetMargin: 40,
         estimationResources: [
             { id: "res3", featureName: "UI/UX Design", roleId: "r3", hours: 120 },
@@ -94,7 +102,7 @@ const MOCK_DEALS: Deal[] = [
         client: "Global Tech",
         estimatedValue: 45000,
         winProbability: 20,
-        columnId: "lead",
+        status: "lead",
         targetMargin: 25,
         estimationResources: [],
         projectOverheads: [],
@@ -142,25 +150,25 @@ export interface BusinessState {
     timeEntries: TimeEntry[];
 
     // Actions - Org
-    updateCompanySettings: (settings: Partial<CompanySettings>) => void;
-    addEmployee: (emp: Employee) => void;
-    updateEmployee: (id: string, emp: Partial<Employee>) => void;
-    deleteEmployee: (id: string) => void;
-    addRole: (role: Role) => void;
-    updateRole: (id: string, role: Partial<Role>) => void;
-    deleteRole: (id: string) => void;
-    addDepartment: (dept: Department) => void;
-    updateDepartment: (id: string, dept: Partial<Department>) => void;
-    deleteDepartment: (id: string) => void;
-    addGlobalOverhead: (oh: GlobalOverhead) => void;
-    updateGlobalOverhead: (id: string, oh: Partial<GlobalOverhead>) => void;
-    deleteGlobalOverhead: (id: string) => void;
+    updateCompanySettings: (settings: Partial<CompanySettings>) => Promise<void>;
+    addEmployee: (emp: Employee) => Promise<void>;
+    updateEmployee: (id: string, emp: Partial<Employee>) => Promise<void>;
+    deleteEmployee: (id: string) => Promise<void>;
+    addRole: (role: Role) => Promise<void>;
+    updateRole: (id: string, role: Partial<Role>) => Promise<void>;
+    deleteRole: (id: string) => Promise<void>;
+    addDepartment: (dept: Department) => Promise<void>;
+    updateDepartment: (id: string, dept: Partial<Department>) => Promise<void>;
+    deleteDepartment: (id: string) => Promise<void>;
+    addGlobalOverhead: (oh: GlobalOverhead) => Promise<void>;
+    updateGlobalOverhead: (id: string, oh: Partial<GlobalOverhead>) => Promise<void>;
+    deleteGlobalOverhead: (id: string) => Promise<void>;
 
     // Actions - CRM & Deals
     addDeal: (deal: Deal) => void;
     updateDeal: (id: string, updates: Partial<Deal>) => void;
     deleteDeal: (id: string) => void;
-    updateDealStage: (id: string, columnId: string, probability?: number) => void;
+    updateDealStage: (id: string, status: string, probability?: number) => void;
     assignEngineer: (dealId: string, engineerId: string, allocatedHours: number) => void;
 
 
@@ -197,31 +205,161 @@ export const useBusinessStore = create<BusinessState>()(
             projects: MOCK_PROJECTS,
             timeEntries: MOCK_TIME_ENTRIES,
 
-            updateCompanySettings: (settings) => set((state) => ({ companySettings: { ...state.companySettings, ...settings } })),
+            updateCompanySettings: async (settings) => {
+                const snapshot = get().companySettings;
+                const updated = { ...snapshot, ...settings };
+                set({ companySettings: updated });
+                try {
+                    await upsertCompanySettings(updated);
+                } catch (err) {
+                    set({ companySettings: snapshot });
+                    toast.error(`Failed to save company settings: ${(err as Error).message}`);
+                }
+            },
 
             // Org Handlers
-            addEmployee: (emp) => set((state) => ({ employees: [...state.employees, emp] })),
-            updateEmployee: (id, emp) => set((state) => ({ employees: state.employees.map(e => e.id === id ? { ...e, ...emp } : e) })),
-            deleteEmployee: (id) => set((state) => ({ employees: state.employees.filter(e => e.id !== id) })),
+            addEmployee: async (emp) => {
+                const snapshot = get().employees;
+                set(s => ({ employees: [...s.employees, emp] }));
+                try {
+                    await insertEmployee(emp);
+                } catch (err) {
+                    set({ employees: snapshot });
+                    toast.error(`Failed to add employee: ${(err as Error).message}`);
+                }
+            },
+            updateEmployee: async (id, emp) => {
+                const snapshot = get().employees;
+                const existing = snapshot.find(e => e.id === id);
+                if (!existing) return;
+                const updated = { ...existing, ...emp };
+                set(s => ({ employees: s.employees.map(e => e.id === id ? updated : e) }));
+                try {
+                    await updateEmployeeDB(updated);
+                } catch (err) {
+                    set({ employees: snapshot });
+                    toast.error(`Failed to update employee: ${(err as Error).message}`);
+                }
+            },
+            deleteEmployee: async (id) => {
+                const snapshot = get().employees;
+                set(s => ({ employees: s.employees.filter(e => e.id !== id) }));
+                try {
+                    await deleteEmployeeDB(id);
+                } catch (err) {
+                    set({ employees: snapshot });
+                    toast.error(`Failed to delete employee: ${(err as Error).message}`);
+                }
+            },
 
-            addRole: (role) => set((state) => ({ roles: [...state.roles, role] })),
-            updateRole: (id, role) => set((state) => ({ roles: state.roles.map(r => r.id === id ? { ...r, ...role } : r) })),
-            deleteRole: (id) => set((state) => ({ roles: state.roles.filter(r => r.id !== id) })),
+            addRole: async (role) => {
+                const snapshot = get().roles;
+                set(s => ({ roles: [...s.roles, role] }));
+                try {
+                    await insertRole(role);
+                } catch (err) {
+                    set({ roles: snapshot });
+                    toast.error(`Failed to add role: ${(err as Error).message}`);
+                }
+            },
+            updateRole: async (id, role) => {
+                const snapshot = get().roles;
+                const existing = snapshot.find(r => r.id === id);
+                if (!existing) return;
+                const updated = { ...existing, ...role };
+                set(s => ({ roles: s.roles.map(r => r.id === id ? updated : r) }));
+                try {
+                    await updateRoleDB(updated);
+                } catch (err) {
+                    set({ roles: snapshot });
+                    toast.error(`Failed to update role: ${(err as Error).message}`);
+                }
+            },
+            deleteRole: async (id) => {
+                const snapshot = get().roles;
+                set(s => ({ roles: s.roles.filter(r => r.id !== id) }));
+                try {
+                    await deleteRoleDB(id);
+                } catch (err) {
+                    set({ roles: snapshot });
+                    toast.error(`Failed to delete role: ${(err as Error).message}`);
+                }
+            },
 
-            addDepartment: (dept) => set((state) => ({ departments: [...state.departments, dept] })),
-            updateDepartment: (id, dept) => set((state) => ({ departments: state.departments.map(d => d.id === id ? { ...d, ...dept } : d) })),
-            deleteDepartment: (id) => set((state) => ({ departments: state.departments.filter(d => d.id !== id) })),
+            addDepartment: async (dept) => {
+                const snapshot = get().departments;
+                set(s => ({ departments: [...s.departments, dept] }));
+                try {
+                    await insertDepartment(dept);
+                } catch (err) {
+                    set({ departments: snapshot });
+                    toast.error(`Failed to add department: ${(err as Error).message}`);
+                }
+            },
+            updateDepartment: async (id, dept) => {
+                const snapshot = get().departments;
+                const existing = snapshot.find(d => d.id === id);
+                if (!existing) return;
+                const updated = { ...existing, ...dept };
+                set(s => ({ departments: s.departments.map(d => d.id === id ? updated : d) }));
+                try {
+                    await updateDepartmentDB(updated);
+                } catch (err) {
+                    set({ departments: snapshot });
+                    toast.error(`Failed to update department: ${(err as Error).message}`);
+                }
+            },
+            deleteDepartment: async (id) => {
+                const snapshot = get().departments;
+                set(s => ({ departments: s.departments.filter(d => d.id !== id) }));
+                try {
+                    await deleteDepartmentDB(id);
+                } catch (err) {
+                    set({ departments: snapshot });
+                    toast.error(`Failed to delete department: ${(err as Error).message}`);
+                }
+            },
 
-            addGlobalOverhead: (oh) => set((state) => ({ globalOverheads: [...state.globalOverheads, oh] })),
-            updateGlobalOverhead: (id, oh) => set((state) => ({ globalOverheads: state.globalOverheads.map(o => o.id === id ? { ...o, ...oh } : o) })),
-            deleteGlobalOverhead: (id) => set((state) => ({ globalOverheads: state.globalOverheads.filter(o => o.id !== id) })),
+            addGlobalOverhead: async (oh) => {
+                const snapshot = get().globalOverheads;
+                set(s => ({ globalOverheads: [...s.globalOverheads, oh] }));
+                try {
+                    await insertGlobalOverhead(oh);
+                } catch (err) {
+                    set({ globalOverheads: snapshot });
+                    toast.error(`Failed to add overhead: ${(err as Error).message}`);
+                }
+            },
+            updateGlobalOverhead: async (id, oh) => {
+                const snapshot = get().globalOverheads;
+                const existing = snapshot.find(o => o.id === id);
+                if (!existing) return;
+                const updated = { ...existing, ...oh };
+                set(s => ({ globalOverheads: s.globalOverheads.map(o => o.id === id ? updated : o) }));
+                try {
+                    await updateGlobalOverheadDB(updated);
+                } catch (err) {
+                    set({ globalOverheads: snapshot });
+                    toast.error(`Failed to update overhead: ${(err as Error).message}`);
+                }
+            },
+            deleteGlobalOverhead: async (id) => {
+                const snapshot = get().globalOverheads;
+                set(s => ({ globalOverheads: s.globalOverheads.filter(o => o.id !== id) }));
+                try {
+                    await deleteGlobalOverheadDB(id);
+                } catch (err) {
+                    set({ globalOverheads: snapshot });
+                    toast.error(`Failed to delete overhead: ${(err as Error).message}`);
+                }
+            },
 
             // CRM Handlers
             addDeal: (deal) => set((state) => ({ deals: [...state.deals, deal] })),
             updateDeal: (id, updates) => set((state) => ({ deals: state.deals.map(d => d.id === id ? { ...d, ...updates } : d) })),
             deleteDeal: (id) => set((state) => ({ deals: state.deals.filter(d => d.id !== id) })),
-            updateDealStage: (id, columnId, probability) => set((state) => ({
-                deals: state.deals.map(d => d.id === id ? { ...d, columnId, winProbability: probability } : d)
+            updateDealStage: (id, status, probability) => set((state) => ({
+                deals: state.deals.map(d => d.id === id ? { ...d, status: status as any, winProbability: probability } : d)
             })),
 
             winDeal: (dealId) => {
@@ -237,14 +375,15 @@ export const useBusinessStore = create<BusinessState>()(
                     id: `CON-${Math.floor(Math.random() * 10000)}`,
                     dealId: deal.id,
                     client: deal.client || "Client",
-                    totalValue: deal.estimatedValue || deal.clientBudget || 0,
+                    totalValue: deal.clientBudget || deal.estimatedValue || 0,
                     revenueRecognized: 0,
                     status: 'Active'
                 };
 
                 // Auto-generate Project
                 const est = get().getDealEstimation(dealId);
-                const totalHours = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
+                const totalHoursLegacy = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
+                const totalHours = deal.workloadHours || totalHoursLegacy || 0;
 
                 const newProject: Project = {
                     id: `PRJ-${Math.floor(Math.random() * 10000)}`,
@@ -280,6 +419,18 @@ export const useBusinessStore = create<BusinessState>()(
                 const deal = state.deals.find(d => d.id === dealId);
                 if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
 
+                // If deal has the new calculated fields from the unified form, return them
+                if (deal.totalEstimatedCost !== undefined) {
+                    return {
+                        laborCost: deal.baseLaborCost || 0,
+                        overheadCost: (deal.overheadCost || 0) + (deal.bufferCost || 0),
+                        suggestedPrice: deal.clientBudget || 0,
+                        expectedProfit: deal.estimatedGrossProfit || 0,
+                        totalCost: deal.totalEstimatedCost || 0
+                    };
+                }
+
+                // Fallback to old dynamic calculation for legacy deals
                 let laborCost = 0;
                 (deal.estimationResources || []).forEach(res => {
                     const role = state.roles.find(r => r.id === res.roleId);
@@ -346,11 +497,10 @@ export const useBusinessStore = create<BusinessState>()(
                 });
 
                 state.deals.forEach((deal) => {
-                    // Check logic depending on columnId OR stage
-                    const stage = deal.columnId || deal.stage || 'inquiry';
-                    if (stage === "lost") return;
+                    const status = deal.status || 'inquiry';
+                    if (status === "lost") return;
 
-                    if (stage === "won" || stage === "contract") {
+                    if (status === "won" || status === "contract") {
                         const hardAssignments = deal.hardAssignments || [];
                         hardAssignments.forEach((assignment) => {
                             const eng = state.engineers.find((e) => e.id === assignment.engineerId);
@@ -361,7 +511,7 @@ export const useBusinessStore = create<BusinessState>()(
                     } else {
                         (deal.ghostRoles || []).forEach((gr) => {
                             const totalRequiredHours = gr.quantity * 160;
-                            const prob = deal.winProbability || deal.probability || 0;
+                            const prob = deal.winProbability || 0;
                             const softBooked = calculateSoftBookedHours(totalRequiredHours, prob);
                             if (pool[gr.role]) {
                                 pool[gr.role].softBookedHours += softBooked;
@@ -415,6 +565,7 @@ export const useBusinessStore = create<BusinessState>()(
         }),
         {
             name: "unified-agency-store",
+            skipHydration: true,
         }
     )
 );

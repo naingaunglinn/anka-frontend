@@ -20,7 +20,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const [client, setClient] = useState('');
     const [estimatedValue, setEstimatedValue] = useState<number | ''>('');
     const [winProbability, setWinProbability] = useState<number | ''>('');
-    const [columnId, setColumnId] = useState('lead');
+    const [status, setStatus] = useState<Deal['status']>('lead');
 
     useEffect(() => {
         if (initialData && isOpen) {
@@ -28,13 +28,13 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             setClient(initialData.client || '');
             setEstimatedValue(initialData.estimatedValue || 0);
             setWinProbability(initialData.winProbability || 0);
-            setColumnId(initialData.columnId || 'lead');
+            setStatus(initialData.status || 'lead');
         } else if (isOpen) {
             setName('');
             setClient('');
             setEstimatedValue('');
             setWinProbability(50);
-            setColumnId('lead');
+            setStatus('lead');
         }
     }, [initialData, isOpen]);
 
@@ -46,7 +46,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             client,
             estimatedValue: Number(estimatedValue) || 0,
             winProbability: Number(winProbability) || 0,
-            columnId,
+            status,
             estimationResources: initialData?.estimationResources || [],
             projectOverheads: initialData?.projectOverheads || [],
             targetMargin: initialData?.targetMargin || 30,
@@ -87,7 +87,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="stage" className="text-right">Stage</Label>
                             <div className="col-span-3">
-                                <Select value={columnId} onValueChange={setColumnId}>
+                                <Select value={status} onValueChange={(val) => setStatus(val as Deal['status'])}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
