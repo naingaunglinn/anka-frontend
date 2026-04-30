@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
+import { useBusinessStore } from '@/store/businessStore';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
@@ -15,7 +16,11 @@ export default function DashboardLayout({
     const { isSidebarCollapsed } = useUIStore();
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => setMounted(true), []);
+    useEffect(() => {
+        setMounted(true);
+        useUIStore.persist.rehydrate();
+        useBusinessStore.persist.rehydrate();
+    }, []);
 
     return (
         <div className="h-full relative overflow-hidden bg-slate-50">

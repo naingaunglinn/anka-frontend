@@ -14,10 +14,18 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { DialogClose } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Department } from '@/types/business';
 
 const roleSchema = z.object({
     title: z.string().min(2, "Title must be at least 2 characters."),
-    department: z.string().min(2, "Department must be at least 2 characters."),
+    department: z.string().min(1, "Please select a department."),
     rate: z.coerce.number().min(0, "Bill rate must be positive."),
 });
 
@@ -25,11 +33,12 @@ export type RoleFormValues = z.infer<typeof roleSchema>;
 
 interface RoleFormProps {
     initialData?: RoleFormValues | null;
+    departments: Department[];
     onSubmit: (data: RoleFormValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function RoleForm({ initialData, onSubmit, onCancel }: RoleFormProps) {
+export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleFormProps) {
     const form = useForm<RoleFormValues>({
         resolver: zodResolver(roleSchema) as any,
         defaultValues: initialData || {
@@ -65,9 +74,18 @@ export function RoleForm({ initialData, onSubmit, onCancel }: RoleFormProps) {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Department</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Engineering" {...field} />
-                            </FormControl>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a department" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {departments.map(d => (
+                                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                         </FormItem>
                     )}

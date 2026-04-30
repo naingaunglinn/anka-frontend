@@ -24,10 +24,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
 import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
+import {
+    insertDepartment, insertRole,
+    insertEmployee, insertGlobalOverhead,
+    fetchAllOrganizationData,
+} from '@/lib/supabaseOrganization';
+import toast from 'react-hot-toast';
 
 export default function EmployeesPage() {
     // Connect to Store
     const store = useBusinessStore();
+    const { syncing, syncError } = useOrganizationSync();
 
     // Employees State
     const [isEmpDialogOpen, setIsEmpDialogOpen] = useState(false);
@@ -51,8 +59,7 @@ export default function EmployeesPage() {
 
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.addEmployee({
+        await store.addEmployee({
             id: Math.random().toString(),
             name: data.name,
             role: data.role,
@@ -66,8 +73,7 @@ export default function EmployeesPage() {
 
     const handleEditEmployee = async (data: EmployeeFormValues) => {
         if (!editingEmployee) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.updateEmployee(editingEmployee.id, {
+        await store.updateEmployee(editingEmployee.id, {
             name: data.name,
             role: data.role,
             monthlySalary: data.monthlySalary,
@@ -80,58 +86,96 @@ export default function EmployeesPage() {
 
     // --- Department Handlers ---
     const handleAddDepartment = async (data: DepartmentFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.addDepartment({ id: Math.random().toString(), ...data, headcount: 0 });
+        await store.addDepartment({ id: Math.random().toString(), ...data, headcount: 0 });
         setIsDeptDialogOpen(false);
     };
 
     const handleEditDepartment = async (data: DepartmentFormValues) => {
         if (!editingDepartment) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.updateDepartment(editingDepartment.id, data);
+        await store.updateDepartment(editingDepartment.id, data);
         setEditingDepartment(null);
     };
 
     // --- Role Handlers ---
     const handleAddRole = async (data: RoleFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.addRole({ id: Math.random().toString(), ...data });
+        await store.addRole({ id: Math.random().toString(), ...data });
         setIsRoleDialogOpen(false);
     };
 
     const handleEditRole = async (data: RoleFormValues) => {
         if (!editingRole) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.updateRole(editingRole.id, data);
+        await store.updateRole(editingRole.id, data);
         setEditingRole(null);
     };
 
     // --- Overhead Handlers ---
     const handleAddOverhead = async (data: OverheadFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.addGlobalOverhead({ id: Math.random().toString(), ...data });
+        await store.addGlobalOverhead({ id: Math.random().toString(), ...data });
         setIsOverheadDialogOpen(false);
     };
 
     const handleEditOverhead = async (data: OverheadFormValues) => {
         if (!editingOverhead) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        store.updateGlobalOverhead(editingOverhead.id, data);
+        await store.updateGlobalOverhead(editingOverhead.id, data);
         setEditingOverhead(null);
     };
 
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
-        await new Promise((resolve) => setTimeout(resolve, 800));
         setIsSavingSalary(false);
     };
 
+    const seedDatabase = async () => {
+        const existing = await fetchAllOrganizationData();
+        if (existing.employees.length > 0 || existing.departments.length > 0) {
+            toast.success('Database already has data — skipping seed');
+            return;
+        }
+
+        try {
+            await Promise.all([
+                ...store.departments.map(insertDepartment),
+                ...store.roles.map(insertRole),
+                ...store.employees.map(insertEmployee),
+                ...store.globalOverheads.map(insertGlobalOverhead),
+            ]);
+            toast.success('Mock data seeded to Supabase!');
+        } catch (err) {
+            toast.error(`Seed failed: ${(err as Error).message}`);
+        }
+    };
+
+    if (syncing) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-sm text-muted-foreground animate-pulse">
+                    Loading organization data...
+                </p>
+            </div>
+        );
+    }
+
+    if (syncError) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-sm text-destructive">
+                    Failed to connect to database: {syncError}
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
-                <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
+                    <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                </div>
+                <Button variant="outline" onClick={seedDatabase}>
+                    Seed Database (run once)
+                </Button>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
@@ -206,7 +250,7 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Role</DialogTitle>
                                     <DialogDescription>Create a new role structure.</DialogDescription>
                                 </DialogHeader>
-                                <RoleForm onSubmit={handleAddRole} onCancel={() => setIsRoleDialogOpen(false)} />
+                                <RoleForm departments={store.departments} onSubmit={handleAddRole} onCancel={() => setIsRoleDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -225,6 +269,7 @@ export default function EmployeesPage() {
                             {editingRole && (
                                 <RoleForm
                                     initialData={editingRole}
+                                    departments={store.departments}
                                     onSubmit={handleEditRole}
                                     onCancel={() => setEditingRole(null)}
                                 />
@@ -251,13 +296,14 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm roles={store.roles} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
 
                     <EmployeesTable
                         data={store.employees as any}
+                        roles={store.roles}
                         onEdit={(emp) => setEditingEmployee(emp as any)}
                         onDelete={(id) => store.deleteEmployee(id)}
                     />
@@ -271,6 +317,7 @@ export default function EmployeesPage() {
                             {editingEmployee && (
                                 <EmployeeForm
                                     initialData={editingEmployee}
+                                    roles={store.roles}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />

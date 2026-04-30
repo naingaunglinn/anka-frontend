@@ -22,7 +22,7 @@ interface Props {
 }
 
 function fmt(n: number): string {
-    return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
+    return (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 export function AITeamBuilderResultPanel({
@@ -169,7 +169,7 @@ export function AITeamBuilderResultPanel({
                             <span
                                 className={`text-xs font-semibold px-2 py-0.5 rounded-full ${marginColor}`}
                             >
-                                {result.profitMarginPercent.toFixed(1)}% Margin
+                                {(result.profitMarginPercent ?? 0).toFixed(1)}% Margin
                             </span>
                         </div>
                     </div>

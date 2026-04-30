@@ -76,13 +76,12 @@ export default function EditDealPage() {
     useEffect(() => {
         if (dealToEdit) {
             form.reset({
-                name: dealToEdit.name,
-                clientBudget: dealToEdit.clientBudget,
-                timelineMonths: dealToEdit.timelineMonths,
-                workloadHours: dealToEdit.workloadHours,
+                name: dealToEdit.name || "",
+                clientBudget: dealToEdit.clientBudget || 0,
+                timelineMonths: dealToEdit.timelineMonths || 1,
+                workloadHours: dealToEdit.workloadHours || 0,
                 winProbability: dealToEdit.winProbability || 50,
-                // @ts-ignore
-                ghostRoles: dealToEdit.ghostRoles,
+                ghostRoles: dealToEdit.ghostRoles || [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
             });
         }
     }, [dealToEdit, form]);
@@ -92,10 +91,10 @@ export default function EditDealPage() {
         name: "ghostRoles",
     });
 
-    const ghostRoles = form.watch("ghostRoles");
-    const clientBudget = form.watch("clientBudget");
-    const timelineMonths = form.watch("timelineMonths");
-    const workloadHours = form.watch("workloadHours");
+    const ghostRoles = form.watch("ghostRoles") ?? [];
+    const clientBudget = form.watch("clientBudget") ?? 0;
+    const timelineMonths = form.watch("timelineMonths") ?? 1;
+    const workloadHours = form.watch("workloadHours") ?? 0;
     const workloadDescription = form.watch("workloadDescription") || "";
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {

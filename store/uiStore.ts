@@ -14,6 +14,7 @@ export const useUIStore = create<UIState>()(
         }),
         {
             name: 'ui-storage',
+            skipHydration: true,
         }
     )
 );

@@ -41,13 +41,16 @@ export type Employee = {
     status: 'Active' | 'On Leave' | 'Terminated';
 };
 
+import { Role } from '@/types/business';
+
 interface EmployeesTableProps {
     data: Employee[];
+    roles?: Role[];
     onEdit: (employee: Employee) => void;
     onDelete: (id: string) => void;
 }
 
-export function EmployeesTable({ data, onEdit, onDelete }: EmployeesTableProps) {
+export function EmployeesTable({ data, roles = [], onEdit, onDelete }: EmployeesTableProps) {
     const [sorting, setSorting] = useState<SortingState>([]);
 
     const columns: ColumnDef<Employee>[] = [
@@ -80,6 +83,11 @@ export function EmployeesTable({ data, onEdit, onDelete }: EmployeesTableProps) 
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
+            },
+            cell: ({ row }) => {
+                const roleId = row.getValue('role') as string;
+                const role = roles?.find(r => r.id === roleId);
+                return <Badge variant="secondary">{role ? role.title : roleId}</Badge>;
             },
         },
         {
