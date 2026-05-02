@@ -25,6 +25,7 @@ import {
     upsertCompanySettings,
 } from '@/lib/supabaseOrganization';
 import api from '@/lib/api';
+import { toDeal, dealToApiPayload } from '@/lib/dealsMapper';
 import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
@@ -295,21 +296,26 @@ export const useBusinessStore = create<BusinessState>()(
                 const tempId = `temp-${Date.now()}`;
                 set(s => ({ deals: [...s.deals, { ...deal, id: tempId }] }));
                 try {
-                    const { data } = await api.post('/deals', deal);
-                    set(s => ({ deals: s.deals.map(d => d.id === tempId ? data : d) }));
+                    const { data } = await api.post('/deals', dealToApiPayload(deal));
+                    const created = toDeal(data.data ?? data);
+                    set(s => ({ deals: s.deals.map(d => d.id === tempId ? created : d) }));
                 } catch (err) {
                     set({ deals: snapshot });
-                    toast.error(`Failed to create deal: ${(err as Error).message}`);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to create deal: ${message}`);
                 }
             },
             updateDeal: async (id, updates) => {
                 const snapshot = get().deals;
                 set(s => ({ deals: s.deals.map(d => d.id === id ? { ...d, ...updates } : d) }));
                 try {
-                    await api.put(`/deals/${id}`, updates);
+                    await api.put(`/deals/${id}`, dealToApiPayload(updates));
                 } catch (err) {
                     set({ deals: snapshot });
-                    toast.error(`Failed to update deal: ${(err as Error).message}`);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to update deal: ${message}`);
                 }
             },
             deleteDeal: async (id) => {
@@ -319,7 +325,9 @@ export const useBusinessStore = create<BusinessState>()(
                     await api.delete(`/deals/${id}`);
                 } catch (err) {
                     set({ deals: snapshot });
-                    toast.error(`Failed to delete deal: ${(err as Error).message}`);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to delete deal: ${message}`);
                 }
             },
             updateDealStage: async (id, status, probability) => {
@@ -329,7 +337,9 @@ export const useBusinessStore = create<BusinessState>()(
                     await api.patch(`/deals/${id}/stage`, { status, win_probability: probability });
                 } catch (err) {
                     set({ deals: snapshot });
-                    toast.error(`Failed to update deal stage: ${(err as Error).message}`);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to update deal stage: ${message}`);
                 }
             },
 
