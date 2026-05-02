@@ -34,6 +34,8 @@ function toEmployee(row: Record<string, unknown>): Employee {
         id: row.id as string,
         name: row.name as string,
         role: row.role as string,
+        roleName: row.role_name as string | undefined,
+        capacityRole: row.capacity_role as Employee['capacityRole'],
         monthlySalary: row.monthly_salary as number,
         workableHours: row.workable_hours as number,
         costPerHour: row.cost_per_hour as number,
@@ -55,6 +57,8 @@ function toCompanySettings(row: Record<string, unknown>): CompanySettings {
         overheadPercentage: row.overhead_percentage as number,
         bufferPercentage: row.buffer_percentage as number,
         yearlyFixedCost: row.yearly_fixed_cost as number,
+        employerTaxPercentage: (row.employer_tax_percentage as number) ?? 0,
+        benefitsPercentage: (row.benefits_percentage as number) ?? 0,
     }
 }
 
@@ -74,7 +78,7 @@ export async function fetchAllOrganizationData(): Promise<{
         { data: roles, error: rErr },
         { data: employees, error: eErr },
         { data: overheads, error: oErr },
-        { data: settings, error: sErr },
+        { data: settings },
     ] = await Promise.all([
         supabase.from('departments').select('*').order('created_at'),
         supabase.from('roles').select('*').order('created_at'),
@@ -87,7 +91,7 @@ export async function fetchAllOrganizationData(): Promise<{
     if (rErr) throw new Error(`roles: ${rErr.message}`)
     if (eErr) throw new Error(`employees: ${eErr.message}`)
     if (oErr) throw new Error(`global_overheads: ${oErr.message}`)
-    // sErr is non-fatal — settings row may not exist yet
+    // settings error is non-fatal — row may not exist yet
 
     return {
         departments: (departments ?? []).map(toDepartment),

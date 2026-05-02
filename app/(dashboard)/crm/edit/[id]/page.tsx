@@ -29,7 +29,8 @@ import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, ca
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 
 const ghostRoleSchema = z.object({
-    role: z.string(),
+    id: z.string().optional(),
+    roleType: z.string(),
     quantity: z.coerce.number().min(1, "At least 1"),
     months: z.coerce.number().min(1, "At least 1 month"),
     avgMonthlySalary: z.coerce.number().min(0, "Must be positive"),
@@ -69,7 +70,7 @@ export default function EditDealPage() {
             workloadHours: dealToEdit?.workloadHours || 0,
             winProbability: dealToEdit?.winProbability || 50,
             workloadDescription: ((dealToEdit as unknown as Record<string, unknown>)?.workloadDescription as string) || "",
-            ghostRoles: dealToEdit?.ghostRoles || [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+            ghostRoles: dealToEdit?.ghostRoles || [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
         },
     });
 
@@ -81,7 +82,7 @@ export default function EditDealPage() {
                 timelineMonths: dealToEdit.timelineMonths || 1,
                 workloadHours: dealToEdit.workloadHours || 0,
                 winProbability: dealToEdit.winProbability || 50,
-                ghostRoles: dealToEdit.ghostRoles || [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+                ghostRoles: dealToEdit.ghostRoles || [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
             });
         }
     }, [dealToEdit, form]);
@@ -127,9 +128,9 @@ export default function EditDealPage() {
     function onSubmit(data: DealFormValues) {
         if (!dealToEdit) return;
 
-        const roles: GhostRole[] = data.ghostRoles.map((gr: any) => ({
+        const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
             id: gr.id || uuidv4(),
-            role: gr.role as RoleType,
+            roleType: gr.roleType as RoleType,
             quantity: gr.quantity,
             months: gr.months,
             avgMonthlySalary: gr.avgMonthlySalary,
@@ -303,7 +304,7 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
+                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -314,7 +315,7 @@ export default function EditDealPage() {
                                                         <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
                                                             <FormField
                                                                 control={form.control}
-                                                                name={`ghostRoles.${index}.role`}
+                                                                name={`ghostRoles.${index}.roleType`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="flex-1">
                                                                         <FormLabel className="text-xs text-slate-500">Role</FormLabel>

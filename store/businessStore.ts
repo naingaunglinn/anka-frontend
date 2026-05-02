@@ -36,7 +36,6 @@ const INITIAL_ENGINEERS: Engineer[] = [
     { id: "e5", name: "Eve Frontend", role: "frontend", monthlySalary: 7500, monthlyCapacityHours: 160 },
 ];
 
-
 const MOCK_DEPARTMENTS: Department[] = [
     { id: "d1", name: "Engineering", manager: "Alice Roberts", headcount: 3 },
     { id: "d2", name: "Design", manager: "Mark Smith", headcount: 1 },
@@ -65,6 +64,8 @@ const MOCK_SETTINGS: CompanySettings = {
     overheadPercentage: 20,
     bufferPercentage: 10,
     yearlyFixedCost: 500000,
+    employerTaxPercentage: 8,
+    benefitsPercentage: 12,
 };
 
 const MOCK_DEALS: Deal[] = [
@@ -114,8 +115,8 @@ const MOCK_CONTRACTS: Contract[] = [
 ];
 
 const MOCK_INVOICES: Invoice[] = [
-    { id: "INV-1042", contractId: "CON-001", date: "2024-03-01", amount: 40000, tax: 4000, status: "Paid" },
-    { id: "INV-1043", contractId: "CON-001", date: "2024-04-01", amount: 40000, tax: 4000, status: "Pending" }
+    { id: "INV-1042", contractId: "CON-001", issueDate: "2024-03-01", amount: 40000, tax: 4000, status: "Paid" },
+    { id: "INV-1043", contractId: "CON-001", issueDate: "2024-04-01", amount: 40000, tax: 4000, status: "Pending" }
 ];
 
 const MOCK_MILESTONES: Milestone[] = [
@@ -169,8 +170,7 @@ export interface BusinessState {
     updateDeal: (id: string, updates: Partial<Deal>) => void;
     deleteDeal: (id: string) => void;
     updateDealStage: (id: string, status: string, probability?: number) => void;
-    assignEngineer: (dealId: string, engineerId: string, allocatedHours: number) => void;
-
+    assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
     // Actions - Cross-module trigger
     winDeal: (dealId: string) => void;
@@ -183,7 +183,7 @@ export interface BusinessState {
 
     // Getters
     getCapacityPool: () => DepartmentCapacity[];
-    getFinancialPnL: () => any[];
+    getFinancialPnL: () => { month: string; revenue: number; directLabor: number; overhead: number; grossProfit: number; operatingProfit: number; netProfit: number }[];
     getDealEstimation: (dealId: string) => { laborCost: number; overheadCost: number; suggestedPrice: number; expectedProfit: number; totalCost: number };
 }
 
@@ -359,7 +359,7 @@ export const useBusinessStore = create<BusinessState>()(
             updateDeal: (id, updates) => set((state) => ({ deals: state.deals.map(d => d.id === id ? { ...d, ...updates } : d) })),
             deleteDeal: (id) => set((state) => ({ deals: state.deals.filter(d => d.id !== id) })),
             updateDealStage: (id, status, probability) => set((state) => ({
-                deals: state.deals.map(d => d.id === id ? { ...d, status: status as any, winProbability: probability } : d)
+                deals: state.deals.map(d => d.id === id ? { ...d, status: status as Deal['status'], winProbability: probability } : d)
             })),
 
             winDeal: (dealId) => {
@@ -367,10 +367,8 @@ export const useBusinessStore = create<BusinessState>()(
                 const deal = state.deals.find(d => d.id === dealId);
                 if (!deal) return;
 
-                // Mark deal as won
                 get().updateDealStage(dealId, 'won', 100);
 
-                // Auto-generate Contract
                 const newContract: Contract = {
                     id: `CON-${Math.floor(Math.random() * 10000)}`,
                     dealId: deal.id,
@@ -380,8 +378,6 @@ export const useBusinessStore = create<BusinessState>()(
                     status: 'Active'
                 };
 
-                // Auto-generate Project
-                const est = get().getDealEstimation(dealId);
                 const totalHoursLegacy = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
                 const totalHours = deal.workloadHours || totalHoursLegacy || 0;
 
@@ -390,7 +386,7 @@ export const useBusinessStore = create<BusinessState>()(
                     contractId: newContract.id,
                     name: deal.name,
                     client: deal.client || "Client",
-                    budgetHours: totalHours > 0 ? totalHours : 0, // Fallback if no estimation provided
+                    budgetHours: totalHours,
                     consumedHours: 0,
                     status: 'Not Started'
                 };
@@ -401,16 +397,9 @@ export const useBusinessStore = create<BusinessState>()(
                 }));
             },
 
-            addTimeEntry: (entry) => set((state) => {
-                // Also update project consumed hours automatically
-                const updatedProjects = state.projects.map(p => {
-                    if (p.id === entry.projectId) {
-                        return { ...p, consumedHours: p.consumedHours + entry.hours, status: 'On Track' as any };
-                    }
-                    return p;
-                });
-                return { timeEntries: [...state.timeEntries, entry], projects: updatedProjects };
-            }),
+            addTimeEntry: (entry) => set((state) => ({
+                timeEntries: [...state.timeEntries, entry],
+            })),
 
             addInvoice: (invoice) => set((state) => ({ invoices: [...state.invoices, invoice] })),
 
@@ -419,7 +408,6 @@ export const useBusinessStore = create<BusinessState>()(
                 const deal = state.deals.find(d => d.id === dealId);
                 if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
 
-                // If deal has the new calculated fields from the unified form, return them
                 if (deal.totalEstimatedCost !== undefined) {
                     return {
                         laborCost: deal.baseLaborCost || 0,
@@ -430,18 +418,15 @@ export const useBusinessStore = create<BusinessState>()(
                     };
                 }
 
-                // Fallback to old dynamic calculation for legacy deals
                 let laborCost = 0;
                 (deal.estimationResources || []).forEach(res => {
                     const role = state.roles.find(r => r.id === res.roleId);
-                    // Use employee costPerHour or fall back to a default cost based on billing rate (e.g., 50% of bill rate)
                     const costRate = role ? (role.rate * 0.5) : 50;
                     laborCost += res.hours * costRate;
                 });
 
                 const overheadCost = (deal.projectOverheads || []).reduce((sum, oh) => sum + oh.cost, 0);
                 const totalCost = laborCost + overheadCost;
-
                 const targetMarginDecimal = (deal.targetMargin || 0) / 100;
                 const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
                 const expectedProfit = suggestedPrice - totalCost;
@@ -449,36 +434,31 @@ export const useBusinessStore = create<BusinessState>()(
                 return { laborCost, overheadCost, suggestedPrice, expectedProfit, totalCost };
             },
 
-            assignEngineer: (dealId, engineerId, allocatedHours) =>
-                set((state) => {
-                    return {
-                        deals: state.deals.map((deal) => {
-                            if (deal.id !== dealId) return deal;
+            assignEngineer: (dealId, employeeId, allocatedHours) =>
+                set((state) => ({
+                    deals: state.deals.map((deal) => {
+                        if (deal.id !== dealId) return deal;
 
-                            const existingAssignments = deal.hardAssignments || [];
-                            const assignmentIndex = existingAssignments.findIndex(
-                                (a) => a.engineerId === engineerId
-                            );
+                        const existingAssignments = deal.hardAssignments || [];
+                        const assignmentIndex = existingAssignments.findIndex(
+                            (a) => a.employeeId === employeeId
+                        );
 
-                            let newAssignments = [...existingAssignments];
+                        const newAssignments = [...existingAssignments];
 
-                            if (assignmentIndex >= 0) {
-                                if (allocatedHours === 0) {
-                                    newAssignments.splice(assignmentIndex, 1);
-                                } else {
-                                    newAssignments[assignmentIndex] = {
-                                        engineerId,
-                                        allocatedHours,
-                                    };
-                                }
-                            } else if (allocatedHours > 0) {
-                                newAssignments.push({ engineerId, allocatedHours });
+                        if (assignmentIndex >= 0) {
+                            if (allocatedHours === 0) {
+                                newAssignments.splice(assignmentIndex, 1);
+                            } else {
+                                newAssignments[assignmentIndex] = { employeeId, allocatedHours };
                             }
+                        } else if (allocatedHours > 0) {
+                            newAssignments.push({ employeeId, allocatedHours });
+                        }
 
-                            return { ...deal, hardAssignments: newAssignments };
-                        }),
-                    };
-                }),
+                        return { ...deal, hardAssignments: newAssignments };
+                    }),
+                })),
 
             getCapacityPool: () => {
                 const state = get();
@@ -501,9 +481,8 @@ export const useBusinessStore = create<BusinessState>()(
                     if (status === "lost") return;
 
                     if (status === "won" || status === "contract") {
-                        const hardAssignments = deal.hardAssignments || [];
-                        hardAssignments.forEach((assignment) => {
-                            const eng = state.engineers.find((e) => e.id === assignment.engineerId);
+                        (deal.hardAssignments || []).forEach((assignment) => {
+                            const eng = state.engineers.find((e) => e.id === assignment.employeeId);
                             if (eng && pool[eng.role]) {
                                 pool[eng.role].hardBookedHours += assignment.allocatedHours;
                             }
@@ -513,8 +492,8 @@ export const useBusinessStore = create<BusinessState>()(
                             const totalRequiredHours = gr.quantity * 160;
                             const prob = deal.winProbability || 0;
                             const softBooked = calculateSoftBookedHours(totalRequiredHours, prob);
-                            if (pool[gr.role]) {
-                                pool[gr.role].softBookedHours += softBooked;
+                            if (pool[gr.roleType]) {
+                                pool[gr.roleType].softBookedHours += softBooked;
                             }
                         });
                     }
@@ -525,39 +504,39 @@ export const useBusinessStore = create<BusinessState>()(
 
             getFinancialPnL: () => {
                 const state = get();
-                // Simple group by month
                 const monthlyData: Record<string, { revenue: number, directLabor: number, overhead: number }> = {};
 
-                // 1. Revenue from Invoices
-                state.invoices.forEach(inv => {
-                    const month = new Date(inv.date).toLocaleString('default', { month: 'short' });
-                    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                    monthlyData[month].revenue += inv.amount;
-                });
+                // Revenue: only count Paid invoices
+                state.invoices
+                    .filter(inv => inv.status === 'Paid')
+                    .forEach(inv => {
+                        const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                        if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                        monthlyData[month].revenue += inv.amount;
+                    });
 
-                // 2. Direct Labor from Time Entries
-                state.timeEntries.forEach(entry => {
-                    const month = new Date(entry.date).toLocaleString('default', { month: 'short' });
-                    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                // Direct Labor: only count Approved time entries
+                state.timeEntries
+                    .filter(entry => entry.status === 'Approved')
+                    .forEach(entry => {
+                        const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                        if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                        const emp = state.employees.find(e => e.id === entry.employeeId);
+                        const hourlyCost = emp ? emp.costPerHour : 0;
+                        monthlyData[month].directLabor += (entry.hours * hourlyCost);
+                    });
 
-                    const emp = state.employees.find(e => e.id === entry.employeeId);
-                    const hourlyCost = emp ? emp.costPerHour : 0;
-                    monthlyData[month].directLabor += (entry.hours * hourlyCost);
-                });
-
-                // 3. Global Overhead applied monthly (distribute total monthly overhead)
                 const totalMonthlyGlobalOverhead = state.globalOverheads.reduce((sum, oh) => sum + oh.monthlyCost, 0);
 
                 Object.keys(monthlyData).forEach(month => {
                     monthlyData[month].overhead += totalMonthlyGlobalOverhead;
                 });
 
-                // Convert to array and calculate profits
                 return Object.keys(monthlyData).map(month => {
                     const { revenue, directLabor, overhead } = monthlyData[month];
                     const grossProfit = revenue - directLabor;
                     const operatingProfit = grossProfit - overhead;
-                    const netProfit = operatingProfit * 0.8; // Simple 20% tax
+                    const netProfit = operatingProfit * 0.8;
 
                     return { month, revenue, directLabor, overhead, grossProfit, operatingProfit, netProfit };
                 });
