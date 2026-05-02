@@ -359,10 +359,16 @@ export const useBusinessStore = create<BusinessState>()(
                 try {
                     const { data } = await api.post(`/deals/${dealId}/win`);
 
+                    const serverContract = toContract(data.contract);
+                    const serverProject = toProject(data.project);
+
                     set(s => ({
-                        deals: s.deals.map(d => d.id === dealId ? toDeal(data.deal) : d),
-                        contracts: [...s.contracts, toContract(data.contract)],
-                        projects: [...s.projects, toProject(data.project)],
+                        // Merge server fields into existing deal to preserve ghost roles and hard assignments
+                        // that the win endpoint may not eager-load
+                        deals: s.deals.map(d => d.id === dealId ? { ...d, ...toDeal(data.deal) } : d),
+                        // Filter before appending to stay idempotent on retries
+                        contracts: [...s.contracts.filter(c => c.id !== serverContract.id), serverContract],
+                        projects: [...s.projects.filter(p => p.id !== serverProject.id), serverProject],
                     }));
 
                     toast.success(`Deal won! Contract ${data.contract.contract_number} created.`);
