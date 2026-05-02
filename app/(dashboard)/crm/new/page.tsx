@@ -29,7 +29,7 @@ import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, ca
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 
 const ghostRoleSchema = z.object({
-    role: z.string(),
+    roleType: z.string(),
     quantity: z.coerce.number().min(1, "At least 1"),
     months: z.coerce.number().min(1, "At least 1 month"),
     avgMonthlySalary: z.coerce.number().min(0, "Must be positive"),
@@ -66,7 +66,7 @@ export default function NewDealPage() {
             workloadHours: 0,
             winProbability: 50,
             workloadDescription: "",
-            ghostRoles: [{ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+            ghostRoles: [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
         },
     });
 
@@ -111,7 +111,7 @@ export default function NewDealPage() {
     function onSubmit(data: DealFormValues) {
         const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
             id: uuidv4(),
-            role: gr.role as RoleType,
+            roleType: gr.roleType as RoleType,
             quantity: gr.quantity,
             months: gr.months,
             avgMonthlySalary: gr.avgMonthlySalary,
@@ -289,7 +289,7 @@ export default function NewDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ role: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
+                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -300,7 +300,7 @@ export default function NewDealPage() {
                                                         <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
                                                             <FormField
                                                                 control={form.control}
-                                                                name={`ghostRoles.${index}.role`}
+                                                                name={`ghostRoles.${index}.roleType`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="flex-1">
                                                                         <FormLabel className="text-xs text-slate-500">Role</FormLabel>

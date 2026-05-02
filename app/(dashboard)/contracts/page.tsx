@@ -218,7 +218,7 @@ export default function ContractsPage() {
                                     <TableRow key={invoice.id}>
                                         <TableCell className="font-medium">{invoice.id}</TableCell>
                                         <TableCell className="text-slate-600">{invoice.contractId}</TableCell>
-                                        <TableCell>{invoice.date}</TableCell>
+                                        <TableCell>{invoice.issueDate}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={
                                                 invoice.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :

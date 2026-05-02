@@ -31,7 +31,7 @@ export default function StaffingPage() {
         if (deal) {
             const initialAllocations: Record<string, number> = {};
             deal.hardAssignments?.forEach((a) => {
-                initialAllocations[a.engineerId] = a.allocatedHours;
+                initialAllocations[a.employeeId] = a.allocatedHours;
             });
             setAllocations(initialAllocations);
         }
@@ -52,11 +52,11 @@ export default function StaffingPage() {
         );
     }
 
-    const getEngineerBookedHours = (engineerId: string) => {
+    const getEngineerBookedHours = (employeeId: string) => {
         let booked = 0;
         deals.forEach((d) => {
             if (d.status === "won" && d.id !== deal.id) {
-                const assignment = d.hardAssignments?.find((a) => a.engineerId === engineerId);
+                const assignment = d.hardAssignments?.find((a) => a.employeeId === employeeId);
                 if (assignment) {
                     booked += assignment.allocatedHours;
                 }
@@ -65,11 +65,11 @@ export default function StaffingPage() {
         return booked;
     };
 
-    const handleAllocationChange = (engineerId: string, value: string) => {
+    const handleAllocationChange = (employeeId: string, value: string) => {
         const hours = parseInt(value, 10);
         setAllocations((prev) => ({
             ...prev,
-            [engineerId]: isNaN(hours) ? 0 : hours,
+            [employeeId]: isNaN(hours) ? 0 : hours,
         }));
     };
 
@@ -181,7 +181,7 @@ export default function StaffingPage() {
                             {(deal.ghostRoles || []).map((gr) => (
                                 <div key={gr.id} className="flex justify-between items-center py-2 border-b last:border-0 last:pb-0">
                                     <div className="flex flex-col">
-                                        <span className="capitalize font-medium">{gr.role}</span>
+                                        <span className="capitalize font-medium">{gr.roleType}</span>
                                         <span className="text-xs text-muted-foreground">{gr.months} month(s)</span>
                                     </div>
                                     <Badge variant="secondary">Qty: {gr.quantity}</Badge>
