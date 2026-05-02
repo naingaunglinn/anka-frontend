@@ -2,6 +2,7 @@
 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { AppProviders } from '@/components/providers/AppProviders';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useBusinessStore } from '@/store/businessStore';
@@ -23,6 +24,7 @@ export default function DashboardLayout({
     }, []);
 
     return (
+        <AppProviders>
         <div className="h-full relative overflow-hidden bg-slate-50">
             <Toaster position="top-right" />
             {/* Sidebar - fixed on desktop */}
@@ -46,5 +48,6 @@ export default function DashboardLayout({
                 </div>
             </main>
         </div>
+        </AppProviders>
     );
 }
