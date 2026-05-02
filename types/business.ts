@@ -4,8 +4,9 @@ export type RoleType = "frontend" | "backend" | "pm" | "qa" | "design" | string;
 export interface Role {
     id: string;
     title: string;
-    department: string;
-    rate: number; // Billable rate to client
+    department: string;      // denormalized text — fast reads
+    departmentId?: string;   // FK → departments.id
+    rate: number;            // Billable rate to client
 }
 
 export interface Department {

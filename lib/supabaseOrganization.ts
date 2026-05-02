@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { useTenantStore } from '@/store/tenantStore'
 import type {
     Department,
     Role,
@@ -25,6 +26,7 @@ function toRole(row: Record<string, unknown>): Role {
         id: row.id as string,
         title: row.title as string,
         department: row.department as string,
+        departmentId: row.department_id as string | undefined,
         rate: row.rate as number,
     }
 }
@@ -38,7 +40,7 @@ function toEmployee(row: Record<string, unknown>): Employee {
         capacityRole: row.capacity_role as Employee['capacityRole'],
         monthlySalary: row.monthly_salary as number,
         workableHours: row.workable_hours as number,
-        costPerHour: row.cost_per_hour as number,
+        costPerHour: row.cost_per_hour as number, // GENERATED ALWAYS by DB — read only
         status: row.status as Employee['status'],
     }
 }
@@ -73,6 +75,9 @@ export async function fetchAllOrganizationData(): Promise<{
     globalOverheads: GlobalOverhead[]
     companySettings: CompanySettings | null
 }> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
+
     const [
         { data: departments, error: dErr },
         { data: roles, error: rErr },
@@ -80,18 +85,17 @@ export async function fetchAllOrganizationData(): Promise<{
         { data: overheads, error: oErr },
         { data: settings },
     ] = await Promise.all([
-        supabase.from('departments').select('*').order('created_at'),
-        supabase.from('roles').select('*').order('created_at'),
-        supabase.from('employees').select('*').order('created_at'),
-        supabase.from('global_overheads').select('*').order('created_at'),
-        supabase.from('company_settings').select('*').eq('id', 'singleton').single(),
+        supabase.from('departments').select('*').eq('tenant_id', tenantId).is('deleted_at', null).order('created_at'),
+        supabase.from('roles').select('*').eq('tenant_id', tenantId).is('deleted_at', null).order('created_at'),
+        supabase.from('employees').select('*').eq('tenant_id', tenantId).is('deleted_at', null).order('created_at'),
+        supabase.from('global_overheads').select('*').eq('tenant_id', tenantId).is('deleted_at', null).order('created_at'),
+        supabase.from('company_settings').select('*').eq('tenant_id', tenantId).maybeSingle(),
     ])
 
     if (dErr) throw new Error(`departments: ${dErr.message}`)
     if (rErr) throw new Error(`roles: ${rErr.message}`)
     if (eErr) throw new Error(`employees: ${eErr.message}`)
     if (oErr) throw new Error(`global_overheads: ${oErr.message}`)
-    // settings error is non-fatal — row may not exist yet
 
     return {
         departments: (departments ?? []).map(toDepartment),
@@ -107,8 +111,10 @@ export async function fetchAllOrganizationData(): Promise<{
 // ─────────────────────────────────────────────────────────────
 
 export async function insertDepartment(d: Department): Promise<void> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('departments').insert({
-        id: d.id, name: d.name, manager: d.manager, headcount: d.headcount,
+        id: d.id, tenant_id: tenantId, name: d.name, manager: d.manager, headcount: d.headcount,
     })
     if (error) throw new Error(error.message)
 }
@@ -122,7 +128,10 @@ export async function updateDepartmentDB(d: Department): Promise<void> {
 }
 
 export async function deleteDepartmentDB(id: string): Promise<void> {
-    const { error } = await supabase.from('departments').delete().eq('id', id)
+    const { error } = await supabase
+        .from('departments')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
     if (error) throw new Error(error.message)
 }
 
@@ -131,8 +140,15 @@ export async function deleteDepartmentDB(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export async function insertRole(r: Role): Promise<void> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('roles').insert({
-        id: r.id, title: r.title, department: r.department, rate: r.rate,
+        id: r.id,
+        tenant_id: tenantId,
+        department_id: r.departmentId ?? null,
+        title: r.title,
+        department: r.department,
+        rate: r.rate,
     })
     if (error) throw new Error(error.message)
 }
@@ -140,13 +156,21 @@ export async function insertRole(r: Role): Promise<void> {
 export async function updateRoleDB(r: Role): Promise<void> {
     const { error } = await supabase
         .from('roles')
-        .update({ title: r.title, department: r.department, rate: r.rate })
+        .update({
+            department_id: r.departmentId ?? null,
+            title: r.title,
+            department: r.department,
+            rate: r.rate,
+        })
         .eq('id', r.id)
     if (error) throw new Error(error.message)
 }
 
 export async function deleteRoleDB(id: string): Promise<void> {
-    const { error } = await supabase.from('roles').delete().eq('id', id)
+    const { error } = await supabase
+        .from('roles')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
     if (error) throw new Error(error.message)
 }
 
@@ -155,13 +179,18 @@ export async function deleteRoleDB(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export async function insertEmployee(e: Employee): Promise<void> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('employees').insert({
         id: e.id,
+        tenant_id: tenantId,
         name: e.name,
         role: e.role,
+        role_name: e.roleName ?? null,
+        capacity_role: e.capacityRole ?? null,
         monthly_salary: e.monthlySalary,
         workable_hours: e.workableHours,
-        cost_per_hour: e.costPerHour,
+        // cost_per_hour is GENERATED ALWAYS by DB — never insert or update it
         status: e.status,
     })
     if (error) throw new Error(error.message)
@@ -173,9 +202,11 @@ export async function updateEmployeeDB(e: Employee): Promise<void> {
         .update({
             name: e.name,
             role: e.role,
+            role_name: e.roleName ?? null,
+            capacity_role: e.capacityRole ?? null,
             monthly_salary: e.monthlySalary,
             workable_hours: e.workableHours,
-            cost_per_hour: e.costPerHour,
+            // cost_per_hour is GENERATED ALWAYS by DB — never insert or update it
             status: e.status,
         })
         .eq('id', e.id)
@@ -183,7 +214,10 @@ export async function updateEmployeeDB(e: Employee): Promise<void> {
 }
 
 export async function deleteEmployeeDB(id: string): Promise<void> {
-    const { error } = await supabase.from('employees').delete().eq('id', id)
+    const { error } = await supabase
+        .from('employees')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
     if (error) throw new Error(error.message)
 }
 
@@ -192,8 +226,10 @@ export async function deleteEmployeeDB(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export async function insertGlobalOverhead(o: GlobalOverhead): Promise<void> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('global_overheads').insert({
-        id: o.id, category: o.category, description: o.description, monthly_cost: o.monthlyCost,
+        id: o.id, tenant_id: tenantId, category: o.category, description: o.description, monthly_cost: o.monthlyCost,
     })
     if (error) throw new Error(error.message)
 }
@@ -207,20 +243,28 @@ export async function updateGlobalOverheadDB(o: GlobalOverhead): Promise<void> {
 }
 
 export async function deleteGlobalOverheadDB(id: string): Promise<void> {
-    const { error } = await supabase.from('global_overheads').delete().eq('id', id)
+    const { error } = await supabase
+        .from('global_overheads')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
     if (error) throw new Error(error.message)
 }
 
 // ─────────────────────────────────────────────────────────────
-// COMPANY SETTINGS  (singleton row — always upsert)
+// COMPANY SETTINGS  (one row per tenant — always upsert)
 // ─────────────────────────────────────────────────────────────
 
 export async function upsertCompanySettings(s: CompanySettings): Promise<void> {
+    const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('company_settings').upsert({
-        id: 'singleton',
+        id: tenantId,
+        tenant_id: tenantId,
         overhead_percentage: s.overheadPercentage,
         buffer_percentage: s.bufferPercentage,
         yearly_fixed_cost: s.yearlyFixedCost,
-    })
+        employer_tax_percentage: s.employerTaxPercentage,
+        benefits_percentage: s.benefitsPercentage,
+    }, { onConflict: 'tenant_id' })
     if (error) throw new Error(error.message)
 }

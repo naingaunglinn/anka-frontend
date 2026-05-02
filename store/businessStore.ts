@@ -36,37 +36,6 @@ const INITIAL_ENGINEERS: Engineer[] = [
     { id: "e5", name: "Eve Frontend", role: "frontend", monthlySalary: 7500, monthlyCapacityHours: 160 },
 ];
 
-const MOCK_DEPARTMENTS: Department[] = [
-    { id: "d1", name: "Engineering", manager: "Alice Roberts", headcount: 3 },
-    { id: "d2", name: "Design", manager: "Mark Smith", headcount: 1 },
-];
-
-const MOCK_ROLES: Role[] = [
-    { id: "r1", title: "Senior Developer", department: "Engineering", rate: 150 },
-    { id: "r2", title: "Mid Developer", department: "Engineering", rate: 100 },
-    { id: "r3", title: "UI/UX Designer", department: "Design", rate: 120 },
-    { id: "r4", title: "Project Manager", department: "Engineering", rate: 130 },
-];
-
-const MOCK_EMPLOYEES: Employee[] = [
-    { id: "e1", name: "John Doe", role: "r1", monthlySalary: 8000, workableHours: 160, costPerHour: 50, status: "Active" },
-    { id: "e2", name: "Jane Smith", role: "r3", monthlySalary: 6400, workableHours: 160, costPerHour: 40, status: "Active" },
-    { id: "e3", name: "Bob Backend", role: "r2", monthlySalary: 5600, workableHours: 160, costPerHour: 35, status: "Active" },
-    { id: "e4", name: "Alice PM", role: "r4", monthlySalary: 7200, workableHours: 160, costPerHour: 45, status: "Active" },
-];
-
-const MOCK_OVERHEADS: GlobalOverhead[] = [
-    { id: "o1", category: "Software Licenses", description: "AWS, GitHub, Slack, Figma", monthlyCost: 5200 },
-    { id: "o2", category: "Office Rent", description: "HQ Lease", monthlyCost: 12000 },
-];
-
-const MOCK_SETTINGS: CompanySettings = {
-    overheadPercentage: 20,
-    bufferPercentage: 10,
-    yearlyFixedCost: 500000,
-    employerTaxPercentage: 8,
-    benefitsPercentage: 12,
-};
 
 const MOCK_DEALS: Deal[] = [
     {
@@ -192,12 +161,18 @@ export interface BusinessState {
 export const useBusinessStore = create<BusinessState>()(
     persist(
         (set, get) => ({
-            departments: MOCK_DEPARTMENTS,
-            roles: MOCK_ROLES,
-            employees: MOCK_EMPLOYEES,
+            departments: [],
+            roles: [],
+            employees: [],
             engineers: INITIAL_ENGINEERS,
-            globalOverheads: MOCK_OVERHEADS,
-            companySettings: MOCK_SETTINGS,
+            globalOverheads: [],
+            companySettings: {
+                overheadPercentage: 20,
+                bufferPercentage: 10,
+                yearlyFixedCost: 0,
+                employerTaxPercentage: 8,
+                benefitsPercentage: 12,
+            },
             deals: MOCK_DEALS,
             contracts: MOCK_CONTRACTS,
             invoices: MOCK_INVOICES,
