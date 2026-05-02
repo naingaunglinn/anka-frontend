@@ -127,7 +127,7 @@ export default function EditDealPage() {
     function onSubmit(data: DealFormValues) {
         if (!dealToEdit) return;
 
-        const roles: GhostRole[] = data.ghostRoles.map((gr: any) => ({
+        const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
             id: gr.id || uuidv4(),
             roleType: gr.roleType as RoleType,
             quantity: gr.quantity,
