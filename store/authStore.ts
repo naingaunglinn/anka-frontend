@@ -1,18 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface User {
-    id: string;
-    name: string;
+export interface AuthUser {
+    id: number;
+    firstName: string;
+    lastName: string;
     email: string;
-    role: string;
+    appRole: 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR';
+    tenant: {
+        id: string;
+        name: string;
+        slug: string;
+    };
 }
 
 interface AuthState {
-    user: User | null;
+    user: AuthUser | null;
     token: string | null;
     isAuthenticated: boolean;
-    login: (user: User, token: string) => void;
+    login: (user: AuthUser, token: string) => void;
     logout: () => void;
 }
 
@@ -22,9 +28,13 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             token: null,
             isAuthenticated: false,
-            login: (user, token) => set({ user, token, isAuthenticated: true }),
+            login: (user, token) => {
+                if (typeof document !== 'undefined') {
+                    document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+                }
+                set({ user, token, isAuthenticated: true });
+            },
             logout: () => {
-                // Clear the cookie for Next.js Middleware
                 if (typeof document !== 'undefined') {
                     document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 }
@@ -32,7 +42,16 @@ export const useAuthStore = create<AuthState>()(
             },
         }),
         {
-            name: 'auth-storage', // saves to local storage
+            name: 'auth-storage',
+            // Wipe persisted user if it's the old shape (missing firstName)
+            // so stale localStorage data doesn't crash components expecting AuthUser
+            merge: (persisted, current) => {
+                const p = persisted as Partial<AuthState>;
+                if (p.user && !(p.user as AuthUser).firstName) {
+                    return { ...current, user: null, token: null, isAuthenticated: false };
+                }
+                return { ...current, ...p };
+            },
         }
     )
 );

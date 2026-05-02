@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,8 +28,7 @@ type LoginFormValues = z.infer<typeof formSchema>;
 
 export default function LoginPage() {
     const router = useRouter();
-    const login = useAuthStore((state) => state.login);
-    const [loading, setLoading] = useState(false);
+    const { login, isLoggingIn } = useAuth();
 
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(formSchema),
@@ -41,35 +39,19 @@ export default function LoginPage() {
     });
 
     const onSubmit = async (values: LoginFormValues) => {
-        setLoading(true);
         try {
-            // Mock API call
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-
-            const mockUser = {
-                id: 'user_1',
-                name: 'Jane Doe',
-                email: values.email,
-                role: values.email.includes('admin') ? 'Admin' : 'Executive',
-            };
-
-            const mockToken = 'mock_jwt_token_123456';
-
-            // Set cookie for Next.js Middleware (proxy.ts) to read
-            document.cookie = `auth_token=${mockToken}; path=/; max-age=86400; SameSite=Lax`;
-
-            login(mockUser, mockToken);
+            await login({ email: values.email, password: values.password });
             router.push('/dashboard');
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { message?: string } } };
+            form.setError('email', {
+                message: axiosErr.response?.data?.message ?? 'Login failed. Check your credentials.',
+            });
         }
     };
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden">
-            {/* Background decorations for enterprise SaaS feel */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[100px]" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]" />
 
@@ -112,8 +94,8 @@ export default function LoginPage() {
                                     </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full h-11 text-base shadow-sm" disabled={loading}>
-                                {loading ? 'Signing in...' : 'Sign In'}
+                            <Button type="submit" className="w-full h-11 text-base shadow-sm" disabled={isLoggingIn}>
+                                {isLoggingIn ? 'Signing in...' : 'Sign In'}
                             </Button>
                         </form>
                     </Form>
