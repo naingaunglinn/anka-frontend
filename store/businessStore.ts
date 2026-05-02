@@ -510,7 +510,7 @@ export const useBusinessStore = create<BusinessState>()(
                 state.invoices
                     .filter(inv => inv.status === 'Paid')
                     .forEach(inv => {
-                        const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short' });
+                        const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
                         if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
                         monthlyData[month].revenue += inv.amount;
                     });
