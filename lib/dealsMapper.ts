@@ -4,6 +4,8 @@ import type {
     HardAssignment,
     EstimationResource,
     ProjectOverhead,
+    Contract,
+    Project,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
@@ -69,6 +71,40 @@ export function toDeal(row: any): Deal {
         hardAssignments: (row.hard_assignments ?? []).map(toHardAssignment),
         estimationResources: (row.estimation_resources ?? []).map(toEstimationResource),
         projectOverheads: (row.deal_overheads ?? []).map(toProjectOverhead),
+    };
+}
+
+// ─── Win-deal response mappers ───────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toContract(row: any): Contract {
+    return {
+        id: row.id,
+        dealId: row.deal_id,
+        contractNumber: row.contract_number,
+        client: row.client,
+        totalValue: row.total_value,
+        revenueRecognized: row.revenue_recognized,
+        status: row.status,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        notes: row.notes,
+    };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toProject(row: any): Project {
+    return {
+        id: row.id,
+        contractId: row.contract_id,
+        projectNumber: row.project_number,
+        name: row.name,
+        client: row.client,
+        budgetHours: row.budget_hours,
+        consumedHours: row.consumed_hours,
+        status: row.status,
+        startDate: row.start_date,
+        endDate: row.end_date,
     };
 }
 
