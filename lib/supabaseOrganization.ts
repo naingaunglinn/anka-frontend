@@ -76,6 +76,7 @@ export async function fetchAllOrganizationData(): Promise<{
     companySettings: CompanySettings | null
 }> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
 
     const [
         { data: departments, error: dErr },
@@ -111,6 +112,7 @@ export async function fetchAllOrganizationData(): Promise<{
 
 export async function insertDepartment(d: Department): Promise<void> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('departments').insert({
         id: d.id, tenant_id: tenantId, name: d.name, manager: d.manager, headcount: d.headcount,
     })
@@ -139,6 +141,7 @@ export async function deleteDepartmentDB(id: string): Promise<void> {
 
 export async function insertRole(r: Role): Promise<void> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('roles').insert({
         id: r.id,
         tenant_id: tenantId,
@@ -177,6 +180,7 @@ export async function deleteRoleDB(id: string): Promise<void> {
 
 export async function insertEmployee(e: Employee): Promise<void> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('employees').insert({
         id: e.id,
         tenant_id: tenantId,
@@ -223,6 +227,7 @@ export async function deleteEmployeeDB(id: string): Promise<void> {
 
 export async function insertGlobalOverhead(o: GlobalOverhead): Promise<void> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('global_overheads').insert({
         id: o.id, tenant_id: tenantId, category: o.category, description: o.description, monthly_cost: o.monthlyCost,
     })
@@ -251,8 +256,9 @@ export async function deleteGlobalOverheadDB(id: string): Promise<void> {
 
 export async function upsertCompanySettings(s: CompanySettings): Promise<void> {
     const tenantId = useTenantStore.getState().activeTenantId
+    if (!tenantId) throw new Error('Active tenant ID is required')
     const { error } = await supabase.from('company_settings').upsert({
-        id: tenantId ?? 'singleton',
+        id: tenantId,
         tenant_id: tenantId,
         overhead_percentage: s.overheadPercentage,
         buffer_percentage: s.bufferPercentage,

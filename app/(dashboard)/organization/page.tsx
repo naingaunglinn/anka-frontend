@@ -61,7 +61,7 @@ export default function EmployeesPage() {
     const handleAddEmployee = async (data: EmployeeFormValues) => {
         const role = store.roles.find(r => r.id === data.role);
         await store.addEmployee({
-            id: Math.random().toString(),
+            id: crypto.randomUUID(),
             name: data.name,
             role: data.role,
             roleName: role?.title,
@@ -96,7 +96,7 @@ export default function EmployeesPage() {
 
     // --- Department Handlers ---
     const handleAddDepartment = async (data: DepartmentFormValues) => {
-        await store.addDepartment({ id: Math.random().toString(), ...data, headcount: 0 });
+        await store.addDepartment({ id: crypto.randomUUID(), ...data, headcount: 0 });
         setIsDeptDialogOpen(false);
     };
 
@@ -108,19 +108,32 @@ export default function EmployeesPage() {
 
     // --- Role Handlers ---
     const handleAddRole = async (data: RoleFormValues) => {
-        await store.addRole({ id: Math.random().toString(), ...data });
+        const dept = store.departments.find(d => d.id === data.departmentId);
+        await store.addRole({
+            id: crypto.randomUUID(),
+            title: data.title,
+            department: dept?.name ?? '',
+            departmentId: data.departmentId,
+            rate: data.rate,
+        });
         setIsRoleDialogOpen(false);
     };
 
     const handleEditRole = async (data: RoleFormValues) => {
         if (!editingRole) return;
-        await store.updateRole(editingRole.id, data);
+        const dept = store.departments.find(d => d.id === data.departmentId);
+        await store.updateRole(editingRole.id, {
+            title: data.title,
+            department: dept?.name ?? '',
+            departmentId: data.departmentId,
+            rate: data.rate,
+        });
         setEditingRole(null);
     };
 
     // --- Overhead Handlers ---
     const handleAddOverhead = async (data: OverheadFormValues) => {
-        await store.addGlobalOverhead({ id: Math.random().toString(), ...data });
+        await store.addGlobalOverhead({ id: crypto.randomUUID(), ...data });
         setIsOverheadDialogOpen(false);
     };
 
@@ -278,7 +291,7 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingRole && (
                                 <RoleForm
-                                    initialData={editingRole}
+                                    initialData={{ title: editingRole.title, departmentId: editingRole.departmentId ?? '', rate: editingRole.rate }}
                                     departments={store.departments}
                                     onSubmit={handleEditRole}
                                     onCancel={() => setEditingRole(null)}

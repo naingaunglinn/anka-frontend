@@ -229,11 +229,9 @@ export const useBusinessStore = create<BusinessState>()(
 
             addRole: async (role) => {
                 const snapshot = get().roles;
-                const dept = get().departments.find(d => d.name === role.department);
-                const roleWithFK = { ...role, departmentId: dept?.id };
-                set(s => ({ roles: [...s.roles, roleWithFK] }));
+                set(s => ({ roles: [...s.roles, role] }));
                 try {
-                    await insertRole(roleWithFK);
+                    await insertRole(role);
                 } catch (err) {
                     set({ roles: snapshot });
                     toast.error(`Failed to add role: ${(err as Error).message}`);
@@ -243,14 +241,7 @@ export const useBusinessStore = create<BusinessState>()(
                 const snapshot = get().roles;
                 const existing = snapshot.find(r => r.id === id);
                 if (!existing) return;
-                const dept = role.department
-                    ? get().departments.find(d => d.name === role.department)
-                    : undefined;
-                const updated = {
-                    ...existing,
-                    ...role,
-                    ...(dept ? { departmentId: dept.id } : {}),
-                };
+                const updated = { ...existing, ...role };
                 set(s => ({ roles: s.roles.map(r => r.id === id ? updated : r) }));
                 try {
                     await updateRoleDB(updated);

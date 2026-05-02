@@ -25,7 +25,7 @@ import { Department } from '@/types/business';
 
 const roleSchema = z.object({
     title: z.string().min(2, "Title must be at least 2 characters."),
-    department: z.string().min(1, "Please select a department."),
+    departmentId: z.string().min(1, "Please select a department."),
     rate: z.coerce.number().min(0, "Bill rate must be positive."),
 });
 
@@ -43,7 +43,7 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
         resolver: zodResolver(roleSchema) as any,
         defaultValues: initialData || {
             title: '',
-            department: '',
+            departmentId: '',
             rate: 0,
         },
     });
@@ -70,7 +70,7 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                 />
                 <FormField
                     control={form.control}
-                    name="department"
+                    name="departmentId"
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Department</FormLabel>
@@ -82,7 +82,7 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                                 </FormControl>
                                 <SelectContent>
                                     {departments.map(d => (
-                                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
