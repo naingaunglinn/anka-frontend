@@ -1,6 +1,6 @@
 # ANKA Frontend — Backend Integration Progress
 
-Last updated: 2026-05-02 (Phase 3 added)  
+Last updated: 2026-05-02 (Phase 4 added)  
 Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (planned)
 
 ---
@@ -13,7 +13,7 @@ Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (p
 | Phase 1 | Auth & identity | ✅ Merged | PR #3 |
 | Phase 2 | Organization module | 🔄 Open PR | PR #4 (phase-2/organization) |
 | Phase 3 | CRM & deals pipeline | 🔄 Open PR | PR #5 (phase-3/crm-deals) |
-| Phase 4 | Win deal flow | ⬜ Not started | — |
+| Phase 4 | Win deal flow | 🔄 Open PR | PR #6 (phase-4/win-deal) |
 | Phase 5 | Contracts, milestones & invoices | ⬜ Not started | — |
 | Phase 6 | Projects & time tracking | ⬜ Not started | — |
 | Phase 7 | Production hardening | ⬜ Not started | — |
@@ -191,18 +191,30 @@ Wires the CRM Kanban board to the Laravel deals API. Mock deal data removed from
 
 ---
 
-## ⬜ Phase 4 — Win Deal Flow
+## 🔄 Phase 4 — Win Deal Flow (PR Open)
 
-**What needs to be built:**
+Replaces the mock `winDeal()` implementation with a real `POST /api/deals/{id}/win` API call. The backend delegates to the `win_deal()` PostgreSQL function which handles atomicity, idempotency, and row-locking. The frontend adds `toContract` and `toProject` mappers, then seeds the store with the real contract and project returned by the API.
 
-### Backend (Laravel)
-- `POST /api/deals/{id}/win` — calls the `win_deal(deal_id, tenant_id)` PostgreSQL function atomically; do NOT replicate the logic in PHP
-- The DB function handles: `status = 'won'`, `won_at = now()`, creates `Contract`, creates `Project`, uses `FOR UPDATE` row lock for idempotency
+> **Prerequisite:** Laravel must implement `POST /api/deals/{id}/win` calling `win_deal(deal_id, tenant_id)` before deploying. Do not replicate the DB function logic in PHP.
 
-### Frontend
-- `store/businessStore.ts`: replace the local `winDeal()` implementation (which manually creates a Contract and Project in memory) with a single `api.post('/deals/{id}/win')` call
-- On success, fetch the newly created contract and project from the API response and add them to store state
-- Remove the local `Contract` and `Project` generation logic from `winDeal()`
+### Changes Made
+
+**`lib/dealsMapper.ts`**
+- Added `toContract(row)`: maps snake_case API contract response to camelCase `Contract` type (`deal_id` → `dealId`, `contract_number` → `contractNumber`, `total_value` → `totalValue`, etc.)
+- Added `toProject(row)`: maps snake_case API project response to camelCase `Project` type (`contract_id` → `contractId`, `project_number` → `projectNumber`, `budget_hours` → `budgetHours`, etc.)
+
+**`store/businessStore.ts`**
+- `winDeal` interface updated from `void` to `Promise<void>`
+- Replaced local mock implementation (random IDs, no persistence) with async `api.post('/deals/{id}/win')`
+- Optimistic update: deal status set to `'won'` immediately in UI
+- On success: deal replaced with real DB record (includes `won_at`), contract and project appended to store via `toContract`/`toProject` mappers
+- On failure: all three store slices (deals, contracts, projects) roll back to pre-call snapshots; toast shows backend error message
+- `getCapacityPool()` selector requires no changes — it already switches from ghost-role soft-booking to hard-assignment tracking when `status === 'won'`
+
+### What Still Needs the Backend (Laravel)
+
+- `POST /api/deals/{id}/win` — call `DB::statement('SELECT win_deal(?::uuid, ?::uuid)', [$id, $tenantId])`, return `{deal, contract, project}`
+- The `win_deal()` DB function handles the full atomic flow (lock, idempotency check, contract + project creation with auto-numbered sequences)
 
 ---
 
