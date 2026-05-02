@@ -33,6 +33,15 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'auth-storage',
+            // Wipe persisted user if it's the old shape (missing firstName)
+            // so stale localStorage data doesn't crash components expecting AuthUser
+            merge: (persisted, current) => {
+                const p = persisted as Partial<AuthState>;
+                if (p.user && !(p.user as AuthUser).firstName) {
+                    return { ...current, user: null, token: null, isAuthenticated: false };
+                }
+                return { ...current, ...p };
+            },
         }
     )
 );

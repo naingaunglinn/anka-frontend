@@ -28,8 +28,8 @@ export const Header = () => {
     const { logout } = useAuth();
 
     const activeTenantName = tenants.find(t => t.id === activeTenantId)?.name || 'Select Tenant';
-    const displayName = user ? `${user.firstName} ${user.lastName}` : 'User';
-    const initials = user ? user.firstName.charAt(0).toUpperCase() : 'U';
+    const displayName = user?.firstName ? `${user.firstName} ${user.lastName}` : (user?.email ?? 'User');
+    const initials = user?.firstName?.charAt(0).toUpperCase() ?? 'U';
 
     const handleLogout = async () => {
         try {
