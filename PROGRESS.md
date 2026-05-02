@@ -1,0 +1,285 @@
+# ANKA Frontend — Backend Integration Progress
+
+Last updated: 2026-05-02 (Phase 3 added)  
+Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (planned)
+
+---
+
+## Summary
+
+| Phase | Scope | Status | Branch / PR |
+|---|---|---|---|
+| Phase 0 | Frontend type fixes | ✅ Merged | PR #2 |
+| Phase 1 | Auth & identity | ✅ Merged | PR #3 |
+| Phase 2 | Organization module | 🔄 Open PR | PR #4 (phase-2/organization) |
+| Phase 3 | CRM & deals pipeline | 🔄 Open PR | PR #5 (phase-3/crm-deals) |
+| Phase 4 | Win deal flow | ⬜ Not started | — |
+| Phase 5 | Contracts, milestones & invoices | ⬜ Not started | — |
+| Phase 6 | Projects & time tracking | ⬜ Not started | — |
+| Phase 7 | Production hardening | ⬜ Not started | — |
+
+---
+
+## ✅ Phase 0 — Frontend Type Fixes (Merged)
+
+Aligned all TypeScript domain types in `types/business.ts` with the `ANKA.sql` schema before any backend wiring. No runtime behavior changed — the point was to eliminate silent mismatches that would have caused DB write failures later.
+
+### Changes Made
+
+**`types/business.ts`**
+- `Employee`: added `roleName?: string`, `capacityRole?: RoleType`; annotated `costPerHour` as GENERATED/read-only
+- `CompanySettings`: added `employerTaxPercentage` and `benefitsPercentage`
+- `GhostRole`: renamed `role` → `roleType` (matches `deal_ghost_roles.role_type` column)
+- `HardAssignment`: renamed `engineerId` → `employeeId` (matches `deal_hard_assignments.employee_id`)
+- `Deal`: added `workloadDescription`
+- `Invoice`: renamed `date` → `issueDate`; added `milestoneId`, `invoiceNumber`, `dueDate`, `total`, `paidAt`, `notes`; extended status to include `Overdue` and `Cancelled`
+- `Contract`: added `contractNumber`, `startDate`, `endDate`, `notes`; extended status to include `Cancelled`
+- `Project`: added `projectNumber`, `startDate`, `endDate`
+- `TimeEntry`: extended status to include `Rejected`; added `approvedAt`, `approvedBy`, `notes`
+
+**`store/businessStore.ts`**
+- Renamed `engineerId` → `employeeId` throughout `assignEngineer` and `getCapacityPool`
+- Renamed `gr.role` → `gr.roleType` in soft-booking loop
+- Renamed `inv.date` → `inv.issueDate` in `getFinancialPnL`
+- Added `employerTaxPercentage` and `benefitsPercentage` to `MOCK_SETTINGS`
+- P&L revenue now filters to `Paid` invoices only; labor filters to `Approved` entries only
+- Removed auto-increment of `consumedHours` from `addTimeEntry` (derived at query time)
+- Fixed `getFinancialPnL` return type from `any[]` to explicit shape
+
+**`lib/supabaseOrganization.ts`**
+- Added `roleName`, `capacityRole` to `toEmployee` mapper with safe fallbacks
+- Added `employerTaxPercentage`, `benefitsPercentage` to `toCompanySettings` mapper with `?? 0` fallback
+
+**`app/(dashboard)/crm/new/page.tsx` & `crm/edit/[id]/page.tsx`**
+- `ghostRoleSchema`: renamed `role` → `roleType`; added `id: z.string().optional()` to edit page schema
+- All `append({})` calls and form field names updated to `roleType`
+- AI team builder result mapping: `engineerId` → `employeeId`
+
+**`app/(dashboard)/contracts/page.tsx`**
+- `invoice.date` → `invoice.issueDate`
+
+**`components/crm/AITeamBuilderResult.tsx`**
+- `engineerId` → `employeeId` in hard assignment mapping
+
+---
+
+## ✅ Phase 1 — Auth & Identity (Merged)
+
+Replaced the mock login cookie with a real Sanctum-ready auth flow. Two Zustand stores were doing the same job — merged into one. Session guard now actively redirects unauthenticated users server-side (cookie) and client-side (redirect).
+
+### Changes Made
+
+**`store/authStore.ts`** (rewritten)
+- New `AuthUser` type: `id`, `firstName`, `lastName`, `email`, `appRole`, `tenant`
+- `login()` sets `auth_token` cookie so Next.js `proxy.ts` middleware can read it for server-side route protection
+- `logout()` clears the cookie
+- `merge()` migration guard: wipes stale persisted user if it's missing `firstName` (old shape), forcing a clean re-login instead of crashing
+
+**`store/useAuthStore.ts`** — deleted (merged into `authStore.ts`)
+
+**`hooks/useAuth.ts`** (rewritten)
+- Imports from `store/authStore` only
+- `mapApiUser()`: converts snake_case Laravel response (`first_name`, `app_role`) to camelCase `AuthUser`
+- `useQuery` for `/auth/me` — only runs when `token` is present
+- Sets `activeTenantId` in `tenantStore` on first hydration (skips if already set, preserving manual tenant switches)
+- `loginMutation`: CSRF cookie → POST `/auth/login` → map → store hydration
+- `logoutMutation`: POST `/auth/logout` → clear store + tenant + query cache (runs even if API fails)
+
+**`app/(auth)/login/page.tsx`** (rewritten)
+- Removed mock user, mock token, `document.cookie` assignment
+- Calls `useAuth().login({ email, password })` — CSRF + API + store in one step
+- API error message shown on email field
+
+**`app/(auth)/layout.tsx`** (new)
+- Wraps auth pages with `QueryClientProvider` so `useAuth` (which uses TanStack Query) works on the login page without a prerender crash
+
+**`components/providers/AuthInitializer.tsx`** (rewritten)
+- Combined `!token || isError` check into a single `useEffect` → `router.replace('/login')`
+
+**`app/(dashboard)/layout.tsx`**
+- Wrapped with `AppProviders` — activates `QueryClientProvider` and `AuthInitializer` on all dashboard pages (was defined but never wired in)
+
+**`components/layout/Header.tsx`** (rewritten)
+- Uses `user.firstName`, `user.lastName`, `user.appRole` from merged `AuthUser`
+- Logout calls `useAuth().logout()` which hits `POST /auth/logout` before clearing state
+- Removed mock tenant seeding `useEffect` — tenant is set from login response
+
+**`components/ProtectedRoute.tsx`**
+- `user.roles[]` → `user.appRole` string comparison
+- Removed `allowedPermissions` prop (permission checks belong in `lib/rbac.ts`)
+
+---
+
+## 🔄 Phase 2 — Organization Module (PR Open)
+
+Wires the Organization page to real Supabase data. Mock org arrays removed from store initial state — data now loads from the DB via `useOrganizationSync` on page mount.
+
+> **Prerequisite:** `ANKA.sql` must be applied to the Supabase project before this branch is deployed. The `tenant_id`, `deleted_at`, `role_name`, `capacity_role`, and `department_id` columns must exist.
+
+### Changes Made
+
+**`types/business.ts`**
+- `Role`: added `departmentId?: string` (maps to `roles.department_id` FK)
+
+**`lib/supabaseOrganization.ts`** (full upgrade)
+- All fetch queries scoped with `.eq('tenant_id', tenantId)` and `.is('deleted_at', null)`
+- `company_settings` query uses `.eq('tenant_id', tenantId).maybeSingle()` instead of singleton ID
+- All inserts include `tenant_id` in payload
+- `insertEmployee` / `updateEmployeeDB`: added `role_name`, `capacity_role`; removed `cost_per_hour` (GENERATED ALWAYS — DB computes it)
+- `insertRole` / `updateRoleDB`: added `department_id` FK
+- All 4 delete functions converted to soft delete via `deleted_at`
+- `upsertCompanySettings`: added `tenant_id`, `employer_tax_percentage`, `benefits_percentage`; uses `{ onConflict: 'tenant_id' }`
+
+**`store/businessStore.ts`**
+- Removed `MOCK_DEPARTMENTS`, `MOCK_ROLES`, `MOCK_EMPLOYEES`, `MOCK_OVERHEADS`, `MOCK_SETTINGS` from initial state
+- `departments`, `roles`, `employees`, `globalOverheads` start as `[]`
+- `companySettings` starts with sensible defaults (overhead 20%, buffer 10%)
+- `addRole` / `updateRole`: resolve `departmentId` by looking up loaded departments before writing to DB
+
+**`components/forms/EmployeeForm.tsx`**
+- Added `capacityRole` optional field to Zod schema
+- Added "Capacity Pool" dropdown (frontend / backend / pm / qa / design / none) next to Billing Role
+
+**`app/(dashboard)/organization/page.tsx`**
+- `handleAddEmployee` and `handleEditEmployee`: pass `capacityRole` and `roleName` through to the store so they reach `insertEmployee` / `updateEmployeeDB`
+
+---
+
+## 🔄 Phase 3 — CRM & Deals Pipeline (PR Open)
+
+Wires the CRM Kanban board to the Laravel deals API. Mock deal data removed from store initial state — deals now load from `GET /api/deals` on page mount. All four deal mutation actions are now async with optimistic update + rollback, matching the pattern used by the org module.
+
+> **Prerequisite:** Laravel must implement the deal endpoints listed below before this branch is deployed. The frontend is ready; it will show an empty board until the API exists.
+
+### Changes Made
+
+**`store/businessStore.ts`**
+- Added `import api from '@/lib/api'`
+- Removed `MOCK_DEALS` constant; `deals` initial state is now `[]`
+- `addDeal`: async — POST `/deals`, optimistic temp-id replaced with DB record on success
+- `updateDeal`: async — PUT `/deals/{id}`, optimistic update with rollback on error
+- `deleteDeal`: async — DELETE `/deals/{id}`, optimistic remove with rollback on error
+- `updateDealStage`: async — PATCH `/deals/{id}/stage`, used by Kanban drag-and-drop
+- Updated `BusinessState` interface: all four deal actions now return `Promise<void>`
+
+**`app/(dashboard)/crm/page.tsx`**
+- Added `useEffect` that calls `GET /deals` on mount and seeds store via `useBusinessStore.setState`
+- Added `toDeal()` mapper: snake_case API response → camelCase `Deal` type
+- Added sub-mappers: `toGhostRole`, `toHardAssignment`, `toEstimationResource`, `toProjectOverhead`
+
+### What Still Needs the Backend (Laravel)
+
+**What needs to be built:**
+
+### Backend (Laravel)
+- `GET /api/deals` — list all deals for tenant (paginated, filterable)
+- `GET /api/deals/{id}` — single deal with eager-loaded relations (ghost_roles, hard_assignments, estimation_resources, deal_overheads)
+- `POST /api/deals` — create deal
+- `PUT /api/deals/{id}` — update deal fields
+- `PATCH /api/deals/{id}/stage` — Kanban drag-and-drop stage update
+- `DELETE /api/deals/{id}` — soft delete
+- `PUT /api/deals/{id}/estimation` — replace-all estimation resources
+- `PUT /api/deals/{id}/overheads` — replace-all deal overheads
+- `PUT /api/deals/{id}/ghost-roles` — replace-all ghost roles
+- `POST/PUT/DELETE /api/deals/{id}/assignments` — hard assignments per employee
+
+### Frontend
+- `store/businessStore.ts`: convert `addDeal`, `updateDeal`, `updateDealStage`, `deleteDeal` from sync mock to async API calls with optimistic rollback
+- `app/(dashboard)/crm/page.tsx`: add `useEffect` to fetch deals from API on mount; add `toDeal()` snake_case → camelCase mapper
+- Remove `MOCK_DEALS` from store initial state
+- Kanban drag-and-drop: no logic changes needed — `updateDealStage` becoming async is enough
+
+---
+
+## ⬜ Phase 4 — Win Deal Flow
+
+**What needs to be built:**
+
+### Backend (Laravel)
+- `POST /api/deals/{id}/win` — calls the `win_deal(deal_id, tenant_id)` PostgreSQL function atomically; do NOT replicate the logic in PHP
+- The DB function handles: `status = 'won'`, `won_at = now()`, creates `Contract`, creates `Project`, uses `FOR UPDATE` row lock for idempotency
+
+### Frontend
+- `store/businessStore.ts`: replace the local `winDeal()` implementation (which manually creates a Contract and Project in memory) with a single `api.post('/deals/{id}/win')` call
+- On success, fetch the newly created contract and project from the API response and add them to store state
+- Remove the local `Contract` and `Project` generation logic from `winDeal()`
+
+---
+
+## ⬜ Phase 5 — Contracts, Milestones & Invoices
+
+**What needs to be built:**
+
+### Backend (Laravel)
+- `GET/POST /api/contracts`, `PUT/DELETE /api/contracts/{id}`
+- `GET/POST /api/contracts/{id}/milestones`, `PUT/DELETE /api/milestones/{id}`
+- `GET/POST /api/contracts/{id}/invoices`, `PUT/DELETE /api/invoices/{id}`
+- `POST /api/invoices/{id}/mark-paid` — sets `paid_at`, increments `contracts.revenue_recognized`
+
+### Frontend
+- `store/businessStore.ts`: convert `addInvoice` and any contract/milestone actions to API calls
+- `app/(dashboard)/contracts/page.tsx`: load real contracts + invoices on mount; `invoice.issueDate` mapping already done in Phase 0
+- P&L dashboard: revenue from paid invoices already filters correctly (done in Phase 0); just needs real data flowing in
+
+---
+
+## ⬜ Phase 6 — Projects & Time Tracking
+
+**What needs to be built:**
+
+### Backend (Laravel)
+- `GET/POST /api/projects`, `PUT /api/projects/{id}`
+- `GET/POST /api/time-entries`, `PUT/DELETE /api/time-entries/{id}`
+- `POST /api/time-entries/{id}/submit` — Draft → Pending
+- `POST /api/time-entries/{id}/approve` — Pending → Approved (manager only)
+- `POST /api/time-entries/{id}/reject` — Pending → Rejected
+- Project `consumed_hours` must be a computed sum of approved time entries — not maintained by application code (Phase 0 already removed the incorrect auto-increment)
+
+### Frontend
+- `store/businessStore.ts`: convert `addTimeEntry` to API call
+- `app/(dashboard)/time-tracking/page.tsx`: load real time entries on mount
+- `app/(dashboard)/projects/page.tsx`: load real projects on mount; project status badges (On Track / At Risk / Over Budget) already use `consumedHours` vs `budgetHours`
+
+---
+
+## ⬜ Phase 7 — Production Hardening
+
+**What needs to be built:**
+
+### Multi-tenancy
+- Laravel `TenantScope` middleware: inject `tenant_id` filter on every model query automatically
+- All API controllers: verify `deal.tenant_id === auth.user.tenant_id` before any mutation
+- Supabase RLS policies: enable Row Level Security on all 5 org tables; policy: `tenant_id = current_setting('app.tenant_id')::uuid`
+
+### Auth hardening
+- Replace `proxy.ts` with a real Next.js `middleware.ts` file (current file is exported as `proxy`, not picked up by Next.js automatically)
+- Add token expiry handling: refresh token flow or re-login prompt
+- Remove remaining `Math.random()` IDs — all IDs should come from the database
+
+### Error & loading states
+- Global error boundary for API failures
+- Skeleton loaders on all pages that fetch data (currently only org page has `syncing` state)
+- Empty state UI when stores have no data (deals list, projects list, etc.)
+
+### Data integrity
+- Replace `Math.random().toString()` IDs with `crypto.randomUUID()` everywhere in store actions
+- Validate `X-Tenant-ID` header is present on all `lib/api.ts` requests before they fire
+- `useOrganizationSync`: expose `syncing` state to the dashboard shell so a global loading indicator can block navigation until org data is ready
+
+---
+
+## Key Files Reference
+
+| File | Purpose |
+|---|---|
+| `types/business.ts` | All domain types — source of truth for field names |
+| `store/businessStore.ts` | Main app state — org data, CRM, contracts, projects |
+| `store/authStore.ts` | Auth session — user, token, cookie sync |
+| `lib/supabaseOrganization.ts` | Supabase direct queries for org module |
+| `lib/api.ts` | Laravel API client — Bearer token + X-Tenant-ID |
+| `lib/axios.ts` | Laravel Sanctum client — CSRF cookie + auth endpoints |
+| `hooks/useAuth.ts` | TanStack Query wrapper for /auth/me, login, logout |
+| `hooks/useOrganizationSync.ts` | Fetches all org data on mount and seeds Zustand |
+| `lib/rbac.ts` | Permission matrix for 5 roles — already complete |
+| `app/api/ai-team-builder/route.ts` | Gemini API route for AI staffing suggestions |
+| `proxy.ts` | Route protection via auth_token cookie — needs rename to middleware.ts |
