@@ -59,10 +59,15 @@ export default function EmployeesPage() {
 
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
+        const role = store.roles.find(r => r.id === data.role);
         await store.addEmployee({
             id: Math.random().toString(),
             name: data.name,
             role: data.role,
+            roleName: role?.title,
+            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                ? data.capacityRole as Employee['capacityRole']
+                : undefined,
             monthlySalary: data.monthlySalary,
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
@@ -73,9 +78,14 @@ export default function EmployeesPage() {
 
     const handleEditEmployee = async (data: EmployeeFormValues) => {
         if (!editingEmployee) return;
+        const role = store.roles.find(r => r.id === data.role);
         await store.updateEmployee(editingEmployee.id, {
             name: data.name,
             role: data.role,
+            roleName: role?.title,
+            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                ? data.capacityRole as Employee['capacityRole']
+                : undefined,
             monthlySalary: data.monthlySalary,
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),

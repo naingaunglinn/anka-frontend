@@ -21,18 +21,20 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
+import { Role } from '@/types/business';
+
+const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
 
 const employeeSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
     role: z.string().min(1, "Please select a role."),
+    capacityRole: z.string().optional(),
     monthlySalary: z.coerce.number().min(0, "Salary must be positive."),
     workableHours: z.coerce.number().min(1, "Must be greater than 0."),
     status: z.string().min(1, "Please select status."),
 });
 
 export type EmployeeFormValues = z.infer<typeof employeeSchema>;
-
-import { Role } from '@/types/business';
 
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
@@ -47,6 +49,7 @@ export function EmployeeForm({ initialData, roles, onSubmit, onCancel }: Employe
         defaultValues: initialData || {
             name: '',
             role: '',
+            capacityRole: '',
             monthlySalary: 0,
             workableHours: 160,
             status: 'Active',
@@ -73,28 +76,53 @@ export function EmployeeForm({ initialData, roles, onSubmit, onCancel }: Employe
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Role</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a role" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {roles.map(r => (
-                                        <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="role"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Billing Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a role" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {roles.map(r => (
+                                            <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="capacityRole"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Capacity Pool</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="None" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        {CAPACITY_ROLES.map(r => (
+                                            <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
