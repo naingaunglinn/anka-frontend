@@ -48,7 +48,10 @@ export const useAuth = () => {
     useEffect(() => {
         if (user && token) {
             login(user, token);
-            useTenantStore.getState().setActiveTenant(user.tenant.id);
+            const { activeTenantId, setActiveTenant } = useTenantStore.getState();
+            if (!activeTenantId) {
+                setActiveTenant(user.tenant.id);
+            }
         }
         if (isError) {
             logout();

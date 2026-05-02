@@ -12,16 +12,10 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
     const { isError } = useAuth();
 
     useEffect(() => {
-        if (!token) {
+        if (!token || isError) {
             router.replace('/login');
         }
-    }, [token, router]);
-
-    useEffect(() => {
-        if (isError) {
-            router.replace('/login');
-        }
-    }, [isError, router]);
+    }, [token, isError, router]);
 
     return <>{children}</>;
 }
