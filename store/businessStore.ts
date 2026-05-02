@@ -519,7 +519,7 @@ export const useBusinessStore = create<BusinessState>()(
                 state.timeEntries
                     .filter(entry => entry.status === 'Approved')
                     .forEach(entry => {
-                        const month = new Date(entry.date).toLocaleString('default', { month: 'short' });
+                        const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
                         if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
                         const emp = state.employees.find(e => e.id === entry.employeeId);
                         const hourlyCost = emp ? emp.costPerHour : 0;
