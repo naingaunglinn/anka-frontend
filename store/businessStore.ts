@@ -25,7 +25,7 @@ import {
     upsertCompanySettings,
 } from '@/lib/supabaseOrganization';
 import api from '@/lib/api';
-import { toDeal, dealToApiPayload } from '@/lib/dealsMapper';
+import { toDeal, dealToApiPayload, toContract, toProject } from '@/lib/dealsMapper';
 import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
@@ -103,7 +103,7 @@ export interface BusinessState {
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
     // Actions - Cross-module trigger
-    winDeal: (dealId: string) => void;
+    winDeal: (dealId: string) => Promise<void>;
 
     // Actions - Time tracking
     addTimeEntry: (entry: TimeEntry) => void;
@@ -343,39 +343,35 @@ export const useBusinessStore = create<BusinessState>()(
                 }
             },
 
-            winDeal: (dealId) => {
-                const state = get();
-                const deal = state.deals.find(d => d.id === dealId);
-                if (!deal) return;
+            winDeal: async (dealId) => {
+                const snapshotDeals = get().deals;
+                const snapshotContracts = get().contracts;
+                const snapshotProjects = get().projects;
 
-                get().updateDealStage(dealId, 'won', 100);
-
-                const newContract: Contract = {
-                    id: `CON-${Math.floor(Math.random() * 10000)}`,
-                    dealId: deal.id,
-                    client: deal.client || "Client",
-                    totalValue: deal.clientBudget || deal.estimatedValue || 0,
-                    revenueRecognized: 0,
-                    status: 'Active'
-                };
-
-                const totalHoursLegacy = (deal.estimationResources || []).reduce((sum, res) => sum + res.hours, 0);
-                const totalHours = deal.workloadHours || totalHoursLegacy || 0;
-
-                const newProject: Project = {
-                    id: `PRJ-${Math.floor(Math.random() * 10000)}`,
-                    contractId: newContract.id,
-                    name: deal.name,
-                    client: deal.client || "Client",
-                    budgetHours: totalHours,
-                    consumedHours: 0,
-                    status: 'Not Started'
-                };
-
-                set((state) => ({
-                    contracts: [...state.contracts, newContract],
-                    projects: [...state.projects, newProject]
+                // Optimistic: mark deal as won immediately so the UI responds instantly
+                set(s => ({
+                    deals: s.deals.map(d => d.id === dealId
+                        ? { ...d, status: 'won' as const, winProbability: 100 }
+                        : d
+                    ),
                 }));
+
+                try {
+                    const { data } = await api.post(`/deals/${dealId}/win`);
+
+                    set(s => ({
+                        deals: s.deals.map(d => d.id === dealId ? toDeal(data.deal) : d),
+                        contracts: [...s.contracts, toContract(data.contract)],
+                        projects: [...s.projects, toProject(data.project)],
+                    }));
+
+                    toast.success(`Deal won! Contract ${data.contract.contract_number} created.`);
+                } catch (err) {
+                    set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to win deal: ${message}`);
+                }
             },
 
             addTimeEntry: (entry) => set((state) => ({
