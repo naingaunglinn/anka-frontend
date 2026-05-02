@@ -29,6 +29,7 @@ import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, ca
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 
 const ghostRoleSchema = z.object({
+    id: z.string().optional(),
     roleType: z.string(),
     quantity: z.coerce.number().min(1, "At least 1"),
     months: z.coerce.number().min(1, "At least 1 month"),
