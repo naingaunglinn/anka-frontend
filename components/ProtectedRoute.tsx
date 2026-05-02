@@ -7,10 +7,9 @@ import { useRouter, usePathname } from 'next/navigation';
 export interface ProtectedRouteProps {
     children: ReactNode;
     allowedRoles?: string[];
-    allowedPermissions?: string[];
 }
 
-export function ProtectedRoute({ children, allowedRoles, allowedPermissions }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
     const { user, isLoading } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
@@ -23,22 +22,14 @@ export function ProtectedRoute({ children, allowedRoles, allowedPermissions }: P
             return;
         }
 
-        if (allowedRoles && user.roles) {
-            const hasRole = allowedRoles.some(role => user.roles?.includes(role));
+        if (allowedRoles && user.appRole) {
+            const hasRole = allowedRoles.includes(user.appRole);
             if (!hasRole) {
                 router.push('/unauthorized');
                 return;
             }
         }
-
-        if (allowedPermissions && user.permissions) {
-            const hasPermission = allowedPermissions.some(perm => user.permissions?.includes(perm));
-            if (!hasPermission) {
-                router.push('/unauthorized');
-                return;
-            }
-        }
-    }, [user, isLoading, allowedRoles, allowedPermissions, router, pathname]);
+    }, [user, isLoading, allowedRoles, router, pathname]);
 
     if (isLoading) return <div className="flex h-screen w-full items-center justify-center">Loading...</div>;
 
