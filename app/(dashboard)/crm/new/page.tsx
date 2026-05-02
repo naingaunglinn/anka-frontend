@@ -128,7 +128,7 @@ export default function NewDealPage() {
             status: "inquiry",
             ghostRoles: roles,
             hardAssignments: acceptedAIResult
-                ? acceptedAIResult.team.map(m => ({ engineerId: m.employeeId, allocatedHours: m.allocatedHours }))
+                ? acceptedAIResult.team.map(m => ({ employeeId: m.employeeId, allocatedHours: m.allocatedHours }))
                 : [],
             baseLaborCost: acceptedAIResult?.baseLaborCost ?? baseLaborCost,
             overheadCost: acceptedAIResult?.overheadCost ?? overheadCost,

@@ -49,7 +49,7 @@ export function AITeamBuilderResultPanel({
             totalEstimatedCost: result.totalEstimatedCost,
             estimatedGrossProfit: result.estimatedGrossProfit,
             hardAssignments: result.team.map(m => ({
-                engineerId: m.employeeId,
+                employeeId: m.employeeId,
                 allocatedHours: m.allocatedHours,
             })),
         })
