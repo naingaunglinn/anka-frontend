@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { DollarSign, Target, TrendingUp, Plus } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
+import api from '@/lib/api';
+import { toDeal } from '@/lib/dealsMapper';
 
 export default function CRMPage() {
     const [pipelineTotal, setPipelineTotal] = useState(0);
@@ -15,6 +17,16 @@ export default function CRMPage() {
 
     const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
     const capacityPool = getCapacityPool();
+
+    useEffect(() => {
+        api.get('/deals')
+            .then(({ data }) => {
+                useBusinessStore.setState({ deals: data.data.map(toDeal) });
+            })
+            .catch((err) => {
+                console.error('Failed to fetch deals:', err);
+            });
+    }, []);
 
     const totalSoftBooked = capacityPool.reduce((acc, curr) => acc + curr.softBookedHours, 0);
     const totalHardBooked = capacityPool.reduce((acc, curr) => acc + curr.hardBookedHours, 0);

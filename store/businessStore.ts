@@ -24,6 +24,8 @@ import {
     insertGlobalOverhead, updateGlobalOverheadDB, deleteGlobalOverheadDB,
     upsertCompanySettings,
 } from '@/lib/supabaseOrganization';
+import api from '@/lib/api';
+import { toDeal, dealToApiPayload } from '@/lib/dealsMapper';
 import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
@@ -37,47 +39,6 @@ const INITIAL_ENGINEERS: Engineer[] = [
 ];
 
 
-const MOCK_DEALS: Deal[] = [
-    {
-        id: "deal-1",
-        name: "Cloud Migration",
-        client: "Acme Corp",
-        estimatedValue: 120000,
-        winProbability: 100,
-        status: "won",
-        targetMargin: 30,
-        estimationResources: [
-            { id: "res1", featureName: "Architecture Setup", roleId: "r1", hours: 100 },
-            { id: "res2", featureName: "Data Migration", roleId: "r2", hours: 200 },
-        ],
-        projectOverheads: [{ id: "po1", name: "AWS Setup Fee", cost: 2000 }],
-    },
-    {
-        id: "deal-2",
-        name: "Mobile App Redesign",
-        client: "Startup Inc",
-        estimatedValue: 85000,
-        winProbability: 75,
-        status: "proposal",
-        targetMargin: 40,
-        estimationResources: [
-            { id: "res3", featureName: "UI/UX Design", roleId: "r3", hours: 120 },
-            { id: "res4", featureName: "Frontend Dev", roleId: "r2", hours: 160 },
-        ],
-        projectOverheads: [],
-    },
-    {
-        id: "deal-3",
-        name: "Security Audit",
-        client: "Global Tech",
-        estimatedValue: 45000,
-        winProbability: 20,
-        status: "lead",
-        targetMargin: 25,
-        estimationResources: [],
-        projectOverheads: [],
-    },
-];
 
 const MOCK_CONTRACTS: Contract[] = [
     { id: "CON-001", dealId: "deal-1", client: "Acme Corp", totalValue: 120000, revenueRecognized: 40000, status: "Active" }
@@ -135,10 +96,10 @@ export interface BusinessState {
     deleteGlobalOverhead: (id: string) => Promise<void>;
 
     // Actions - CRM & Deals
-    addDeal: (deal: Deal) => void;
-    updateDeal: (id: string, updates: Partial<Deal>) => void;
-    deleteDeal: (id: string) => void;
-    updateDealStage: (id: string, status: string, probability?: number) => void;
+    addDeal: (deal: Deal) => Promise<void>;
+    updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
+    deleteDeal: (id: string) => Promise<void>;
+    updateDealStage: (id: string, status: string, probability?: number) => Promise<void>;
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
     // Actions - Cross-module trigger
@@ -173,7 +134,7 @@ export const useBusinessStore = create<BusinessState>()(
                 employerTaxPercentage: 8,
                 benefitsPercentage: 12,
             },
-            deals: MOCK_DEALS,
+            deals: [],
             contracts: MOCK_CONTRACTS,
             invoices: MOCK_INVOICES,
             milestones: MOCK_MILESTONES,
@@ -330,12 +291,57 @@ export const useBusinessStore = create<BusinessState>()(
             },
 
             // CRM Handlers
-            addDeal: (deal) => set((state) => ({ deals: [...state.deals, deal] })),
-            updateDeal: (id, updates) => set((state) => ({ deals: state.deals.map(d => d.id === id ? { ...d, ...updates } : d) })),
-            deleteDeal: (id) => set((state) => ({ deals: state.deals.filter(d => d.id !== id) })),
-            updateDealStage: (id, status, probability) => set((state) => ({
-                deals: state.deals.map(d => d.id === id ? { ...d, status: status as Deal['status'], winProbability: probability } : d)
-            })),
+            addDeal: async (deal) => {
+                const snapshot = get().deals;
+                const tempId = `temp-${Date.now()}`;
+                set(s => ({ deals: [...s.deals, { ...deal, id: tempId }] }));
+                try {
+                    const { data } = await api.post('/deals', dealToApiPayload(deal));
+                    const created = toDeal(data.data ?? data);
+                    set(s => ({ deals: s.deals.map(d => d.id === tempId ? created : d) }));
+                } catch (err) {
+                    set({ deals: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to create deal: ${message}`);
+                }
+            },
+            updateDeal: async (id, updates) => {
+                const snapshot = get().deals;
+                set(s => ({ deals: s.deals.map(d => d.id === id ? { ...d, ...updates } : d) }));
+                try {
+                    await api.put(`/deals/${id}`, dealToApiPayload(updates));
+                } catch (err) {
+                    set({ deals: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to update deal: ${message}`);
+                }
+            },
+            deleteDeal: async (id) => {
+                const snapshot = get().deals;
+                set(s => ({ deals: s.deals.filter(d => d.id !== id) }));
+                try {
+                    await api.delete(`/deals/${id}`);
+                } catch (err) {
+                    set({ deals: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to delete deal: ${message}`);
+                }
+            },
+            updateDealStage: async (id, status, probability) => {
+                const snapshot = get().deals;
+                set(s => ({ deals: s.deals.map(d => d.id === id ? { ...d, status: status as Deal['status'], winProbability: probability } : d) }));
+                try {
+                    await api.patch(`/deals/${id}/stage`, { status, win_probability: probability });
+                } catch (err) {
+                    set({ deals: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to update deal stage: ${message}`);
+                }
+            },
 
             winDeal: (dealId) => {
                 const state = get();
