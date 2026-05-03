@@ -25,7 +25,7 @@ import {
     upsertCompanySettings,
 } from '@/lib/supabaseOrganization';
 import api from '@/lib/api';
-import { toDeal, dealToApiPayload, toContract, toProject, toInvoice } from '@/lib/dealsMapper';
+import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
 import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
@@ -41,14 +41,6 @@ const INITIAL_ENGINEERS: Engineer[] = [
 
 
 
-const MOCK_PROJECTS: Project[] = [
-    { id: "PRJ-101", contractId: "CON-001", name: "Cloud Migration", client: "Acme Corp", budgetHours: 300, consumedHours: 250, status: "On Track" }
-];
-
-const MOCK_TIME_ENTRIES: TimeEntry[] = [
-    { id: "t1", projectId: "PRJ-101", employeeId: "e1", task: "Database Schema Setup", date: "2024-03-10", hours: 40, billable: true, status: "Approved" },
-    { id: "t2", projectId: "PRJ-101", employeeId: "e3", task: "API Migration", date: "2024-03-15", hours: 210, billable: true, status: "Approved" }
-];
 
 
 // --- Store Interface ---
@@ -93,7 +85,7 @@ export interface BusinessState {
     winDeal: (dealId: string) => Promise<void>;
 
     // Actions - Time tracking
-    addTimeEntry: (entry: TimeEntry) => void;
+    addTimeEntry: (entry: TimeEntry) => Promise<void>;
 
     // Actions - Contracts/Billing
     addInvoice: (invoice: Invoice) => Promise<void>;
@@ -126,8 +118,8 @@ export const useBusinessStore = create<BusinessState>()(
             contracts: [],
             invoices: [],
             milestones: [],
-            projects: MOCK_PROJECTS,
-            timeEntries: MOCK_TIME_ENTRIES,
+            projects: [],
+            timeEntries: [],
 
             updateCompanySettings: async (settings) => {
                 const snapshot = get().companySettings;
@@ -368,9 +360,29 @@ export const useBusinessStore = create<BusinessState>()(
                 }
             },
 
-            addTimeEntry: (entry) => set((state) => ({
-                timeEntries: [...state.timeEntries, entry],
-            })),
+            addTimeEntry: async (entry) => {
+                const snapshot = get().timeEntries;
+                const tempId = `temp-${Date.now()}`;
+                const optimisticEntry = { ...entry, id: tempId, status: 'Draft' as const } as TimeEntry;
+                set(s => ({ timeEntries: [...s.timeEntries, optimisticEntry] }));
+                try {
+                    const { data } = await api.post('/time-entries', {
+                        project_id: entry.projectId,
+                        employee_id: entry.employeeId,
+                        task: entry.task,
+                        date: entry.date,
+                        hours: entry.hours,
+                        billable: entry.billable,
+                    });
+                    const created = toTimeEntry(data.data ?? data);
+                    set(s => ({ timeEntries: s.timeEntries.map(t => t.id === tempId ? created : t) }));
+                } catch (err) {
+                    set({ timeEntries: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to create time entry: ${message}`);
+                }
+            },
 
             addInvoice: async (invoice) => {
                 const snapshot = get().invoices;

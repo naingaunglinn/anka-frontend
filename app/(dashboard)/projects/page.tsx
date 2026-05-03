@@ -6,9 +6,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { Progress } from '@/components/ui/progress';
+import { useEffect } from 'react';
+import api from '@/lib/api';
+import { toProject } from '@/lib/dealsMapper';
 
 export default function ProjectsPage() {
     const store = useBusinessStore();
+
+    useEffect(() => {
+        api.get('/projects')
+            .then(({ data }) => {
+                useBusinessStore.setState({ projects: (data.data ?? data).map(toProject) });
+            })
+            .catch((err) => console.error('Failed to fetch projects:', err));
+    }, []);
 
     return (
         <div className="p-6 space-y-6">

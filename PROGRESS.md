@@ -15,7 +15,7 @@ Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (p
 | Phase 3 | CRM & deals pipeline | ✅ Merged | PR #5 |
 | Phase 4 | Win deal flow | ✅ Merged | PR #6 |
 | Phase 5 | Contracts, milestones & invoices | ✅ Merged | PR #7 |
-| Phase 6 | Projects & time tracking | ⬜ Not started | — |
+| Phase 6 | Projects & time tracking | ✅ Completed | phase-6/projects-time-tracking |
 | Phase 7 | Production hardening | ⬜ Not started | — |
 
 ---
@@ -253,7 +253,7 @@ Wires the Contracts & Billing page to real API data. Mock contract, invoice, and
 
 ---
 
-## ⬜ Phase 6 — Projects & Time Tracking
+## ✅ Phase 6 — Projects & Time Tracking (Completed)
 
 **What needs to be built:**
 
