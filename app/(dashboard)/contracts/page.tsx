@@ -21,13 +21,13 @@ export default function ContractsPage() {
     useEffect(() => {
         api.get('/contracts')
             .then(({ data }) => {
-                useBusinessStore.setState({ contracts: data.data.map(toContract) });
+                useBusinessStore.setState({ contracts: (data.data ?? data).map(toContract) });
             })
             .catch((err) => console.error('Failed to fetch contracts:', err));
 
         api.get('/invoices')
             .then(({ data }) => {
-                useBusinessStore.setState({ invoices: data.data.map(toInvoice) });
+                useBusinessStore.setState({ invoices: (data.data ?? data).map(toInvoice) });
             })
             .catch((err) => console.error('Failed to fetch invoices:', err));
     }, []);
