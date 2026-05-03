@@ -16,7 +16,7 @@ Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (p
 | Phase 4 | Win deal flow | ✅ Merged | PR #6 |
 | Phase 5 | Contracts, milestones & invoices | ✅ Merged | PR #7 |
 | Phase 6 | Projects & time tracking | ✅ Completed | phase-6/projects-time-tracking |
-| Phase 7 | Production hardening | ⬜ Not started | — |
+| Phase 7 | Production hardening | ✅ Completed | phase-7/production-hardening |
 
 ---
 
@@ -272,7 +272,7 @@ Wires the Contracts & Billing page to real API data. Mock contract, invoice, and
 
 ---
 
-## ⬜ Phase 7 — Production Hardening
+## ✅ Phase 7 — Production Hardening (Completed)
 
 **What needs to be built:**
 

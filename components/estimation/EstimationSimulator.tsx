@@ -49,7 +49,7 @@ export function EstimationSimulator() {
     const handleAdd = () => {
         if (!newFeature || !newHours || !newRoleId) return;
         setResources([...resources, {
-            id: Math.random().toString(),
+            id: crypto.randomUUID(),
             featureName: newFeature,
             roleId: newRoleId,
             hours: Number(newHours),
@@ -65,7 +65,7 @@ export function EstimationSimulator() {
     const handleAddOverhead = () => {
         if (!newOverheadName || !newOverheadCost) return;
         setOverheads([...overheads, {
-            id: Math.random().toString(),
+            id: crypto.randomUUID(),
             name: newOverheadName,
             cost: Number(newOverheadCost)
         }]);

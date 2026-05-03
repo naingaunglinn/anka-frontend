@@ -42,7 +42,7 @@ export default function TimeTrackingPage() {
         if (!selectedProjectId || !selectedEmployeeId || !taskDesc || !hoursLogged) return;
 
         const newEntry: TimeEntry = {
-            id: `TIME-${Math.floor(Math.random() * 10000)}`,
+            id: `TIME-${crypto.randomUUID().split('-')[0]}`,
             projectId: selectedProjectId,
             employeeId: selectedEmployeeId,
             task: taskDesc,
