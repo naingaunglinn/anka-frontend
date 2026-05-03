@@ -1,6 +1,6 @@
 # ANKA Frontend — Backend Integration Progress
 
-Last updated: 2026-05-02 (Phase 4 added)  
+Last updated: 2026-05-02 (Phase 5 added)  
 Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (planned)
 
 ---
@@ -14,7 +14,7 @@ Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (p
 | Phase 2 | Organization module | 🔄 Open PR | PR #4 (phase-2/organization) |
 | Phase 3 | CRM & deals pipeline | 🔄 Open PR | PR #5 (phase-3/crm-deals) |
 | Phase 4 | Win deal flow | 🔄 Open PR | PR #6 (phase-4/win-deal) |
-| Phase 5 | Contracts, milestones & invoices | ⬜ Not started | — |
+| Phase 5 | Contracts, milestones & invoices | 🔄 Open PR | PR #7 (phase-5/contracts-billing) |
 | Phase 6 | Projects & time tracking | ⬜ Not started | — |
 | Phase 7 | Production hardening | ⬜ Not started | — |
 
@@ -218,20 +218,38 @@ Replaces the mock `winDeal()` implementation with a real `POST /api/deals/{id}/w
 
 ---
 
-## ⬜ Phase 5 — Contracts, Milestones & Invoices
+## 🔄 Phase 5 — Contracts, Milestones & Invoices (PR Open)
 
-**What needs to be built:**
+Wires the Contracts & Billing page to real API data. Mock contract, invoice, and milestone data removed from store initial state. `addInvoice` is now async with optimistic rollback. New `payInvoice` action handles the mark-paid flow including updating `revenue_recognized` on the contract locally. Overdue detection runs client-side in the mapper.
 
-### Backend (Laravel)
-- `GET/POST /api/contracts`, `PUT/DELETE /api/contracts/{id}`
+> **Prerequisite:** Laravel must implement the billing endpoints below. `getFinancialPnL()` already filters for `Paid` invoices and uses `issueDate` (done in Phase 0) — it just needs real data flowing in.
+
+### Changes Made
+
+**`lib/dealsMapper.ts`**
+- Added `toInvoice(row)`: snake_case → camelCase `Invoice` mapper; handles `invoice_number`, `issue_date`, `due_date`, `paid_at`, and the `total` GENERATED column
+- Overdue detection in mapper: sets `status = 'Overdue'` when `status === 'Pending'` and `due_date` is in the past — no backend computed field needed
+
+**`store/businessStore.ts`**
+- Removed `MOCK_CONTRACTS`, `MOCK_INVOICES`, `MOCK_MILESTONES`; all three slices start as `[]`
+- `addInvoice` interface updated to `Promise<void>`; implementation now calls `POST /invoices` — omits `total` (GENERATED ALWAYS), uses temp-id optimistic pattern
+- New `payInvoice(id)` action: calls `PATCH /invoices/{id}/pay`, optimistically sets status to `Paid`, then on success merges real server record and increments `revenueRecognized` on the matching contract in local state
+- Both actions roll back affected slices on failure with backend error message in toast
+- Imported `toInvoice` from `lib/dealsMapper`
+
+**`app/(dashboard)/contracts/page.tsx`**
+- Added `useEffect` fetching `GET /contracts` and `GET /invoices` in parallel on mount
+- "Mark as Paid" dropdown item wired to `store.payInvoice(id)` — only shown for `Pending` and `Overdue` invoices
+- Contract table shows `contractNumber` (e.g. `CON-0001`) instead of raw UUID
+- Invoice table shows `invoiceNumber` (e.g. `INV-1042`) instead of raw UUID
+- Added `Overdue` badge style (red) to the invoice status badge
+
+### What Still Needs the Backend (Laravel)
+- `GET /api/contracts`, `PUT /api/contracts/{id}`
+- `GET /api/invoices`, `POST /api/invoices`, `PUT /api/invoices/{id}`
+- `PATCH /api/invoices/{id}/pay` — set `paid_at`, increment `contracts.revenue_recognized` in a DB transaction
 - `GET/POST /api/contracts/{id}/milestones`, `PUT/DELETE /api/milestones/{id}`
-- `GET/POST /api/contracts/{id}/invoices`, `PUT/DELETE /api/invoices/{id}`
-- `POST /api/invoices/{id}/mark-paid` — sets `paid_at`, increments `contracts.revenue_recognized`
-
-### Frontend
-- `store/businessStore.ts`: convert `addInvoice` and any contract/milestone actions to API calls
-- `app/(dashboard)/contracts/page.tsx`: load real contracts + invoices on mount; `invoice.issueDate` mapping already done in Phase 0
-- P&L dashboard: revenue from paid invoices already filters correctly (done in Phase 0); just needs real data flowing in
+- `PATCH /api/milestones/{id}/complete`
 
 ---
 

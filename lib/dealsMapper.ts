@@ -6,6 +6,7 @@ import type {
     ProjectOverhead,
     Contract,
     Project,
+    Invoice,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
@@ -105,6 +106,30 @@ export function toProject(row: any): Project {
         status: row.status,
         startDate: row.start_date,
         endDate: row.end_date,
+    };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toInvoice(row: any): Invoice {
+    // Compute overdue client-side: pending invoices whose due_date has passed
+    const isOverdue =
+        row.status === 'Pending' &&
+        row.due_date &&
+        new Date(row.due_date) < new Date();
+
+    return {
+        id: row.id,
+        contractId: row.contract_id,
+        milestoneId: row.milestone_id ?? undefined,
+        invoiceNumber: row.invoice_number,
+        issueDate: row.issue_date,
+        dueDate: row.due_date ?? undefined,
+        amount: Number(row.amount ?? 0),
+        tax: Number(row.tax ?? 0),
+        total: row.total != null ? Number(row.total) : undefined,
+        status: isOverdue ? 'Overdue' : row.status,
+        paidAt: row.paid_at ?? undefined,
+        notes: row.notes ?? undefined,
     };
 }
 

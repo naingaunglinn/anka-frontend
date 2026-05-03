@@ -25,7 +25,7 @@ import {
     upsertCompanySettings,
 } from '@/lib/supabaseOrganization';
 import api from '@/lib/api';
-import { toDeal, dealToApiPayload, toContract, toProject } from '@/lib/dealsMapper';
+import { toDeal, dealToApiPayload, toContract, toProject, toInvoice } from '@/lib/dealsMapper';
 import toast from 'react-hot-toast';
 
 // --- Initial Mock Data ---
@@ -40,19 +40,6 @@ const INITIAL_ENGINEERS: Engineer[] = [
 
 
 
-const MOCK_CONTRACTS: Contract[] = [
-    { id: "CON-001", dealId: "deal-1", client: "Acme Corp", totalValue: 120000, revenueRecognized: 40000, status: "Active" }
-];
-
-const MOCK_INVOICES: Invoice[] = [
-    { id: "INV-1042", contractId: "CON-001", issueDate: "2024-03-01", amount: 40000, tax: 4000, status: "Paid" },
-    { id: "INV-1043", contractId: "CON-001", issueDate: "2024-04-01", amount: 40000, tax: 4000, status: "Pending" }
-];
-
-const MOCK_MILESTONES: Milestone[] = [
-    { id: "MIL-01", contractId: "CON-001", name: "Project Kickoff", dueDate: "2024-03-15", amount: 20000, status: "Completed" },
-    { id: "MIL-02", contractId: "CON-001", name: "Phase 1 Delivery", dueDate: "2024-04-30", amount: 50000, status: "In Progress" }
-];
 
 const MOCK_PROJECTS: Project[] = [
     { id: "PRJ-101", contractId: "CON-001", name: "Cloud Migration", client: "Acme Corp", budgetHours: 300, consumedHours: 250, status: "On Track" }
@@ -109,7 +96,8 @@ export interface BusinessState {
     addTimeEntry: (entry: TimeEntry) => void;
 
     // Actions - Contracts/Billing
-    addInvoice: (invoice: Invoice) => void;
+    addInvoice: (invoice: Invoice) => Promise<void>;
+    payInvoice: (id: string) => Promise<void>;
 
     // Getters
     getCapacityPool: () => DepartmentCapacity[];
@@ -135,9 +123,9 @@ export const useBusinessStore = create<BusinessState>()(
                 benefitsPercentage: 12,
             },
             deals: [],
-            contracts: MOCK_CONTRACTS,
-            invoices: MOCK_INVOICES,
-            milestones: MOCK_MILESTONES,
+            contracts: [],
+            invoices: [],
+            milestones: [],
             projects: MOCK_PROJECTS,
             timeEntries: MOCK_TIME_ENTRIES,
 
@@ -384,7 +372,57 @@ export const useBusinessStore = create<BusinessState>()(
                 timeEntries: [...state.timeEntries, entry],
             })),
 
-            addInvoice: (invoice) => set((state) => ({ invoices: [...state.invoices, invoice] })),
+            addInvoice: async (invoice) => {
+                const snapshot = get().invoices;
+                const tempId = `temp-${Date.now()}`;
+                set(s => ({ invoices: [...s.invoices, { ...invoice, id: tempId }] }));
+                try {
+                    const { data } = await api.post('/invoices', {
+                        contract_id: invoice.contractId,
+                        milestone_id: invoice.milestoneId ?? null,
+                        issue_date: invoice.issueDate,
+                        due_date: invoice.dueDate ?? null,
+                        amount: invoice.amount,
+                        tax: invoice.tax,
+                        notes: invoice.notes ?? null,
+                        // total is GENERATED ALWAYS by DB — never send it
+                    });
+                    const created = toInvoice(data.data ?? data);
+                    set(s => ({ invoices: s.invoices.map(i => i.id === tempId ? created : i) }));
+                } catch (err) {
+                    set({ invoices: snapshot });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to create invoice: ${message}`);
+                }
+            },
+
+            payInvoice: async (id) => {
+                const snapshotInvoices = get().invoices;
+                const snapshotContracts = get().contracts;
+                // Optimistic: mark as paid immediately
+                set(s => ({
+                    invoices: s.invoices.map(i => i.id === id ? { ...i, status: 'Paid' as const } : i),
+                }));
+                try {
+                    const { data } = await api.patch(`/invoices/${id}/pay`);
+                    const paid = toInvoice(data.data ?? data);
+                    set(s => ({
+                        invoices: s.invoices.map(i => i.id === id ? paid : i),
+                        // Increment revenue_recognized on the matching contract
+                        contracts: s.contracts.map(c =>
+                            c.id === paid.contractId
+                                ? { ...c, revenueRecognized: c.revenueRecognized + (paid.amount + paid.tax) }
+                                : c
+                        ),
+                    }));
+                } catch (err) {
+                    set({ invoices: snapshotInvoices, contracts: snapshotContracts });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    toast.error(`Failed to pay invoice: ${message}`);
+                }
+            },
 
             getDealEstimation: (dealId) => {
                 const state = get();

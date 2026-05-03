@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +11,26 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useBusinessStore } from '@/store/businessStore';
+import api from '@/lib/api';
+import { toContract, toInvoice } from '@/lib/dealsMapper';
 
 export default function ContractsPage() {
     const store = useBusinessStore();
     const [isNewContractOpen, setIsNewContractOpen] = useState(false);
+
+    useEffect(() => {
+        api.get('/contracts')
+            .then(({ data }) => {
+                useBusinessStore.setState({ contracts: (data.data ?? data).map(toContract) });
+            })
+            .catch((err) => console.error('Failed to fetch contracts:', err));
+
+        api.get('/invoices')
+            .then(({ data }) => {
+                useBusinessStore.setState({ invoices: (data.data ?? data).map(toInvoice) });
+            })
+            .catch((err) => console.error('Failed to fetch invoices:', err));
+    }, []);
 
     const totalContractValue = store.contracts.reduce((sum, c) => sum + c.totalValue, 0);
     const totalRecognized = store.contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
@@ -118,7 +134,7 @@ export default function ContractsPage() {
                             <TableBody>
                                 {store.contracts.map((contract) => (
                                     <TableRow key={contract.id}>
-                                        <TableCell className="font-medium">{contract.id}</TableCell>
+                                        <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
                                         <TableCell>{contract.client}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={
@@ -216,14 +232,15 @@ export default function ContractsPage() {
                             <TableBody>
                                 {store.invoices.map((invoice) => (
                                     <TableRow key={invoice.id}>
-                                        <TableCell className="font-medium">{invoice.id}</TableCell>
+                                        <TableCell className="font-medium">{invoice.invoiceNumber ?? invoice.id}</TableCell>
                                         <TableCell className="text-slate-600">{invoice.contractId}</TableCell>
                                         <TableCell>{invoice.issueDate}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={
                                                 invoice.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                     invoice.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                        'bg-slate-100 text-slate-700 border-slate-200'
+                                                        invoice.status === 'Overdue' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                            'bg-slate-100 text-slate-700 border-slate-200'
                                             }>
                                                 {invoice.status}
                                             </Badge>
@@ -238,7 +255,11 @@ export default function ContractsPage() {
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
-                                                    <DropdownMenuItem><CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Paid</DropdownMenuItem>
+                                                    {invoice.status === 'Pending' || invoice.status === 'Overdue' ? (
+                                                        <DropdownMenuItem onClick={() => store.payInvoice(invoice.id)}>
+                                                            <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Paid
+                                                        </DropdownMenuItem>
+                                                    ) : null}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
