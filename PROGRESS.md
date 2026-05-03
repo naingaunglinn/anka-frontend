@@ -11,10 +11,10 @@ Stack: Next.js 16 · React 19 · TypeScript · Zustand · Supabase · Laravel (p
 |---|---|---|---|
 | Phase 0 | Frontend type fixes | ✅ Merged | PR #2 |
 | Phase 1 | Auth & identity | ✅ Merged | PR #3 |
-| Phase 2 | Organization module | 🔄 Open PR | PR #4 (phase-2/organization) |
-| Phase 3 | CRM & deals pipeline | 🔄 Open PR | PR #5 (phase-3/crm-deals) |
-| Phase 4 | Win deal flow | 🔄 Open PR | PR #6 (phase-4/win-deal) |
-| Phase 5 | Contracts, milestones & invoices | 🔄 Open PR | PR #7 (phase-5/contracts-billing) |
+| Phase 2 | Organization module | ✅ Merged | PR #4 |
+| Phase 3 | CRM & deals pipeline | ✅ Merged | PR #5 |
+| Phase 4 | Win deal flow | ✅ Merged | PR #6 |
+| Phase 5 | Contracts, milestones & invoices | ✅ Merged | PR #7 |
 | Phase 6 | Projects & time tracking | ⬜ Not started | — |
 | Phase 7 | Production hardening | ⬜ Not started | — |
 
@@ -110,7 +110,7 @@ Replaced the mock login cookie with a real Sanctum-ready auth flow. Two Zustand 
 
 ---
 
-## 🔄 Phase 2 — Organization Module (PR Open)
+## ✅ Phase 2 — Organization Module (Merged)
 
 Wires the Organization page to real Supabase data. Mock org arrays removed from store initial state — data now loads from the DB via `useOrganizationSync` on page mount.
 
@@ -145,7 +145,7 @@ Wires the Organization page to real Supabase data. Mock org arrays removed from 
 
 ---
 
-## 🔄 Phase 3 — CRM & Deals Pipeline (PR Open)
+## ✅ Phase 3 — CRM & Deals Pipeline (Merged)
 
 Wires the CRM Kanban board to the Laravel deals API. Mock deal data removed from store initial state — deals now load from `GET /api/deals` on page mount. All four deal mutation actions are now async with optimistic update + rollback, matching the pattern used by the org module.
 
@@ -191,7 +191,7 @@ Wires the CRM Kanban board to the Laravel deals API. Mock deal data removed from
 
 ---
 
-## 🔄 Phase 4 — Win Deal Flow (PR Open)
+## ✅ Phase 4 — Win Deal Flow (Merged)
 
 Replaces the mock `winDeal()` implementation with a real `POST /api/deals/{id}/win` API call. The backend delegates to the `win_deal()` PostgreSQL function which handles atomicity, idempotency, and row-locking. The frontend adds `toContract` and `toProject` mappers, then seeds the store with the real contract and project returned by the API.
 
@@ -218,7 +218,7 @@ Replaces the mock `winDeal()` implementation with a real `POST /api/deals/{id}/w
 
 ---
 
-## 🔄 Phase 5 — Contracts, Milestones & Invoices (PR Open)
+## ✅ Phase 5 — Contracts, Milestones & Invoices (Merged)
 
 Wires the Contracts & Billing page to real API data. Mock contract, invoice, and milestone data removed from store initial state. `addInvoice` is now async with optimistic rollback. New `payInvoice` action handles the mark-paid flow including updating `revenue_recognized` on the contract locally. Overdue detection runs client-side in the mapper.
 
