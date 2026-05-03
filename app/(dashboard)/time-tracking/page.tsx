@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { Clock, Plus, Users, Briefcase, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
+import api from '@/lib/api';
+import { toTimeEntry, toProject } from '@/lib/dealsMapper';
 
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
@@ -21,6 +23,20 @@ export default function TimeTrackingPage() {
     const [taskDesc, setTaskDesc] = useState('');
     const [hoursLogged, setHoursLogged] = useState('');
     const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+    useEffect(() => {
+        api.get('/projects')
+            .then(({ data }) => {
+                useBusinessStore.setState({ projects: (data.data ?? data).map(toProject) });
+            })
+            .catch((err) => console.error('Failed to fetch projects:', err));
+
+        api.get('/time-entries')
+            .then(({ data }) => {
+                useBusinessStore.setState({ timeEntries: (data.data ?? data).map(toTimeEntry) });
+            })
+            .catch((err) => console.error('Failed to fetch time entries:', err));
+    }, []);
 
     const handleSaveTime = () => {
         if (!selectedProjectId || !selectedEmployeeId || !taskDesc || !hoursLogged) return;

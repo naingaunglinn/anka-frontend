@@ -7,6 +7,7 @@ import type {
     Contract,
     Project,
     Invoice,
+    TimeEntry,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
@@ -129,6 +130,23 @@ export function toInvoice(row: any): Invoice {
         total: row.total != null ? Number(row.total) : undefined,
         status: isOverdue ? 'Overdue' : row.status,
         paidAt: row.paid_at ?? undefined,
+        notes: row.notes ?? undefined,
+    };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toTimeEntry(row: any): TimeEntry {
+    return {
+        id: row.id,
+        projectId: row.project_id,
+        employeeId: row.employee_id,
+        task: row.task,
+        date: row.date,
+        hours: Number(row.hours ?? 0),
+        billable: row.billable ?? true,
+        status: row.status,
+        approvedAt: row.approved_at ?? undefined,
+        approvedBy: row.approved_by ?? undefined,
         notes: row.notes ?? undefined,
     };
 }
