@@ -23,7 +23,7 @@ import {
     insertEmployee, updateEmployeeDB, deleteEmployeeDB,
     insertGlobalOverhead, updateGlobalOverheadDB, deleteGlobalOverheadDB,
     upsertCompanySettings,
-} from '@/lib/supabaseOrganization';
+} from '@/lib/queries/organization';
 import api from '@/lib/api';
 import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
 import { normalizeError } from '@/lib/errorHandler';
@@ -85,7 +85,7 @@ export interface BusinessState {
     projects: Project[];
     timeEntries: TimeEntry[];
 
-    // Actions — Org (all routed through lib/supabaseOrganization.ts)
+    // Actions — Org (all routed through lib/queries/organization.ts → Laravel API)
     updateCompanySettings: (settings: Partial<CompanySettings>) => Promise<void>;
     addEmployee: (emp: Employee) => Promise<void>;
     updateEmployee: (id: string, emp: Partial<Employee>) => Promise<void>;

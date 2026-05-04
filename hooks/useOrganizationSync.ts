@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useBusinessStore } from '@/store/businessStore'
-import { fetchAllOrganizationData } from '@/lib/supabaseOrganization'
+import { fetchAllOrganizationData } from '@/lib/queries/organization'
 import type { Employee, Engineer } from '@/types/business'
 import toast from 'react-hot-toast'
 

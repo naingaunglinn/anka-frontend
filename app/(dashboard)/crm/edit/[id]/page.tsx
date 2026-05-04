@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect } from "react";
@@ -44,7 +45,7 @@ export default function EditDealPage() {
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
     const form = useForm<DealFormValues>({
-        resolver: zodResolver(dealSchema),
+        resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
         defaultValues: {
             name: dealToEdit?.name || "",
             clientBudget: dealToEdit?.clientBudget || 0,

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
@@ -40,7 +41,7 @@ export default function NewDealPage() {
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
     const form = useForm<DealFormValues>({
-        resolver: zodResolver(dealSchema),
+        resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
         defaultValues: {
             name: "",
             clientBudget: 0,

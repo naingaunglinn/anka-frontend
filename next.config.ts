@@ -2,11 +2,8 @@ import type { NextConfig } from "next";
 
 // ── Origin resolution ─────────────────────────────────────────────────────────
 // Resolved at build time so the CSP string is a static per-deployment value.
-const backendUrl  = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
-const apiUrl      = process.env.NEXT_PUBLIC_API_URL     ?? 'http://localhost:3001';
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-// Supabase Realtime uses WebSockets — derive the WSS origin from the HTTPS URL.
-const supabaseWss = supabaseUrl ? supabaseUrl.replace(/^https?/, 'wss') : '';
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+const apiUrl     = process.env.NEXT_PUBLIC_API_URL     ?? 'http://localhost:3001';
 
 // ── Content-Security-Policy ───────────────────────────────────────────────────
 // Decisions worth calling out:
@@ -24,9 +21,7 @@ const csp = [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    ["connect-src 'self'", backendUrl, apiUrl, supabaseUrl, supabaseWss]
-        .filter(Boolean)
-        .join(' '),
+    ["connect-src 'self'", backendUrl, apiUrl].filter(Boolean).join(' '),
     "img-src 'self' data: blob:",
     // next/font/google self-hosts fonts at build time — no external font origin needed.
     "font-src 'self' data:",

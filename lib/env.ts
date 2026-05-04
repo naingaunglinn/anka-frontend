@@ -1,6 +1,4 @@
 const CLIENT_VARS = [
-    'NEXT_PUBLIC_SUPABASE_URL',
-    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'NEXT_PUBLIC_BACKEND_URL',
     'NEXT_PUBLIC_API_URL',
 ] as const;
@@ -30,8 +28,6 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 export const env = {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL!,
-    apiUrl: process.env.NEXT_PUBLIC_API_URL!,
+    apiUrl:     process.env.NEXT_PUBLIC_API_URL!,
 } as const;
