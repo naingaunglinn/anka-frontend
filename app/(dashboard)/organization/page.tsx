@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { EmployeesTable, Employee as TableEmployee } from '@/components/tables/EmployeesTable';
-import { EmployeeForm, EmployeeFormValues } from '@/components/forms/EmployeeForm';
-import { DepartmentsTable, Department as TableDepartment } from '@/components/tables/DepartmentsTable';
-import { DepartmentForm, DepartmentFormValues } from '@/components/forms/DepartmentForm';
-import { RolesTable, Role as TableRole } from '@/components/tables/RolesTable';
-import { RoleForm, RoleFormValues } from '@/components/forms/RoleForm';
-import { OverheadsTable, Overhead as TableOverhead } from '@/components/tables/OverheadsTable';
-import { OverheadForm, OverheadFormValues } from '@/components/forms/OverheadForm';
+import { useEffect, useState } from 'react';
+import { EmployeesTable } from '@/components/tables/EmployeesTable';
+import { EmployeeForm } from '@/components/forms/EmployeeForm';
+import { DepartmentsTable } from '@/components/tables/DepartmentsTable';
+import { DepartmentForm } from '@/components/forms/DepartmentForm';
+import { RolesTable } from '@/components/tables/RolesTable';
+import { RoleForm } from '@/components/forms/RoleForm';
+import { OverheadsTable } from '@/components/tables/OverheadsTable';
+import { OverheadForm } from '@/components/forms/OverheadForm';
+import {
+    type DepartmentFormValues,
+    type RoleFormValues,
+    type EmployeeFormValues,
+    type OverheadFormValues,
+} from '@/lib/schemas/organization.schema';
 import {
     Dialog,
     DialogContent,
@@ -25,12 +31,6 @@ import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
 import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
-import {
-    insertDepartment, insertRole,
-    insertEmployee, insertGlobalOverhead,
-    fetchAllOrganizationData,
-} from '@/lib/supabaseOrganization';
-import toast from 'react-hot-toast';
 
 export default function EmployeesPage() {
     // Connect to Store
@@ -53,9 +53,21 @@ export default function EmployeesPage() {
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
     const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
 
-    // Salary Structure State
-    const [salaryMultiplier, setSalaryMultiplier] = useState({ taxes: 8, benefits: 12 });
+    const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
+        taxes: store.companySettings.employerTaxPercentage,
+        benefits: store.companySettings.benefitsPercentage,
+    }));
     const [isSavingSalary, setIsSavingSalary] = useState(false);
+
+    useEffect(() => {
+        setSalaryMultiplier({
+            taxes: store.companySettings.employerTaxPercentage,
+            benefits: store.companySettings.benefitsPercentage,
+        });
+    }, [
+        store.companySettings.employerTaxPercentage,
+        store.companySettings.benefitsPercentage,
+    ]);
 
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
@@ -146,27 +158,11 @@ export default function EmployeesPage() {
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
+        await store.updateCompanySettings({
+            employerTaxPercentage: salaryMultiplier.taxes,
+            benefitsPercentage: salaryMultiplier.benefits,
+        });
         setIsSavingSalary(false);
-    };
-
-    const seedDatabase = async () => {
-        const existing = await fetchAllOrganizationData();
-        if (existing.employees.length > 0 || existing.departments.length > 0) {
-            toast.success('Database already has data — skipping seed');
-            return;
-        }
-
-        try {
-            await Promise.all([
-                ...store.departments.map(insertDepartment),
-                ...store.roles.map(insertRole),
-                ...store.employees.map(insertEmployee),
-                ...store.globalOverheads.map(insertGlobalOverhead),
-            ]);
-            toast.success('Mock data seeded to Supabase!');
-        } catch (err) {
-            toast.error(`Seed failed: ${(err as Error).message}`);
-        }
     };
 
     if (syncing) {
@@ -191,14 +187,11 @@ export default function EmployeesPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div>
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
                     <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
                 </div>
-                <Button variant="outline" onClick={seedDatabase}>
-                    Seed Database (run once)
-                </Button>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
@@ -234,8 +227,8 @@ export default function EmployeesPage() {
                     </div>
 
                     <DepartmentsTable
-                        data={store.departments as any}
-                        onEdit={(dept) => setEditingDepartment(dept as any)}
+                        data={store.departments}
+                        onEdit={setEditingDepartment}
                         onDelete={(id) => store.deleteDepartment(id)}
                     />
 
@@ -279,8 +272,8 @@ export default function EmployeesPage() {
                     </div>
 
                     <RolesTable
-                        data={store.roles as any}
-                        onEdit={(role) => setEditingRole(role as any)}
+                        data={store.roles}
+                        onEdit={setEditingRole}
                         onDelete={(id) => store.deleteRole(id)}
                     />
 
@@ -325,9 +318,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <EmployeesTable
-                        data={store.employees as any}
+                        data={store.employees}
                         roles={store.roles}
-                        onEdit={(emp) => setEditingEmployee(emp as any)}
+                        onEdit={setEditingEmployee}
                         onDelete={(id) => store.deleteEmployee(id)}
                     />
 
@@ -410,8 +403,8 @@ export default function EmployeesPage() {
                     </div>
 
                     <OverheadsTable
-                        data={store.globalOverheads as any}
-                        onEdit={(oh) => setEditingOverhead(oh as any)}
+                        data={store.globalOverheads}
+                        onEdit={setEditingOverhead}
                         onDelete={(id) => store.deleteGlobalOverhead(id)}
                     />
 

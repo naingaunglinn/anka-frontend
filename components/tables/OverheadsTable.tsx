@@ -30,12 +30,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type Overhead = {
-    id: string;
-    category: string;
-    description: string;
-    monthlyCost: number;
-};
+import type { GlobalOverhead as Overhead } from '@/types/business';
 
 interface OverheadsTableProps {
     data: Overhead[];

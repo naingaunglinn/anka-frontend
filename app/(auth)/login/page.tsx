@@ -1,7 +1,6 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,20 +17,14 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogIn } from 'lucide-react';
-
-const formSchema = z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginFormValues = z.infer<typeof formSchema>;
+import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth.schema';
 
 export default function LoginPage() {
     const router = useRouter();
     const { login, isLoggingIn } = useAuth();
 
     const form = useForm<LoginFormValues>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(loginSchema),
         defaultValues: {
             email: '',
             password: '',
@@ -41,7 +34,9 @@ export default function LoginPage() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
-            router.push('/dashboard');
+            // /crm is the default landing page for authenticated users;
+            // middleware will redirect to /login if the session cookie is absent.
+            router.push('/crm');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {
@@ -99,11 +94,6 @@ export default function LoginPage() {
                             </Button>
                         </form>
                     </Form>
-
-                    <div className="mt-6 text-center text-sm text-gray-500">
-                        <p className="mb-1">Demo Credentials:</p>
-                        <p>Admin: admin@example.com / 123456</p>
-                    </div>
                 </CardContent>
             </Card>
         </div>

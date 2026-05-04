@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
 import { Deal, GhostRole, RoleType } from "@/types/business";
@@ -27,30 +26,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ArrowRight, Upload } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
-
-const ghostRoleSchema = z.object({
-    roleType: z.string(),
-    quantity: z.coerce.number().min(1, "At least 1"),
-    months: z.coerce.number().min(1, "At least 1 month"),
-    avgMonthlySalary: z.coerce.number().min(0, "Must be positive"),
-});
-
-const dealSchema = z.object({
-    name: z.string().min(1, "Deal name is required"),
-    clientBudget: z.coerce.number().min(1, "Budget is required"),
-    timelineMonths: z.coerce.number().min(1, "Timeline is required"),
-    workloadHours: z.coerce.number().min(1, "Workload is required"),
-    winProbability: z.coerce.number().min(0).max(100),
-    workloadDescription: z.string().optional(),
-    ghostRoles: z.array(ghostRoleSchema),
-});
-
-type DealFormValues = z.infer<typeof dealSchema>;
+import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
+import { useDealMutations } from "@/lib/queries/deals";
 
 export default function NewDealPage() {
     const router = useRouter();
-    const addDeal = useBusinessStore((state) => state.addDeal);
     const companySettings = useBusinessStore((state) => state.companySettings);
+    const { createDeal } = useDealMutations();
 
     const [dealId] = useState(() => uuidv4());
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
@@ -58,7 +40,7 @@ export default function NewDealPage() {
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
     const form = useForm<DealFormValues>({
-        resolver: zodResolver(dealSchema) as any,
+        resolver: zodResolver(dealSchema),
         defaultValues: {
             name: "",
             clientBudget: 0,
@@ -66,7 +48,7 @@ export default function NewDealPage() {
             workloadHours: 0,
             winProbability: 50,
             workloadDescription: "",
-            ghostRoles: [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+            ghostRoles: [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 0 }],
         },
     });
 
@@ -108,7 +90,7 @@ export default function NewDealPage() {
         return "text-green-500";
     };
 
-    function onSubmit(data: DealFormValues) {
+    async function onSubmit(data: DealFormValues) {
         const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
             id: uuidv4(),
             roleType: gr.roleType as RoleType,
@@ -138,7 +120,7 @@ export default function NewDealPage() {
             targetMargin: 30,
         };
 
-        addDeal(newDeal);
+        await createDeal.mutateAsync(newDeal);
         router.push("/crm");
     }
 
@@ -289,7 +271,7 @@ export default function NewDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
+                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 0 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -391,7 +373,9 @@ export default function NewDealPage() {
                                     </Tabs>
 
                                     <div className="flex justify-end pt-6 border-t mt-6">
-                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm">Save Draft Deal</Button>
+                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm" disabled={createDeal.isPending}>
+                                            {createDeal.isPending ? 'Saving...' : 'Save Draft Deal'}
+                                        </Button>
                                     </div>
 
                                     <AITeamBuilder

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal } from '@/types/business';
+import { useDealMutations } from '@/lib/queries/deals';
 
 type ColumnData = {
     id: string;
@@ -25,12 +26,16 @@ function getMarginColor(budget: number, profit: number): string {
     return 'text-green-500';
 }
 
-export function KanbanBoard({ onMetricsUpdate }: { onMetricsUpdate: (total: number, weighted: number) => void }) {
+export function KanbanBoard({
+    deals,
+    onMetricsUpdate,
+}: {
+    deals: Deal[];
+    onMetricsUpdate: (total: number, weighted: number) => void;
+}) {
     const router = useRouter();
-    const deals = useBusinessStore(state => state.deals);
-    const updateDealStage = useBusinessStore(state => state.updateDealStage);
-    const deleteDeal = useBusinessStore(state => state.deleteDeal);
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
+    const { updateDealStage, deleteDeal } = useDealMutations();
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -85,13 +90,17 @@ export function KanbanBoard({ onMetricsUpdate }: { onMetricsUpdate: (total: numb
             if (destination.droppableId === 'contract') newProb = 90;
             if (destination.droppableId === 'won') newProb = 100;
 
-            updateDealStage(draggableId, destination.droppableId, newProb);
+            updateDealStage.mutate({
+                id: draggableId,
+                status: destination.droppableId,
+                probability: newProb,
+            });
         }
     };
 
     const handleDeleteDeal = (dealId: string) => {
         if (!window.confirm('Are you sure you want to delete this deal?')) return;
-        deleteDeal(dealId);
+        deleteDeal.mutate(dealId);
     };
 
     if (!isMounted) return <div className="h-96 w-full animate-pulse bg-slate-100 rounded-lg" />;

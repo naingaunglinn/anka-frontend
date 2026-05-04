@@ -11,6 +11,7 @@ import { AlertCircle, ArrowLeft, Save } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 
 export default function StaffingPage() {
     const params = useParams();
@@ -20,11 +21,13 @@ export default function StaffingPage() {
     const deals = useBusinessStore((state) => state.deals);
     const engineers = useBusinessStore((state) => state.engineers);
     const assignEngineer = useBusinessStore((state) => state.assignEngineer);
+    const dealQuery = useDealDetail(dealId);
+    const { updateDeal } = useDealMutations();
 
     const [allocations, setAllocations] = useState<Record<string, number>>({});
     const [isMounted, setIsMounted] = useState(false);
 
-    const deal = deals.find((d) => d.id === dealId);
+    const deal = dealQuery.data ?? deals.find((d) => d.id === dealId);
 
     useEffect(() => {
         setIsMounted(true);
@@ -38,6 +41,23 @@ export default function StaffingPage() {
     }, [deal]);
 
     if (!isMounted) return null;
+
+    if (dealQuery.isLoading) {
+        return <div className="p-8 text-sm text-muted-foreground">Loading staffing plan...</div>;
+    }
+
+    if (dealQuery.isError) {
+        return (
+            <div className="p-6">
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>Could not load staffing data.</AlertDescription>
+                </Alert>
+                <Button className="mt-4" variant="outline" onClick={() => dealQuery.refetch()}>Retry</Button>
+            </div>
+        );
+    }
 
     if (!deal) {
         return (
@@ -79,15 +99,27 @@ export default function StaffingPage() {
         return otherBooked + currentlyAllocated > eng.monthlyCapacityHours;
     });
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (hasConflicts) {
             toast.error("Cannot save. Resolve capacity conflicts first.");
             return;
         }
 
+        const hardAssignments = engineers
+            .map((eng) => ({
+                employeeId: eng.id,
+                allocatedHours: allocations[eng.id] || 0,
+            }))
+            .filter((assignment) => assignment.allocatedHours > 0);
+
         engineers.forEach((eng) => {
             const allocated = allocations[eng.id] || 0;
             assignEngineer(deal.id, eng.id, allocated);
+        });
+
+        await updateDeal.mutateAsync({
+            id: deal.id,
+            updates: { hardAssignments },
         });
 
         toast.success("Staffing saved successfully!");
@@ -195,9 +227,10 @@ export default function StaffingPage() {
                                 className="w-full mt-4"
                                 size="lg"
                                 onClick={handleSave}
-                                disabled={hasConflicts}
+                                disabled={hasConflicts || updateDeal.isPending}
                             >
-                                <Save className="mr-2 h-4 w-4" /> Save Assignments
+                                <Save className="mr-2 h-4 w-4" />
+                                {updateDeal.isPending ? 'Saving...' : 'Save Assignments'}
                             </Button>
                         </CardContent>
                     </Card>

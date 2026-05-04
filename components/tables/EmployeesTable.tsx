@@ -31,17 +31,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type Employee = {
-    id: string;
-    name: string;
-    role: string;
-    monthlySalary: number;
-    workableHours: number;
-    costPerHour: number;
-    status: 'Active' | 'On Leave' | 'Terminated';
-};
-
-import { Role } from '@/types/business';
+import type { Employee, Role } from '@/types/business';
 
 interface EmployeesTableProps {
     data: Employee[];

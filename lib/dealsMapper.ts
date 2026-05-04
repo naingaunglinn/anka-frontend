@@ -12,8 +12,111 @@ import type {
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toGhostRole(row: any): GhostRole {
+interface ApiGhostRole {
+    id: string;
+    role_type: string;
+    quantity: number;
+    months: number;
+    avg_monthly_salary: number;
+}
+
+interface ApiHardAssignment {
+    employee_id: string;
+    allocated_hours: number;
+}
+
+interface ApiEstimationResource {
+    id: string;
+    feature_name: string;
+    role_id: string;
+    hours: number;
+}
+
+interface ApiProjectOverhead {
+    id: string;
+    name: string;
+    cost: number;
+}
+
+interface ApiDeal {
+    id: string;
+    name: string;
+    client?: string;
+    estimated_value?: number;
+    win_probability?: number;
+    status?: Deal['status'];
+    client_budget?: number;
+    timeline_months?: number;
+    workload_hours?: number;
+    workload_description?: string;
+    target_margin?: number;
+    base_labor_cost?: number;
+    overhead_cost?: number;
+    buffer_cost?: number;
+    total_estimated_cost?: number;
+    estimated_gross_profit?: number;
+    ghost_roles?: ApiGhostRole[];
+    hard_assignments?: ApiHardAssignment[];
+    estimation_resources?: ApiEstimationResource[];
+    deal_overheads?: ApiProjectOverhead[];
+}
+
+interface ApiContract {
+    id: string;
+    deal_id: string;
+    contract_number?: string;
+    client: string;
+    total_value?: number;
+    revenue_recognized?: number;
+    status: Contract['status'];
+    start_date?: string;
+    end_date?: string;
+    notes?: string;
+}
+
+interface ApiProject {
+    id: string;
+    contract_id: string;
+    project_number?: string;
+    name: string;
+    client: string;
+    budget_hours?: number;
+    consumed_hours?: number;
+    status: Project['status'];
+    start_date?: string;
+    end_date?: string;
+}
+
+interface ApiInvoice {
+    id: string;
+    contract_id: string;
+    milestone_id?: string | null;
+    invoice_number?: string;
+    issue_date: string;
+    due_date?: string | null;
+    amount?: number | string;
+    tax?: number | string;
+    total?: number | string | null;
+    status: Invoice['status'];
+    paid_at?: string | null;
+    notes?: string | null;
+}
+
+interface ApiTimeEntry {
+    id: string;
+    project_id: string;
+    employee_id: string;
+    task: string;
+    date: string;
+    hours?: number | string;
+    billable?: boolean;
+    status: TimeEntry['status'];
+    approved_at?: string | null;
+    approved_by?: number;
+    notes?: string | null;
+}
+
+function toGhostRole(row: ApiGhostRole): GhostRole {
     return {
         id: row.id,
         roleType: row.role_type,
@@ -23,16 +126,14 @@ function toGhostRole(row: any): GhostRole {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toHardAssignment(row: any): HardAssignment {
+function toHardAssignment(row: ApiHardAssignment): HardAssignment {
     return {
         employeeId: row.employee_id,
         allocatedHours: row.allocated_hours,
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toEstimationResource(row: any): EstimationResource {
+function toEstimationResource(row: ApiEstimationResource): EstimationResource {
     return {
         id: row.id,
         featureName: row.feature_name,
@@ -41,8 +142,7 @@ function toEstimationResource(row: any): EstimationResource {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toProjectOverhead(row: any): ProjectOverhead {
+function toProjectOverhead(row: ApiProjectOverhead): ProjectOverhead {
     return {
         id: row.id,
         name: row.name,
@@ -50,8 +150,7 @@ function toProjectOverhead(row: any): ProjectOverhead {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toDeal(row: any): Deal {
+export function toDeal(row: ApiDeal): Deal {
     return {
         id: row.id,
         name: row.name,
@@ -78,8 +177,7 @@ export function toDeal(row: any): Deal {
 
 // ─── Win-deal response mappers ───────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toContract(row: any): Contract {
+export function toContract(row: ApiContract): Contract {
     return {
         id: row.id,
         dealId: row.deal_id,
@@ -94,8 +192,7 @@ export function toContract(row: any): Contract {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toProject(row: any): Project {
+export function toProject(row: ApiProject): Project {
     return {
         id: row.id,
         contractId: row.contract_id,
@@ -110,8 +207,7 @@ export function toProject(row: any): Project {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toInvoice(row: any): Invoice {
+export function toInvoice(row: ApiInvoice): Invoice {
     // Compute overdue client-side: pending invoices whose due_date has passed
     const isOverdue =
         row.status === 'Pending' &&
@@ -134,8 +230,7 @@ export function toInvoice(row: any): Invoice {
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toTimeEntry(row: any): TimeEntry {
+export function toTimeEntry(row: ApiTimeEntry): TimeEntry {
     return {
         id: row.id,
         projectId: row.project_id,
@@ -170,5 +265,32 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.bufferCost !== undefined) payload.buffer_cost = deal.bufferCost;
     if (deal.totalEstimatedCost !== undefined) payload.total_estimated_cost = deal.totalEstimatedCost;
     if (deal.estimatedGrossProfit !== undefined) payload.estimated_gross_profit = deal.estimatedGrossProfit;
+    if (deal.ghostRoles !== undefined) {
+        payload.ghost_roles = deal.ghostRoles.map((role) => ({
+            role_type: role.roleType,
+            quantity: role.quantity,
+            months: role.months,
+            avg_monthly_salary: role.avgMonthlySalary,
+        }));
+    }
+    if (deal.hardAssignments !== undefined) {
+        payload.hard_assignments = deal.hardAssignments.map((assignment) => ({
+            employee_id: assignment.employeeId,
+            allocated_hours: assignment.allocatedHours,
+        }));
+    }
+    if (deal.estimationResources !== undefined) {
+        payload.estimation_resources = deal.estimationResources.map((resource) => ({
+            feature_name: resource.featureName,
+            role_id: resource.roleId,
+            hours: resource.hours,
+        }));
+    }
+    if (deal.projectOverheads !== undefined) {
+        payload.deal_overheads = deal.projectOverheads.map((overhead) => ({
+            name: overhead.name,
+            cost: overhead.cost,
+        }));
+    }
     return payload;
 }

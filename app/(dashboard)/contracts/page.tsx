@@ -1,39 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, MoreVertical, FileText, CheckCircle2, Clock, Upload, Download } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { MoreVertical, FileText, CheckCircle2, Download } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useBusinessStore } from '@/store/businessStore';
-import api from '@/lib/api';
-import { toContract, toInvoice } from '@/lib/dealsMapper';
+import { useContractList } from '@/lib/queries/contracts';
+import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
 
 export default function ContractsPage() {
-    const store = useBusinessStore();
-    const [isNewContractOpen, setIsNewContractOpen] = useState(false);
+    const contractsQuery = useContractList();
+    const invoicesQuery = useInvoiceList();
+    const { payInvoice } = useInvoiceMutations();
+    const contracts = useMemo(() => contractsQuery.data?.data ?? [], [contractsQuery.data]);
+    const invoices = useMemo(() => invoicesQuery.data?.data ?? [], [invoicesQuery.data]);
 
-    useEffect(() => {
-        api.get('/contracts')
-            .then(({ data }) => {
-                useBusinessStore.setState({ contracts: (data.data ?? data).map(toContract) });
-            })
-            .catch((err) => console.error('Failed to fetch contracts:', err));
-
-        api.get('/invoices')
-            .then(({ data }) => {
-                useBusinessStore.setState({ invoices: (data.data ?? data).map(toInvoice) });
-            })
-            .catch((err) => console.error('Failed to fetch invoices:', err));
-    }, []);
-
-    const totalContractValue = store.contracts.reduce((sum, c) => sum + c.totalValue, 0);
-    const totalRecognized = store.contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
+    const totalContractValue = contracts.reduce((sum, c) => sum + c.totalValue, 0);
+    const totalRecognized = contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
+    const isLoading = contractsQuery.isLoading || invoicesQuery.isLoading;
+    const isError = contractsQuery.isError || invoicesQuery.isError;
+    const retry = () => {
+        contractsQuery.refetch();
+        invoicesQuery.refetch();
+    };
 
     return (
         <div className="p-6 space-y-6">
@@ -42,35 +34,22 @@ export default function ContractsPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Contracts & Billing</h1>
                     <p className="text-slate-500 mt-1">Manage active contracts, milestones, and client invoices.</p>
                 </div>
-                <Dialog open={isNewContractOpen} onOpenChange={setIsNewContractOpen}>
-                    <DialogTrigger asChild>
-                        <Button className="bg-slate-900 gap-2">
-                            <Plus className="h-4 w-4" /> New Contract
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Create Contract</DialogTitle>
-                            <DialogDescription>
-                                Usually generated automatically when a deal is won in CRM.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Client Name</label>
-                                <Input placeholder="Acme Corp" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Total Value</label>
-                                <Input type="number" placeholder="50000" />
-                            </div>
-                            <Button className="w-full bg-slate-900" onClick={() => setIsNewContractOpen(false)}>Save Draft</Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {isLoading && (
+                <Card className="h-40 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+            )}
+
+            {isError && (
+                <Card className="border-slate-100 shadow-sm">
+                    <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
+                        <p className="text-sm text-slate-600">Could not load contracts or invoices.</p>
+                        <Button variant="outline" onClick={retry}>Retry</Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {!isLoading && !isError && <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -78,7 +57,7 @@ export default function ContractsPage() {
                             <FileText className="h-5 w-5 text-blue-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{store.contracts.filter(c => c.status === 'Active').length}</span>
+                            <span className="text-3xl font-bold tracking-tight text-slate-900">{contracts.filter(c => c.status === 'Active').length}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -109,9 +88,9 @@ export default function ContractsPage() {
                         </div>
                     </CardContent>
                 </Card>
-            </div>
+            </div>}
 
-            <Tabs defaultValue="contracts" className="space-y-6">
+            {!isLoading && !isError && <Tabs defaultValue="contracts" className="space-y-6">
                 <TabsList className="bg-slate-100/50 p-1 border border-slate-200/60">
                     <TabsTrigger value="contracts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Active Contracts</TabsTrigger>
                     <TabsTrigger value="milestones" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
@@ -132,7 +111,7 @@ export default function ContractsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {store.contracts.map((contract) => (
+                                {contracts.map((contract) => (
                                     <TableRow key={contract.id}>
                                         <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
                                         <TableCell>{contract.client}</TableCell>
@@ -162,7 +141,7 @@ export default function ContractsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {store.contracts.length === 0 && (
+                                {contracts.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={6} className="text-center py-6 text-slate-500">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
                                     </TableRow>
@@ -186,31 +165,9 @@ export default function ContractsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {store.milestones.map((milestone) => (
-                                    <TableRow key={milestone.id}>
-                                        <TableCell className="text-slate-600">{milestone.contractId}</TableCell>
-                                        <TableCell className="font-medium">{milestone.name}</TableCell>
-                                        <TableCell>{milestone.dueDate}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className={
-                                                milestone.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    milestone.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                        'bg-amber-50 text-amber-700 border-amber-200'
-                                            }>
-                                                {milestone.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">${milestone.amount.toLocaleString()}</TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="sm" className="h-8">Mark Done</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {store.milestones.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No milestones yet.</TableCell>
-                                    </TableRow>
-                                )}
+                                <TableRow>
+                                    <TableCell colSpan={6} className="text-center py-6 text-slate-500">No milestones endpoint is available yet.</TableCell>
+                                </TableRow>
                             </TableBody>
                         </Table>
                     </Card>
@@ -230,7 +187,7 @@ export default function ContractsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {store.invoices.map((invoice) => (
+                                {invoices.map((invoice) => (
                                     <TableRow key={invoice.id}>
                                         <TableCell className="font-medium">{invoice.invoiceNumber ?? invoice.id}</TableCell>
                                         <TableCell className="text-slate-600">{invoice.contractId}</TableCell>
@@ -256,7 +213,7 @@ export default function ContractsPage() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
                                                     {invoice.status === 'Pending' || invoice.status === 'Overdue' ? (
-                                                        <DropdownMenuItem onClick={() => store.payInvoice(invoice.id)}>
+                                                        <DropdownMenuItem onClick={() => payInvoice.mutate(invoice.id)}>
                                                             <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Paid
                                                         </DropdownMenuItem>
                                                     ) : null}
@@ -265,7 +222,7 @@ export default function ContractsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {store.invoices.length === 0 && (
+                                {invoices.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={6} className="text-center py-6 text-slate-500">No invoices yet.</TableCell>
                                     </TableRow>
@@ -275,7 +232,7 @@ export default function ContractsPage() {
                     </Card>
                 </TabsContent>
 
-            </Tabs>
+            </Tabs>}
         </div>
     );
 }

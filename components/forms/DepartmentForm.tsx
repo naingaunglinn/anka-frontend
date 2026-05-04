@@ -1,6 +1,5 @@
 'use client';
 
-import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -14,14 +13,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { DialogClose } from '@/components/ui/dialog';
-
-const departmentSchema = z.object({
-    name: z.string().min(2, "Name must be at least 2 characters."),
-    manager: z.string().min(2, "Manager name must be at least 2 characters."),
-    headcount: z.coerce.number().min(0, "Headcount must be positive."),
-});
-
-export type DepartmentFormValues = z.infer<typeof departmentSchema>;
+import { departmentSchema, type DepartmentFormValues } from '@/lib/schemas/organization.schema';
 
 interface DepartmentFormProps {
     initialData?: DepartmentFormValues | null;

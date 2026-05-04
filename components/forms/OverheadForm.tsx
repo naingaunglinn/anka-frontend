@@ -1,6 +1,5 @@
 'use client';
 
-import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -14,14 +13,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { DialogClose } from '@/components/ui/dialog';
-
-const overheadSchema = z.object({
-    category: z.string().min(2, "Category must be at least 2 characters."),
-    description: z.string().min(2, "Description must be at least 2 characters."),
-    monthlyCost: z.coerce.number().min(0, "Monthly cost must be positive."),
-});
-
-export type OverheadFormValues = z.infer<typeof overheadSchema>;
+import { globalOverheadSchema, type OverheadFormValues } from '@/lib/schemas/organization.schema';
 
 interface OverheadFormProps {
     initialData?: OverheadFormValues | null;
@@ -31,7 +23,7 @@ interface OverheadFormProps {
 
 export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormProps) {
     const form = useForm<OverheadFormValues>({
-        resolver: zodResolver(overheadSchema) as any,
+        resolver: zodResolver(globalOverheadSchema) as any,
         defaultValues: initialData || {
             category: '',
             description: '',

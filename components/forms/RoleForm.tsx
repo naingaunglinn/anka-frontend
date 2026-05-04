@@ -1,6 +1,5 @@
 'use client';
 
-import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -22,14 +21,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Department } from '@/types/business';
-
-const roleSchema = z.object({
-    title: z.string().min(2, "Title must be at least 2 characters."),
-    departmentId: z.string().min(1, "Please select a department."),
-    rate: z.coerce.number().min(0, "Bill rate must be positive."),
-});
-
-export type RoleFormValues = z.infer<typeof roleSchema>;
+import { roleSchema, type RoleFormValues } from '@/lib/schemas/organization.schema';
 
 interface RoleFormProps {
     initialData?: RoleFormValues | null;
