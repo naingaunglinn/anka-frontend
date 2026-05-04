@@ -1,6 +1,5 @@
 'use client';
 
-import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -22,19 +21,9 @@ import {
 } from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
 import { Role } from '@/types/business';
+import { employeeSchema, type EmployeeFormValues } from '@/lib/schemas/organization.schema';
 
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
-
-const employeeSchema = z.object({
-    name: z.string().min(2, "Name must be at least 2 characters."),
-    role: z.string().min(1, "Please select a role."),
-    capacityRole: z.string().optional(),
-    monthlySalary: z.coerce.number().min(0, "Salary must be positive."),
-    workableHours: z.coerce.number().min(1, "Must be greater than 0."),
-    status: z.string().min(1, "Please select status."),
-});
-
-export type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;

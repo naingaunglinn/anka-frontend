@@ -1,33 +1,38 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
-    // Basic protection: if we are trying to access dashboard/auth routes
-    const path = request.nextUrl.pathname;
+// All route prefixes that require an authenticated session.
+// The /api/auth/* routes are intentionally excluded so the session handler
+// itself is always reachable (even when logged out).
+const PROTECTED_PREFIXES = [
+    '/crm', '/organization', '/estimation', '/contracts',
+    '/projects', '/time-tracking', '/financial', '/forecast',
+    '/tenant', '/dashboard',
+];
 
+export function middleware(request: NextRequest) {
+    const path = request.nextUrl.pathname;
     const isPublicPath = path === '/login' || path === '/register';
 
-    // In a real application, you would verify the JWT token here
-    // For now, checking local auth state isn't directly possible in Edge Middleware without parsing cookies.
-    // Assuming the user token would be stored in mostly cookies for SSR setups.
-    // If you use LocalStorage, Middleware CANNOT read it. You need a client-side wrapper or sync LocalStorage to cookies.
-    // Here we'll implement a basic check looking for an 'auth_token' cookie.
+    // The __session cookie is httpOnly — its value cannot be read by client-side JS.
+    // Edge Middleware running on the server can read it, which is the whole point:
+    // route protection without exposing the raw Sanctum token to the browser.
+    const token = request.cookies.get('__session')?.value;
 
-    const token = request.cookies.get('auth_token')?.value;
-
+    // Authenticated users hitting /login are redirected to the default landing page.
     if (isPublicPath && token) {
-        return NextResponse.redirect(new URL('/dashboard', request.nextUrl));
+        return NextResponse.redirect(new URL('/crm', request.nextUrl));
     }
 
+    // Unauthenticated users trying to reach a protected route are sent to login.
     if (!isPublicPath && !token) {
-        // Only redirect dashboard routes
-        if (path.startsWith('/dashboard') || path.startsWith('/crm') || path.startsWith('/organization') || path.startsWith('/estimation') || path.startsWith('/contracts') || path.startsWith('/projects') || path.startsWith('/time-tracking') || path.startsWith('/financial') || path.startsWith('/forecast') || path.startsWith('/tenant')) {
+        const isProtected = PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
+        if (isProtected) {
             return NextResponse.redirect(new URL('/login', request.nextUrl));
         }
     }
 }
 
-// See "Matching Paths" below to learn more
 export const config = {
     matcher: [
         '/dashboard/:path*',
@@ -40,6 +45,6 @@ export const config = {
         '/financial/:path*',
         '/forecast/:path*',
         '/tenant/:path*',
-        '/login'
+        '/login',
     ],
 };

@@ -23,27 +23,53 @@ import {
     insertEmployee, updateEmployeeDB, deleteEmployeeDB,
     insertGlobalOverhead, updateGlobalOverheadDB, deleteGlobalOverheadDB,
     upsertCompanySettings,
-} from '@/lib/supabaseOrganization';
+} from '@/lib/queries/organization';
 import api from '@/lib/api';
 import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
+import { normalizeError } from '@/lib/errorHandler';
 import toast from 'react-hot-toast';
 
-// --- Initial Mock Data ---
+// ── Payload serialisers (frontend camelCase → API snake_case) ─────────────────
+// Kept private to this module; only the fields the backend accepts as writable.
 
-const INITIAL_ENGINEERS: Engineer[] = [
-    { id: "e1", name: "Alice Frontend", role: "frontend", monthlySalary: 8000, monthlyCapacityHours: 160 },
-    { id: "e2", name: "Bob Backend", role: "backend", monthlySalary: 9000, monthlyCapacityHours: 160 },
-    { id: "e3", name: "Charlie PM", role: "pm", monthlySalary: 7000, monthlyCapacityHours: 160 },
-    { id: "e4", name: "Diana QA", role: "qa", monthlySalary: 6000, monthlyCapacityHours: 160 },
-    { id: "e5", name: "Eve Frontend", role: "frontend", monthlySalary: 7500, monthlyCapacityHours: 160 },
-];
+function employeeToEngineer(employee: Employee): Engineer | null {
+    if (!employee.capacityRole || employee.status !== 'Active') return null;
 
+    return {
+        id: employee.id,
+        name: employee.name,
+        role: employee.capacityRole,
+        monthlySalary: employee.monthlySalary,
+        monthlyCapacityHours: employee.workableHours,
+    };
+}
 
+function employeesToEngineers(employees: Employee[]): Engineer[] {
+    return employees
+        .map(employeeToEngineer)
+        .filter((engineer): engineer is Engineer => engineer !== null);
+}
 
+function contractToApiPayload(c: Partial<Contract>): Record<string, unknown> {
+    const p: Record<string, unknown> = {};
+    if (c.status !== undefined)    p.status     = c.status;
+    if (c.notes !== undefined)     p.notes      = c.notes;
+    if (c.endDate !== undefined)   p.end_date   = c.endDate;
+    if (c.totalValue !== undefined) p.total_value = c.totalValue;
+    return p;
+}
 
+function projectToApiPayload(u: Partial<Project>): Record<string, unknown> {
+    const p: Record<string, unknown> = {};
+    if (u.status !== undefined)      p.status       = u.status;
+    if (u.name !== undefined)        p.name         = u.name;
+    if (u.budgetHours !== undefined) p.budget_hours = u.budgetHours;
+    if (u.endDate !== undefined)     p.end_date     = u.endDate;
+    if (u.consumedHours !== undefined) p.consumed_hours = u.consumedHours;
+    return p;
+}
 
-
-// --- Store Interface ---
+// ── Store Interface ───────────────────────────────────────────────────────────
 
 export interface BusinessState {
     departments: Department[];
@@ -59,7 +85,7 @@ export interface BusinessState {
     projects: Project[];
     timeEntries: TimeEntry[];
 
-    // Actions - Org
+    // Actions — Org (all routed through lib/queries/organization.ts → Laravel API)
     updateCompanySettings: (settings: Partial<CompanySettings>) => Promise<void>;
     addEmployee: (emp: Employee) => Promise<void>;
     updateEmployee: (id: string, emp: Partial<Employee>) => Promise<void>;
@@ -74,22 +100,33 @@ export interface BusinessState {
     updateGlobalOverhead: (id: string, oh: Partial<GlobalOverhead>) => Promise<void>;
     deleteGlobalOverhead: (id: string) => Promise<void>;
 
-    // Actions - CRM & Deals
+    // Actions — CRM & Deals (routed through lib/api.ts)
     addDeal: (deal: Deal) => Promise<void>;
     updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
     deleteDeal: (id: string) => Promise<void>;
     updateDealStage: (id: string, status: string, probability?: number) => Promise<void>;
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
-    // Actions - Cross-module trigger
+    // Actions — Cross-module trigger
     winDeal: (dealId: string) => Promise<void>;
 
-    // Actions - Time tracking
-    addTimeEntry: (entry: TimeEntry) => Promise<void>;
+    // Actions — Contracts (routed through lib/api.ts; created only via winDeal)
+    updateContract: (id: string, updates: Partial<Contract>) => Promise<void>;
+    deleteContract: (id: string) => Promise<void>;
 
-    // Actions - Contracts/Billing
+    // Actions — Projects (routed through lib/api.ts; created only via winDeal)
+    updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+    deleteProject: (id: string) => Promise<void>;
+
+    // Actions — Time Tracking (routed through lib/api.ts)
+    addTimeEntry: (entry: TimeEntry) => Promise<void>;
+    approveTimeEntry: (id: string) => Promise<void>;
+    deleteTimeEntry: (id: string) => Promise<void>;
+
+    // Actions — Contracts / Billing (routed through lib/api.ts)
     addInvoice: (invoice: Invoice) => Promise<void>;
     payInvoice: (id: string) => Promise<void>;
+    deleteInvoice: (id: string) => Promise<void>;
 
     // Getters
     getCapacityPool: () => DepartmentCapacity[];
@@ -97,7 +134,7 @@ export interface BusinessState {
     getDealEstimation: (dealId: string) => { laborCost: number; overheadCost: number; suggestedPrice: number; expectedProfit: number; totalCost: number };
 }
 
-// --- Store Implementation ---
+// ── Store Implementation ──────────────────────────────────────────────────────
 
 export const useBusinessStore = create<BusinessState>()(
     persist(
@@ -105,7 +142,7 @@ export const useBusinessStore = create<BusinessState>()(
             departments: [],
             roles: [],
             employees: [],
-            engineers: INITIAL_ENGINEERS,
+            engineers: [],
             globalOverheads: [],
             companySettings: {
                 overheadPercentage: 20,
@@ -121,6 +158,8 @@ export const useBusinessStore = create<BusinessState>()(
             projects: [],
             timeEntries: [],
 
+            // ── Org ─────────────────────────────────────────────────────────
+
             updateCompanySettings: async (settings) => {
                 const snapshot = get().companySettings;
                 const updated = { ...snapshot, ...settings };
@@ -129,42 +168,49 @@ export const useBusinessStore = create<BusinessState>()(
                     await upsertCompanySettings(updated);
                 } catch (err) {
                     set({ companySettings: snapshot });
-                    toast.error(`Failed to save company settings: ${(err as Error).message}`);
+                    toast.error(`Failed to save company settings: ${normalizeError(err).message}`);
                 }
             },
 
-            // Org Handlers
             addEmployee: async (emp) => {
                 const snapshot = get().employees;
-                set(s => ({ employees: [...s.employees, emp] }));
+                set(s => {
+                    const employees = [...s.employees, emp];
+                    return { employees, engineers: employeesToEngineers(employees) };
+                });
                 try {
                     await insertEmployee(emp);
                 } catch (err) {
-                    set({ employees: snapshot });
-                    toast.error(`Failed to add employee: ${(err as Error).message}`);
+                    set({ employees: snapshot, engineers: employeesToEngineers(snapshot) });
+                    toast.error(`Failed to add employee: ${normalizeError(err).message}`);
                 }
             },
             updateEmployee: async (id, emp) => {
                 const snapshot = get().employees;
                 const existing = snapshot.find(e => e.id === id);
                 if (!existing) return;
-                const updated = { ...existing, ...emp };
-                set(s => ({ employees: s.employees.map(e => e.id === id ? updated : e) }));
+                set(s => {
+                    const employees = s.employees.map(e => e.id === id ? { ...e, ...emp } : e);
+                    return { employees, engineers: employeesToEngineers(employees) };
+                });
                 try {
-                    await updateEmployeeDB(updated);
+                    await updateEmployeeDB({ ...existing, ...emp });
                 } catch (err) {
-                    set({ employees: snapshot });
-                    toast.error(`Failed to update employee: ${(err as Error).message}`);
+                    set({ employees: snapshot, engineers: employeesToEngineers(snapshot) });
+                    toast.error(`Failed to update employee: ${normalizeError(err).message}`);
                 }
             },
             deleteEmployee: async (id) => {
                 const snapshot = get().employees;
-                set(s => ({ employees: s.employees.filter(e => e.id !== id) }));
+                set(s => {
+                    const employees = s.employees.filter(e => e.id !== id);
+                    return { employees, engineers: employeesToEngineers(employees) };
+                });
                 try {
                     await deleteEmployeeDB(id);
                 } catch (err) {
-                    set({ employees: snapshot });
-                    toast.error(`Failed to delete employee: ${(err as Error).message}`);
+                    set({ employees: snapshot, engineers: employeesToEngineers(snapshot) });
+                    toast.error(`Failed to delete employee: ${normalizeError(err).message}`);
                 }
             },
 
@@ -175,20 +221,19 @@ export const useBusinessStore = create<BusinessState>()(
                     await insertRole(role);
                 } catch (err) {
                     set({ roles: snapshot });
-                    toast.error(`Failed to add role: ${(err as Error).message}`);
+                    toast.error(`Failed to add role: ${normalizeError(err).message}`);
                 }
             },
             updateRole: async (id, role) => {
                 const snapshot = get().roles;
                 const existing = snapshot.find(r => r.id === id);
                 if (!existing) return;
-                const updated = { ...existing, ...role };
-                set(s => ({ roles: s.roles.map(r => r.id === id ? updated : r) }));
+                set(s => ({ roles: s.roles.map(r => r.id === id ? { ...r, ...role } : r) }));
                 try {
-                    await updateRoleDB(updated);
+                    await updateRoleDB({ ...existing, ...role });
                 } catch (err) {
                     set({ roles: snapshot });
-                    toast.error(`Failed to update role: ${(err as Error).message}`);
+                    toast.error(`Failed to update role: ${normalizeError(err).message}`);
                 }
             },
             deleteRole: async (id) => {
@@ -198,7 +243,7 @@ export const useBusinessStore = create<BusinessState>()(
                     await deleteRoleDB(id);
                 } catch (err) {
                     set({ roles: snapshot });
-                    toast.error(`Failed to delete role: ${(err as Error).message}`);
+                    toast.error(`Failed to delete role: ${normalizeError(err).message}`);
                 }
             },
 
@@ -209,20 +254,19 @@ export const useBusinessStore = create<BusinessState>()(
                     await insertDepartment(dept);
                 } catch (err) {
                     set({ departments: snapshot });
-                    toast.error(`Failed to add department: ${(err as Error).message}`);
+                    toast.error(`Failed to add department: ${normalizeError(err).message}`);
                 }
             },
             updateDepartment: async (id, dept) => {
                 const snapshot = get().departments;
                 const existing = snapshot.find(d => d.id === id);
                 if (!existing) return;
-                const updated = { ...existing, ...dept };
-                set(s => ({ departments: s.departments.map(d => d.id === id ? updated : d) }));
+                set(s => ({ departments: s.departments.map(d => d.id === id ? { ...d, ...dept } : d) }));
                 try {
-                    await updateDepartmentDB(updated);
+                    await updateDepartmentDB({ ...existing, ...dept });
                 } catch (err) {
                     set({ departments: snapshot });
-                    toast.error(`Failed to update department: ${(err as Error).message}`);
+                    toast.error(`Failed to update department: ${normalizeError(err).message}`);
                 }
             },
             deleteDepartment: async (id) => {
@@ -232,7 +276,7 @@ export const useBusinessStore = create<BusinessState>()(
                     await deleteDepartmentDB(id);
                 } catch (err) {
                     set({ departments: snapshot });
-                    toast.error(`Failed to delete department: ${(err as Error).message}`);
+                    toast.error(`Failed to delete department: ${normalizeError(err).message}`);
                 }
             },
 
@@ -243,20 +287,19 @@ export const useBusinessStore = create<BusinessState>()(
                     await insertGlobalOverhead(oh);
                 } catch (err) {
                     set({ globalOverheads: snapshot });
-                    toast.error(`Failed to add overhead: ${(err as Error).message}`);
+                    toast.error(`Failed to add overhead: ${normalizeError(err).message}`);
                 }
             },
             updateGlobalOverhead: async (id, oh) => {
                 const snapshot = get().globalOverheads;
                 const existing = snapshot.find(o => o.id === id);
                 if (!existing) return;
-                const updated = { ...existing, ...oh };
-                set(s => ({ globalOverheads: s.globalOverheads.map(o => o.id === id ? updated : o) }));
+                set(s => ({ globalOverheads: s.globalOverheads.map(o => o.id === id ? { ...o, ...oh } : o) }));
                 try {
-                    await updateGlobalOverheadDB(updated);
+                    await updateGlobalOverheadDB({ ...existing, ...oh });
                 } catch (err) {
                     set({ globalOverheads: snapshot });
-                    toast.error(`Failed to update overhead: ${(err as Error).message}`);
+                    toast.error(`Failed to update overhead: ${normalizeError(err).message}`);
                 }
             },
             deleteGlobalOverhead: async (id) => {
@@ -266,11 +309,12 @@ export const useBusinessStore = create<BusinessState>()(
                     await deleteGlobalOverheadDB(id);
                 } catch (err) {
                     set({ globalOverheads: snapshot });
-                    toast.error(`Failed to delete overhead: ${(err as Error).message}`);
+                    toast.error(`Failed to delete overhead: ${normalizeError(err).message}`);
                 }
             },
 
-            // CRM Handlers
+            // ── CRM / Deals ──────────────────────────────────────────────────
+
             addDeal: async (deal) => {
                 const snapshot = get().deals;
                 const tempId = `temp-${Date.now()}`;
@@ -281,9 +325,7 @@ export const useBusinessStore = create<BusinessState>()(
                     set(s => ({ deals: s.deals.map(d => d.id === tempId ? created : d) }));
                 } catch (err) {
                     set({ deals: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to create deal: ${message}`);
+                    toast.error(`Failed to create deal: ${normalizeError(err).message}`);
                 }
             },
             updateDeal: async (id, updates) => {
@@ -293,9 +335,7 @@ export const useBusinessStore = create<BusinessState>()(
                     await api.put(`/deals/${id}`, dealToApiPayload(updates));
                 } catch (err) {
                     set({ deals: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to update deal: ${message}`);
+                    toast.error(`Failed to update deal: ${normalizeError(err).message}`);
                 }
             },
             deleteDeal: async (id) => {
@@ -305,34 +345,36 @@ export const useBusinessStore = create<BusinessState>()(
                     await api.delete(`/deals/${id}`);
                 } catch (err) {
                     set({ deals: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to delete deal: ${message}`);
+                    toast.error(`Failed to delete deal: ${normalizeError(err).message}`);
                 }
             },
             updateDealStage: async (id, status, probability) => {
                 const snapshot = get().deals;
-                set(s => ({ deals: s.deals.map(d => d.id === id ? { ...d, status: status as Deal['status'], winProbability: probability } : d) }));
+                set(s => ({
+                    deals: s.deals.map(d =>
+                        d.id === id
+                            ? { ...d, status: status as Deal['status'], winProbability: probability }
+                            : d
+                    ),
+                }));
                 try {
                     await api.patch(`/deals/${id}/stage`, { status, win_probability: probability });
                 } catch (err) {
                     set({ deals: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to update deal stage: ${message}`);
+                    toast.error(`Failed to update deal stage: ${normalizeError(err).message}`);
                 }
             },
 
             winDeal: async (dealId) => {
-                const snapshotDeals = get().deals;
+                const snapshotDeals     = get().deals;
                 const snapshotContracts = get().contracts;
-                const snapshotProjects = get().projects;
+                const snapshotProjects  = get().projects;
 
-                // Optimistic: mark deal as won immediately so the UI responds instantly
+                // Optimistic: reflect the win immediately so the Kanban column moves
+                // before we hear back from the stored procedure
                 set(s => ({
-                    deals: s.deals.map(d => d.id === dealId
-                        ? { ...d, status: 'won' as const, winProbability: 100 }
-                        : d
+                    deals: s.deals.map(d =>
+                        d.id === dealId ? { ...d, status: 'won' as const, winProbability: 100 } : d
                     ),
                 }));
 
@@ -340,49 +382,145 @@ export const useBusinessStore = create<BusinessState>()(
                     const { data } = await api.post(`/deals/${dealId}/win`);
 
                     const serverContract = toContract(data.contract);
-                    const serverProject = toProject(data.project);
+                    const serverProject  = toProject(data.project);
 
                     set(s => ({
-                        // Merge server fields into existing deal to preserve ghost roles and hard assignments
-                        // that the win endpoint may not eager-load
+                        // Merge server fields into the existing deal to preserve ghost roles and
+                        // hard assignments that the win endpoint may not eager-load
                         deals: s.deals.map(d => d.id === dealId ? { ...d, ...toDeal(data.deal) } : d),
-                        // Filter before appending to stay idempotent on retries
+                        // Filter-before-append keeps the operation idempotent on retry
                         contracts: [...s.contracts.filter(c => c.id !== serverContract.id), serverContract],
-                        projects: [...s.projects.filter(p => p.id !== serverProject.id), serverProject],
+                        projects:  [...s.projects.filter(p => p.id !== serverProject.id),  serverProject],
                     }));
 
                     toast.success(`Deal won! Contract ${data.contract.contract_number} created.`);
                 } catch (err) {
                     set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
+                    const { message } = normalizeError(err);
+                    // The stored proc raises a constraint violation on duplicate wins or
+                    // missing required data — surface the server's message directly
                     toast.error(`Failed to win deal: ${message}`);
                 }
             },
 
+            // ── Contracts ────────────────────────────────────────────────────
+
+            updateContract: async (id, updates) => {
+                const snapshot = get().contracts;
+                set(s => ({
+                    contracts: s.contracts.map(c => c.id === id ? { ...c, ...updates } : c),
+                }));
+                try {
+                    const { data } = await api.patch(`/contracts/${id}`, contractToApiPayload(updates));
+                    const updated = toContract(data.data ?? data);
+                    set(s => ({
+                        contracts: s.contracts.map(c => c.id === id ? updated : c),
+                    }));
+                } catch (err) {
+                    set({ contracts: snapshot });
+                    toast.error(`Failed to update contract: ${normalizeError(err).message}`);
+                }
+            },
+            deleteContract: async (id) => {
+                const snapshot = get().contracts;
+                set(s => ({ contracts: s.contracts.filter(c => c.id !== id) }));
+                try {
+                    await api.delete(`/contracts/${id}`);
+                } catch (err) {
+                    set({ contracts: snapshot });
+                    toast.error(`Failed to delete contract: ${normalizeError(err).message}`);
+                }
+            },
+
+            // ── Projects ─────────────────────────────────────────────────────
+
+            updateProject: async (id, updates) => {
+                const snapshot = get().projects;
+                set(s => ({
+                    projects: s.projects.map(p => p.id === id ? { ...p, ...updates } : p),
+                }));
+                try {
+                    const { data } = await api.patch(`/projects/${id}`, projectToApiPayload(updates));
+                    const updated = toProject(data.data ?? data);
+                    set(s => ({ projects: s.projects.map(p => p.id === id ? updated : p) }));
+                } catch (err) {
+                    set({ projects: snapshot });
+                    toast.error(`Failed to update project: ${normalizeError(err).message}`);
+                }
+            },
+            deleteProject: async (id) => {
+                const snapshot = get().projects;
+                set(s => ({ projects: s.projects.filter(p => p.id !== id) }));
+                try {
+                    await api.delete(`/projects/${id}`);
+                } catch (err) {
+                    set({ projects: snapshot });
+                    toast.error(`Failed to delete project: ${normalizeError(err).message}`);
+                }
+            },
+
+            // ── Time Tracking ─────────────────────────────────────────────────
+
             addTimeEntry: async (entry) => {
                 const snapshot = get().timeEntries;
                 const tempId = `temp-${Date.now()}`;
-                const optimisticEntry = { ...entry, id: tempId, status: 'Draft' as const } as TimeEntry;
-                set(s => ({ timeEntries: [...s.timeEntries, optimisticEntry] }));
+                set(s => ({
+                    timeEntries: [...s.timeEntries, { ...entry, id: tempId, status: 'Draft' as const }],
+                }));
                 try {
                     const { data } = await api.post('/time-entries', {
-                        project_id: entry.projectId,
+                        project_id:  entry.projectId,
                         employee_id: entry.employeeId,
-                        task: entry.task,
-                        date: entry.date,
-                        hours: entry.hours,
-                        billable: entry.billable,
+                        task:        entry.task,
+                        date:        entry.date,
+                        hours:       entry.hours,
+                        billable:    entry.billable,
                     });
                     const created = toTimeEntry(data.data ?? data);
-                    set(s => ({ timeEntries: s.timeEntries.map(t => t.id === tempId ? created : t) }));
+                    set(s => ({
+                        timeEntries: s.timeEntries.map(t => t.id === tempId ? created : t),
+                    }));
                 } catch (err) {
                     set({ timeEntries: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to create time entry: ${message}`);
+                    toast.error(`Failed to create time entry: ${normalizeError(err).message}`);
                 }
             },
+
+            approveTimeEntry: async (id) => {
+                const snapshot = get().timeEntries;
+                const now = new Date().toISOString();
+                // Optimistic: show Approved immediately so the approver sees instant feedback
+                set(s => ({
+                    timeEntries: s.timeEntries.map(t =>
+                        t.id === id ? { ...t, status: 'Approved' as const, approvedAt: now } : t
+                    ),
+                }));
+                try {
+                    const { data } = await api.patch(`/time-entries/${id}/approve`);
+                    const approved = toTimeEntry(data.data ?? data);
+                    set(s => ({
+                        timeEntries: s.timeEntries.map(t => t.id === id ? approved : t),
+                    }));
+                } catch (err) {
+                    set({ timeEntries: snapshot });
+                    // 423 = another request holds the pessimistic lock — normalizeError
+                    // returns "This record is currently being modified. Please try again."
+                    toast.error(`Failed to approve time entry: ${normalizeError(err).message}`);
+                }
+            },
+
+            deleteTimeEntry: async (id) => {
+                const snapshot = get().timeEntries;
+                set(s => ({ timeEntries: s.timeEntries.filter(t => t.id !== id) }));
+                try {
+                    await api.delete(`/time-entries/${id}`);
+                } catch (err) {
+                    set({ timeEntries: snapshot });
+                    toast.error(`Failed to delete time entry: ${normalizeError(err).message}`);
+                }
+            },
+
+            // ── Invoices / Billing ────────────────────────────────────────────
 
             addInvoice: async (invoice) => {
                 const snapshot = get().invoices;
@@ -390,38 +528,38 @@ export const useBusinessStore = create<BusinessState>()(
                 set(s => ({ invoices: [...s.invoices, { ...invoice, id: tempId }] }));
                 try {
                     const { data } = await api.post('/invoices', {
-                        contract_id: invoice.contractId,
+                        contract_id:  invoice.contractId,
                         milestone_id: invoice.milestoneId ?? null,
-                        issue_date: invoice.issueDate,
-                        due_date: invoice.dueDate ?? null,
-                        amount: invoice.amount,
-                        tax: invoice.tax,
-                        notes: invoice.notes ?? null,
+                        issue_date:   invoice.issueDate,
+                        due_date:     invoice.dueDate ?? null,
+                        amount:       invoice.amount,
+                        tax:          invoice.tax,
+                        notes:        invoice.notes ?? null,
                         // total is GENERATED ALWAYS by DB — never send it
                     });
                     const created = toInvoice(data.data ?? data);
                     set(s => ({ invoices: s.invoices.map(i => i.id === tempId ? created : i) }));
                 } catch (err) {
                     set({ invoices: snapshot });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to create invoice: ${message}`);
+                    toast.error(`Failed to create invoice: ${normalizeError(err).message}`);
                 }
             },
 
             payInvoice: async (id) => {
-                const snapshotInvoices = get().invoices;
+                const snapshotInvoices  = get().invoices;
                 const snapshotContracts = get().contracts;
-                // Optimistic: mark as paid immediately
+                // Optimistic: mark as Paid immediately
                 set(s => ({
-                    invoices: s.invoices.map(i => i.id === id ? { ...i, status: 'Paid' as const } : i),
+                    invoices: s.invoices.map(i =>
+                        i.id === id ? { ...i, status: 'Paid' as const } : i
+                    ),
                 }));
                 try {
                     const { data } = await api.patch(`/invoices/${id}/pay`);
                     const paid = toInvoice(data.data ?? data);
                     set(s => ({
                         invoices: s.invoices.map(i => i.id === id ? paid : i),
-                        // Increment revenue_recognized on the matching contract
+                        // Reflect the new revenue_recognized total on the parent contract
                         contracts: s.contracts.map(c =>
                             c.id === paid.contractId
                                 ? { ...c, revenueRecognized: c.revenueRecognized + (paid.amount + paid.tax) }
@@ -430,104 +568,71 @@ export const useBusinessStore = create<BusinessState>()(
                     }));
                 } catch (err) {
                     set({ invoices: snapshotInvoices, contracts: snapshotContracts });
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const message = (err as any).response?.data?.message ?? (err as Error).message;
-                    toast.error(`Failed to pay invoice: ${message}`);
+                    // 409 = invoice already paid; normalizeError surfaces the server message
+                    toast.error(`Failed to pay invoice: ${normalizeError(err).message}`);
                 }
             },
 
-            getDealEstimation: (dealId) => {
-                const state = get();
-                const deal = state.deals.find(d => d.id === dealId);
-                if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
-
-                if (deal.totalEstimatedCost !== undefined) {
-                    return {
-                        laborCost: deal.baseLaborCost || 0,
-                        overheadCost: (deal.overheadCost || 0) + (deal.bufferCost || 0),
-                        suggestedPrice: deal.clientBudget || 0,
-                        expectedProfit: deal.estimatedGrossProfit || 0,
-                        totalCost: deal.totalEstimatedCost || 0
-                    };
+            deleteInvoice: async (id) => {
+                const snapshot = get().invoices;
+                set(s => ({ invoices: s.invoices.filter(i => i.id !== id) }));
+                try {
+                    await api.delete(`/invoices/${id}`);
+                } catch (err) {
+                    set({ invoices: snapshot });
+                    toast.error(`Failed to delete invoice: ${normalizeError(err).message}`);
                 }
-
-                let laborCost = 0;
-                (deal.estimationResources || []).forEach(res => {
-                    const role = state.roles.find(r => r.id === res.roleId);
-                    const costRate = role ? (role.rate * 0.5) : 50;
-                    laborCost += res.hours * costRate;
-                });
-
-                const overheadCost = (deal.projectOverheads || []).reduce((sum, oh) => sum + oh.cost, 0);
-                const totalCost = laborCost + overheadCost;
-                const targetMarginDecimal = (deal.targetMargin || 0) / 100;
-                const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
-                const expectedProfit = suggestedPrice - totalCost;
-
-                return { laborCost, overheadCost, suggestedPrice, expectedProfit, totalCost };
             },
+
+            // ── Pure-client helpers ───────────────────────────────────────────
 
             assignEngineer: (dealId, employeeId, allocatedHours) =>
                 set((state) => ({
                     deals: state.deals.map((deal) => {
                         if (deal.id !== dealId) return deal;
-
-                        const existingAssignments = deal.hardAssignments || [];
-                        const assignmentIndex = existingAssignments.findIndex(
-                            (a) => a.employeeId === employeeId
-                        );
-
-                        const newAssignments = [...existingAssignments];
-
-                        if (assignmentIndex >= 0) {
-                            if (allocatedHours === 0) {
-                                newAssignments.splice(assignmentIndex, 1);
-                            } else {
-                                newAssignments[assignmentIndex] = { employeeId, allocatedHours };
-                            }
+                        const existing = deal.hardAssignments || [];
+                        const idx = existing.findIndex(a => a.employeeId === employeeId);
+                        const next = [...existing];
+                        if (idx >= 0) {
+                            if (allocatedHours === 0) next.splice(idx, 1);
+                            else next[idx] = { employeeId, allocatedHours };
                         } else if (allocatedHours > 0) {
-                            newAssignments.push({ employeeId, allocatedHours });
+                            next.push({ employeeId, allocatedHours });
                         }
-
-                        return { ...deal, hardAssignments: newAssignments };
+                        return { ...deal, hardAssignments: next };
                     }),
                 })),
+
+            // ── Computed getters ──────────────────────────────────────────────
 
             getCapacityPool: () => {
                 const state = get();
                 const pool: Record<RoleType, DepartmentCapacity> = {
                     frontend: { role: "frontend", totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
-                    backend: { role: "backend", totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
-                    pm: { role: "pm", totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
-                    qa: { role: "qa", totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
-                    design: { role: "design", totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
+                    backend:  { role: "backend",  totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
+                    pm:       { role: "pm",        totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
+                    qa:       { role: "qa",        totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
+                    design:   { role: "design",    totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
                 };
 
-                state.engineers.forEach((eng) => {
-                    if (pool[eng.role]) {
-                        pool[eng.role].totalMonthlyHours += eng.monthlyCapacityHours;
-                    }
+                state.engineers.forEach(eng => {
+                    if (pool[eng.role]) pool[eng.role].totalMonthlyHours += eng.monthlyCapacityHours;
                 });
 
-                state.deals.forEach((deal) => {
+                state.deals.forEach(deal => {
                     const status = deal.status || 'inquiry';
                     if (status === "lost") return;
 
                     if (status === "won" || status === "contract") {
-                        (deal.hardAssignments || []).forEach((assignment) => {
-                            const eng = state.engineers.find((e) => e.id === assignment.employeeId);
-                            if (eng && pool[eng.role]) {
-                                pool[eng.role].hardBookedHours += assignment.allocatedHours;
-                            }
+                        (deal.hardAssignments || []).forEach(a => {
+                            const eng = state.engineers.find(e => e.id === a.employeeId);
+                            if (eng && pool[eng.role]) pool[eng.role].hardBookedHours += a.allocatedHours;
                         });
                     } else {
-                        (deal.ghostRoles || []).forEach((gr) => {
-                            const totalRequiredHours = gr.quantity * 160;
+                        (deal.ghostRoles || []).forEach(gr => {
                             const prob = deal.winProbability || 0;
-                            const softBooked = calculateSoftBookedHours(totalRequiredHours, prob);
-                            if (pool[gr.roleType]) {
-                                pool[gr.roleType].softBookedHours += softBooked;
-                            }
+                            const softBooked = calculateSoftBookedHours(gr.quantity * 160, prob);
+                            if (pool[gr.roleType]) pool[gr.roleType].softBookedHours += softBooked;
                         });
                     }
                 });
@@ -537,43 +642,66 @@ export const useBusinessStore = create<BusinessState>()(
 
             getFinancialPnL: () => {
                 const state = get();
-                const monthlyData: Record<string, { revenue: number, directLabor: number, overhead: number }> = {};
+                const monthly: Record<string, { revenue: number; directLabor: number; overhead: number }> = {};
 
-                // Revenue: only count Paid invoices
                 state.invoices
                     .filter(inv => inv.status === 'Paid')
                     .forEach(inv => {
                         const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-                        if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                        monthlyData[month].revenue += inv.amount;
+                        if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                        monthly[month].revenue += inv.amount;
                     });
 
-                // Direct Labor: only count Approved time entries
                 state.timeEntries
-                    .filter(entry => entry.status === 'Approved')
+                    .filter(e => e.status === 'Approved')
                     .forEach(entry => {
                         const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-                        if (!monthlyData[month]) monthlyData[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                        if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
                         const emp = state.employees.find(e => e.id === entry.employeeId);
-                        const hourlyCost = emp ? emp.costPerHour : 0;
-                        monthlyData[month].directLabor += (entry.hours * hourlyCost);
+                        monthly[month].directLabor += entry.hours * (emp?.costPerHour ?? 0);
                     });
 
-                const totalMonthlyGlobalOverhead = state.globalOverheads.reduce((sum, oh) => sum + oh.monthlyCost, 0);
+                const totalMonthlyOverhead = state.globalOverheads.reduce((s, oh) => s + oh.monthlyCost, 0);
+                Object.keys(monthly).forEach(m => { monthly[m].overhead += totalMonthlyOverhead; });
 
-                Object.keys(monthlyData).forEach(month => {
-                    monthlyData[month].overhead += totalMonthlyGlobalOverhead;
-                });
-
-                return Object.keys(monthlyData).map(month => {
-                    const { revenue, directLabor, overhead } = monthlyData[month];
-                    const grossProfit = revenue - directLabor;
+                return Object.keys(monthly).map(month => {
+                    const { revenue, directLabor, overhead } = monthly[month];
+                    const grossProfit    = revenue - directLabor;
                     const operatingProfit = grossProfit - overhead;
-                    const netProfit = operatingProfit * 0.8;
-
+                    const netProfit      = operatingProfit * 0.8;
                     return { month, revenue, directLabor, overhead, grossProfit, operatingProfit, netProfit };
                 });
-            }
+            },
+
+            getDealEstimation: (dealId) => {
+                const state = get();
+                const deal = state.deals.find(d => d.id === dealId);
+                if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
+
+                if (deal.totalEstimatedCost !== undefined) {
+                    return {
+                        laborCost:      deal.baseLaborCost || 0,
+                        overheadCost:   (deal.overheadCost || 0) + (deal.bufferCost || 0),
+                        suggestedPrice: deal.clientBudget || 0,
+                        expectedProfit: deal.estimatedGrossProfit || 0,
+                        totalCost:      deal.totalEstimatedCost || 0,
+                    };
+                }
+
+                let laborCost = 0;
+                (deal.estimationResources || []).forEach(res => {
+                    const role = state.roles.find(r => r.id === res.roleId);
+                    laborCost += res.hours * (role ? role.rate * 0.5 : 50);
+                });
+
+                const overheadCost = (deal.projectOverheads || []).reduce((s, oh) => s + oh.cost, 0);
+                const totalCost = laborCost + overheadCost;
+                const targetMarginDecimal = (deal.targetMargin || 0) / 100;
+                const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
+                const expectedProfit = suggestedPrice - totalCost;
+
+                return { laborCost, overheadCost, suggestedPrice, expectedProfit, totalCost };
+            },
         }),
         {
             name: "unified-agency-store",

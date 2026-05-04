@@ -4,22 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { useBusinessStore } from '@/store/businessStore';
 import { Progress } from '@/components/ui/progress';
-import { useEffect } from 'react';
-import api from '@/lib/api';
-import { toProject } from '@/lib/dealsMapper';
+import { Button } from '@/components/ui/button';
+import { useProjectList } from '@/lib/queries/projects';
 
 export default function ProjectsPage() {
-    const store = useBusinessStore();
-
-    useEffect(() => {
-        api.get('/projects')
-            .then(({ data }) => {
-                useBusinessStore.setState({ projects: (data.data ?? data).map(toProject) });
-            })
-            .catch((err) => console.error('Failed to fetch projects:', err));
-    }, []);
+    const projectsQuery = useProjectList();
+    const projects = projectsQuery.data?.data ?? [];
 
     return (
         <div className="p-6 space-y-6">
@@ -38,7 +29,7 @@ export default function ProjectsPage() {
                             <Clock className="h-5 w-5 text-blue-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{store.projects.length}</span>
+                            <span className="text-3xl font-bold tracking-tight text-slate-900">{projects.length}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -50,7 +41,7 @@ export default function ProjectsPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-emerald-600">
-                                {store.projects.reduce((sum, p) => sum + p.budgetHours, 0)}h
+                                {projects.reduce((sum, p) => sum + p.budgetHours, 0)}h
                             </span>
                         </div>
                     </CardContent>
@@ -63,13 +54,23 @@ export default function ProjectsPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-rose-600">
-                                {store.projects.reduce((sum, p) => sum + p.consumedHours, 0)}h
+                                {projects.reduce((sum, p) => sum + p.consumedHours, 0)}h
                             </span>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
+            {projectsQuery.isLoading ? (
+                <Card className="h-64 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+            ) : projectsQuery.isError ? (
+                <Card className="shadow-sm border-slate-100">
+                    <div className="flex h-64 flex-col items-center justify-center gap-3">
+                        <p className="text-sm text-slate-600">Could not load projects.</p>
+                        <Button variant="outline" onClick={() => projectsQuery.refetch()}>Retry</Button>
+                    </div>
+                </Card>
+            ) : (
             <Card className="shadow-sm border-slate-100">
                 <Table>
                     <TableHeader className="bg-slate-50">
@@ -83,7 +84,7 @@ export default function ProjectsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {store.projects.map((project) => {
+                        {projects.map((project) => {
                             const burnPercentage = project.budgetHours > 0
                                 ? Math.min(Math.round((project.consumedHours / project.budgetHours) * 100), 100)
                                 : 0;
@@ -123,7 +124,7 @@ export default function ProjectsPage() {
                                 </TableRow>
                             );
                         })}
-                        {store.projects.length === 0 && (
+                        {projects.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center py-6 text-slate-500">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
                             </TableRow>
@@ -131,6 +132,7 @@ export default function ProjectsPage() {
                     </TableBody>
                 </Table>
             </Card>
+            )}
         </div>
     );
 }

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect } from "react";
 import { useBusinessStore } from "@/store/businessStore";
@@ -27,26 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ArrowRight, Upload } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
-
-const ghostRoleSchema = z.object({
-    id: z.string().optional(),
-    roleType: z.string(),
-    quantity: z.coerce.number().min(1, "At least 1"),
-    months: z.coerce.number().min(1, "At least 1 month"),
-    avgMonthlySalary: z.coerce.number().min(0, "Must be positive"),
-});
-
-const dealSchema = z.object({
-    name: z.string().min(1, "Deal name is required"),
-    clientBudget: z.coerce.number().min(1, "Budget is required"),
-    timelineMonths: z.coerce.number().min(1, "Timeline is required"),
-    workloadHours: z.coerce.number().min(1, "Workload is required"),
-    winProbability: z.coerce.number().min(0).max(100),
-    workloadDescription: z.string().optional(),
-    ghostRoles: z.array(ghostRoleSchema),
-});
-
-type DealFormValues = z.infer<typeof dealSchema>;
+import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
+import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 
 export default function EditDealPage() {
     const router = useRouter();
@@ -54,15 +36,16 @@ export default function EditDealPage() {
     const dealId = params.id as string;
 
     const deals = useBusinessStore((state) => state.deals);
-    const updateDeal = useBusinessStore((state) => state.updateDeal);
-    const dealToEdit = deals.find((d) => d.id === dealId);
+    const dealQuery = useDealDetail(dealId);
+    const { updateDeal } = useDealMutations();
+    const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const companySettings = useBusinessStore((state) => state.companySettings);
 
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
     const form = useForm<DealFormValues>({
-        resolver: zodResolver(dealSchema) as any,
+        resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
         defaultValues: {
             name: dealToEdit?.name || "",
             clientBudget: dealToEdit?.clientBudget || 0,
@@ -70,7 +53,7 @@ export default function EditDealPage() {
             workloadHours: dealToEdit?.workloadHours || 0,
             winProbability: dealToEdit?.winProbability || 50,
             workloadDescription: ((dealToEdit as unknown as Record<string, unknown>)?.workloadDescription as string) || "",
-            ghostRoles: dealToEdit?.ghostRoles || [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+            ghostRoles: dealToEdit?.ghostRoles ?? [],
         },
     });
 
@@ -82,7 +65,8 @@ export default function EditDealPage() {
                 timelineMonths: dealToEdit.timelineMonths || 1,
                 workloadHours: dealToEdit.workloadHours || 0,
                 winProbability: dealToEdit.winProbability || 50,
-                ghostRoles: dealToEdit.ghostRoles || [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 }],
+                workloadDescription: dealToEdit.workloadDescription || "",
+                ghostRoles: dealToEdit.ghostRoles ?? [],
             });
         }
     }, [dealToEdit, form]);
@@ -125,7 +109,7 @@ export default function EditDealPage() {
         return "text-green-500";
     };
 
-    function onSubmit(data: DealFormValues) {
+    async function onSubmit(data: DealFormValues) {
         if (!dealToEdit) return;
 
         const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
@@ -136,21 +120,38 @@ export default function EditDealPage() {
             avgMonthlySalary: gr.avgMonthlySalary,
         }));
 
-        updateDeal(dealId, {
-            name: data.name,
-            clientBudget: data.clientBudget,
-            timelineMonths: data.timelineMonths,
-            workloadHours: data.workloadHours,
-            winProbability: data.winProbability,
-            ghostRoles: roles,
-            baseLaborCost,
-            overheadCost,
-            bufferCost,
-            totalEstimatedCost,
-            estimatedGrossProfit,
+        await updateDeal.mutateAsync({
+            id: dealId,
+            updates: {
+                name: data.name,
+                clientBudget: data.clientBudget,
+                timelineMonths: data.timelineMonths,
+                workloadHours: data.workloadHours,
+                workloadDescription: data.workloadDescription,
+                winProbability: data.winProbability,
+                ghostRoles: roles,
+                baseLaborCost,
+                overheadCost,
+                bufferCost,
+                totalEstimatedCost,
+                estimatedGrossProfit,
+            },
         });
 
         router.push("/crm");
+    }
+
+    if (dealQuery.isLoading) {
+        return <div className="p-8 text-sm text-muted-foreground">Loading deal...</div>;
+    }
+
+    if (dealQuery.isError) {
+        return (
+            <div className="p-8 space-y-3">
+                <p className="text-sm text-destructive">Could not load this deal.</p>
+                <Button variant="outline" onClick={() => dealQuery.refetch()}>Retry</Button>
+            </div>
+        );
     }
 
     if (!dealToEdit) {
@@ -304,7 +305,7 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 8000 })}
+                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 0 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -406,7 +407,9 @@ export default function EditDealPage() {
                                     </Tabs>
 
                                     <div className="flex justify-end pt-6 border-t mt-6">
-                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm">Save Changes</Button>
+                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm" disabled={updateDeal.isPending}>
+                                            {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
+                                        </Button>
                                     </div>
 
                                     <AITeamBuilder

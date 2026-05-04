@@ -17,7 +17,9 @@ No test runner is configured. There are no automated tests.
 
 **Anka** is an agency management platform (SaaS) with these modules: Organization, CRM/Pipeline, Estimation, Contracts, Projects, Time Tracking, Financials, Forecasting, and Multi-tenancy.
 
-**Stack:** Next.js 16 App Router · React 19 · TypeScript · Tailwind CSS 4 · Zustand 5 · TanStack Query 5 · Supabase (Postgres) · shadcn/ui · React Hook Form + Zod · Recharts · @hello-pangea/dnd
+**Stack:** Next.js 16 App Router · React 19 · TypeScript · Tailwind CSS 4 · Zustand 5 · TanStack Query 5 · shadcn/ui · React Hook Form + Zod · Recharts · @hello-pangea/dnd
+
+**All data comes from the Laravel backend API (`anka-api`) via `lib/api.ts`. The frontend never touches Supabase directly.**
 
 ### Route groups
 
@@ -44,16 +46,30 @@ Four Zustand stores in `store/`:
 | `authStore.ts` | yes (`auth-storage`) | Legacy auth store — do not use for new code |
 | `tenantStore.ts` | no | Active tenant ID for multi-tenancy |
 
-`businessStore.ts` is the main application state. Key computed selectors: `getCapacityPool()`, `getFinancialPnL()`, `getDealEstimation()`. Mutations follow an optimistic-update + rollback pattern: snapshot state → mutate → call Supabase → on error restore snapshot and toast.
+`businessStore.ts` is the main application state. Key computed selectors: `getCapacityPool()`, `getFinancialPnL()`, `getDealEstimation()`. Mutations follow an optimistic-update + rollback pattern: snapshot state → mutate → call API → on error restore snapshot and toast.
 
 ### API layers
 
-Two separate HTTP clients exist; use the right one:
+One HTTP client handles all backend traffic:
 
-- **`lib/axios.ts`** — Laravel backend (`NEXT_PUBLIC_BACKEND_URL/api`). Handles CSRF cookie via `/sanctum/csrf-cookie`. Emits `auth-unauthorized` event on 401/419. Used for auth endpoints.
-- **`lib/api.ts`** — Alternative backend (`NEXT_PUBLIC_API_URL`). Bearer token from `useAuthStore`, `X-Tenant-ID` header from `tenantStore`. Redirects to `/login` on 401.
-- **`lib/supabaseOrganization.ts`** — Direct Supabase Postgres queries for org module (departments, roles, employees, overheads, company settings). Contains snake_case ↔ camelCase mappers.
+- **`lib/api.ts`** — Laravel backend (`NEXT_PUBLIC_API_URL`). Bearer token from `useAuthStore`, `X-Tenant-ID` header from `tenantStore`. Redirects to `/login` on 401.
+- **`lib/axios.ts`** — Same Laravel backend (`NEXT_PUBLIC_BACKEND_URL/api`). Used for auth endpoints (login, logout, /auth/me). Handles CSRF cookie via `/sanctum/csrf-cookie`. Emits `auth-unauthorized` event on 401/419.
 - **`app/api/ai-team-builder/route.ts`** — Next.js route handler that calls Google Gemini Flash Lite to suggest team compositions.
+
+### Query layer
+
+`lib/queries/` contains TanStack Query hooks and plain API functions per module:
+
+| File | Module |
+|---|---|
+| `lib/queries/organization.ts` | Departments, Roles, Employees, Overheads, Company Settings |
+| `lib/queries/deals.ts` | CRM Deals |
+| `lib/queries/contracts.ts` | Contracts |
+| `lib/queries/invoices.ts` | Invoices |
+| `lib/queries/projects.ts` | Projects |
+| `lib/queries/timeEntries.ts` | Time Entries |
+
+Organization data is seeded into `businessStore` on page mount via `hooks/useOrganizationSync.ts`, which calls `fetchAllOrganizationData()` from `lib/queries/organization.ts`.
 
 ### Auth & RBAC
 
@@ -74,10 +90,8 @@ Login is currently mocked (`app/(auth)/login/page.tsx` sets a cookie directly). 
 Required in `.env.local`:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_BACKEND_URL      # Laravel backend
-NEXT_PUBLIC_API_URL          # Alternative API base
+NEXT_PUBLIC_BACKEND_URL      # Laravel backend base URL
+NEXT_PUBLIC_API_URL          # Laravel API base URL (same host + /api)
 GEMINI_API_KEY               # Server-side only, for ai-team-builder route
 ```
 

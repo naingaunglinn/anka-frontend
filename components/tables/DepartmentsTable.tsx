@@ -30,12 +30,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type Department = {
-    id: string;
-    name: string;
-    manager: string;
-    headcount: number;
-};
+import type { Department } from '@/types/business';
 
 interface DepartmentsTableProps {
     data: Department[];

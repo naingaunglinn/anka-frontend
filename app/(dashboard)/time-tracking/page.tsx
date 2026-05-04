@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,16 @@ import { Clock, Plus, Users, Briefcase, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
-import api from '@/lib/api';
-import { toTimeEntry, toProject } from '@/lib/dealsMapper';
+import { useProjectList } from '@/lib/queries/projects';
+import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
 
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
+    const projectsQuery = useProjectList();
+    const timeEntriesQuery = useTimeEntryList();
+    const { createTimeEntry } = useTimeEntryMutations();
+    const projects = projectsQuery.data?.data ?? [];
+    const timeEntries = timeEntriesQuery.data?.data ?? [];
     const [isAddOpen, setIsAddOpen] = useState(false);
 
     const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -24,21 +29,7 @@ export default function TimeTrackingPage() {
     const [hoursLogged, setHoursLogged] = useState('');
     const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-    useEffect(() => {
-        api.get('/projects')
-            .then(({ data }) => {
-                useBusinessStore.setState({ projects: (data.data ?? data).map(toProject) });
-            })
-            .catch((err) => console.error('Failed to fetch projects:', err));
-
-        api.get('/time-entries')
-            .then(({ data }) => {
-                useBusinessStore.setState({ timeEntries: (data.data ?? data).map(toTimeEntry) });
-            })
-            .catch((err) => console.error('Failed to fetch time entries:', err));
-    }, []);
-
-    const handleSaveTime = () => {
+    const handleSaveTime = async () => {
         if (!selectedProjectId || !selectedEmployeeId || !taskDesc || !hoursLogged) return;
 
         const newEntry: TimeEntry = {
@@ -52,14 +43,27 @@ export default function TimeTrackingPage() {
             status: 'Approved'
         };
 
-        store.addTimeEntry(newEntry);
+        await createTimeEntry.mutateAsync(newEntry);
         setIsAddOpen(false);
         setTaskDesc('');
         setHoursLogged('');
     };
 
-    const totalHoursLogged = store.timeEntries.reduce((sum, e) => sum + e.hours, 0);
-    const activeProjectsCount = new Set(store.timeEntries.map(e => e.projectId)).size;
+    const totalHoursLogged = timeEntries.reduce((sum, e) => sum + e.hours, 0);
+    const activeProjectsCount = new Set(timeEntries.map(e => e.projectId)).size;
+    const totalCapacity = store.employees
+        .filter((employee) => employee.status === 'Active')
+        .reduce((sum, employee) => sum + employee.workableHours, 0);
+    const approvedHours = timeEntries
+        .filter((entry) => entry.status === 'Approved')
+        .reduce((sum, entry) => sum + entry.hours, 0);
+    const utilization = totalCapacity > 0 ? Math.round((approvedHours / totalCapacity) * 100) : 0;
+    const isLoading = projectsQuery.isLoading || timeEntriesQuery.isLoading;
+    const isError = projectsQuery.isError || timeEntriesQuery.isError;
+    const retry = () => {
+        projectsQuery.refetch();
+        timeEntriesQuery.refetch();
+    };
 
     return (
         <div className="p-6 space-y-6">
@@ -102,7 +106,7 @@ export default function TimeTrackingPage() {
                                         <SelectValue placeholder="Select active project..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {store.projects.map(prj => (
+                                        {projects.map(prj => (
                                             <SelectItem key={prj.id} value={prj.id}>{prj.name} ({prj.client})</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -122,7 +126,9 @@ export default function TimeTrackingPage() {
                                     <Input type="number" min="0.5" step="0.5" value={hoursLogged} onChange={e => setHoursLogged(e.target.value)} placeholder="4.0" />
                                 </div>
                             </div>
-                            <Button className="w-full bg-slate-900" onClick={handleSaveTime}>Submit Time Entry</Button>
+                            <Button className="w-full bg-slate-900" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
+                                {createTimeEntry.isPending ? 'Submitting...' : 'Submit Time Entry'}
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -159,7 +165,7 @@ export default function TimeTrackingPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">
-                                {store.employees.length > 0 ? '78%' : '0%'}
+                                {utilization}%
                             </span>
                             <span className="text-sm text-slate-500">average this month</span>
                         </div>
@@ -167,6 +173,16 @@ export default function TimeTrackingPage() {
                 </Card>
             </div>
 
+            {isLoading ? (
+                <Card className="h-64 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+            ) : isError ? (
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="flex h-64 flex-col items-center justify-center gap-3">
+                        <p className="text-sm text-slate-600">Could not load time entries.</p>
+                        <Button variant="outline" onClick={retry}>Retry</Button>
+                    </CardContent>
+                </Card>
+            ) : (
             <Card className="shadow-sm border-slate-100">
                 <CardHeader>
                     <CardTitle className="text-lg">Recent Time Entries</CardTitle>
@@ -184,9 +200,9 @@ export default function TimeTrackingPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {store.timeEntries.slice().reverse().map((entry) => {
+                            {timeEntries.slice().reverse().map((entry) => {
                                 const emp = store.employees.find(e => e.id === entry.employeeId);
-                                const prj = store.projects.find(p => p.id === entry.projectId);
+                                const prj = projects.find(p => p.id === entry.projectId);
 
                                 return (
                                     <TableRow key={entry.id}>
@@ -211,7 +227,7 @@ export default function TimeTrackingPage() {
                                     </TableRow>
                                 );
                             })}
-                            {store.timeEntries.length === 0 && (
+                            {timeEntries.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center py-6 text-slate-500">No time recorded yet. Log time to see data here.</TableCell>
                                 </TableRow>
@@ -220,6 +236,7 @@ export default function TimeTrackingPage() {
                     </Table>
                 </CardContent>
             </Card>
+            )}
         </div>
     );
 }

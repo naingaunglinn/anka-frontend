@@ -31,12 +31,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type Role = {
-    id: string;
-    title: string;
-    department: string;
-    rate: number;
-};
+import type { Role } from '@/types/business';
 
 interface RolesTableProps {
     data: Role[];
