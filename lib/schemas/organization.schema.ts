@@ -17,6 +17,7 @@ export const roleSchema = z.object({
 export const employeeSchema = z.object({
     name:          z.string().min(2, 'Name must be at least 2 characters').max(100),
     role:          z.string().min(1, 'Please select a role.'),
+    departmentId:  z.string().optional(),
     capacityRole:  z.string().optional(),
     monthlySalary: z.coerce.number().min(0, 'Salary must be ≥ 0'),
     workableHours: z.coerce.number().min(1, 'Must be > 0').max(744, 'Max 744 h/month'),

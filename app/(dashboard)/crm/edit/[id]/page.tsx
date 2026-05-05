@@ -48,6 +48,7 @@ export default function EditDealPage() {
         resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
         defaultValues: {
             name: dealToEdit?.name || "",
+            client: dealToEdit?.client || "",
             clientBudget: dealToEdit?.clientBudget || 0,
             timelineMonths: dealToEdit?.timelineMonths || 1,
             workloadHours: dealToEdit?.workloadHours || 0,
@@ -61,6 +62,7 @@ export default function EditDealPage() {
         if (dealToEdit) {
             form.reset({
                 name: dealToEdit.name || "",
+                client: dealToEdit.client || "",
                 clientBudget: dealToEdit.clientBudget || 0,
                 timelineMonths: dealToEdit.timelineMonths || 1,
                 workloadHours: dealToEdit.workloadHours || 0,
@@ -124,6 +126,7 @@ export default function EditDealPage() {
             id: dealId,
             updates: {
                 name: data.name,
+                client: data.client || undefined,
                 clientBudget: data.clientBudget,
                 timelineMonths: data.timelineMonths,
                 workloadHours: data.workloadHours,
@@ -191,6 +194,20 @@ export default function EditDealPage() {
                                                             <FormLabel>Deal Name</FormLabel>
                                                             <FormControl>
                                                                 <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+
+                                                <FormField
+                                                    control={form.control}
+                                                    name="client"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Client Name</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Acme Corporation" className="bg-white" {...field} />
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>

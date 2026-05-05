@@ -10,7 +10,7 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
     const router = useRouter();
     const { setToken } = useAuthStore();
     const token = useAuthStore((state) => state.token);
-    const { isError } = useAuth();
+    const { isAuthFailure, isServerError } = useAuth();
 
     // isHydrating prevents a flash-redirect to /login while we're checking
     // the __session httpOnly cookie.  We start hydrating only when the
@@ -41,18 +41,29 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
             })
             .catch(() => router.replace('/login'))
             .finally(() => setIsHydrating(false));
-    // Run once on mount only; token/setToken refs are stable
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Run once on mount only; token/setToken refs are stable
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
-        if (!isHydrating && isError) {
+        // Only redirect to login on actual auth failures (401/403/419).
+        // Server errors (5xx) or network timeouts should keep the user on the
+        // current page so TanStack Query can retry automatically.
+        if (!isHydrating && isAuthFailure) {
             router.replace('/login');
         }
-    }, [isHydrating, isError, router]);
+    }, [isHydrating, isAuthFailure, router]);
 
     // Render nothing while re-hydrating to avoid a layout flash or premature redirect.
     if (isHydrating) return null;
+
+    // If the backend is experiencing issues, still render children so the UI
+    // doesn't disappear. TanStack Query will retry /auth/me in the background.
+    // We can optionally show a subtle banner here in the future.
+    if (isServerError) {
+        // eslint-disable-next-line no-console
+        console.warn('[AuthInitializer] Backend server error detected; retrying auth in background.');
+    }
 
     return <>{children}</>;
 }

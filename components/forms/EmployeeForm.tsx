@@ -20,7 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
-import { Role } from '@/types/business';
+import { Role, Department } from '@/types/business';
 import { employeeSchema, type EmployeeFormValues } from '@/lib/schemas/organization.schema';
 
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
@@ -28,16 +28,18 @@ const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
     roles: Role[];
+    departments?: Department[];
     onSubmit: (data: EmployeeFormValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function EmployeeForm({ initialData, roles, onSubmit, onCancel }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, roles, departments = [], onSubmit, onCancel }: EmployeeFormProps) {
     const form = useForm<EmployeeFormValues>({
         resolver: zodResolver(employeeSchema) as any,
         defaultValues: initialData || {
             name: '',
             role: '',
+            departmentId: '',
             capacityRole: '',
             monthlySalary: 0,
             workableHours: 160,
@@ -66,6 +68,29 @@ export function EmployeeForm({ initialData, roles, onSubmit, onCancel }: Employe
                     )}
                 />
                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="departmentId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Department</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select department" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        {departments.map(d => (
+                                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                     <FormField
                         control={form.control}
                         name="role"

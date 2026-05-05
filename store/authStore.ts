@@ -6,11 +6,13 @@ export interface AuthUser {
     lastName: string;
     email: string;
     appRole: 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR';
+    systemRole: string;
+    isSuperAdmin: boolean;
     tenant: {
         id: string;
         name: string;
         slug: string;
-    };
+    } | null;
 }
 
 interface AuthState {

@@ -1,36 +1,60 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// All route prefixes that require an authenticated session.
-// The /api/auth/* routes are intentionally excluded so the session handler
-// itself is always reachable (even when logged out).
-const PROTECTED_PREFIXES = [
+// Routes only org users can access.
+const ORG_PREFIXES = [
     '/crm', '/organization', '/estimation', '/contracts',
-    '/projects', '/time-tracking', '/financial', '/forecast',
-    '/tenant', '/dashboard',
+    '/projects', '/time-tracking', '/financial', '/forecast', '/dashboard',
+    '/profile',
 ];
+
+// Routes only super admins can access.
+const SUPER_ADMIN_PREFIXES = ['/tenant'];
 
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
-    const isPublicPath = path === '/login' || path === '/register';
+    const isLoginPage = path === '/login' || path === '/register';
 
-    // The __session cookie is httpOnly — its value cannot be read by client-side JS.
-    // Edge Middleware running on the server can read it, which is the whole point:
-    // route protection without exposing the raw Sanctum token to the browser.
     const token = request.cookies.get('__session')?.value;
+    const role = request.cookies.get('__role')?.value; // 'super_admin' | 'member' | undefined
+    const isSuperAdmin = role === 'super_admin';
+    const isAuthenticated = !!token;
 
-    // Authenticated users hitting /login are redirected to the default landing page.
-    if (isPublicPath && token) {
-        return NextResponse.redirect(new URL('/crm', request.nextUrl));
-    }
-
-    // Unauthenticated users trying to reach a protected route are sent to login.
-    if (!isPublicPath && !token) {
-        const isProtected = PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
+    // ── Unauthenticated ────────────────────────────────────────────────────
+    if (!isAuthenticated) {
+        const isProtected = [...ORG_PREFIXES, ...SUPER_ADMIN_PREFIXES].some((p) =>
+            path.startsWith(p)
+        );
         if (isProtected) {
             return NextResponse.redirect(new URL('/login', request.nextUrl));
         }
+        return NextResponse.next();
     }
+
+    // ── Authenticated ──────────────────────────────────────────────────────
+
+    // Redirect away from login page.
+    if (isLoginPage) {
+        const dest = isSuperAdmin ? '/tenant' : '/dashboard';
+        return NextResponse.redirect(new URL(dest, request.nextUrl));
+    }
+
+    // Block super admin from org routes → send them to tenant management.
+    if (isSuperAdmin) {
+        const isOrgRoute = ORG_PREFIXES.some((p) => path.startsWith(p));
+        if (isOrgRoute) {
+            return NextResponse.redirect(new URL('/tenant', request.nextUrl));
+        }
+        return NextResponse.next();
+    }
+
+    // Block org users from super admin routes → send them to dashboard.
+    const isSuperAdminRoute = SUPER_ADMIN_PREFIXES.some((p) => path.startsWith(p));
+    if (isSuperAdminRoute) {
+        return NextResponse.redirect(new URL('/dashboard', request.nextUrl));
+    }
+
+    return NextResponse.next();
 }
 
 export const config = {
@@ -44,6 +68,7 @@ export const config = {
         '/time-tracking/:path*',
         '/financial/:path*',
         '/forecast/:path*',
+        '/profile/:path*',
         '/tenant/:path*',
         '/login',
     ],

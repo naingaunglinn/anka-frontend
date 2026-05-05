@@ -7,7 +7,8 @@ import { useRouter } from 'next/navigation';
 import {
     Building2,
     LogOut,
-    User as UserIcon
+    User as UserIcon,
+    Settings
 } from 'lucide-react';
 
 import {
@@ -23,11 +24,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export const Header = () => {
     const router = useRouter();
-    const { tenants, activeTenantId, setActiveTenant } = useTenantStore();
+    const { currentTenant } = useTenantStore();
     const user = useAuthStore((state) => state.user);
     const { logout } = useAuth();
 
-    const activeTenantName = tenants.find(t => t.id === activeTenantId)?.name || 'Select Tenant';
     const displayName = user?.firstName ? `${user.firstName} ${user.lastName}` : (user?.email ?? 'User');
     const initials = user?.firstName?.charAt(0).toUpperCase() ?? 'U';
 
@@ -35,36 +35,24 @@ export const Header = () => {
         try {
             await logout();
         } finally {
-            router.push('/login');
+            router.replace('/login');
         }
     };
 
     return (
         <header className="h-16 w-full flex items-center justify-between px-6 bg-white border-b shadow-sm">
             <div className="flex items-center">
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="flex items-center gap-2 min-w-[200px] justify-between">
-                            <span className="flex items-center gap-2">
-                                <Building2 className="w-4 h-4 text-muted-foreground" />
-                                <span className="font-semibold">{activeTenantName}</span>
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-[200px]">
-                        <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {tenants.map((t) => (
-                            <DropdownMenuItem
-                                key={t.id}
-                                onClick={() => setActiveTenant(t.id)}
-                                className={activeTenantId === t.id ? "bg-slate-100 font-bold" : ""}
-                            >
-                                {t.name}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {user?.isSuperAdmin ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-violet-50 border border-violet-200">
+                        <Building2 className="w-4 h-4 text-violet-600" />
+                        <span className="text-sm font-semibold text-violet-700">Super Admin</span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 min-w-[200px]">
+                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-semibold">{currentTenant?.name ?? 'Select Tenant'}</span>
+                    </div>
+                )}
             </div>
 
             <div className="flex items-center gap-x-4">
@@ -91,6 +79,10 @@ export const Header = () => {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
+                            <Settings className="w-4 h-4 mr-2" />
+                            Profile
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                             <LogOut className="w-4 h-4 mr-2" />
                             Log out

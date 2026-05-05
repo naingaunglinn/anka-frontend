@@ -1,16 +1,21 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, MoreVertical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { useProjectList } from '@/lib/queries/projects';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useProjectList, useProjectMutations } from '@/lib/queries/projects';
+import type { Project } from '@/types/business';
 
 export default function ProjectsPage() {
     const projectsQuery = useProjectList();
+    const { updateProject } = useProjectMutations();
     const projects = projectsQuery.data?.data ?? [];
+
+    const statusOptions: Project['status'][] = ['Not Started', 'On Track', 'At Risk', 'Over Budget', 'Completed'];
 
     return (
         <div className="p-6 space-y-6">
@@ -81,6 +86,7 @@ export default function ProjectsPage() {
                             <TableHead className="text-right">Budget Hours</TableHead>
                             <TableHead className="text-right">Consumed</TableHead>
                             <TableHead className="w-[200px]">Burn Rate</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -121,12 +127,31 @@ export default function ProjectsPage() {
                                             <Progress value={burnPercentage} className="h-2" indicatorClassName={progressColor} />
                                         </div>
                                     </TableCell>
+                                    <TableCell>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <MoreVertical className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                {statusOptions.filter(s => s !== project.status).map(s => (
+                                                    <DropdownMenuItem
+                                                        key={s}
+                                                        onClick={() => updateProject.mutate({ id: project.id, updates: { status: s } })}
+                                                    >
+                                                        Mark as {s}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                 </TableRow>
                             );
                         })}
                         {projects.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-6 text-slate-500">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
+                                <TableCell colSpan={7} className="text-center py-6 text-slate-500">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

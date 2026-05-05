@@ -34,9 +34,10 @@ export default function LoginPage() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
-            // /crm is the default landing page for authenticated users;
-            // middleware will redirect to /login if the session cookie is absent.
-            router.push('/crm');
+            // Redirect super admins to tenant management; org users to the dashboard.
+            const { useAuthStore } = await import('@/store/authStore');
+            const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
+            router.push(isSuperAdmin ? '/tenant' : '/dashboard');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {

@@ -12,6 +12,8 @@ const api = Axios.create({
         'Content-Type': 'application/json',
     },
     withCredentials: true,
+    // Prevent hung requests when the backend DB is slow or unreachable.
+    timeout: 15000,
     // We use Bearer token auth — Axios must not auto-inject X-XSRF-TOKEN.
     // The XSRF-TOKEN cookie is shared across localhost ports, so Axios would
     // find it in document.cookie and add the header, causing CORS preflight
@@ -103,6 +105,16 @@ api.interceptors.response.use(
         const status = error.response?.status;
         const message = (error.response?.data as ApiError | undefined)?.message;
         const originalConfig = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        // Network errors / timeouts — don't trigger logout, let the caller retry.
+        if (!status) {
+            return Promise.reject(error);
+        }
+
+        // 5xx server errors — don't logout, the backend may be temporarily down.
+        if (status >= 500) {
+            return Promise.reject(error);
+        }
 
         // 429 — brute-force / rate-limit guard (throttle:5,1 on POST /login)
         if (status === 429) {

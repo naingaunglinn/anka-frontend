@@ -7,18 +7,25 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Plus, Users, Briefcase, Calendar } from 'lucide-react';
+import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
 import { useProjectList } from '@/lib/queries/projects';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
 
+const STATUS_VARIANTS: Record<string, string> = {
+    Draft: 'bg-slate-100 text-slate-700 border-slate-200',
+    Pending: 'bg-amber-50 text-amber-700 border-amber-200',
+    Approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    Rejected: 'bg-red-50 text-red-700 border-red-200',
+};
+
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
-    const { createTimeEntry } = useTimeEntryMutations();
+    const { createTimeEntry, approveTimeEntry, deleteTimeEntry } = useTimeEntryMutations();
     const projects = projectsQuery.data?.data ?? [];
     const timeEntries = timeEntriesQuery.data?.data ?? [];
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -28,6 +35,10 @@ export default function TimeTrackingPage() {
     const [taskDesc, setTaskDesc] = useState('');
     const [hoursLogged, setHoursLogged] = useState('');
     const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [billable, setBillable] = useState(true);
+
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
     const handleSaveTime = async () => {
         if (!selectedProjectId || !selectedEmployeeId || !taskDesc || !hoursLogged) return;
@@ -39,14 +50,15 @@ export default function TimeTrackingPage() {
             task: taskDesc,
             date: entryDate,
             hours: Number(hoursLogged),
-            billable: true,
-            status: 'Approved'
+            billable,
+            status: 'Draft'
         };
 
         await createTimeEntry.mutateAsync(newEntry);
         setIsAddOpen(false);
         setTaskDesc('');
         setHoursLogged('');
+        setBillable(true);
     };
 
     const totalHoursLogged = timeEntries.reduce((sum, e) => sum + e.hours, 0);
@@ -126,6 +138,16 @@ export default function TimeTrackingPage() {
                                     <Input type="number" min="0.5" step="0.5" value={hoursLogged} onChange={e => setHoursLogged(e.target.value)} placeholder="4.0" />
                                 </div>
                             </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="billable"
+                                    checked={billable}
+                                    onChange={e => setBillable(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                />
+                                <label htmlFor="billable" className="text-sm font-medium text-slate-700">Billable</label>
+                            </div>
                             <Button className="w-full bg-slate-900" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
                                 {createTimeEntry.isPending ? 'Submitting...' : 'Submit Time Entry'}
                             </Button>
@@ -197,6 +219,7 @@ export default function TimeTrackingPage() {
                                 <TableHead>Task</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Hours</TableHead>
+                                <TableHead className="w-[100px]">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -216,20 +239,46 @@ export default function TimeTrackingPage() {
                                         <TableCell>{prj?.name || 'Unknown Project'}</TableCell>
                                         <TableCell className="text-slate-600">{entry.task}</TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={
-                                                entry.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    'bg-amber-50 text-amber-700 border-amber-200'
-                                            }>
+                                            <Badge variant="outline" className={STATUS_VARIANTS[entry.status] ?? 'bg-amber-50 text-amber-700 border-amber-200'}>
                                                 {entry.status}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right font-medium">{entry.hours}h</TableCell>
+                                        <TableCell>
+                                            <div className="flex gap-1">
+                                                {entry.status !== 'Approved' && entry.status !== 'Rejected' && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                        disabled={approveTimeEntry.isPending}
+                                                        onClick={() => approveTimeEntry.mutate(entry.id)}
+                                                        title="Approve"
+                                                    >
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                                    disabled={deleteTimeEntry.isPending}
+                                                    onClick={() => {
+                                                        setDeletingEntryId(entry.id);
+                                                        setDeleteConfirmOpen(true);
+                                                    }}
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 );
                             })}
                             {timeEntries.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-6 text-slate-500">No time recorded yet. Log time to see data here.</TableCell>
+                                    <TableCell colSpan={7} className="text-center py-6 text-slate-500">No time recorded yet. Log time to see data here.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -237,6 +286,29 @@ export default function TimeTrackingPage() {
                 </CardContent>
             </Card>
             )}
+
+            <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Time Entry</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to delete this time entry? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={() => {
+                            if (deletingEntryId) {
+                                deleteTimeEntry.mutate(deletingEntryId);
+                            }
+                            setDeleteConfirmOpen(false);
+                            setDeletingEntryId(null);
+                        }} disabled={deleteTimeEntry.isPending}>
+                            {deleteTimeEntry.isPending ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

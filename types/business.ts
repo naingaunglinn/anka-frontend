@@ -21,6 +21,7 @@ export interface Employee {
     name: string;
     role: string;        // job_role_id UUID as text (billing role FK)
     roleName?: string;   // denormalized display name (role_name column)
+    departmentId?: string; // department FK
     capacityRole?: RoleType; // capacity pool bucket (capacity_role column)
     monthlySalary: number;
     workableHours: number;

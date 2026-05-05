@@ -43,6 +43,17 @@ const api = axios.create({
 
 api.interceptors.request.use(
     (config) => {
+        const token = useAuthStore.getState().token;
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+
+        // Super admins operate globally — no tenant scope required.
+        const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
+        if (isSuperAdmin) {
+            return config;
+        }
+
         const tenantId = useTenantStore.getState().activeTenantId;
 
         if (!tenantId) {
@@ -58,11 +69,6 @@ api.interceptors.request.use(
         }
 
         config.headers['X-Tenant-ID'] = tenantId;
-
-        const token = useAuthStore.getState().token;
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
 
         return config;
     },

@@ -1,17 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Calculator, Save } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, ExternalLink } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
+import toast from 'react-hot-toast';
 
 export function EstimationSimulator() {
+    const router = useRouter();
     const store = useBusinessStore();
 
     // UI selections
@@ -84,7 +87,7 @@ export function EstimationSimulator() {
             projectOverheads: overheads,
             targetMargin: margin[0]
         });
-        alert('Estimation saved to Deal successfully!');
+        toast.success('Estimation saved to deal successfully!');
     };
 
     // Calculations
@@ -110,18 +113,25 @@ export function EstimationSimulator() {
                         <CardTitle className="text-sm uppercase tracking-wider text-slate-500">Target Deal</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <Select value={selectedDealId} onValueChange={setSelectedDealId}>
-                            <SelectTrigger className="w-full bg-white">
-                                <SelectValue placeholder="Select a deal from CRM to estimate..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {store.deals.map(deal => (
-                                    <SelectItem key={deal.id} value={deal.id}>
-                                        {deal.name} ({deal.client})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3">
+                            <Select value={selectedDealId} onValueChange={setSelectedDealId}>
+                                <SelectTrigger className="w-full bg-white">
+                                    <SelectValue placeholder="Select a deal from CRM to estimate..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {store.deals.map(deal => (
+                                        <SelectItem key={deal.id} value={deal.id}>
+                                            {deal.name} ({deal.client || 'No client'})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {selectedDealId && (
+                                <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => router.push(`/crm/${selectedDealId}`)}>
+                                    <ExternalLink className="h-3.5 w-3.5" /> View Deal
+                                </Button>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 

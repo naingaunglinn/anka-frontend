@@ -72,11 +72,13 @@ export default function EmployeesPage() {
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
         const role = store.roles.find(r => r.id === data.role);
+        const dept = store.departments.find(d => d.id === data.departmentId);
         await store.addEmployee({
             id: crypto.randomUUID(),
             name: data.name,
             role: data.role,
             roleName: role?.title,
+            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
             capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                 ? data.capacityRole as Employee['capacityRole']
                 : undefined,
@@ -95,6 +97,7 @@ export default function EmployeesPage() {
             name: data.name,
             role: data.role,
             roleName: role?.title,
+            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
             capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                 ? data.capacityRole as Employee['capacityRole']
                 : undefined,
@@ -312,7 +315,7 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm roles={store.roles} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm roles={store.roles} departments={store.departments} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -334,6 +337,7 @@ export default function EmployeesPage() {
                                 <EmployeeForm
                                     initialData={editingEmployee}
                                     roles={store.roles}
+                                    departments={store.departments}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />

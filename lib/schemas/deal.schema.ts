@@ -13,6 +13,7 @@ export const ghostRoleSchema = z.object({
 
 export const dealSchema = z.object({
     name: z.string().min(1, 'Deal name is required').max(200),
+    client: z.string().max(200).optional().default(''),
     clientBudget: z.coerce.number().min(0, 'Budget must be ≥ 0'),
     timelineMonths: z.coerce.number().int().min(1, 'Timeline is required'),
     workloadHours: z.coerce.number().min(1, 'Workload is required'),

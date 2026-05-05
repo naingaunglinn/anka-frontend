@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Users } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Users, Trophy } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal } from '@/types/business';
@@ -35,9 +36,15 @@ export function KanbanBoard({
 }) {
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
-    const { updateDealStage, deleteDeal } = useDealMutations();
+    const { updateDealStage, deleteDeal, winDeal } = useDealMutations();
 
     const [isMounted, setIsMounted] = useState(false);
+
+    // ── Confirm dialog states ─────────────────────────────────────────────────
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
+    const [winOpen, setWinOpen] = useState(false);
+    const [winningDeal, setWinningDeal] = useState<{ id: string; name: string } | null>(null);
 
     useEffect(() => {
         setIsMounted(true);
@@ -98,9 +105,28 @@ export function KanbanBoard({
         }
     };
 
-    const handleDeleteDeal = (dealId: string) => {
-        if (!window.confirm('Are you sure you want to delete this deal?')) return;
-        deleteDeal.mutate(dealId);
+    const openDeleteDeal = (dealId: string) => {
+        setDeletingDealId(dealId);
+        setDeleteOpen(true);
+    };
+
+    const handleDeleteDeal = () => {
+        if (!deletingDealId) return;
+        deleteDeal.mutate(deletingDealId);
+        setDeleteOpen(false);
+        setDeletingDealId(null);
+    };
+
+    const openWinDeal = (dealId: string, dealName: string) => {
+        setWinningDeal({ id: dealId, name: dealName });
+        setWinOpen(true);
+    };
+
+    const handleWinDeal = () => {
+        if (!winningDeal) return;
+        winDeal.mutate(winningDeal.id);
+        setWinOpen(false);
+        setWinningDeal(null);
     };
 
     if (!isMounted) return <div className="h-96 w-full animate-pulse bg-slate-100 rounded-lg" />;
@@ -148,7 +174,7 @@ export function KanbanBoard({
                                                                 <CardContent className="p-4 space-y-3">
                                                                     {/* Header: Name + Menu */}
                                                                     <div className="flex justify-between items-start">
-                                                                        <div className="font-semibold text-sm line-clamp-1">{deal.name}</div>
+                                                                        <div className="font-semibold text-sm line-clamp-1 hover:text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/crm/${deal.id}`)}>{deal.name}</div>
                                                                         <DropdownMenu>
                                                                             <DropdownMenuTrigger asChild>
                                                                                 <Button variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-100 shrink-0">
@@ -156,18 +182,26 @@ export function KanbanBoard({
                                                                                     <span className="sr-only">Open menu</span>
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
-                                                                            <DropdownMenuContent align="end" className="w-[160px]">
+                                                                            <DropdownMenuContent align="end" className="w-[180px]">
                                                                                 <DropdownMenuItem onClick={() => router.push(`/crm/edit/${deal.id}`)}>
                                                                                     <Edit2 className="mr-2 h-4 w-4" />
                                                                                     Edit Details
                                                                                 </DropdownMenuItem>
-                                                                                {isWon && (
-                                                                                    <DropdownMenuItem onClick={() => router.push(`/crm/${deal.id}/staffing`)}>
-                                                                                        <Users className="mr-2 h-4 w-4" />
-                                                                                        Staffing
+                                                                                <DropdownMenuItem onClick={() => router.push(`/crm/${deal.id}/staffing`)}>
+                                                                                    <Users className="mr-2 h-4 w-4" />
+                                                                                    AI Staffing
+                                                                                </DropdownMenuItem>
+                                                                                {!isWon && deal.status !== 'lost' && (
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() => openWinDeal(deal.id, deal.name)}
+                                                                                        disabled={winDeal.isPending}
+                                                                                        className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                                    >
+                                                                                        <Trophy className="mr-2 h-4 w-4" />
+                                                                                        Win Deal
                                                                                     </DropdownMenuItem>
                                                                                 )}
-                                                                                <DropdownMenuItem onClick={() => handleDeleteDeal(deal.id)} className="text-red-600 focus:text-red-700 focus:bg-red-50">
+                                                                                <DropdownMenuItem onClick={() => openDeleteDeal(deal.id)} className="text-red-600 focus:text-red-700 focus:bg-red-50">
                                                                                     <Trash2 className="mr-2 h-4 w-4" />
                                                                                     Delete
                                                                                 </DropdownMenuItem>
@@ -250,6 +284,43 @@ export function KanbanBoard({
                     );
                 })}
             </div>
+
+            {/* ── Delete Deal Confirm Dialog ───────────────────────────────────── */}
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Deal</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to delete this deal? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDeleteDeal} disabled={deleteDeal.isPending}>
+                            {deleteDeal.isPending ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Win Deal Confirm Dialog ──────────────────────────────────────── */}
+            <Dialog open={winOpen} onOpenChange={setWinOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Win Deal</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Mark <strong>{winningDeal?.name}</strong> as Won?<br />
+                        This will atomically create a Contract and Project. This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setWinOpen(false)}>Cancel</Button>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleWinDeal} disabled={winDeal.isPending}>
+                            {winDeal.isPending ? 'Processing...' : 'Win Deal'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </DragDropContext>
     );
 }

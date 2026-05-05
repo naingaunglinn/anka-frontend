@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useBusinessStore } from "@/store/businessStore";
+import { useDealList } from "@/lib/queries/deals";
+import { useProjectList } from "@/lib/queries/projects";
+import { useInvoiceList } from "@/lib/queries/invoices";
+import { useTimeEntryList } from "@/lib/queries/timeEntries";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,6 +16,12 @@ import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
 export default function DashboardPage() {
     const [isMounted, setIsMounted] = useState(false);
     const store = useBusinessStore();
+
+    // Load all data needed for the dashboard independently, seeding the store
+    useDealList();
+    useProjectList();
+    useInvoiceList();
+    useTimeEntryList();
 
     useEffect(() => {
         setIsMounted(true);
@@ -52,7 +62,7 @@ export default function DashboardPage() {
     return (
         <div className="container mx-auto p-6 max-w-7xl space-y-8">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Agency Global Dashboard</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
                 <p className="text-muted-foreground">High-level overview of revenue, pipeline, and active projects.</p>
             </div>
 

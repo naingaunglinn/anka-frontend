@@ -1,18 +1,37 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
-import { useMemo } from 'react';
+import { useInvoiceList } from '@/lib/queries/invoices';
+import { useTimeEntryList } from '@/lib/queries/timeEntries';
 
 export default function FinancialPage() {
     const store = useBusinessStore();
 
+    // Load invoices and time entries so P&L is always populated
+    useInvoiceList();
+    useTimeEntryList();
+
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+
     // Dynamic P&L from store
-    const pnlData = store.getFinancialPnL();
+    const allPnlData = store.getFinancialPnL();
+
+    const pnlData = useMemo(() => {
+        if (!dateFrom && !dateTo) return allPnlData;
+        return allPnlData.filter(row => {
+            if (dateFrom && row.month < dateFrom) return false;
+            if (dateTo && row.month > dateTo + '-31') return false;
+            return true;
+        });
+    }, [allPnlData, dateFrom, dateTo]);
 
     // Summary metrics based on dynamic data
     const summary = useMemo(() => {
@@ -63,9 +82,33 @@ export default function FinancialPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Financial Performance (P&L)</h1>
                     <p className="text-slate-500 mt-1">Real-time profit and loss tracking derived from invoices, time tracking, and overheads.</p>
                 </div>
-                <Button variant="outline" onClick={handleCsvExport} className="gap-2 bg-white">
-                    <Download className="h-4 w-4" /> Export CSV
-                </Button>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="month"
+                            value={dateFrom}
+                            onChange={e => setDateFrom(e.target.value)}
+                            placeholder="From"
+                            className="w-40"
+                        />
+                        <span className="text-sm text-slate-400">to</span>
+                        <Input
+                            type="month"
+                            value={dateTo}
+                            onChange={e => setDateTo(e.target.value)}
+                            placeholder="To"
+                            className="w-40"
+                        />
+                        {(dateFrom || dateTo) && (
+                            <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                                Clear
+                            </Button>
+                        )}
+                    </div>
+                    <Button variant="outline" onClick={handleCsvExport} className="gap-2 bg-white">
+                        <Download className="h-4 w-4" /> Export CSV
+                    </Button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

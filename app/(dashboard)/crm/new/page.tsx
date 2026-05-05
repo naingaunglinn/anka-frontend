@@ -44,6 +44,7 @@ export default function NewDealPage() {
         resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
         defaultValues: {
             name: "",
+            client: "",
             clientBudget: 0,
             timelineMonths: 1,
             workloadHours: 0,
@@ -103,6 +104,7 @@ export default function NewDealPage() {
         const newDeal: Deal = {
             id: dealId,
             name: data.name,
+            client: data.client || undefined,
             clientBudget: data.clientBudget,
             timelineMonths: data.timelineMonths,
             workloadHours: data.workloadHours,
@@ -158,6 +160,20 @@ export default function NewDealPage() {
                                                             <FormLabel>Deal Name</FormLabel>
                                                             <FormControl>
                                                                 <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+
+                                                <FormField
+                                                    control={form.control}
+                                                    name="client"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Client Name</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Acme Corporation" className="bg-white" {...field} />
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
