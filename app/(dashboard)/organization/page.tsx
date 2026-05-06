@@ -31,12 +31,10 @@ import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
 import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
-
 export default function EmployeesPage() {
     // Connect to Store
     const store = useBusinessStore();
     const { syncing, syncError } = useOrganizationSync();
-
     // Employees State
     const [isEmpDialogOpen, setIsEmpDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);

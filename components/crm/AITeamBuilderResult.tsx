@@ -33,7 +33,7 @@ export function AITeamBuilderResultPanel({
     onRegenerate,
     onAccept,
 }: Props) {
-    function handleAccept() {
+    async function handleAccept() {
         if (onAccept) {
             onAccept(result)
             toast.success('AI team recommendation accepted!')
@@ -42,7 +42,7 @@ export function AITeamBuilderResultPanel({
 
         const store = useBusinessStore.getState()
 
-        store.updateDeal(dealId, {
+        await store.updateDeal(dealId, {
             baseLaborCost: result.baseLaborCost,
             overheadCost: result.overheadCost,
             bufferCost: result.bufferCost,
@@ -52,10 +52,6 @@ export function AITeamBuilderResultPanel({
                 employeeId: m.employeeId,
                 allocatedHours: m.allocatedHours,
             })),
-        })
-
-        result.team.forEach(member => {
-            store.assignEngineer(dealId, member.employeeId, member.allocatedHours)
         })
 
         toast.success('Team & estimate saved to deal!')
