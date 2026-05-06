@@ -174,7 +174,6 @@ export default function ContractsPage() {
                                 <Select value={invMilestoneId} onValueChange={setInvMilestoneId}>
                                     <SelectTrigger><SelectValue placeholder="Select milestone..." /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">None</SelectItem>
                                         {milestones.filter(m => m.contractId === invContractId).map(ms => (
                                             <SelectItem key={ms.id} value={ms.id}>
                                                 {ms.name} — ${ms.amount.toLocaleString()}
@@ -358,7 +357,7 @@ export default function ContractsPage() {
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">Contract</label>
                                         <Select value={msContractId} onValueChange={setMsContractId}>
-                                            <SelectTrigger><SelectValue placeholder="Select contract..." /></SelectTrigger>
+                                            <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
                                             <SelectContent>
                                                 {contracts.map(c => (
                                                     <SelectItem key={c.id} value={c.id}>

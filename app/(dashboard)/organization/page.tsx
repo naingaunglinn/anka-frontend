@@ -313,7 +313,7 @@ export default function EmployeesPage() {
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                         <div>
                             <h3 className="text-xl font-bold tracking-tight text-slate-900">Employees List</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organization's roster and costs.</p>
+                            <p className="text-muted-foreground text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
