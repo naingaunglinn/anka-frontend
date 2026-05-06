@@ -59,7 +59,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
             cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
         },
         {
-            accessorKey: 'manager',
+            accessorKey: 'managerName',
             header: ({ column }) => {
                 return (
                     <Button
@@ -72,6 +72,11 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     </Button>
                 )
             },
+            cell: ({ row }) => (
+                <div className="text-muted-foreground">
+                    {row.getValue('managerName') || '—'}
+                </div>
+            ),
         },
         {
             accessorKey: 'headcount',

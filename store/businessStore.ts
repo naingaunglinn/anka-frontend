@@ -661,8 +661,17 @@ export const useBusinessStore = create<BusinessState>()(
                         monthly[month].directLabor += entry.hours * (emp?.costPerHour ?? 0);
                     });
 
-                const totalMonthlyOverhead = state.globalOverheads.reduce((s, oh) => s + oh.monthlyCost, 0);
-                Object.keys(monthly).forEach(m => { monthly[m].overhead += totalMonthlyOverhead; });
+                // For each P&L month, sum overheads that either have no period (always-on)
+                // or explicitly match that month/year.
+                Object.keys(monthly).forEach(m => {
+                    const [monthName, yearStr] = m.split(' ');
+                    const year = parseInt(yearStr, 10);
+                    const monthNum = new Date(`${monthName} 1, ${yearStr}`).getMonth() + 1;
+                    const periodOverhead = state.globalOverheads
+                        .filter(oh => !oh.effectiveYear || (oh.effectiveYear === year && oh.effectiveMonth === monthNum))
+                        .reduce((s, oh) => s + oh.monthlyCost, 0);
+                    monthly[m].overhead += periodOverhead;
+                });
 
                 return Object.keys(monthly).map(month => {
                     const { revenue, directLabor, overhead } = monthly[month];

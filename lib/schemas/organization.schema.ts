@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const departmentSchema = z.object({
     name:      z.string().min(2, 'Name must be at least 2 characters').max(100),
-    manager:   z.string().min(2, 'Manager name must be at least 2 characters').max(100),
-    headcount: z.coerce.number().int().min(0, 'Headcount must be ≥ 0'),
+    managerId: z.string().uuid().optional(),
+    // headcount is computed server-side; not a user-entered field
 });
 
 export const roleSchema = z.object({
@@ -25,12 +25,15 @@ export const employeeSchema = z.object({
 });
 
 export const globalOverheadSchema = z.object({
-    category:    z.string().min(2, 'Category must be at least 2 characters').max(100),
-    description: z.string().min(2, 'Description must be at least 2 characters').max(500),
-    monthlyCost: z.coerce.number().min(0, 'Monthly cost must be ≥ 0'),
+    category:       z.string().min(2, 'Category must be at least 2 characters').max(100),
+    description:    z.string().min(2, 'Description must be at least 2 characters').max(500),
+    monthlyCost:    z.coerce.number().min(0, 'Monthly cost must be ≥ 0'),
+    // Both undefined = applies to all months. Both set = specific period only.
+    effectiveMonth: z.number().int().min(1).max(12).optional(),
+    effectiveYear:  z.number().int().min(2000).optional(),
 });
 
-export type DepartmentFormValues  = z.infer<typeof departmentSchema>;
+export type DepartmentFormValues = z.infer<typeof departmentSchema>;
 export type RoleFormValues        = z.infer<typeof roleSchema>;
 export type EmployeeFormValues    = z.infer<typeof employeeSchema>;
 export type OverheadFormValues    = z.infer<typeof globalOverheadSchema>;

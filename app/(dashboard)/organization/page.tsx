@@ -111,13 +111,25 @@ export default function EmployeesPage() {
 
     // --- Department Handlers ---
     const handleAddDepartment = async (data: DepartmentFormValues) => {
-        await store.addDepartment({ id: crypto.randomUUID(), ...data, headcount: 0 });
+        const manager = store.employees.find(e => e.id === data.managerId);
+        await store.addDepartment({
+            id:          crypto.randomUUID(),
+            name:        data.name,
+            managerId:   data.managerId,
+            managerName: manager?.name,
+            headcount:   0,
+        });
         setIsDeptDialogOpen(false);
     };
 
     const handleEditDepartment = async (data: DepartmentFormValues) => {
         if (!editingDepartment) return;
-        await store.updateDepartment(editingDepartment.id, data);
+        const manager = store.employees.find(e => e.id === data.managerId);
+        await store.updateDepartment(editingDepartment.id, {
+            name:        data.name,
+            managerId:   data.managerId,
+            managerName: manager?.name,
+        });
         setEditingDepartment(null);
     };
 
@@ -224,7 +236,7 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Department</DialogTitle>
                                     <DialogDescription>Create a new department for your organization.</DialogDescription>
                                 </DialogHeader>
-                                <DepartmentForm onSubmit={handleAddDepartment} onCancel={() => setIsDeptDialogOpen(false)} />
+                                <DepartmentForm employees={store.employees} onSubmit={handleAddDepartment} onCancel={() => setIsDeptDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -242,7 +254,8 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
-                                    initialData={editingDepartment}
+                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId }}
+                                    employees={store.employees}
                                     onSubmit={handleEditDepartment}
                                     onCancel={() => setEditingDepartment(null)}
                                 />

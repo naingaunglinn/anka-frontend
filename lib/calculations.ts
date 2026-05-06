@@ -1,3 +1,6 @@
+// Percentage-based overhead for deal/project estimation (markup on labor).
+// For P&L monthly reporting, use globalOverheads absolute amounts filtered by period —
+// see getFinancialPnL in businessStore.ts.
 export function calculateOverhead(
     baseLaborCost: number,
     overheadPercentage: number

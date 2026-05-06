@@ -12,24 +12,34 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
+import { Employee } from '@/types/business';
 import { departmentSchema, type DepartmentFormValues } from '@/lib/schemas/organization.schema';
 
 interface DepartmentFormProps {
     initialData?: DepartmentFormValues | null;
+    employees?: Employee[];
     onSubmit: (data: DepartmentFormValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function DepartmentForm({ initialData, onSubmit, onCancel }: DepartmentFormProps) {
+export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel }: DepartmentFormProps) {
     const form = useForm<DepartmentFormValues>({
         resolver: zodResolver(departmentSchema) as any,
         defaultValues: initialData || {
-            name: '',
-            manager: '',
-            headcount: 0,
+            name:      '',
+            managerId: undefined,
         },
     });
+
+    const activeEmployees = employees.filter(e => e.status === 'Active');
 
     const handleSubmit = async (data: DepartmentFormValues) => {
         await onSubmit(data);
@@ -53,26 +63,26 @@ export function DepartmentForm({ initialData, onSubmit, onCancel }: DepartmentFo
                 />
                 <FormField
                     control={form.control}
-                    name="manager"
+                    name="managerId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Manager</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Manager Name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="headcount"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Headcount</FormLabel>
-                            <FormControl>
-                                <Input type="number" {...field} />
-                            </FormControl>
+                            <FormLabel>Manager <span className="text-muted-foreground font-normal">(optional — assign after adding employees)</span></FormLabel>
+                            <Select
+                                onValueChange={(v) => field.onChange(v === 'none' ? undefined : v)}
+                                defaultValue={field.value ?? 'none'}
+                            >
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Assign later" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="none">— Unassigned —</SelectItem>
+                                    {activeEmployees.map(e => (
+                                        <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                         </FormItem>
                     )}

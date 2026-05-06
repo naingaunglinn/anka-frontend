@@ -41,6 +41,8 @@ interface OverheadsTableProps {
 export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) {
     const [sorting, setSorting] = useState<SortingState>([]);
 
+    const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
     const columns: ColumnDef<Overhead>[] = [
         {
             accessorKey: 'category',
@@ -73,6 +75,21 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                 )
             },
             cell: ({ row }) => <div className="text-muted-foreground">{row.getValue('description')}</div>,
+        },
+        {
+            id: 'period',
+            header: 'Period',
+            cell: ({ row }) => {
+                const oh = row.original;
+                if (oh.effectiveMonth && oh.effectiveYear) {
+                    return (
+                        <div className="text-muted-foreground text-sm">
+                            {MONTH_NAMES[oh.effectiveMonth]} {oh.effectiveYear}
+                        </div>
+                    );
+                }
+                return <div className="text-muted-foreground text-sm">All months</div>;
+            },
         },
         {
             accessorKey: 'monthlyCost',
