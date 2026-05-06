@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useBusinessStore } from '@/store/businessStore'
+import { useTenantStore } from '@/store/tenantStore'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { AITeamBuilderResultPanel } from './AITeamBuilderResult'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ export function AITeamBuilder(props: Props) {
     const engineers = useBusinessStore(s => s.engineers)
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
+    const activeTenantId = useTenantStore(s => s.activeTenantId)
 
     const canRun =
         props.clientBudget > 0 &&
@@ -62,9 +64,12 @@ export function AITeamBuilder(props: Props) {
         }
 
         try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+            if (activeTenantId) headers['X-Tenant-ID'] = activeTenantId
+
             const res = await fetch('/api/ai-team-builder', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(input),
             })
 

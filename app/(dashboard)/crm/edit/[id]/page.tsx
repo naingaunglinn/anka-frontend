@@ -8,6 +8,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useEffect } from "react";
 import { useBusinessStore } from "@/store/businessStore";
 import { Deal, GhostRole, RoleType } from "@/types/business";
+import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -43,6 +44,25 @@ export default function EditDealPage() {
 
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+    const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
+
+    async function handleAcceptAIResult(result: AITeamBuilderResult) {
+        setAcceptedAIResult(result);
+        await updateDeal.mutateAsync({
+            id: dealId,
+            updates: {
+                baseLaborCost: result.baseLaborCost,
+                overheadCost: result.overheadCost,
+                bufferCost: result.bufferCost,
+                totalEstimatedCost: result.totalEstimatedCost,
+                estimatedGrossProfit: result.estimatedGrossProfit,
+                hardAssignments: result.team.map(m => ({
+                    employeeId: m.employeeId,
+                    allocatedHours: m.allocatedHours,
+                })),
+            },
+        });
+    }
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
@@ -94,14 +114,15 @@ export default function EditDealPage() {
         }
     }
 
-    const baseLaborCost = ghostRoles.reduce((total, role) => {
+    const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         return total + (role.quantity || 0) * (role.months || 0) * (role.avgMonthlySalary || 0);
     }, 0);
 
-    const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
-    const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
-    const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
-    const estimatedGrossProfit = calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
+    const baseLaborCost = acceptedAIResult?.baseLaborCost ?? manualBaseLaborCost;
+    const overheadCost = acceptedAIResult?.overheadCost ?? calculateOverhead(manualBaseLaborCost, companySettings.overheadPercentage);
+    const bufferCost = acceptedAIResult?.bufferCost ?? calculateRiskBuffer(manualBaseLaborCost, companySettings.bufferPercentage);
+    const totalEstimatedCost = acceptedAIResult?.totalEstimatedCost ?? calculateTotalEstimatedCost(manualBaseLaborCost, overheadCost, bufferCost);
+    const estimatedGrossProfit = acceptedAIResult?.estimatedGrossProfit ?? calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
 
     const profitMargin = clientBudget > 0 ? (estimatedGrossProfit / clientBudget) * 100 : 0;
 
@@ -133,6 +154,9 @@ export default function EditDealPage() {
                 workloadDescription: data.workloadDescription,
                 winProbability: data.winProbability,
                 ghostRoles: roles,
+                hardAssignments: acceptedAIResult
+                    ? acceptedAIResult.team.map(m => ({ employeeId: m.employeeId, allocatedHours: m.allocatedHours }))
+                    : dealToEdit?.hardAssignments,
                 baseLaborCost,
                 overheadCost,
                 bufferCost,
@@ -436,6 +460,7 @@ export default function EditDealPage() {
                                         workloadHours={workloadHours}
                                         workloadDescription={workloadDescription}
                                         workloadDocumentText={workloadDocText}
+                                        onAccept={handleAcceptAIResult}
                                     />
                                 </form>
                             </Form>

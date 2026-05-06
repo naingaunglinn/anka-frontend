@@ -13,6 +13,7 @@ import { Save, Building2, Plus, Users, ChevronDown, ChevronRight, PowerOff, Powe
 import { useAuthStore } from '@/store/authStore';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { useAdminTenantList, useAdminTenantUsers, useAdminMutations, type AdminTenant, type AdminUser } from '@/lib/queries/admin';
+import { AdminAIUsagePanel } from '@/components/ai-usage/AIUsageDashboard';
 import toast from 'react-hot-toast';
 import { useEffect } from 'react';
 
@@ -767,6 +768,9 @@ function SuperAdminTenantManagement() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* ── AI Usage across all tenants ──────────────────────────────────── */}
+            <AdminAIUsagePanel />
 
             {/* ── Reactivate Tenant Confirm Dialog ────────────────────────────── */}
             <Dialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
