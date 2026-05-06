@@ -24,21 +24,63 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ArrowRight, Upload } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Upload, UserPlus } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 export default function NewDealPage() {
     const router = useRouter();
     const companySettings = useBusinessStore((state) => state.companySettings);
+    const employees = useBusinessStore((state) => state.employees);
+    const roles = useBusinessStore((state) => state.roles);
     const { createDeal } = useDealMutations();
 
     const [dealId] = useState(() => uuidv4());
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
+
+    const [hardAssignments, setHardAssignments] = useState<{ employeeId: string; allocatedHours: number }[]>([]);
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+    const [selectedHours, setSelectedHours] = useState<number>(0);
+
+    function addHardAssignment() {
+        if (!selectedEmployeeId || selectedHours <= 0) return;
+        const already = hardAssignments.find(a => a.employeeId === selectedEmployeeId);
+        if (already) {
+            setHardAssignments(prev => prev.map(a => a.employeeId === selectedEmployeeId ? { ...a, allocatedHours: selectedHours } : a));
+        } else {
+            setHardAssignments(prev => [...prev, { employeeId: selectedEmployeeId, allocatedHours: selectedHours }]);
+        }
+        setSelectedEmployeeId("");
+        setSelectedHours(0);
+    }
+
+    function removeHardAssignment(employeeId: string) {
+        setHardAssignments(prev => prev.filter(a => a.employeeId !== employeeId));
+    }
+
+    function updateAssignmentHours(employeeId: string, hours: number) {
+        setHardAssignments(prev => prev.map(a => a.employeeId === employeeId ? { ...a, allocatedHours: hours } : a));
+    }
+
+    function handleAcceptAIResult(result: AITeamBuilderResult) {
+        setAcceptedAIResult(result);
+        setHardAssignments(result.team.map(m => ({
+            employeeId: m.employeeId,
+            allocatedHours: m.allocatedHours,
+        })));
+    }
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
@@ -50,7 +92,7 @@ export default function NewDealPage() {
             workloadHours: 0,
             winProbability: 50,
             workloadDescription: "",
-            ghostRoles: [{ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 0 }],
+            ghostRoles: [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, avgMonthlySalary: 0 }],
         },
     });
 
@@ -75,10 +117,16 @@ export default function NewDealPage() {
         }
     }
 
-    const baseLaborCost = ghostRoles.reduce((total, role) => {
+    const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         return total + (role.quantity || 0) * (role.months || 0) * (role.avgMonthlySalary || 0);
     }, 0);
 
+    const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
+        const emp = employees.find(e => e.id === a.employeeId);
+        return total + (a.allocatedHours || 0) * (emp?.costPerHour || 0);
+    }, 0);
+
+    const baseLaborCost = acceptedAIResult?.baseLaborCost ?? (hardAssignments.length > 0 ? assignmentBaseLaborCost : manualBaseLaborCost);
     const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
     const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
@@ -112,9 +160,7 @@ export default function NewDealPage() {
             workloadDescription: data.workloadDescription,
             status: "inquiry",
             ghostRoles: roles,
-            hardAssignments: acceptedAIResult
-                ? acceptedAIResult.team.map(m => ({ employeeId: m.employeeId, allocatedHours: m.allocatedHours }))
-                : [],
+            hardAssignments: hardAssignments.length > 0 ? hardAssignments : [],
             baseLaborCost: acceptedAIResult?.baseLaborCost ?? baseLaborCost,
             overheadCost: acceptedAIResult?.overheadCost ?? overheadCost,
             bufferCost: acceptedAIResult?.bufferCost ?? bufferCost,
@@ -144,9 +190,10 @@ export default function NewDealPage() {
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                                     <Tabs defaultValue="context" className="w-full">
-                                        <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
+                                        <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100/50">
                                             <TabsTrigger value="context">Sales Context</TabsTrigger>
-                                            <TabsTrigger value="estimation">Staffing & Est.</TabsTrigger>
+                                            <TabsTrigger value="estimation">Estimation</TabsTrigger>
+                                            <TabsTrigger value="staffing">Staffing</TabsTrigger>
                                             <TabsTrigger value="contracts">Contracts</TabsTrigger>
                                         </TabsList>
 
@@ -288,7 +335,7 @@ export default function NewDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: "frontend", quantity: 1, months: 1, avgMonthlySalary: 0 })}
+                                                        onClick={() => append({ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, avgMonthlySalary: 0 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -306,15 +353,15 @@ export default function NewDealPage() {
                                                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                                             <FormControl>
                                                                                 <SelectTrigger>
-                                                                                    <SelectValue placeholder="Select" />
+                                                                                    <SelectValue placeholder="Select Role" />
                                                                                 </SelectTrigger>
                                                                             </FormControl>
                                                                             <SelectContent>
-                                                                                <SelectItem value="frontend">Frontend Eng.</SelectItem>
-                                                                                <SelectItem value="backend">Backend Eng.</SelectItem>
-                                                                                <SelectItem value="pm">Project Manager</SelectItem>
-                                                                                <SelectItem value="qa">QA Engineer</SelectItem>
-                                                                                <SelectItem value="design">UI/UX Designer</SelectItem>
+                                                                                {roles.map((role) => (
+                                                                                    <SelectItem key={role.id} value={role.id}>
+                                                                                        {role.title}
+                                                                                    </SelectItem>
+                                                                                ))}
                                                                             </SelectContent>
                                                                         </Select>
                                                                         <FormMessage />
@@ -374,6 +421,162 @@ export default function NewDealPage() {
                                                     ))}
                                                 </div>
                                             </div>
+
+                                        </TabsContent>
+
+                                        <TabsContent value="staffing" className="space-y-6">
+                                            {/* ── Assigned Staff ── */}
+                                            <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-slate-900">Assigned Staff</h3>
+                                                        <p className="text-xs text-muted-foreground mt-1">Engineers hard-assigned to this deal.</p>
+                                                    </div>
+                                                </div>
+
+                                                {hardAssignments.length > 0 ? (
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Name</TableHead>
+                                                                <TableHead>Role</TableHead>
+                                                                <TableHead className="text-right">Available Hrs</TableHead>
+                                                                <TableHead className="text-right">Hours in Deal</TableHead>
+                                                                <TableHead className="text-right">Mo. Salary</TableHead>
+                                                                <TableHead className="text-right">Total Cost</TableHead>
+                                                                <TableHead className="w-10"></TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {hardAssignments.map((assignment) => {
+                                                                const emp = employees.find(e => e.id === assignment.employeeId);
+                                                                if (!emp) return null;
+                                                                const totalCost = assignment.allocatedHours * emp.costPerHour;
+                                                                return (
+                                                                    <TableRow key={assignment.employeeId}>
+                                                                        <TableCell className="font-medium">{emp.name}</TableCell>
+                                                                        <TableCell className="text-slate-500">{emp.roleName || emp.role}</TableCell>
+                                                                        <TableCell className="text-right">{emp.workableHours}</TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            <Input
+                                                                                type="number"
+                                                                                className="w-20 ml-auto h-8 text-right"
+                                                                                value={assignment.allocatedHours}
+                                                                                onChange={(e) => updateAssignmentHours(assignment.employeeId, Number(e.target.value))}
+                                                                            />
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
+                                                                        <TableCell className="text-right font-medium">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                                        <TableCell>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                                onClick={() => removeHardAssignment(assignment.employeeId)}
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                ) : (
+                                                    <p className="text-sm text-slate-400">No staff assigned yet. Use the AI Team Builder or add manually below.</p>
+                                                )}
+
+                                                {/* Add staff row */}
+                                                <div className="flex gap-3 items-end pt-2 border-t border-slate-100">
+                                                    <div className="flex-1">
+                                                        <label className="text-xs text-slate-500 block mb-1">Employee</label>
+                                                        <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                                                            <SelectTrigger className="bg-white">
+                                                                <SelectValue placeholder="Select employee" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {employees
+                                                                    .filter(e => e.status === 'Active' && !hardAssignments.some(a => a.employeeId === e.id))
+                                                                    .map(e => (
+                                                                        <SelectItem key={e.id} value={e.id}>
+                                                                            {e.name} — {e.roleName || e.role}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="w-32">
+                                                        <label className="text-xs text-slate-500 block mb-1">Hours</label>
+                                                        <Input
+                                                            type="number"
+                                                            className="bg-white"
+                                                            value={selectedHours || ""}
+                                                            onChange={(e) => setSelectedHours(Number(e.target.value))}
+                                                            placeholder="e.g. 160"
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="bg-white shadow-sm mb-0.5"
+                                                        onClick={addHardAssignment}
+                                                        disabled={!selectedEmployeeId || selectedHours <= 0}
+                                                    >
+                                                        <UserPlus className="h-4 w-4 mr-2" /> Add
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* ── Team Engineers Summary ── */}
+                                            {hardAssignments.length > 0 && (() => {
+                                                const grouped = hardAssignments.reduce((acc, assignment) => {
+                                                    const emp = employees.find(e => e.id === assignment.employeeId);
+                                                    if (!emp) return acc;
+                                                    const role = emp.roleName || emp.role;
+                                                    if (!acc[role]) acc[role] = { qty: 0, hours: 0, cost: 0 };
+                                                    acc[role].qty += 1;
+                                                    acc[role].hours += assignment.allocatedHours;
+                                                    acc[role].cost += assignment.allocatedHours * emp.costPerHour;
+                                                    return acc;
+                                                }, {} as Record<string, { qty: number; hours: number; cost: number }>);
+                                                return (
+                                                    <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
+                                                        <h3 className="text-sm font-semibold text-slate-900">Team Engineers</h3>
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead>Role</TableHead>
+                                                                    <TableHead className="text-right">Qty</TableHead>
+                                                                    <TableHead className="text-right">Hours in Deal</TableHead>
+                                                                    <TableHead className="text-right">Total Cost</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {Object.entries(grouped).map(([role, data]) => (
+                                                                    <TableRow key={role}>
+                                                                        <TableCell className="font-medium">{role}</TableCell>
+                                                                        <TableCell className="text-right">{data.qty}</TableCell>
+                                                                        <TableCell className="text-right">{data.hours}</TableCell>
+                                                                        <TableCell className="text-right font-medium">${data.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            <AITeamBuilder
+                                                dealId={dealId}
+                                                clientBudget={clientBudget}
+                                                timelineMonths={timelineMonths}
+                                                workloadHours={workloadHours}
+                                                workloadDescription={workloadDescription}
+                                                workloadDocumentText={workloadDocText}
+                                                onAccept={handleAcceptAIResult}
+                                            />
                                         </TabsContent>
 
                                         <TabsContent value="contracts" className="space-y-6">
@@ -394,16 +597,6 @@ export default function NewDealPage() {
                                             {createDeal.isPending ? 'Saving...' : 'Save Draft Deal'}
                                         </Button>
                                     </div>
-
-                                    <AITeamBuilder
-                                        dealId={dealId}
-                                        clientBudget={clientBudget}
-                                        timelineMonths={timelineMonths}
-                                        workloadHours={workloadHours}
-                                        workloadDescription={workloadDescription}
-                                        workloadDocumentText={workloadDocText}
-                                        onAccept={setAcceptedAIResult}
-                                    />
                                 </form>
                             </Form>
                         </CardContent>

@@ -284,7 +284,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                         <div className="space-y-1">
                             <Label>Role</Label>
                             <Select value={createForm.app_role} onValueChange={v => setCreateForm(f => ({ ...f, app_role: v }))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
                                 <SelectContent>
                                     {['Admin', 'Executive', 'Sales', 'Delivery', 'HR'].map(r => (
                                         <SelectItem key={r} value={r}>{r}</SelectItem>
@@ -323,7 +323,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                         <div className="space-y-1">
                             <Label>Role</Label>
                             <Select value={editForm.app_role} onValueChange={v => setEditForm(f => ({ ...f, app_role: v }))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
                                 <SelectContent>
                                     {['Admin', 'Executive', 'Sales', 'Delivery', 'HR'].map(r => (
                                         <SelectItem key={r} value={r}>{r}</SelectItem>
@@ -520,7 +520,7 @@ function SuperAdminTenantManagement() {
                             <div className="space-y-1">
                                 <Label>Plan</Label>
                                 <Select value={newTenant.plan} onValueChange={v => setNewTenant(t => ({ ...t, plan: v }))}>
-                                    <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="free">Free</SelectItem>
                                         <SelectItem value="pro">Pro</SelectItem>
@@ -726,7 +726,7 @@ function SuperAdminTenantManagement() {
                         <div className="space-y-1">
                             <Label>Plan</Label>
                             <Select value={editForm.plan} onValueChange={v => setEditForm(f => ({ ...f, plan: v }))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="free">Free</SelectItem>
                                     <SelectItem value="pro">Pro</SelectItem>
