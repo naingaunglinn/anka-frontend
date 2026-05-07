@@ -55,6 +55,10 @@ export default function RegisterPage() {
     };
 
     const selectedCountry = PHONE_COUNTRIES.find((c) => c.iso === countryIso) ?? PHONE_COUNTRIES[0];
+    const getFlagEmoji = (iso: string) =>
+        iso
+            .toUpperCase()
+            .replace(/./g, (char) => String.fromCodePoint(0x1f1e6 + char.charCodeAt(0) - 65));
     const syncPhoneNumber = (iso: string, localInput: string) => {
         const country = PHONE_COUNTRIES.find((c) => c.iso === iso) ?? PHONE_COUNTRIES[0];
         const digitsOnly = localInput.replace(/\D/g, '');
@@ -147,7 +151,7 @@ export default function RegisterPage() {
                                                         <FormControl>
                                                             <SelectTrigger className="h-11 w-[120px] shrink-0 border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="text-base leading-none">{selectedCountry.flag}</span>
+                                                                    <span className="text-base leading-none">{getFlagEmoji(selectedCountry.iso)}</span>
                                                                     <SelectValue>{selectedCountry.dial}</SelectValue>
                                                                 </div>
                                                             </SelectTrigger>
@@ -156,7 +160,7 @@ export default function RegisterPage() {
                                                             {PHONE_COUNTRIES.map((country) => (
                                                                 <SelectItem key={country.iso} value={country.iso}>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-base leading-none">{country.flag}</span>
+                                                                        <span className="text-base leading-none">{getFlagEmoji(country.iso)}</span>
                                                                         <span>{country.label} {country.dial}</span>
                                                                     </div>
                                                                 </SelectItem>
