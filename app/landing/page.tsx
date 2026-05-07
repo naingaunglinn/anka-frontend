@@ -58,7 +58,7 @@ export default function Home() {
 
           <div className="mt-8 flex animate-rise-in flex-wrap items-center gap-3 [animation-delay:420ms]">
             <Link
-              href="/login"
+              href="/register"
               className="inline-flex items-center gap-2 rounded-full bg-[#00a6f4] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_26px_rgba(0,166,244,0.35)] transition hover:-translate-y-0.5 hover:bg-[#0797dd]"
             >
               Start With ANKA
