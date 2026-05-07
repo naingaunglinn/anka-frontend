@@ -4,6 +4,7 @@ import api from '@/lib/api';
 export const auditKeys = {
     all: ['admin', 'audit'] as const,
     logs: (filters: AuditFilters) => [...auditKeys.all, 'logs', filters] as const,
+    users: () => [...auditKeys.all, 'users'] as const,
 };
 
 export interface AuditFilters {
@@ -45,6 +46,12 @@ export interface AuditLogResponse {
     };
 }
 
+export interface AuditUser {
+    id: string;
+    name: string;
+    email: string;
+}
+
 export function useAdminAuditLogs(filters: AuditFilters = {}) {
     return useQuery<AuditLogResponse>({
         queryKey: auditKeys.logs(filters),
@@ -63,5 +70,16 @@ export function useAdminAuditLogs(filters: AuditFilters = {}) {
             };
         },
         staleTime: 30_000,
+    });
+}
+
+export function useAdminAuditUsers() {
+    return useQuery<AuditUser[]>({
+        queryKey: auditKeys.users(),
+        queryFn: async () => {
+            const { data } = await api.get('/admin/users');
+            return data.data;
+        },
+        staleTime: 300_000,
     });
 }
