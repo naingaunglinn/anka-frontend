@@ -38,7 +38,7 @@ export default function LoginPage() {
             await login({ email: values.email, password: values.password });
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
-            router.push(isSuperAdmin ? '/tenant' : '/dashboard');
+            router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {
