@@ -2,8 +2,10 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +23,11 @@ import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth.schema';
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { login, isLoggingIn } = useAuth();
+    const enterDemoMode = useUIStore((s) => s.enterDemoMode);
+    const exitDemoMode = useUIStore((s) => s.exitDemoMode);
+    const isDemoIntent = searchParams.get('demo') === '1';
 
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
@@ -36,6 +42,7 @@ export default function LoginPage() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
+            exitDemoMode();
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
             router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
@@ -52,6 +59,34 @@ export default function LoginPage() {
         const callbackUrl = `${window.location.origin}/auth/google/callback`;
         const oauthUrl = `${backendUrl}/api/auth/google/redirect?redirect_uri=${encodeURIComponent(callbackUrl)}`;
         window.location.href = oauthUrl;
+    };
+
+    const continueAsDemoGuest = async () => {
+        const demoUser = {
+            id: 'demo-guest-1',
+            firstName: 'Demo',
+            lastName: 'Guest',
+            email: 'guest@anka.demo',
+            appRole: 'Executive' as const,
+            systemRole: 'member',
+            isSuperAdmin: false,
+            tenant: {
+                id: 'demo-tenant-1',
+                name: 'ANKA Demo Workspace',
+                slug: 'anka-demo-workspace',
+            },
+        };
+        const demoToken = 'demo_guest_token_anka';
+
+        await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: demoToken, is_super_admin: false }),
+        });
+
+        useAuthStore.getState().login(demoUser, demoToken);
+        enterDemoMode();
+        router.push('/dashboard');
     };
 
     return (
@@ -103,6 +138,16 @@ export default function LoginPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
+                            {isDemoIntent && (
+                                <Button
+                                    type="button"
+                                    className="mb-4 h-11 w-full bg-[#171717] text-white hover:bg-black"
+                                    onClick={continueAsDemoGuest}
+                                >
+                                    Continue as Demo Guest
+                                </Button>
+                            )}
+
                             <Button
                                 type="button"
                                 variant="outline"
