@@ -47,6 +47,13 @@ export default function LoginPage() {
         }
     };
 
+    const startGoogleLogin = () => {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+        const callbackUrl = `${window.location.origin}/auth/google/callback`;
+        const oauthUrl = `${backendUrl}/api/auth/google/redirect?redirect_uri=${encodeURIComponent(callbackUrl)}`;
+        window.location.href = oauthUrl;
+    };
+
     return (
         <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,166,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
@@ -96,6 +103,44 @@ export default function LoginPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="mb-5 h-11 w-full border-[#171717]/20 bg-white text-[#171717] hover:bg-[#f1f5f9]"
+                                onClick={startGoogleLogin}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    className="mr-2 h-5 w-5"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fill="#EA4335"
+                                        d="M12 10.2v3.9h5.5c-.2 1.2-1.4 3.6-5.5 3.6-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3 14.7 2 12 2 6.5 2 2 6.5 2 12s4.5 10 10 10c5.8 0 9.6-4.1 9.6-9.8 0-.7-.1-1.3-.2-2H12z"
+                                    />
+                                    <path
+                                        fill="#34A853"
+                                        d="M3.2 7.3l3.2 2.3C7.2 7.6 9.4 6 12 6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3 14.7 2 12 2 8.1 2 4.7 4.2 3.2 7.3z"
+                                    />
+                                    <path
+                                        fill="#FBBC05"
+                                        d="M12 22c2.6 0 4.8-.9 6.4-2.4l-3-2.4c-.8.5-1.9.9-3.4.9-4 0-5.2-2.7-5.5-3.6l-3.2 2.5C4.8 19.9 8.1 22 12 22z"
+                                    />
+                                    <path
+                                        fill="#4285F4"
+                                        d="M21.6 12.2c0-.7-.1-1.3-.2-2H12v3.9h5.5c-.3 1.4-1.1 2.4-2.1 3.1l3 2.4c1.8-1.7 3.2-4.3 3.2-7.4z"
+                                    />
+                                </svg>
+                                Continue with Google
+                            </Button>
+
+                            <div className="mb-5 flex items-center gap-3">
+                                <div className="h-px flex-1 bg-[#171717]/15" />
+                                <p className="text-xs uppercase tracking-[0.16em] text-[#171717]/55">or use email</p>
+                                <div className="h-px flex-1 bg-[#171717]/15" />
+                            </div>
+
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                                     <FormField
