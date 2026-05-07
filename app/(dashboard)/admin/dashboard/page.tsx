@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminDashboardStats } from '@/lib/queries/adminDashboard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Building2, Users, Activity, BrainCircuit, TrendingUp, TrendingDown } from 'lucide-react';
+import { Building2, Users, TrendingUp, TrendingDown } from 'lucide-react';
 // Skeleton component not available — using simple div with animate-pulse
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -36,7 +36,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <KpiCard
                     title="Total Tenants"
                     value={stats.total_tenants}
@@ -53,20 +53,7 @@ export default function AdminDashboardPage() {
                     icon={Users}
                     iconColor="text-sky-500"
                 />
-                <KpiCard
-                    title="AI Calls"
-                    value={stats.ai_usage.total_calls.toLocaleString()}
-                    subValue={`${stats.ai_usage.total_tokens.toLocaleString()} tokens`}
-                    icon={BrainCircuit}
-                    iconColor="text-pink-500"
-                />
-                <KpiCard
-                    title="AI Cost"
-                    value={`$${stats.ai_usage.total_cost.toFixed(2)}`}
-                    subValue="Estimated USD"
-                    icon={Activity}
-                    iconColor="text-emerald-500"
-                />
+
             </div>
 
             {/* Charts Row */}
@@ -244,8 +231,8 @@ function DashboardSkeleton() {
                 <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
                 <div className="h-4 w-96 mt-2 bg-slate-200 rounded animate-pulse" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Array.from({ length: 2 }).map((_, i) => (
                     <Card key={i} className="shadow-sm border-slate-100">
                         <CardContent className="p-6 space-y-3">
                             <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
