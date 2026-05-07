@@ -2,6 +2,7 @@
 
 import { useTenantStore } from '@/store/tenantStore';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import {
@@ -26,6 +27,8 @@ export const Header = () => {
     const router = useRouter();
     const { currentTenant } = useTenantStore();
     const user = useAuthStore((state) => state.user);
+    const isDemoMode = useUIStore((state) => state.isDemoMode);
+    const exitDemoMode = useUIStore((state) => state.exitDemoMode);
     const { logout } = useAuth();
 
     const displayName = user?.firstName ? `${user.firstName} ${user.lastName}` : (user?.email ?? 'User');
@@ -34,9 +37,16 @@ export const Header = () => {
     const handleLogout = async () => {
         try {
             await logout();
+            exitDemoMode();
         } finally {
             router.replace('/login');
         }
+    };
+
+    const handleExitDemo = async () => {
+        await logout();
+        exitDemoMode();
+        router.replace('/login');
     };
 
     return (
@@ -56,6 +66,20 @@ export const Header = () => {
             </div>
 
             <div className="flex items-center gap-x-4">
+                {isDemoMode && (
+                    <div className="flex items-center gap-2 rounded-md border border-[#00a6f4]/30 bg-[#00a6f4]/10 px-3 py-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0085c4]">Demo Version</span>
+                        <button
+                            type="button"
+                            onClick={handleExitDemo}
+                            className="ml-1 text-xs font-medium text-[#0085c4] underline-offset-2 hover:underline"
+                        >
+                            Exit
+                        </button>
+                    </div>
+                )}
+
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-8 w-8 rounded-full">

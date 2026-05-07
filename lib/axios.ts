@@ -1,4 +1,4 @@
-import Axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+﻿import Axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import type { ApiError } from '@/types/api';
@@ -14,7 +14,7 @@ const api = Axios.create({
     withCredentials: true,
     // Prevent hung requests when the backend DB is slow or unreachable.
     timeout: 15000,
-    // We use Bearer token auth — Axios must not auto-inject X-XSRF-TOKEN.
+    // We use Bearer token auth â€” Axios must not auto-inject X-XSRF-TOKEN.
     // The XSRF-TOKEN cookie is shared across localhost ports, so Axios would
     // find it in document.cookie and add the header, causing CORS preflight
     // failures because X-XSRF-TOKEN isn't in the server's allowed headers.
@@ -40,14 +40,28 @@ api.interceptors.request.use(async (config) => {
 
     const token = useAuthStore.getState().token;
     if (token) {
-        // SECURITY: do NOT log config.headers anywhere — Authorization value is a secret.
+        // SECURITY: do NOT log config.headers anywhere â€” Authorization value is a secret.
         config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Demo mode is read-only: block mutating API calls.
+    if (
+        typeof window !== 'undefined' &&
+        MUTATING_METHODS.has(config.method?.toLowerCase() ?? '')
+    ) {
+        const rawUiStore = window.localStorage.getItem('ui-storage');
+        const parsedUiStore = rawUiStore ? JSON.parse(rawUiStore) : null;
+        const isDemoMode = !!parsedUiStore?.state?.isDemoMode;
+        if (isDemoMode) {
+            toast.error('Demo mode is read-only. Editing actions are disabled.');
+            return Promise.reject(new AxiosError('Demo mode is read-only', 'ERR_DEMO_READ_ONLY', config));
+        }
     }
 
     return config;
 });
 
-// ── Token refresh state ──────────────────────────────────────────────────────
+// â”€â”€ Token refresh state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let isRefreshing = false;
 type QueueItem = { resolve: (token: string) => void; reject: (err: unknown) => void };
 let refreshQueue: QueueItem[] = [];
@@ -64,7 +78,7 @@ function triggerLogout() {
     }
 }
 
-// ── Rate-limit countdown ─────────────────────────────────────────────────────
+// â”€â”€ Rate-limit countdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // A single timer prevents multiple overlapping countdowns if concurrent
 // requests all 429 at the same time.
 let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
@@ -98,7 +112,7 @@ function startRateLimitCountdown(retryAfterSeconds: number, prefix = 'Too many r
     }, 1000);
 }
 
-// ── Response interceptor ─────────────────────────────────────────────────────
+// â”€â”€ Response interceptor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 api.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
@@ -106,17 +120,17 @@ api.interceptors.response.use(
         const message = (error.response?.data as ApiError | undefined)?.message;
         const originalConfig = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-        // Network errors / timeouts — don't trigger logout, let the caller retry.
+        // Network errors / timeouts â€” don't trigger logout, let the caller retry.
         if (!status) {
             return Promise.reject(error);
         }
 
-        // 5xx server errors — don't logout, the backend may be temporarily down.
+        // 5xx server errors â€” don't logout, the backend may be temporarily down.
         if (status >= 500) {
             return Promise.reject(error);
         }
 
-        // 429 — brute-force / rate-limit guard (throttle:5,1 on POST /login)
+        // 429 â€” brute-force / rate-limit guard (throttle:5,1 on POST /login)
         if (status === 429) {
             const retryAfter = parseInt(
                 (error.response?.headers?.['retry-after'] as string) ?? '60',
@@ -129,7 +143,7 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // 419 = CSRF mismatch — session is broken, no refresh attempt
+        // 419 = CSRF mismatch â€” session is broken, no refresh attempt
         if (status === 419) {
             triggerLogout();
             return Promise.reject(error);
@@ -192,3 +206,4 @@ api.interceptors.response.use(
 );
 
 export default api;
+
