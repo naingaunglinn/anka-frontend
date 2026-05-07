@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { EmployeesTable, Employee } from '@/components/tables/EmployeesTable';
-import { EmployeeForm, EmployeeFormValues } from '@/components/forms/EmployeeForm';
-import { DepartmentsTable, Department } from '@/components/tables/DepartmentsTable';
-import { DepartmentForm, DepartmentFormValues } from '@/components/forms/DepartmentForm';
-import { RolesTable, Role } from '@/components/tables/RolesTable';
-import { RoleForm, RoleFormValues } from '@/components/forms/RoleForm';
-import { OverheadsTable, Overhead } from '@/components/tables/OverheadsTable';
-import { OverheadForm, OverheadFormValues } from '@/components/forms/OverheadForm';
+import { useEffect, useState } from 'react';
+import { EmployeesTable } from '@/components/tables/EmployeesTable';
+import { EmployeeForm } from '@/components/forms/EmployeeForm';
+import { DepartmentsTable } from '@/components/tables/DepartmentsTable';
+import { DepartmentForm } from '@/components/forms/DepartmentForm';
+import { RolesTable } from '@/components/tables/RolesTable';
+import { RoleForm } from '@/components/forms/RoleForm';
+import { OverheadsTable } from '@/components/tables/OverheadsTable';
+import { OverheadForm } from '@/components/forms/OverheadForm';
+import {
+    type DepartmentFormValues,
+    type RoleFormValues,
+    type EmployeeFormValues,
+    type OverheadFormValues,
+} from '@/lib/schemas/organization.schema';
 import {
     Dialog,
     DialogContent,
@@ -22,141 +28,183 @@ import { Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-
-const mockEmployees: Employee[] = [
-    { id: '1', name: 'John Doe', role: 'Developer', monthlySalary: 5000, workableHours: 160, costPerHour: 31.25, status: 'Active' },
-    { id: '2', name: 'Jane Smith', role: 'Designer', monthlySalary: 4500, workableHours: 160, costPerHour: 28.12, status: 'Active' },
-    { id: '3', name: 'Bob Johnson', role: 'Project Manager', monthlySalary: 6000, workableHours: 160, costPerHour: 37.5, status: 'On Leave' },
-];
-
-const mockDepartments: Department[] = [
-    { id: '1', name: 'Engineering', manager: 'Alice Roberts', headcount: 12 },
-    { id: '2', name: 'Design', manager: 'Mark Smith', headcount: 4 },
-];
-
-const mockRoles: Role[] = [
-    { id: '1', title: 'Senior Developer', department: 'Engineering', rate: 150 },
-    { id: '2', title: 'UI/UX Designer', department: 'Design', rate: 120 },
-];
-
-const mockOverheads: Overhead[] = [
-    { id: '1', category: 'Software Licenses', description: 'AWS, GitHub, Slack, Figma', monthlyCost: 5200 },
-    { id: '2', category: 'Office Rent', description: 'HQ Lease', monthlyCost: 12000 },
-];
-
+import { useBusinessStore } from '@/store/businessStore';
+import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 export default function EmployeesPage() {
+    // Connect to Store
+    const store = useBusinessStore();
+    const { syncing, syncError } = useOrganizationSync();
     // Employees State
-    const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
     const [isEmpDialogOpen, setIsEmpDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
     // Departments State
-    const [departments, setDepartments] = useState<Department[]>(mockDepartments);
     const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
     const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
 
     // Roles State
-    const [roles, setRoles] = useState<Role[]>(mockRoles);
     const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
 
     // Overheads State
-    const [overheads, setOverheads] = useState<Overhead[]>(mockOverheads);
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
-    const [editingOverhead, setEditingOverhead] = useState<Overhead | null>(null);
+    const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
 
-    // Salary Structure State
-    const [salaryMultiplier, setSalaryMultiplier] = useState({ taxes: 8, benefits: 12 });
+    const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
+        taxes: store.companySettings.employerTaxPercentage,
+        benefits: store.companySettings.benefitsPercentage,
+    }));
     const [isSavingSalary, setIsSavingSalary] = useState(false);
+
+    useEffect(() => {
+        setSalaryMultiplier({
+            taxes: store.companySettings.employerTaxPercentage,
+            benefits: store.companySettings.benefitsPercentage,
+        });
+    }, [
+        store.companySettings.employerTaxPercentage,
+        store.companySettings.benefitsPercentage,
+    ]);
 
     // --- Employee Handlers ---
     const handleAddEmployee = async (data: EmployeeFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const newEmployee: Employee = {
-            id: Math.random().toString(),
+        const role = store.roles.find(r => r.id === data.role);
+        const dept = store.departments.find(d => d.id === data.departmentId);
+        await store.addEmployee({
+            id: crypto.randomUUID(),
             name: data.name,
             role: data.role,
+            roleName: role?.title,
+            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
+            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                ? data.capacityRole as Employee['capacityRole']
+                : undefined,
             monthlySalary: data.monthlySalary,
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
             status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        };
-        setEmployees([...employees, newEmployee]);
+        });
         setIsEmpDialogOpen(false);
     };
 
     const handleEditEmployee = async (data: EmployeeFormValues) => {
         if (!editingEmployee) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setEmployees(employees.map(emp => emp.id === editingEmployee.id ? {
-            ...emp,
+        const role = store.roles.find(r => r.id === data.role);
+        await store.updateEmployee(editingEmployee.id, {
             name: data.name,
             role: data.role,
+            roleName: role?.title,
+            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
+            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                ? data.capacityRole as Employee['capacityRole']
+                : undefined,
             monthlySalary: data.monthlySalary,
             workableHours: data.workableHours,
             costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
             status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        } : emp));
+        });
         setEditingEmployee(null);
     };
 
     // --- Department Handlers ---
     const handleAddDepartment = async (data: DepartmentFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const newDept: Department = { id: Math.random().toString(), ...data };
-        setDepartments([...departments, newDept]);
+        const manager = store.employees.find(e => e.id === data.managerId);
+        await store.addDepartment({
+            id:          crypto.randomUUID(),
+            name:        data.name,
+            managerId:   data.managerId,
+            managerName: manager?.name,
+            headcount:   0,
+        });
         setIsDeptDialogOpen(false);
     };
 
     const handleEditDepartment = async (data: DepartmentFormValues) => {
         if (!editingDepartment) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setDepartments(departments.map(d => d.id === editingDepartment.id ? { ...d, ...data } : d));
+        const manager = store.employees.find(e => e.id === data.managerId);
+        await store.updateDepartment(editingDepartment.id, {
+            name:        data.name,
+            managerId:   data.managerId,
+            managerName: manager?.name,
+        });
         setEditingDepartment(null);
     };
 
     // --- Role Handlers ---
     const handleAddRole = async (data: RoleFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const newRole: Role = { id: Math.random().toString(), ...data };
-        setRoles([...roles, newRole]);
+        const dept = store.departments.find(d => d.id === data.departmentId);
+        await store.addRole({
+            id: crypto.randomUUID(),
+            title: data.title,
+            department: dept?.name ?? '',
+            departmentId: data.departmentId,
+            rate: data.rate,
+        });
         setIsRoleDialogOpen(false);
     };
 
     const handleEditRole = async (data: RoleFormValues) => {
         if (!editingRole) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setRoles(roles.map(r => r.id === editingRole.id ? { ...r, ...data } : r));
+        const dept = store.departments.find(d => d.id === data.departmentId);
+        await store.updateRole(editingRole.id, {
+            title: data.title,
+            department: dept?.name ?? '',
+            departmentId: data.departmentId,
+            rate: data.rate,
+        });
         setEditingRole(null);
     };
 
     // --- Overhead Handlers ---
     const handleAddOverhead = async (data: OverheadFormValues) => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const newOverhead: Overhead = { id: Math.random().toString(), ...data };
-        setOverheads([...overheads, newOverhead]);
+        await store.addGlobalOverhead({ id: crypto.randomUUID(), ...data });
         setIsOverheadDialogOpen(false);
     };
 
     const handleEditOverhead = async (data: OverheadFormValues) => {
         if (!editingOverhead) return;
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setOverheads(overheads.map(o => o.id === editingOverhead.id ? { ...o, ...data } : o));
+        await store.updateGlobalOverhead(editingOverhead.id, data);
         setEditingOverhead(null);
     };
 
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await store.updateCompanySettings({
+            employerTaxPercentage: salaryMultiplier.taxes,
+            benefitsPercentage: salaryMultiplier.benefits,
+        });
         setIsSavingSalary(false);
     };
+
+    if (syncing) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-sm text-muted-foreground animate-pulse">
+                    Loading organization data...
+                </p>
+            </div>
+        );
+    }
+
+    if (syncError) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-sm text-destructive">
+                    Failed to connect to database: {syncError}
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
-                <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
+                    <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                </div>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
@@ -186,15 +234,15 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Department</DialogTitle>
                                     <DialogDescription>Create a new department for your organization.</DialogDescription>
                                 </DialogHeader>
-                                <DepartmentForm onSubmit={handleAddDepartment} onCancel={() => setIsDeptDialogOpen(false)} />
+                                <DepartmentForm employees={store.employees} onSubmit={handleAddDepartment} onCancel={() => setIsDeptDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
 
                     <DepartmentsTable
-                        data={departments}
+                        data={store.departments}
                         onEdit={setEditingDepartment}
-                        onDelete={(id) => setDepartments(departments.filter(d => d.id !== id))}
+                        onDelete={(id) => store.deleteDepartment(id)}
                     />
 
                     <Dialog open={!!editingDepartment} onOpenChange={(open) => !open && setEditingDepartment(null)}>
@@ -204,7 +252,8 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
-                                    initialData={editingDepartment}
+                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId }}
+                                    employees={store.employees}
                                     onSubmit={handleEditDepartment}
                                     onCancel={() => setEditingDepartment(null)}
                                 />
@@ -231,15 +280,15 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Role</DialogTitle>
                                     <DialogDescription>Create a new role structure.</DialogDescription>
                                 </DialogHeader>
-                                <RoleForm onSubmit={handleAddRole} onCancel={() => setIsRoleDialogOpen(false)} />
+                                <RoleForm departments={store.departments} onSubmit={handleAddRole} onCancel={() => setIsRoleDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
 
                     <RolesTable
-                        data={roles}
+                        data={store.roles}
                         onEdit={setEditingRole}
-                        onDelete={(id) => setRoles(roles.filter(r => r.id !== id))}
+                        onDelete={(id) => store.deleteRole(id)}
                     />
 
                     <Dialog open={!!editingRole} onOpenChange={(open) => !open && setEditingRole(null)}>
@@ -249,7 +298,8 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingRole && (
                                 <RoleForm
-                                    initialData={editingRole}
+                                    initialData={{ title: editingRole.title, departmentId: editingRole.departmentId ?? '', rate: editingRole.rate }}
+                                    departments={store.departments}
                                     onSubmit={handleEditRole}
                                     onCancel={() => setEditingRole(null)}
                                 />
@@ -263,7 +313,7 @@ export default function EmployeesPage() {
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                         <div>
                             <h3 className="text-xl font-bold tracking-tight text-slate-900">Employees List</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organization's roster and costs.</p>
+                            <p className="text-muted-foreground text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
@@ -276,15 +326,16 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm roles={store.roles} departments={store.departments} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
 
                     <EmployeesTable
-                        data={employees}
+                        data={store.employees}
+                        roles={store.roles}
                         onEdit={setEditingEmployee}
-                        onDelete={(id) => setEmployees(employees.filter(emp => emp.id !== id))}
+                        onDelete={(id) => store.deleteEmployee(id)}
                     />
 
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
@@ -296,6 +347,8 @@ export default function EmployeesPage() {
                             {editingEmployee && (
                                 <EmployeeForm
                                     initialData={editingEmployee}
+                                    roles={store.roles}
+                                    departments={store.departments}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />
@@ -365,9 +418,9 @@ export default function EmployeesPage() {
                     </div>
 
                     <OverheadsTable
-                        data={overheads}
+                        data={store.globalOverheads}
                         onEdit={setEditingOverhead}
-                        onDelete={(id) => setOverheads(overheads.filter(o => o.id !== id))}
+                        onDelete={(id) => store.deleteGlobalOverhead(id)}
                     />
 
                     <Dialog open={!!editingOverhead} onOpenChange={(open) => !open && setEditingOverhead(null)}>

@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editor
+/.idea/
+
+ANKA.sql
+ANKA.sql_Zone.Identifier
+*.sql_Zone.Identifier
+*.Identifier

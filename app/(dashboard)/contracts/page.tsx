@@ -1,336 +1,711 @@
 'use client';
 
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useMemo, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileText, Printer, CheckCircle2, Clock } from 'lucide-react';
-
-const mockContracts = [
-    { id: 'CON-001', client: 'Acme Corp', value: 120000, revenueRecognized: 40000, status: 'Active' },
-    { id: 'CON-002', client: 'Global Tech', value: 45000, revenueRecognized: 45000, status: 'Completed' },
-];
-
-const mockInvoices = [
-    { id: 'INV-1042', contractId: 'CON-001', date: '2024-03-01', amount: 40000, tax: 4000, status: 'Paid' },
-    { id: 'INV-1043', contractId: 'CON-001', date: '2024-04-01', amount: 40000, tax: 4000, status: 'Pending' },
-];
-
-const mockMilestones = [
-    { id: 'MIL-01', contractId: 'CON-001', name: 'Project Kickoff', dueDate: '2024-03-15', amount: 20000, status: 'Completed' },
-    { id: 'MIL-02', contractId: 'CON-001', name: 'Phase 1 Delivery', dueDate: '2024-04-30', amount: 50000, status: 'In Progress' },
-    { id: 'MIL-03', contractId: 'CON-001', name: 'Final Handover', dueDate: '2024-06-15', amount: 50000, status: 'Pending' },
-];
-
-const mockPayments = [
-    { id: 'PAY-8921', invoiceId: 'INV-1042', date: '2024-03-05', amount: 44000, method: 'Wire Transfer', status: 'Cleared' },
-];
+import { MoreVertical, FileText, CheckCircle2, Download, Plus, Trash2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useContractList, useContractMutations } from '@/lib/queries/contracts';
+import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
+import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestones';
+import { useDealList } from '@/lib/queries/deals';
+import { useProjectList } from '@/lib/queries/projects';
+import { useRouter } from 'next/navigation';
 
 export default function ContractsPage() {
-    const [selectedInvoice, setSelectedInvoice] = useState(mockInvoices[0]);
-    const [isNewContractOpen, setIsNewContractOpen] = useState(false);
-    const [viewContract, setViewContract] = useState<any>(null);
+    const router = useRouter();
+    const contractsQuery = useContractList();
+    const invoicesQuery = useInvoiceList();
+    const milestonesQuery = useMilestoneList();
+    const dealsQuery = useDealList();
+    const projectsQuery = useProjectList();
+    const { payInvoice, createInvoice, deleteInvoice } = useInvoiceMutations();
+    const { updateContract, deleteContract } = useContractMutations();
+    const { createMilestone, deleteMilestone } = useMilestoneMutations();
 
-    const handlePrint = () => {
-        window.print();
+    const contracts = useMemo(() => contractsQuery.data?.data ?? [], [contractsQuery.data]);
+    const invoices = useMemo(() => invoicesQuery.data?.data ?? [], [invoicesQuery.data]);
+    const milestones = useMemo(() => milestonesQuery.data?.data ?? [], [milestonesQuery.data]);
+    const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
+    const projects = useMemo(() => projectsQuery.data?.data ?? [], [projectsQuery.data]);
+
+    const totalContractValue = contracts.reduce((sum, c) => sum + c.totalValue, 0);
+    const totalRecognized = contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
+    const isLoading = contractsQuery.isLoading || invoicesQuery.isLoading;
+    const isError = contractsQuery.isError || invoicesQuery.isError;
+    const retry = () => {
+        contractsQuery.refetch();
+        invoicesQuery.refetch();
+    };
+
+    // ── Create Invoice state ────────────────────────────────────────────────
+    const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+    const [invContractId, setInvContractId] = useState('');
+    const [invMilestoneId, setInvMilestoneId] = useState('');
+    const [invIssueDate, setInvIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [invDueDate, setInvDueDate] = useState('');
+    const [invAmount, setInvAmount] = useState('');
+    const [invTax, setInvTax] = useState('0');
+    const [invNotes, setInvNotes] = useState('');
+    const [invErrors, setInvErrors] = useState<{ contractId?: string; amount?: string }>({});
+
+    const handleCreateInvoice = async () => {
+        const errs: typeof invErrors = {};
+        if (!invContractId) errs.contractId = 'Please select a contract.';
+        if (!invAmount) errs.amount = 'Please enter an invoice amount.';
+        else if (Number(invAmount) <= 0) errs.amount = 'Amount must be greater than zero.';
+        setInvErrors(errs);
+        if (Object.keys(errs).length > 0) return;
+        await createInvoice.mutateAsync({
+            contractId: invContractId,
+            milestoneId: invMilestoneId || undefined,
+            issueDate: invIssueDate,
+            dueDate: invDueDate || undefined,
+            amount: Number(invAmount),
+            tax: Number(invTax) || 0,
+            notes: invNotes || undefined,
+            status: 'Pending' as const,
+        } as Parameters<typeof createInvoice.mutateAsync>[0]);
+        setIsInvoiceOpen(false);
+        setInvContractId('');
+        setInvMilestoneId('');
+        setInvAmount('');
+        setInvTax('0');
+        setInvNotes('');
+        setInvErrors({});
+    };
+
+    // ── Create Milestone state ──────────────────────────────────────────────
+    const [isMilestoneOpen, setIsMilestoneOpen] = useState(false);
+    const [msContractId, setMsContractId] = useState('');
+    const [msName, setMsName] = useState('');
+    const [msDueDate, setMsDueDate] = useState('');
+    const [msAmount, setMsAmount] = useState('');
+    const [msErrors, setMsErrors] = useState<{ contractId?: string; name?: string; dueDate?: string; amount?: string }>({});
+
+    const handleCreateMilestone = async () => {
+        const errs: typeof msErrors = {};
+        if (!msContractId) errs.contractId = 'Please select a contract.';
+        if (!msName.trim()) errs.name = 'Please enter a milestone name.';
+        if (!msDueDate) errs.dueDate = 'Please select a due date.';
+        if (!msAmount) errs.amount = 'Please enter a milestone amount.';
+        else if (Number(msAmount) <= 0) errs.amount = 'Amount must be greater than zero.';
+        setMsErrors(errs);
+        if (Object.keys(errs).length > 0) return;
+        await createMilestone.mutateAsync({
+            contractId: msContractId,
+            name: msName,
+            dueDate: msDueDate,
+            amount: Number(msAmount),
+            status: 'Pending',
+        });
+        setIsMilestoneOpen(false);
+        setMsContractId('');
+        setMsName('');
+        setMsDueDate('');
+        setMsAmount('');
+        setMsErrors({});
+    };
+
+    // ── Edit Contract state ────────────────────────────────────────────────
+    const [editContract, setEditContract] = useState<{ id: string; status: string; notes: string } | null>(null);
+
+    // ── Confirm dialog states ───────────────────────────────────────────────
+    const [archiveOpen, setArchiveOpen] = useState(false);
+    const [archivingContract, setArchivingContract] = useState<string | null>(null);
+    const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
+    const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+    const [deleteMilestoneOpen, setDeleteMilestoneOpen] = useState(false);
+    const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
+
+    const handleUpdateContract = async () => {
+        if (!editContract) return;
+        await updateContract.mutateAsync({ id: editContract.id, updates: { status: editContract.status as 'Active' | 'Completed' | 'Draft' | 'Cancelled', notes: editContract.notes } });
+        setEditContract(null);
+    };
+
+    const openArchive = (contractId: string) => {
+        setArchivingContract(contractId);
+        setArchiveOpen(true);
+    };
+
+    const handleArchive = async () => {
+        if (!archivingContract) return;
+        await deleteContract.mutateAsync(archivingContract);
+        setArchiveOpen(false);
+        setArchivingContract(null);
+    };
+
+    const openDeleteInvoice = (invoiceId: string) => {
+        setDeletingInvoiceId(invoiceId);
+        setDeleteInvoiceOpen(true);
+    };
+
+    const handleDeleteInvoice = async () => {
+        if (!deletingInvoiceId) return;
+        await deleteInvoice.mutateAsync(deletingInvoiceId);
+        setDeleteInvoiceOpen(false);
+        setDeletingInvoiceId(null);
+    };
+
+    const handleDeleteMilestone = async () => {
+        if (!deletingMilestoneId) return;
+        await deleteMilestone.mutateAsync(deletingMilestoneId);
+        setDeleteMilestoneOpen(false);
+        setDeletingMilestoneId(null);
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center print:hidden">
+        <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Contracts & Billing</h2>
-                    <p className="text-muted-foreground mt-1">Manage client contracts, track milestones, and issue invoices.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Contracts & Billing</h1>
+                    <p className="text-slate-500 mt-1">Manage active contracts, milestones, and client invoices.</p>
                 </div>
-                <Dialog open={isNewContractOpen} onOpenChange={setIsNewContractOpen}>
+                <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
                     <DialogTrigger asChild>
                         <Button className="bg-slate-900 gap-2">
-                            <FileText className="h-4 w-4" /> New Contract
+                            <Plus className="h-4 w-4" /> Create Invoice
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Create New Contract</DialogTitle>
-                            <DialogDescription>Enter the details for the new client contract.</DialogDescription>
+                            <DialogTitle>Create Invoice</DialogTitle>
+                            <DialogDescription>Issue an invoice against an active contract.</DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label>Client Name</Label>
-                                <Input placeholder="Acme Corp" />
+                        <div className="space-y-4 py-2">
+                            <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
+                                <Select value={invContractId} onValueChange={(v) => { setInvContractId(v); setInvMilestoneId(''); if (invErrors.contractId) setInvErrors(p => ({ ...p, contractId: undefined })); }}>
+                                    <SelectTrigger aria-invalid={!!invErrors.contractId}><SelectValue placeholder="Select contract..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {contracts.map(c => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                {c.contractNumber ?? c.id.slice(0, 8)} — {c.client}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {invErrors.contractId && <p className="text-xs text-destructive">{invErrors.contractId}</p>}
                             </div>
-                            <div className="space-y-2">
-                                <Label>Total Value</Label>
-                                <Input type="number" placeholder="100000" />
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Milestone <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                <Select value={invMilestoneId} onValueChange={setInvMilestoneId}>
+                                    <SelectTrigger><SelectValue placeholder="Select milestone..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {milestones.filter(m => m.contractId === invContractId).map(ms => (
+                                            <SelectItem key={ms.id} value={ms.id}>
+                                                {ms.name} — ${ms.amount.toLocaleString()}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setIsNewContractOpen(false)}>Cancel</Button>
-                            <Button onClick={() => setIsNewContractOpen(false)}>Create Contract</Button>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Issue Date <span className="text-destructive">*</span></label>
+                                    <Input type="date" value={invIssueDate} onChange={e => setInvIssueDate(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Due Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                    <Input type="date" value={invDueDate} onChange={e => setInvDueDate(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                    <Input
+                                        type="number" min="0" step="0.01"
+                                        value={invAmount}
+                                        onChange={e => { setInvAmount(e.target.value); if (invErrors.amount) setInvErrors(p => ({ ...p, amount: undefined })); }}
+                                        onBlur={() => { if (!invAmount || Number(invAmount) <= 0) setInvErrors(p => ({ ...p, amount: 'Enter a valid amount.' })); }}
+                                        placeholder="10000"
+                                        aria-invalid={!!invErrors.amount}
+                                    />
+                                    {invErrors.amount && <p className="text-xs text-destructive">{invErrors.amount}</p>}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Tax ($) <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                    <Input type="number" min="0" step="0.01" value={invTax} onChange={e => setInvTax(e.target.value)} placeholder="0" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Notes <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                <Input value={invNotes} onChange={e => setInvNotes(e.target.value)} placeholder="e.g. Payment for Phase 1 delivery" />
+                            </div>
+                            <Button
+                                className="w-full bg-slate-900"
+                                onClick={handleCreateInvoice}
+                                disabled={createInvoice.isPending}
+                            >
+                                {createInvoice.isPending ? 'Creating...' : 'Create Invoice'}
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
             </div>
 
-            <Tabs defaultValue="list" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg print:hidden">
-                    <TabsTrigger value="list" className="py-2.5 data-[state=active]:bg-white rounded-md">Contracts List</TabsTrigger>
-                    <TabsTrigger value="milestones" className="py-2.5 data-[state=active]:bg-white rounded-md">Milestones</TabsTrigger>
-                    <TabsTrigger value="invoices" className="py-2.5 data-[state=active]:bg-white rounded-md">Invoices</TabsTrigger>
-                    <TabsTrigger value="payments" className="py-2.5 data-[state=active]:bg-white rounded-md">Payments</TabsTrigger>
+            {isLoading && (
+                <Card className="h-40 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+            )}
+
+            {isError && (
+                <Card className="border-slate-100 shadow-sm">
+                    <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
+                        <p className="text-sm text-slate-600">Could not load contracts or invoices.</p>
+                        <Button variant="outline" onClick={retry}>Retry</Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {!isLoading && !isError && <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-500">Active Contracts</p>
+                            <FileText className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                            <span className="text-3xl font-bold tracking-tight text-slate-900">{contracts.filter(c => c.status === 'Active').length}</span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-500">Total Contract Value</p>
+                            <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <span className="text-emerald-600 font-bold">$</span>
+                            </div>
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                            <span className="text-3xl font-bold tracking-tight text-slate-900">${totalContractValue.toLocaleString()}</span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-500">Revenue Recognized</p>
+                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                            <span className="text-3xl font-bold tracking-tight text-emerald-600">${totalRecognized.toLocaleString()}</span>
+                            <span className="text-sm font-medium text-slate-500">
+                                ({totalContractValue > 0 ? Math.round((totalRecognized / totalContractValue) * 100) : 0}%)
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>}
+
+            {!isLoading && !isError && <Tabs defaultValue="contracts" className="space-y-6">
+                <TabsList className="bg-slate-100/50 p-1 border border-slate-200/60">
+                    <TabsTrigger value="contracts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Active Contracts</TabsTrigger>
+                    <TabsTrigger value="milestones" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
+                    <TabsTrigger value="invoices" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Invoices</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="list" className="space-y-4">
+                <TabsContent value="contracts">
                     <Card className="shadow-sm border-slate-100">
-                        <CardHeader>
-                            <CardTitle>Active Contracts</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Contract ID</TableHead>
-                                        <TableHead>Client</TableHead>
-                                        <TableHead className="text-right">Total Value</TableHead>
-                                        <TableHead className="text-right">Revenue Recognized</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mockContracts.map((contract) => (
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead>Contract ID</TableHead>
+                                    <TableHead>Client</TableHead>
+                                    <TableHead>Source Deal</TableHead>
+                                    <TableHead>Linked Project</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Total Value</TableHead>
+                                    <TableHead className="text-right">Recognized</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {contracts.map((contract) => {
+                                    const sourceDeal     = deals.find(d => d.id === contract.dealId);
+                                    const linkedProject  = projects.find(p => p.contractId === contract.id);
+                                    return (
                                         <TableRow key={contract.id}>
-                                            <TableCell className="font-medium text-blue-600">{contract.id}</TableCell>
+                                            <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
                                             <TableCell>{contract.client}</TableCell>
-                                            <TableCell className="text-right">${contract.value.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right">${contract.revenueRecognized.toLocaleString()}</TableCell>
                                             <TableCell>
-                                                <Badge variant={contract.status === 'Completed' ? 'default' : 'secondary'} className={contract.status === 'Completed' ? 'bg-emerald-500' : 'bg-blue-100 text-blue-700'}>
+                                                {sourceDeal ? (
+                                                    <button
+                                                        className="text-sm text-blue-600 hover:underline text-left"
+                                                        onClick={() => router.push(`/crm/${sourceDeal.id}`)}
+                                                    >
+                                                        {sourceDeal.name}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {linkedProject ? (
+                                                    <button
+                                                        className="text-sm text-purple-600 hover:underline text-left"
+                                                        onClick={() => router.push('/projects')}
+                                                    >
+                                                        {linkedProject.projectNumber ?? linkedProject.name}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className={
+                                                    contract.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        'bg-slate-100 text-slate-700 border-slate-200'
+                                                }>
                                                     {contract.status}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => setViewContract(contract)}>View Details</Button>
+                                            <TableCell className="text-right font-medium">${contract.totalValue.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right text-slate-600">${contract.revenueRecognized.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        {sourceDeal && (
+                                                            <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
+                                                                View Source Deal
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        {linkedProject && (
+                                                            <DropdownMenuItem onClick={() => router.push('/projects')}>
+                                                                View Linked Project
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
+                                                            Edit Contract
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            className="text-rose-600"
+                                                            onClick={() => openArchive(contract.id)}
+                                                        >
+                                                            Archive
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-
-                    <Dialog open={!!viewContract} onOpenChange={(open) => !open && setViewContract(null)}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Contract Details</DialogTitle>
-                                <DialogDescription>Information for {viewContract?.id}</DialogDescription>
-                            </DialogHeader>
-                            {viewContract && (
-                                <div className="space-y-4 py-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-xs text-muted-foreground">Client</p><p className="font-medium text-slate-900">{viewContract.client}</p></div>
-                                        <div><p className="text-xs text-muted-foreground">Status</p>
-                                            <Badge variant={viewContract.status === 'Completed' ? 'default' : 'secondary'} className={viewContract.status === 'Completed' ? 'bg-emerald-500 mt-1' : 'bg-blue-100 text-blue-700 mt-1'}>
-                                                {viewContract.status}
-                                            </Badge>
-                                        </div>
-                                        <div><p className="text-xs text-muted-foreground">Total Value</p><p className="font-medium text-slate-900">${viewContract.value.toLocaleString()}</p></div>
-                                        <div><p className="text-xs text-muted-foreground">Revenue Recognized</p><p className="font-medium text-slate-900">${viewContract.revenueRecognized.toLocaleString()}</p></div>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex justify-end">
-                                <Button onClick={() => setViewContract(null)}>Close</Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                </TabsContent>
-
-                <TabsContent value="invoices" className="space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <Card className="lg:col-span-2 shadow-sm border-slate-100 print:hidden">
-                            <CardHeader>
-                                <CardTitle>Recent Invoices</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Invoice #</TableHead>
-                                            <TableHead>Contract Focus</TableHead>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead className="text-right">Tax</TableHead>
-                                            <TableHead className="text-right">Total</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {mockInvoices.map((inv) => (
-                                            <TableRow
-                                                key={inv.id}
-                                                className={`cursor-pointer transition-colors ${selectedInvoice.id === inv.id ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
-                                                onClick={() => setSelectedInvoice(inv)}
-                                            >
-                                                <TableCell className="font-medium">{inv.id}</TableCell>
-                                                <TableCell className="text-muted-foreground">{inv.contractId}</TableCell>
-                                                <TableCell>{inv.date}</TableCell>
-                                                <TableCell className="text-right">${inv.tax.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right font-bold">${(inv.amount + inv.tax).toLocaleString()}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className={inv.status === 'Paid' ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600'}>
-                                                        {inv.status === 'Paid' ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                                                        {inv.status}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Button variant="ghost" size="icon" title="Print Invoice" onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); handlePrint(); }}>
-                                                        <Printer className="w-4 h-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-slate-100 bg-slate-50 print:bg-white print:border-none print:shadow-none print:w-full print:m-0 print:p-0">
-                            <CardHeader className="print:hidden">
-                                <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Print Preview</CardTitle>
-                            </CardHeader>
-                            <CardContent className="print:p-0">
-                                <div className="bg-white p-6 border rounded-sm shadow-sm aspect-[1/1.4] flex flex-col mx-auto max-w-sm print:max-w-none print:border-none print:shadow-none print:aspect-auto">
-                                    <div className="flex justify-between items-start mb-8">
-                                        <div>
-                                            <h3 className="font-bold text-lg text-slate-900">INVOICE</h3>
-                                            <p className="text-xs text-muted-foreground">#{selectedInvoice.id}</p>
-                                        </div>
-                                        <div className="text-right text-xs text-muted-foreground">
-                                            <p>Agency Digital Twin</p>
-                                            <p>123 Tech Lane</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-sm space-y-1 mb-8">
-                                        <p className="font-semibold">Billed To:</p>
-                                        <p>Acme Corp</p>
-                                    </div>
-
-                                    <div className="flex-1 w-full border-t pt-4">
-                                        <div className="flex justify-between text-xs font-semibold mb-2">
-                                            <span>Description</span>
-                                            <span>Amount</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs text-slate-600 py-1">
-                                            <span>Platform License & Services</span>
-                                            <span>${selectedInvoice.amount.toLocaleString()}.00</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs text-slate-600 py-1">
-                                            <span>VAT/Tax</span>
-                                            <span>${selectedInvoice.tax.toLocaleString()}.00</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t pt-4 mt-auto">
-                                        <div className="flex justify-between font-bold text-slate-900">
-                                            <span>Total</span>
-                                            <span>${(selectedInvoice.amount + selectedInvoice.tax).toLocaleString()}.00</span>
-                                        </div>
-                                        <Button className="w-full mt-6 gap-2 print:hidden" variant="outline" onClick={handlePrint}>
-                                            <Printer className="w-4 h-4" /> Print PDF
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </TabsContent>
-
-                <TabsContent value="milestones" className="space-y-4">
-                    <Card className="shadow-sm border-slate-100">
-                        <CardHeader>
-                            <CardTitle>Contract Milestones</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
+                                    );
+                                })}
+                                {contracts.length === 0 && (
                                     <TableRow>
-                                        <TableHead>Milestone ID</TableHead>
-                                        <TableHead>Contract</TableHead>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Due Date</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead>Status</TableHead>
+                                        <TableCell colSpan={8} className="text-center py-6 text-slate-500">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mockMilestones.map((milestone) => (
-                                        <TableRow key={milestone.id}>
-                                            <TableCell className="font-medium text-slate-500">{milestone.id}</TableCell>
-                                            <TableCell>{milestone.contractId}</TableCell>
-                                            <TableCell className="font-medium">{milestone.name}</TableCell>
-                                            <TableCell>{milestone.dueDate}</TableCell>
-                                            <TableCell className="text-right">${milestone.amount.toLocaleString()}</TableCell>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="milestones">
+                    <div className="flex justify-end mb-4">
+                        <Dialog open={isMilestoneOpen} onOpenChange={setIsMilestoneOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="gap-2">
+                                    <Plus className="h-4 w-4" /> Add Milestone
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add Milestone</DialogTitle>
+                                    <DialogDescription>Create a billing milestone for a contract.</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-2">
+                                    <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
+                                        <Select value={msContractId} onValueChange={v => { setMsContractId(v); if (msErrors.contractId) setMsErrors(p => ({ ...p, contractId: undefined })); }}>
+                                            <SelectTrigger aria-invalid={!!msErrors.contractId}><SelectValue placeholder="Please select" /></SelectTrigger>
+                                            <SelectContent>
+                                                {contracts.map(c => (
+                                                    <SelectItem key={c.id} value={c.id}>
+                                                        {c.contractNumber ?? c.id.slice(0, 8)} — {c.client}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {msErrors.contractId && <p className="text-xs text-destructive">{msErrors.contractId}</p>}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Milestone Name <span className="text-destructive">*</span></label>
+                                        <Input
+                                            value={msName}
+                                            onChange={e => { setMsName(e.target.value); if (msErrors.name) setMsErrors(p => ({ ...p, name: undefined })); }}
+                                            onBlur={() => { if (!msName.trim()) setMsErrors(p => ({ ...p, name: 'Please enter a milestone name.' })); }}
+                                            placeholder="e.g. Phase 1 Delivery"
+                                            aria-invalid={!!msErrors.name}
+                                        />
+                                        {msErrors.name && <p className="text-xs text-destructive">{msErrors.name}</p>}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium">Due Date <span className="text-destructive">*</span></label>
+                                            <Input
+                                                type="date"
+                                                value={msDueDate}
+                                                onChange={e => { setMsDueDate(e.target.value); if (msErrors.dueDate) setMsErrors(p => ({ ...p, dueDate: undefined })); }}
+                                                aria-invalid={!!msErrors.dueDate}
+                                            />
+                                            {msErrors.dueDate && <p className="text-xs text-destructive">{msErrors.dueDate}</p>}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                            <Input
+                                                type="number" min="0"
+                                                value={msAmount}
+                                                onChange={e => { setMsAmount(e.target.value); if (msErrors.amount) setMsErrors(p => ({ ...p, amount: undefined })); }}
+                                                onBlur={() => { if (!msAmount || Number(msAmount) <= 0) setMsErrors(p => ({ ...p, amount: 'Enter a valid amount.' })); }}
+                                                placeholder="5000"
+                                                aria-invalid={!!msErrors.amount}
+                                            />
+                                            {msErrors.amount && <p className="text-xs text-destructive">{msErrors.amount}</p>}
+                                        </div>
+                                    </div>
+                                    <Button
+                                        className="w-full bg-slate-900"
+                                        onClick={handleCreateMilestone}
+                                        disabled={createMilestone.isPending}
+                                    >
+                                        {createMilestone.isPending ? 'Creating...' : 'Add Milestone'}
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                    <Card className="shadow-sm border-slate-100">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead>Contract</TableHead>
+                                    <TableHead>Milestone Name</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {milestones.map(ms => {
+                                    const contract = contracts.find(c => c.id === ms.contractId);
+                                    return (
+                                        <TableRow key={ms.id}>
+                                            <TableCell className="text-slate-600 text-sm">{contract?.contractNumber ?? ms.contractId.slice(0, 8)}</TableCell>
+                                            <TableCell className="font-medium">{ms.name}</TableCell>
+                                            <TableCell>{ms.dueDate}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={
-                                                    milestone.status === 'Completed' ? 'border-emerald-500 text-emerald-600' :
-                                                        milestone.status === 'In Progress' ? 'border-blue-500 text-blue-600' :
-                                                            'border-slate-300 text-slate-600'
+                                                    ms.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    ms.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                        'bg-amber-50 text-amber-700 border-amber-200'
                                                 }>
-                                                    {milestone.status}
+                                                    {ms.status}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="text-right font-medium">${ms.amount.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-rose-500 hover:text-rose-600"
+                                                    onClick={() => {
+                                                        setDeletingMilestoneId(ms.id);
+                                                        setDeleteMilestoneOpen(true);
+                                                    }}
+                                                    disabled={deleteMilestone.isPending}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                                    );
+                                })}
+                                {milestones.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No milestones yet. Add milestones to track delivery phases.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="payments" className="space-y-4">
+                <TabsContent value="invoices">
                     <Card className="shadow-sm border-slate-100">
-                        <CardHeader>
-                            <CardTitle>Payments Received</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Payment ID</TableHead>
-                                        <TableHead>Invoice #</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Method</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead>Status</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mockPayments.map((payment) => (
-                                        <TableRow key={payment.id}>
-                                            <TableCell className="font-medium text-slate-500">{payment.id}</TableCell>
-                                            <TableCell className="font-medium text-blue-600">{payment.invoiceId}</TableCell>
-                                            <TableCell>{payment.date}</TableCell>
-                                            <TableCell>{payment.method}</TableCell>
-                                            <TableCell className="text-right font-bold text-emerald-600">${payment.amount.toLocaleString()}</TableCell>
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead>Invoice #</TableHead>
+                                    <TableHead>Contract</TableHead>
+                                    <TableHead>Issue Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {invoices.map((invoice) => {
+                                    const contract = contracts.find(c => c.id === invoice.contractId);
+                                    return (
+                                        <TableRow key={invoice.id}>
+                                            <TableCell className="font-medium">{invoice.invoiceNumber ?? invoice.id.slice(0, 8)}</TableCell>
+                                            <TableCell className="text-slate-600">{contract?.contractNumber ?? invoice.contractId.slice(0, 8)}</TableCell>
+                                            <TableCell>{invoice.issueDate}</TableCell>
                                             <TableCell>
-                                                <Badge variant="outline" className="border-emerald-500 text-emerald-600 gap-1">
-                                                    <CheckCircle2 className="w-3 h-3" /> {payment.status}
+                                                <Badge variant="outline" className={
+                                                    invoice.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        invoice.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                            invoice.status === 'Overdue' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                                'bg-slate-100 text-slate-700 border-slate-200'
+                                                }>
+                                                    {invoice.status}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="text-right font-medium">${invoice.amount.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
+                                                        {invoice.status === 'Pending' || invoice.status === 'Overdue' ? (
+                                                            <DropdownMenuItem onClick={() => payInvoice.mutate(invoice.id)}>
+                                                                <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Paid
+                                                            </DropdownMenuItem>
+                                                        ) : null}
+                                                        <DropdownMenuItem
+                                                            className="text-rose-600"
+                                                            onClick={() => openDeleteInvoice(invoice.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                                    );
+                                })}
+                                {invoices.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No invoices yet. Use the Create Invoice button above.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
                     </Card>
                 </TabsContent>
-            </Tabs>
+
+            </Tabs>}
+
+            {/* Edit Contract Dialog */}
+            <Dialog open={!!editContract} onOpenChange={open => !open && setEditContract(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Contract</DialogTitle>
+                        <DialogDescription>Update contract status or notes.</DialogDescription>
+                    </DialogHeader>
+                    {editContract && (
+                        <div className="space-y-4 py-2">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Status</label>
+                                <Select value={editContract.status} onValueChange={v => setEditContract({ ...editContract, status: v })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Active">Active</SelectItem>
+                                        <SelectItem value="Completed">Completed</SelectItem>
+                                        <SelectItem value="Draft">Draft</SelectItem>
+                                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Notes</label>
+                                <Input value={editContract.notes} onChange={e => setEditContract({ ...editContract, notes: e.target.value })} placeholder="Optional notes..." />
+                            </div>
+                            <Button
+                                className="w-full bg-slate-900"
+                                onClick={handleUpdateContract}
+                                disabled={updateContract.isPending}
+                            >
+                                {updateContract.isPending ? 'Saving...' : 'Save Changes'}
+                            </Button>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Archive Contract Confirm Dialog ──────────────────────────────── */}
+            <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Archive Contract</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to archive this contract? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setArchiveOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleArchive} disabled={deleteContract.isPending}>
+                            {deleteContract.isPending ? 'Archiving...' : 'Archive'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Delete Invoice Confirm Dialog ────────────────────────────────── */}
+            <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Invoice</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to delete this invoice? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeleteInvoiceOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDeleteInvoice} disabled={deleteInvoice.isPending}>
+                            {deleteInvoice.isPending ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Delete Milestone Confirm Dialog ───────────────────────────────── */}
+            <Dialog open={deleteMilestoneOpen} onOpenChange={setDeleteMilestoneOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Milestone</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to delete this milestone? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeleteMilestoneOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDeleteMilestone} disabled={deleteMilestone.isPending}>
+                            {deleteMilestone.isPending ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

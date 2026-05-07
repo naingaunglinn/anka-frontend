@@ -1,38 +1,39 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-interface User {
+export interface AuthUser {
     id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string;
-    role: string;
+    appRole: 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR';
+    systemRole: string;
+    isSuperAdmin: boolean;
+    tenant: {
+        id: string;
+        name: string;
+        slug: string;
+    } | null;
 }
 
 interface AuthState {
-    user: User | null;
+    user: AuthUser | null;
     token: string | null;
     isAuthenticated: boolean;
-    login: (user: User, token: string) => void;
+    login: (user: AuthUser, token: string) => void;
+    // setToken is used by the token-refresh interceptor to update the token
+    // without wiping the user profile — avoids a redundant /auth/me round-trip
+    setToken: (token: string) => void;
     logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-    persist(
-        (set) => ({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-            login: (user, token) => set({ user, token, isAuthenticated: true }),
-            logout: () => {
-                // Clear the cookie for Next.js Middleware
-                if (typeof document !== 'undefined') {
-                    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                }
-                set({ user: null, token: null, isAuthenticated: false });
-            },
-        }),
-        {
-            name: 'auth-storage', // saves to local storage
-        }
-    )
-);
+// No persist middleware: the raw Sanctum token is kept only in memory.
+// Persistence is handled by the __session httpOnly cookie (see app/api/auth/session/route.ts),
+// which is unreadable by JS. AuthInitializer re-hydrates this store from that cookie on mount.
+export const useAuthStore = create<AuthState>()((set) => ({
+    user: null,
+    token: null,
+    isAuthenticated: false,
+    login: (user, token) => set({ user, token, isAuthenticated: true }),
+    setToken: (token) => set({ token }),
+    logout: () => set({ user: null, token: null, isAuthenticated: false }),
+}));
