@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminTenantList, useAdminMutations } from '@/lib/queries/admin';
 import { useTenantStore, type Currency, CURRENCY_CONFIG } from '@/store/tenantStore';
-import { Building2, Check, X, Loader2, Banknote } from 'lucide-react';
+import { Building2, Check, X, Loader2 } from 'lucide-react';
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise'];
 
@@ -16,10 +16,21 @@ export default function AdminBillingPage() {
     const { updateTenant } = useAdminMutations();
     const { setTenantCurrency, tenants: storedTenants } = useTenantStore();
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [currencyMap, setCurrencyMap] = useState<Record<string, Currency>>({});
+
+    // Initialize currency map when tenants load
+    useEffect(() => {
+        if (!tenants) return;
+        const initial: Record<string, Currency> = {};
+        tenants.forEach((t) => {
+            const stored = storedTenants.find((st) => st.id === t.id);
+            initial[t.id] = stored?.currency ?? 'MMK';
+        });
+        setCurrencyMap(initial);
+    }, [tenants, storedTenants]);
 
     const getTenantCurrency = (tenantId: string): Currency => {
-        const stored = storedTenants.find((t) => t.id === tenantId);
-        return stored?.currency ?? 'MMK';
+        return currencyMap[tenantId] ?? 'MMK';
     };
 
     const handlePlanChange = async (tenantId: string, newPlan: string) => {
@@ -29,6 +40,7 @@ export default function AdminBillingPage() {
     };
 
     const handleCurrencyChange = (tenantId: string, currency: Currency) => {
+        setCurrencyMap((prev) => ({ ...prev, [tenantId]: currency }));
         setTenantCurrency(tenantId, currency);
     };
 
