@@ -16,6 +16,7 @@ import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
 import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestones';
 import { useDealList } from '@/lib/queries/deals';
 import { useProjectList } from '@/lib/queries/projects';
+import { useBusinessStore } from '@/store/businessStore';
 import { useRouter } from 'next/navigation';
 
 export default function ContractsPage() {
@@ -25,11 +26,23 @@ export default function ContractsPage() {
     const milestonesQuery = useMilestoneList();
     const dealsQuery = useDealList();
     const projectsQuery = useProjectList();
+    const storeContracts = useBusinessStore(state => state.contracts);
     const { payInvoice, createInvoice, deleteInvoice } = useInvoiceMutations();
     const { updateContract, deleteContract } = useContractMutations();
     const { createMilestone, deleteMilestone } = useMilestoneMutations();
 
-    const contracts = useMemo(() => contractsQuery.data?.data ?? [], [contractsQuery.data]);
+    // Merge API results with Zustand store so contracts from recently-won deals
+    // appear immediately even if the TanStack Query cache hasn't refetched yet.
+    const contracts = useMemo(() => {
+        const apiContracts = contractsQuery.data?.data ?? [];
+        const map = new Map(apiContracts.map(c => [c.id, c]));
+        storeContracts.forEach(c => map.set(c.id, c));
+        return Array.from(map.values()).sort((a, b) => {
+            const numA = a.contractNumber ? parseInt(a.contractNumber.replace(/\D/g, ''), 10) : 0;
+            const numB = b.contractNumber ? parseInt(b.contractNumber.replace(/\D/g, ''), 10) : 0;
+            return numB - numA;
+        });
+    }, [contractsQuery.data, storeContracts]);
     const invoices = useMemo(() => invoicesQuery.data?.data ?? [], [invoicesQuery.data]);
     const milestones = useMemo(() => milestonesQuery.data?.data ?? [], [milestonesQuery.data]);
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);

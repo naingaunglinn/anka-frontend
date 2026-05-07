@@ -1,11 +1,21 @@
 import { z } from 'zod';
 
+export const CAPACITY_ROLE_OPTIONS = [
+    { value: 'frontend', label: 'Frontend' },
+    { value: 'backend',  label: 'Backend' },
+    { value: 'pm',       label: 'Project Manager' },
+    { value: 'qa',       label: 'QA Engineer' },
+    { value: 'design',   label: 'Designer' },
+] as const;
+
+export type CapacityRole = (typeof CAPACITY_ROLE_OPTIONS)[number]['value'];
+
 // Ghost-role sub-schema — shared between create and edit forms.
 // The `id` field is optional so this works for both new roles (no id yet)
 // and existing roles loaded from the API (id present).
 export const ghostRoleSchema = z.object({
     id: z.string().optional(),
-    roleType: z.string().min(1, 'Role type is required'),
+    roleType: z.enum(['frontend', 'backend', 'pm', 'qa', 'design']),
     quantity: z.coerce.number().int().min(1, 'At least 1'),
     months: z.coerce.number().int().min(1, 'At least 1 month'),
     minMonthlySalary: z.coerce.number().min(0, 'Must be ≥ 0'),

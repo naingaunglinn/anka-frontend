@@ -25,8 +25,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ArrowRight, Upload, UserPlus, AlertCircle } from "lucide-react";
-import { LEAD_SOURCE_OPTIONS } from "@/lib/schemas/deal.schema";
+import { LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
+import { getSuggestedSalaryRange } from "@/lib/salaryRange";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
@@ -43,7 +44,6 @@ export default function NewDealPage() {
     const router = useRouter();
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
-    const roles = useBusinessStore((state) => state.roles);
     const { createDeal } = useDealMutations();
 
     const [dealId] = useState(() => uuidv4());
@@ -89,17 +89,14 @@ export default function NewDealPage() {
             return acc;
         }, {} as Record<string, { members: typeof result.team; minSalary: number; maxSalary: number }>);
 
-        const newGhostRoles = Object.entries(roleGroups).map(([roleName, group]) => {
-            const matchedRole = roles.find(r => r.title === roleName);
-            return {
-                id: uuidv4(),
-                roleType: matchedRole?.id || roleName,
-                quantity: group.members.length,
-                months: timelineMonths,
-                minMonthlySalary: group.minSalary,
-                maxMonthlySalary: group.maxSalary,
-            };
-        });
+        const newGhostRoles: GhostRole[] = Object.entries(roleGroups).map(([roleName, group]) => ({
+            id: uuidv4(),
+            roleType: roleName as RoleType,
+            quantity: group.members.length,
+            months: timelineMonths,
+            minMonthlySalary: group.minSalary,
+            maxMonthlySalary: group.maxSalary,
+        }));
 
         form.setValue('ghostRoles', newGhostRoles);
 
@@ -126,7 +123,10 @@ export default function NewDealPage() {
             workloadHours: 0,
             winProbability: 20,
             workloadDescription: "",
-            ghostRoles: [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+            ghostRoles: [(() => {
+                const range = getSuggestedSalaryRange('frontend', useBusinessStore.getState().employees);
+                return { roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: range.min, maxMonthlySalary: range.max };
+            })()],
         },
     });
 
@@ -218,10 +218,11 @@ export default function NewDealPage() {
             totalEstimatedCost: acceptedAIResult?.totalEstimatedCost ?? totalEstimatedCost,
             estimatedGrossProfit: acceptedAIResult?.estimatedGrossProfit ?? estimatedGrossProfit,
             targetMargin: 30,
+            wizardStep: 'estimation',
         };
 
-        await createDeal.mutateAsync(newDeal);
-        router.push("/crm");
+        const created = await createDeal.mutateAsync(newDeal);
+        router.push(`/crm/edit/${created.id}`);
     }
 
     return (
@@ -250,13 +251,12 @@ export default function NewDealPage() {
                                             </span>
                                         </div>
                                     )}
-                                    <Tabs defaultValue="context" className="w-full">
-                                        <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100/50">
-                                            <TabsTrigger value="context">Sales Context</TabsTrigger>
-                                            <TabsTrigger value="estimation">Estimation</TabsTrigger>
-                                            <TabsTrigger value="staffing">Staffing</TabsTrigger>
-                                            <TabsTrigger value="contracts">Contracts</TabsTrigger>
-                                        </TabsList>
+                            <Tabs defaultValue="context" className="w-full">
+                                <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
+                                    <TabsTrigger value="context">Sales Context</TabsTrigger>
+                                    <TabsTrigger value="estimation">Estimation</TabsTrigger>
+                                    <TabsTrigger value="staffing">Staffing</TabsTrigger>
+                                </TabsList>
 
                                         <TabsContent value="context" className="space-y-6">
                                             <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100 space-y-6">
@@ -478,7 +478,10 @@ export default function NewDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 })}
+                                                        onClick={() => {
+                                                            const range = getSuggestedSalaryRange('frontend', employees);
+                                                            append({ roleType: 'frontend', quantity: 1, months: timelineMonths || 1, minMonthlySalary: range.min, maxMonthlySalary: range.max });
+                                                        }}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -493,16 +496,16 @@ export default function NewDealPage() {
                                                                 render={({ field }) => (
                                                                     <FormItem className="flex-1">
                                                                         <FormLabel className="text-xs text-slate-500">Role</FormLabel>
-                                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                        <Select onValueChange={field.onChange} value={field.value}>
                                                                             <FormControl>
                                                                                 <SelectTrigger>
                                                                                     <SelectValue placeholder="Select Role" />
                                                                                 </SelectTrigger>
                                                                             </FormControl>
                                                                             <SelectContent>
-                                                                                {roles.map((role) => (
-                                                                                    <SelectItem key={role.id} value={role.id}>
-                                                                                        {role.title}
+                                                                                {CAPACITY_ROLE_OPTIONS.map((role) => (
+                                                                                    <SelectItem key={role.value} value={role.value}>
+                                                                                        {role.label}
                                                                                     </SelectItem>
                                                                                 ))}
                                                                             </SelectContent>
@@ -537,32 +540,49 @@ export default function NewDealPage() {
                                                                     </FormItem>
                                                                 )}
                                                             />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.minMonthlySalary`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-24">
-                                                                        <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.maxMonthlySalary`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-24">
-                                                                        <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
+                                                             <div className="flex items-end gap-1">
+                                                                 <FormField
+                                                                     control={form.control}
+                                                                     name={`ghostRoles.${index}.minMonthlySalary`}
+                                                                     render={({ field }) => (
+                                                                         <FormItem className="w-24">
+                                                                             <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                                             <FormControl>
+                                                                                 <Input type="number" {...field} />
+                                                                             </FormControl>
+                                                                             <FormMessage />
+                                                                         </FormItem>
+                                                                     )}
+                                                                 />
+                                                                 <FormField
+                                                                     control={form.control}
+                                                                     name={`ghostRoles.${index}.maxMonthlySalary`}
+                                                                     render={({ field }) => (
+                                                                         <FormItem className="w-24">
+                                                                             <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
+                                                                             <FormControl>
+                                                                                 <Input type="number" {...field} />
+                                                                             </FormControl>
+                                                                             <FormMessage />
+                                                                         </FormItem>
+                                                                     )}
+                                                                 />
+                                                                 <Button
+                                                                     type="button"
+                                                                     variant="ghost"
+                                                                     size="icon"
+                                                                     className="h-9 w-9 text-slate-400 hover:text-indigo-600"
+                                                                     title="Pull salary range from organization"
+                                                                     onClick={() => {
+                                                                         const gr = form.getValues(`ghostRoles.${index}`);
+                                                                         const range = getSuggestedSalaryRange(gr.roleType, employees);
+                                                                         form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
+                                                                         form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
+                                                                     }}
+                                                                 >
+                                                                     <UserPlus className="h-4 w-4" />
+                                                                 </Button>
+                                                             </div>
                                                             <Button
                                                                 type="button"
                                                                 variant="ghost"
@@ -596,13 +616,12 @@ export default function NewDealPage() {
                                                 </div>
                                             ) : (
                                                 ghostRoles.map((gr, grIndex) => {
-                                                    const role = roles.find(r => r.id === gr.roleType);
-                                                    const roleName = role?.title || gr.roleType;
+                                                    const roleLabel = CAPACITY_ROLE_OPTIONS.find(r => r.value === gr.roleType)?.label || gr.roleType;
 
                                                     const assigned = hardAssignments.filter(a => {
                                                         const emp = employees.find(e => e.id === a.employeeId);
                                                         if (!emp) return false;
-                                                        return emp.role === gr.roleType;
+                                                        return emp.capacityRole === gr.roleType;
                                                     });
 
                                                     const assignedCount = assigned.length;
@@ -610,7 +629,7 @@ export default function NewDealPage() {
 
                                                     const availableEmployees = employees.filter(e =>
                                                         e.status === 'Active' &&
-                                                        e.role === gr.roleType &&
+                                                        e.capacityRole === gr.roleType &&
                                                         e.monthlySalary >= gr.minMonthlySalary &&
                                                         e.monthlySalary <= gr.maxMonthlySalary &&
                                                         !hardAssignments.some(a => a.employeeId === e.id)
@@ -622,7 +641,7 @@ export default function NewDealPage() {
                                                         <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <div>
-                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleName}</h3>
+                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleLabel}</h3>
                                                                     <p className="text-xs text-muted-foreground mt-1">
                                                                         Assigned {assignedCount} of {gr.quantity} • Salary range: ${gr.minMonthlySalary.toLocaleString()} – ${gr.maxMonthlySalary.toLocaleString()}
                                                                     </p>
@@ -755,14 +774,14 @@ export default function NewDealPage() {
                                                 const unassigned = hardAssignments.filter(a => {
                                                     const emp = employees.find(e => e.id === a.employeeId);
                                                     if (!emp) return false;
-                                                    return !ghostRoles.some(gr => emp.role === gr.roleType);
+                                                    return !ghostRoles.some(gr => emp.capacityRole === gr.roleType);
                                                 });
                                                 if (unassigned.length === 0) return null;
                                                 return (
                                                     <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
                                                         <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
                                                         <p className="text-xs text-amber-700">
-                                                            These employees' roles don't match any role in Estimation. Update Estimation to include them.
+                                                            These employees&apos; roles don&apos;t match any role in Estimation. Update Estimation to include them.
                                                         </p>
                                                         <Table>
                                                             <TableHeader>
@@ -844,25 +863,15 @@ export default function NewDealPage() {
                                             })()}
                                         </TabsContent>
 
-                                        <TabsContent value="contracts" className="space-y-6">
-                                            <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3">
-                                                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                                                    <ArrowRight className="h-6 w-6 text-indigo-600" />
-                                                </div>
-                                                <h3 className="text-lg font-semibold text-slate-800">Deliverables & Invoicing</h3>
-                                                <p className="text-sm text-slate-500 max-w-sm">
-                                                    Contract generation, milestone planning, and project scaffolding will unlock once this deal transitions to the <b>Contract</b> stage.
-                                                </p>
-                                            </div>
-                                        </TabsContent>
                                     </Tabs>
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
                                         <p className="text-xs text-muted-foreground">
-                                            Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                                            Fields marked <span className="text-destructive">*</span> are required.
                                         </p>
                                         <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={createDeal.isPending}>
-                                            {createDeal.isPending ? 'Saving...' : 'Save Draft Deal'}
+                                            {createDeal.isPending ? 'Saving...' : 'Next'}
+                                            <ArrowRight className="ml-2 h-4 w-4" />
                                         </Button>
                                     </div>
                                 </form>

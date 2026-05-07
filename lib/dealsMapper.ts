@@ -9,6 +9,7 @@ import type {
     Project,
     Invoice,
     TimeEntry,
+    RoleType,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
@@ -19,6 +20,20 @@ interface ApiGhostRole {
     quantity: number;
     months: number;
     avg_monthly_salary: number;
+    min_monthly_salary?: number;
+    max_monthly_salary?: number;
+}
+
+function toGhostRole(row: ApiGhostRole): GhostRole {
+    const avg = row.avg_monthly_salary ?? 0
+    return {
+        id: row.id,
+        roleType: row.role_type as RoleType,
+        quantity: row.quantity,
+        months: row.months,
+        minMonthlySalary: row.min_monthly_salary ?? avg,
+        maxMonthlySalary: row.max_monthly_salary ?? avg,
+    };
 }
 
 interface ApiHardAssignment {
@@ -55,6 +70,7 @@ interface ApiDeal {
     timeline_months?: number;
     workload_hours?: number;
     workload_description?: string;
+    wizard_step?: string;
     target_margin?: number;
     base_labor_cost?: number;
     overhead_cost?: number;
@@ -124,18 +140,6 @@ interface ApiTimeEntry {
     notes?: string | null;
 }
 
-function toGhostRole(row: ApiGhostRole): GhostRole {
-    const avg = row.avg_monthly_salary ?? 0;
-    return {
-        id: row.id,
-        roleType: row.role_type,
-        quantity: row.quantity,
-        months: row.months,
-        minMonthlySalary: avg,
-        maxMonthlySalary: avg,
-    };
-}
-
 function toHardAssignment(row: ApiHardAssignment): HardAssignment {
     return {
         employeeId: row.employee_id,
@@ -177,6 +181,7 @@ export function toDeal(row: ApiDeal): Deal {
         timelineMonths: row.timeline_months,
         workloadHours: row.workload_hours,
         workloadDescription: row.workload_description,
+        wizardStep: row.wizard_step as Deal['wizardStep'],
         targetMargin: row.target_margin,
         baseLaborCost: row.base_labor_cost,
         overheadCost: row.overhead_cost,
@@ -283,6 +288,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.timelineMonths !== undefined) payload.timeline_months = deal.timelineMonths;
     if (deal.workloadHours !== undefined) payload.workload_hours = deal.workloadHours;
     if (deal.workloadDescription !== undefined) payload.workload_description = deal.workloadDescription;
+    if (deal.wizardStep !== undefined) payload.wizard_step = deal.wizardStep;
     if (deal.targetMargin !== undefined) payload.target_margin = deal.targetMargin;
     if (deal.baseLaborCost !== undefined) payload.base_labor_cost = deal.baseLaborCost;
     if (deal.overheadCost !== undefined) payload.overhead_cost = deal.overheadCost;
@@ -295,6 +301,8 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
             quantity: role.quantity,
             months: role.months,
             avg_monthly_salary: ((role.minMonthlySalary ?? 0) + (role.maxMonthlySalary ?? 0)) / 2,
+            min_monthly_salary: role.minMonthlySalary ?? 0,
+            max_monthly_salary: role.maxMonthlySalary ?? 0,
         }));
     }
     if (deal.hardAssignments !== undefined) {

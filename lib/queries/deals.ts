@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
+import { contractKeys } from '@/lib/queries/contracts';
 import { toDeal } from '@/lib/dealsMapper';
 import type { Deal } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
@@ -87,7 +88,7 @@ export function useDealDetail(id: string) {
 export function useDealMutations() {
     const queryClient = useQueryClient();
 
-    const createDeal = useMutation({
+    const createDeal = useMutation<Deal, Error, Deal>({
         mutationFn: (deal: Deal) =>
             useBusinessStore.getState().addDeal(deal),
         onSettled: () =>
@@ -140,11 +141,13 @@ export function useDealMutations() {
     const winDeal = useMutation({
         mutationFn: ({ dealId, winReason }: { dealId: string; winReason?: string }) =>
             useBusinessStore.getState().winDeal(dealId, winReason),
-        onSettled: () => {
+        onSettled: (_data, _err, { dealId }) => {
             // The stored proc touches three tables — invalidate all three caches
             queryClient.invalidateQueries({ queryKey: dealKeys.all });
             queryClient.invalidateQueries({ queryKey: ['contracts'] });
             queryClient.invalidateQueries({ queryKey: ['projects'] });
+            // Also invalidate the linked-contract query for this specific deal
+            queryClient.invalidateQueries({ queryKey: contractKeys.linked(dealId) });
         },
     });
 

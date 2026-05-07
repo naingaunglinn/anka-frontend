@@ -6,8 +6,9 @@ import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect } from "react";
+import toast from "react-hot-toast";
 import { useBusinessStore } from "@/store/businessStore";
-import { Deal, GhostRole, RoleType } from "@/types/business";
+import { GhostRole, RoleType } from "@/types/business";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { v4 as uuidv4 } from "uuid";
 
@@ -33,11 +34,14 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, ArrowRight, Upload, UserPlus, AlertCircle } from "lucide-react";
+import { Plus, Trash2, ArrowRight, ArrowLeft, Upload, UserPlus, AlertCircle, FileText, Wand2, CheckCircle2, Sparkles } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
+import { getSuggestedSalaryRange } from "@/lib/salaryRange";
+import { autoStaffFromGhostRoles } from "@/lib/autoStaffing";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
-import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS } from "@/lib/schemas/deal.schema";
+import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
+import { useLinkedContract } from "@/lib/queries/contracts";
 
 export default function EditDealPage() {
     const router = useRouter();
@@ -45,12 +49,13 @@ export default function EditDealPage() {
     const dealId = params.id as string;
 
     const deals = useBusinessStore((state) => state.deals);
+    const contracts = useBusinessStore((state) => state.contracts);
     const dealQuery = useDealDetail(dealId);
+    const linkedContractQuery = useLinkedContract(dealId);
     const { updateDeal } = useDealMutations();
     const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
-    const roles = useBusinessStore((state) => state.roles);
 
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -62,12 +67,34 @@ export default function EditDealPage() {
     // Per-ghost-role input state for staffing add rows (key = ghost role index)
     const [staffingInputs, setStaffingInputs] = useState<Record<number, { employeeId: string; hours: number }>>({});
 
+    // Wizard state — initialised from deal wizardStep to avoid a setState-in-effect
+    const [activeTab, setActiveTab] = useState<string>(() => {
+        const step = dealToEdit?.wizardStep;
+        if (step === 'estimation') return 'estimation';
+        if (step === 'staffing') return 'staffing';
+        return 'context';
+    });
+    const [estimationMode, setEstimationMode] = useState<'ai' | 'manual'>('manual');
+    const [autoStaffWarnings, setAutoStaffWarnings] = useState<string[]>([]);
+
     // Sync local hardAssignments when deal loads or AI result is accepted
     useEffect(() => {
         if (dealToEdit?.hardAssignments) {
             setHardAssignments(dealToEdit.hardAssignments.map(a => ({ ...a })));
         }
     }, [dealToEdit?.hardAssignments]);
+
+    // Resume at the saved wizard step once the deal is loaded
+    useEffect(() => {
+        if (dealToEdit?.wizardStep) {
+            const step = dealToEdit.wizardStep;
+            if (step === 'context') setActiveTab('context');
+            else if (step === 'estimation') setActiveTab('estimation');
+            else if (step === 'staffing') setActiveTab('staffing');
+        }
+    }, [dealToEdit?.wizardStep]);
+
+
 
     function addHardAssignmentForRole(grIndex: number) {
         const input = staffingInputs[grIndex];
@@ -103,17 +130,14 @@ export default function EditDealPage() {
             return acc;
         }, {} as Record<string, { members: typeof result.team; minSalary: number; maxSalary: number }>);
 
-        const newGhostRoles = Object.entries(roleGroups).map(([roleName, group]) => {
-            const matchedRole = roles.find(r => r.title === roleName);
-            return {
-                id: uuidv4(),
-                roleType: matchedRole?.id || roleName,
-                quantity: group.members.length,
-                months: timelineMonths,
-                minMonthlySalary: group.minSalary,
-                maxMonthlySalary: group.maxSalary,
-            };
-        });
+        const newGhostRoles: GhostRole[] = Object.entries(roleGroups).map(([roleName, group]) => ({
+            id: uuidv4(),
+            roleType: roleName as RoleType,
+            quantity: group.members.length,
+            months: timelineMonths,
+            minMonthlySalary: group.minSalary,
+            maxMonthlySalary: group.maxSalary,
+        }));
 
         form.setValue('ghostRoles', newGhostRoles);
 
@@ -156,7 +180,7 @@ export default function EditDealPage() {
             workloadDescription: dealToEdit?.workloadDescription || "",
             ghostRoles: dealToEdit?.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
-                : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
         },
     });
 
@@ -177,7 +201,7 @@ export default function EditDealPage() {
                 workloadDescription: dealToEdit.workloadDescription || "",
                 ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                     ? dealToEdit.ghostRoles
-                    : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                    : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
             });
         }
     }, [dealToEdit, form]);
@@ -321,7 +345,7 @@ export default function EditDealPage() {
                                             </span>
                                         </div>
                                     )}
-                                    <Tabs defaultValue="context" className="w-full">
+                                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                                         <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100/50">
                                             <TabsTrigger value="context">Sales Context</TabsTrigger>
                                             <TabsTrigger value="estimation">Estimation</TabsTrigger>
@@ -538,143 +562,194 @@ export default function EditDealPage() {
                                         </TabsContent>
 
                                         <TabsContent value="estimation" className="space-y-6">
-                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
-                                                <div className="flex items-center justify-between mb-6 pb-4 border-b">
-                                                    <div>
-                                                        <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
-                                                        <p className="text-xs text-muted-foreground mt-1">Estimate the shape of the team needed to deliver this deal.</p>
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 })}
-                                                    >
-                                                        <Plus className="h-4 w-4 mr-2" /> Add Role
-                                                    </Button>
-                                                </div>
-
-                                                <div className="space-y-4">
-                                                    {fields.map((field, index) => (
-                                                        <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.roleType`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="flex-1">
-                                                                        <FormLabel className="text-xs text-slate-500">Role</FormLabel>
-                                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                                            <FormControl>
-                                                                                <SelectTrigger>
-                                                                                    <SelectValue placeholder="Select a role" />
-                                                                                </SelectTrigger>
-                                                                            </FormControl>
-                                                                            <SelectContent>
-                                                                              <SelectItem value="none">None</SelectItem>
-                                                                                {roles.map((role) => (
-                                                                                    <SelectItem key={role.id} value={role.id}>
-                                                                                        {role.title}
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.quantity`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-20">
-                                                                        <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.months`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-20">
-                                                                        <FormLabel className="text-xs text-slate-500">Mos.</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.minMonthlySalary`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-24">
-                                                                        <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.maxMonthlySalary`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-24">
-                                                                        <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                                                onClick={() => remove(index)}
-                                                                disabled={fields.length === 1}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                            <div className="flex gap-2 mb-2">
+                                                <Button
+                                                    type="button"
+                                                    variant={estimationMode === 'manual' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setEstimationMode('manual')}
+                                                >
+                                                    Manual
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant={estimationMode === 'ai' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setEstimationMode('ai')}
+                                                >
+                                                    <Sparkles className="mr-2 h-4 w-4" />
+                                                    AI Team Builder
+                                                </Button>
                                             </div>
 
-                                            <AITeamBuilder
-                                                dealId={dealId}
-                                                clientBudget={clientBudget}
-                                                timelineMonths={timelineMonths}
-                                                workloadHours={workloadHours}
-                                                workloadDescription={workloadDescription}
-                                                workloadDocumentText={workloadDocText}
-                                                onAccept={handleAcceptAIResult}
-                                            />
+                                            {estimationMode === 'manual' && (
+                                                <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                                                    <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                                                        <div>
+                                                            <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
+                                                            <p className="text-xs text-muted-foreground mt-1">Estimate the shape of the team needed to deliver this deal.</p>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="bg-white shadow-sm"
+                                                                onClick={() => {
+                                                                    const range = getSuggestedSalaryRange('frontend', employees);
+                                                                    append({ roleType: 'frontend', quantity: 1, months: timelineMonths || 1, minMonthlySalary: range.min, maxMonthlySalary: range.max });
+                                                                }}
+                                                        >
+                                                            <Plus className="h-4 w-4 mr-2" /> Add Role
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        {fields.map((field, index) => (
+                                                            <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.roleType`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="flex-1">
+                                                                            <FormLabel className="text-xs text-slate-500">Role</FormLabel>
+                                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                                <FormControl>
+                                                                                    <SelectTrigger>
+                                                                                        <SelectValue placeholder="Select a role" />
+                                                                                    </SelectTrigger>
+                                                                                </FormControl>
+                                                                                <SelectContent>
+                                                                                    {CAPACITY_ROLE_OPTIONS.map((role) => (
+                                                                                        <SelectItem key={role.value} value={role.value}>
+                                                                                            {role.label}
+                                                                                        </SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.quantity`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="w-20">
+                                                                            <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
+                                                                            <FormControl>
+                                                                                <Input type="number" {...field} />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.months`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="w-20">
+                                                                            <FormLabel className="text-xs text-slate-500">Mos.</FormLabel>
+                                                                            <FormControl>
+                                                                                <Input type="number" {...field} />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                 <div className="flex items-end gap-1">
+                                                                     <FormField
+                                                                         control={form.control}
+                                                                         name={`ghostRoles.${index}.minMonthlySalary`}
+                                                                         render={({ field }) => (
+                                                                             <FormItem className="w-24">
+                                                                                 <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                                                 <FormControl>
+                                                                                     <Input type="number" {...field} />
+                                                                                 </FormControl>
+                                                                                 <FormMessage />
+                                                                             </FormItem>
+                                                                         )}
+                                                                     />
+                                                                     <FormField
+                                                                         control={form.control}
+                                                                         name={`ghostRoles.${index}.maxMonthlySalary`}
+                                                                         render={({ field }) => (
+                                                                             <FormItem className="w-24">
+                                                                                 <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
+                                                                                 <FormControl>
+                                                                                     <Input type="number" {...field} />
+                                                                                 </FormControl>
+                                                                                 <FormMessage />
+                                                                             </FormItem>
+                                                                         )}
+                                                                     />
+                                                                     <Button
+                                                                         type="button"
+                                                                         variant="ghost"
+                                                                         size="icon"
+                                                                         className="h-9 w-9 text-slate-400 hover:text-indigo-600"
+                                                                         title="Pull salary range from organization"
+                                                                         onClick={() => {
+                                                                             const gr = form.getValues(`ghostRoles.${index}`);
+                                                                             const range = getSuggestedSalaryRange(gr.roleType, employees);
+                                                                             form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
+                                                                             form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
+                                                                         }}
+                                                                     >
+                                                                         <UserPlus className="h-4 w-4" />
+                                                                     </Button>
+                                                                 </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                    onClick={() => remove(index)}
+                                                                    disabled={fields.length === 1}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {estimationMode === 'ai' && (
+                                                <AITeamBuilder
+                                                    dealId={dealId}
+                                                    clientBudget={clientBudget}
+                                                    timelineMonths={timelineMonths}
+                                                    workloadHours={workloadHours}
+                                                    workloadDescription={workloadDescription}
+                                                    workloadDocumentText={workloadDocText}
+                                                    onAccept={handleAcceptAIResult}
+                                                />
+                                            )}
                                         </TabsContent>
 
                                         <TabsContent value="staffing" className="space-y-6">
+                                            {autoStaffWarnings.length > 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                                                    <h4 className="text-sm font-semibold text-amber-900">Auto-Staff Warnings</h4>
+                                                    {autoStaffWarnings.map((w, i) => (
+                                                        <p key={i} className="text-xs text-amber-700">{w}</p>
+                                                    ))}
+                                                </div>
+                                            )}
+
                                             {ghostRoles.length === 0 ? (
                                                 <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center">
                                                     <p className="text-sm text-slate-500">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
                                                 </div>
                                             ) : (
                                                 ghostRoles.map((gr, grIndex) => {
-                                                    const role = roles.find(r => r.id === gr.roleType);
-                                                    const roleName = role?.title || gr.roleType;
+                                                    const roleLabel = CAPACITY_ROLE_OPTIONS.find(r => r.value === gr.roleType)?.label || gr.roleType;
 
                                                     const assigned = hardAssignments.filter(a => {
                                                         const emp = employees.find(e => e.id === a.employeeId);
                                                         if (!emp) return false;
-                                                        return emp.role === gr.roleType;
+                                                        return emp.capacityRole === gr.roleType;
                                                     });
 
                                                     const assignedCount = assigned.length;
@@ -682,7 +757,7 @@ export default function EditDealPage() {
 
                                                     const availableEmployees = employees.filter(e =>
                                                         e.status === 'Active' &&
-                                                        e.role === gr.roleType &&
+                                                        e.capacityRole === gr.roleType &&
                                                         e.monthlySalary >= gr.minMonthlySalary &&
                                                         e.monthlySalary <= gr.maxMonthlySalary &&
                                                         !hardAssignments.some(a => a.employeeId === e.id)
@@ -694,7 +769,7 @@ export default function EditDealPage() {
                                                         <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <div>
-                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleName}</h3>
+                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleLabel}</h3>
                                                                     <p className="text-xs text-muted-foreground mt-1">
                                                                         Assigned {assignedCount} of {gr.quantity} • Salary range: ${gr.minMonthlySalary.toLocaleString()} – ${gr.maxMonthlySalary.toLocaleString()}
                                                                     </p>
@@ -827,14 +902,14 @@ export default function EditDealPage() {
                                                 const unassigned = hardAssignments.filter(a => {
                                                     const emp = employees.find(e => e.id === a.employeeId);
                                                     if (!emp) return false;
-                                                    return !ghostRoles.some(gr => emp.role === gr.roleType);
+                                                    return !ghostRoles.some(gr => emp.capacityRole === gr.roleType);
                                                 });
                                                 if (unassigned.length === 0) return null;
                                                 return (
                                                     <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
                                                         <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
                                                         <p className="text-xs text-amber-700">
-                                                            These employees' roles don't match any role in Estimation. Update Estimation to include them.
+                                                            These employees&apos; roles don&apos;t match any role in Estimation. Update Estimation to include them.
                                                         </p>
                                                         <Table>
                                                             <TableHeader>
@@ -917,25 +992,233 @@ export default function EditDealPage() {
                                         </TabsContent>
 
                                         <TabsContent value="contracts" className="space-y-6">
-                                            <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3">
-                                                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                                                    <ArrowRight className="h-6 w-6 text-indigo-600" />
+                                            {dealToEdit.status === 'won' && (() => {
+                                                // Prefer the dedicated API query, fall back to Zustand store
+                                                const linkedContract = linkedContractQuery.data ?? contracts.find(c => c.dealId === dealId);
+                                                if (linkedContractQuery.isLoading) {
+                                                    return (
+                                                        <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center">
+                                                            <p className="text-sm text-slate-500 animate-pulse">Loading contract...</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                if (!linkedContract) return (
+                                                    <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3">
+                                                        <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                            <ArrowRight className="h-6 w-6 text-indigo-600" />
+                                                        </div>
+                                                        <h3 className="text-lg font-semibold text-slate-800">Deal Won</h3>
+                                                        <p className="text-sm text-slate-500 max-w-sm">
+                                                            This deal has been won. Contract and project records were created automatically.
+                                                        </p>
+                                                    </div>
+                                                );
+                                                return (
+                                                    <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                                                                <FileText className="h-5 w-5 text-emerald-600" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="text-sm font-semibold text-slate-900">Contract Created</h3>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {linkedContract.contractNumber || linkedContract.id.slice(0, 8)} · {linkedContract.status} · ${linkedContract.totalValue.toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            onClick={() => router.push('/contracts')}
+                                                        >
+                                                            View in Contracts
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {dealToEdit.status !== 'won' && (
+                                                <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3">
+                                                    <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                        <ArrowRight className="h-6 w-6 text-indigo-600" />
+                                                    </div>
+                                                    <h3 className="text-lg font-semibold text-slate-800">Deliverables & Invoicing</h3>
+                                                    <p className="text-sm text-slate-500 max-w-sm">
+                                                        Contract generation, milestone planning, and project scaffolding will unlock once this deal is <b>Won</b>.
+                                                    </p>
                                                 </div>
-                                                <h3 className="text-lg font-semibold text-slate-800">Deliverables & Invoicing</h3>
-                                                <p className="text-sm text-slate-500 max-w-sm">
-                                                    Contract generation, milestone planning, and project scaffolding will unlock once this deal transitions to the <b>Contract</b> stage.
-                                                </p>
-                                            </div>
+                                            )}
                                         </TabsContent>
                                     </Tabs>
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
                                         <p className="text-xs text-muted-foreground">
-                                            Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                                            {activeTab === 'context' && "Fill in the client details and click Next to move to Estimation."}
+                                            {activeTab === 'estimation' && "Define the team structure and click Save & Next to move to Staffing."}
+                                            {activeTab === 'staffing' && "Assign employees to roles. Use Auto-Staff to fill automatically."}
+                                            {activeTab === 'contracts' && "Contract details are managed after the deal is won."}
                                         </p>
-                                        <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={updateDeal.isPending}>
-                                            {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            {activeTab !== 'context' && activeTab !== 'contracts' && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="lg"
+                                                    onClick={() => {
+                                                        if (activeTab === 'estimation') setActiveTab('context');
+                                                        if (activeTab === 'staffing') setActiveTab('estimation');
+                                                    }}
+                                                >
+                                                    <ArrowLeft className="mr-2 h-4 w-4" />
+                                                    Previous
+                                                </Button>
+                                            )}
+                                            {activeTab === 'context' && (
+                                                <Button
+                                                    type="button"
+                                                    size="lg"
+                                                    disabled={updateDeal.isPending}
+                                                    onClick={async () => {
+                                                        const valid = await form.trigger(['name', 'client', 'contactName', 'contactEmail', 'contactPhone', 'clientBudget', 'timelineMonths']);
+                                                        if (!valid) {
+                                                            onFormError();
+                                                            return;
+                                                        }
+                                                        const data = form.getValues();
+                                                        await updateDeal.mutateAsync({
+                                                            id: dealId,
+                                                            updates: {
+                                                                name: data.name,
+                                                                client: data.client,
+                                                                contactName: data.contactName,
+                                                                contactEmail: data.contactEmail,
+                                                                contactPhone: data.contactPhone,
+                                                                expectedCloseDate: data.expectedCloseDate || undefined,
+                                                                leadSource: data.leadSource,
+                                                                clientBudget: data.clientBudget,
+                                                                timelineMonths: data.timelineMonths,
+                                                                workloadHours: data.workloadHours,
+                                                                workloadDescription: data.workloadDescription,
+                                                                winProbability: data.winProbability,
+                                                                wizardStep: 'estimation',
+                                                            },
+                                                        });
+                                                        setActiveTab('estimation');
+                                                    }}
+                                                >
+                                                    {updateDeal.isPending ? 'Saving...' : 'Next'}
+                                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {activeTab === 'estimation' && (
+                                                <Button
+                                                    type="button"
+                                                    size="lg"
+                                                    disabled={updateDeal.isPending}
+                                                    onClick={async () => {
+                                                        const valid = await form.trigger('ghostRoles');
+                                                        if (!valid) {
+                                                            onFormError();
+                                                            return;
+                                                        }
+                                                        const data = form.getValues();
+                                                        const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
+                                                            id: gr.id || uuidv4(),
+                                                            roleType: gr.roleType as RoleType,
+                                                            quantity: gr.quantity,
+                                                            months: gr.months,
+                                                            minMonthlySalary: gr.minMonthlySalary,
+                                                            maxMonthlySalary: gr.maxMonthlySalary,
+                                                        }));
+                                                        await updateDeal.mutateAsync({
+                                                            id: dealId,
+                                                            updates: {
+                                                                ghostRoles: roles,
+                                                                baseLaborCost,
+                                                                overheadCost,
+                                                                bufferCost,
+                                                                totalEstimatedCost,
+                                                                estimatedGrossProfit,
+                                                                wizardStep: 'staffing',
+                                                            },
+                                                        });
+                                                        setActiveTab('staffing');
+                                                    }}
+                                                >
+                                                    {updateDeal.isPending ? 'Saving...' : 'Save & Next'}
+                                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {activeTab === 'staffing' && (
+                                                <>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="lg"
+                                                        onClick={() => {
+                                                            const { assignments, warnings } = autoStaffFromGhostRoles(ghostRoles, employees, hardAssignments);
+                                                            setHardAssignments(assignments);
+                                                            setAutoStaffWarnings(warnings);
+                                                            if (warnings.length === 0) {
+                                                                toast.success('Auto-staffing complete!');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Wand2 className="mr-2 h-4 w-4" />
+                                                        Auto-Staff
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="lg"
+                                                        disabled={updateDeal.isPending}
+                                                        onClick={async () => {
+                                                            const data = form.getValues();
+                                                            const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
+                                                                id: gr.id || uuidv4(),
+                                                                roleType: gr.roleType as RoleType,
+                                                                quantity: gr.quantity,
+                                                                months: gr.months,
+                                                                minMonthlySalary: gr.minMonthlySalary,
+                                                                maxMonthlySalary: gr.maxMonthlySalary,
+                                                            }));
+                                                            await updateDeal.mutateAsync({
+                                                                id: dealId,
+                                                                updates: {
+                                                                    name: data.name,
+                                                                    client: data.client,
+                                                                    contactName: data.contactName,
+                                                                    contactEmail: data.contactEmail,
+                                                                    contactPhone: data.contactPhone,
+                                                                    expectedCloseDate: data.expectedCloseDate || undefined,
+                                                                    leadSource: data.leadSource,
+                                                                    clientBudget: data.clientBudget,
+                                                                    timelineMonths: data.timelineMonths,
+                                                                    workloadHours: data.workloadHours,
+                                                                    workloadDescription: data.workloadDescription,
+                                                                    winProbability: data.winProbability,
+                                                                    ghostRoles: roles,
+                                                                    hardAssignments,
+                                                                    baseLaborCost,
+                                                                    overheadCost,
+                                                                    bufferCost,
+                                                                    totalEstimatedCost,
+                                                                    estimatedGrossProfit,
+                                                                    wizardStep: 'complete',
+                                                                },
+                                                            });
+                                                            router.push('/crm');
+                                                        }}
+                                                    >
+                                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                        {updateDeal.isPending ? 'Saving...' : 'Save Deal'}
+                                                    </Button>
+                                                </>
+                                            )}
+                                            {activeTab === 'contracts' && (
+                                                <Button type="submit" size="lg" disabled={updateDeal.isPending}>
+                                                    {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </form>
                             </Form>
