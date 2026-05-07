@@ -148,11 +148,9 @@ export default function RegisterPage() {
                                                         <FormControl>
                                                             <SelectTrigger className="h-11 w-[120px] shrink-0 border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
                                                                 <div className="flex items-center gap-2">
-                                                                    <img
-                                                                        src={getFlagUrl(selectedCountry.iso)}
-                                                                        alt=""
-                                                                        className="h-3.5 w-5 rounded-sm object-cover"
-                                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                    <div
+                                                                        className="h-3.5 w-5 shrink-0 rounded-sm bg-cover bg-center"
+                                                                        style={{ backgroundImage: `url(${getFlagUrl(selectedCountry.iso)})` }}
                                                                     />
                                                                     <SelectValue>{selectedCountry.dial}</SelectValue>
                                                                 </div>
@@ -162,11 +160,9 @@ export default function RegisterPage() {
                                                             {PHONE_COUNTRIES.map((country) => (
                                                                 <SelectItem key={country.iso} value={country.iso}>
                                                                     <div className="flex items-center gap-2">
-                                                                        <img
-                                                                            src={getFlagUrl(country.iso)}
-                                                                            alt=""
-                                                                            className="h-3.5 w-5 rounded-sm object-cover"
-                                                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                        <div
+                                                                            className="h-3.5 w-5 shrink-0 rounded-sm bg-cover bg-center"
+                                                                            style={{ backgroundImage: `url(${getFlagUrl(country.iso)})` }}
                                                                         />
                                                                         <span>{country.label} {country.dial}</span>
                                                                     </div>
