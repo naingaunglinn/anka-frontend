@@ -32,10 +32,6 @@ export default function ForecastPage() {
             const lastMonth = pnlData[pnlData.length - 1];
             baseRevenue = lastMonth.revenue;
             baseCosts = lastMonth.directLabor + lastMonth.overhead;
-        } else {
-            // Fallback if no actual data yet
-            baseRevenue = 150000;
-            baseCosts = 90000;
         }
 
         const hireCost = newHires[0] * 8000; // Assume $8k/mo per new hire
@@ -91,6 +87,17 @@ export default function ForecastPage() {
                 </div>
             </div>
 
+            {pnlData.length === 0 ? (
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="p-12 text-center">
+                        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-slate-900 mb-2">Insufficient Data</h3>
+                        <p className="text-slate-500 max-w-md mx-auto">
+                            No financial history found. Log paid invoices and approved time entries to generate a forecast baseline.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Simulation Controls Panel */}
@@ -218,6 +225,7 @@ export default function ForecastPage() {
 
                 </div>
             </div>
+            )}
         </div>
     );
 }
