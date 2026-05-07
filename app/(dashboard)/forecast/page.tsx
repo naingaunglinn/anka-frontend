@@ -6,7 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Calculator } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
-import { useTenantStore } from '@/store/tenantStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney, formatMoneyShort } from '@/lib/currency';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useInvoiceList } from '@/lib/queries/invoices';
@@ -14,8 +14,8 @@ import { useTimeEntryList } from '@/lib/queries/timeEntries';
 
 export default function ForecastPage() {
     const store = useBusinessStore();
-    const { activeTenantId, tenants } = useTenantStore();
-    const currency = tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     useOrganizationSync();
     useInvoiceList();
     useTimeEntryList();

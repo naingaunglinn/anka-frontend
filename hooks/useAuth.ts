@@ -26,6 +26,7 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
                 id: (tenant.id as string) ?? '',
                 name: (tenant.name as string) ?? '',
                 slug: (tenant.slug as string) ?? '',
+                currency: (tenant.currency as string) ?? 'MMK',
             }
             : null,
     };
@@ -37,12 +38,26 @@ function setTenantContext(user: AuthUser) {
         return;
     }
     if (user.tenant?.id) {
-        const { activeTenantId, setActiveTenant, setCurrentTenant } = useTenantStore.getState();
+        const { activeTenantId, setActiveTenant, setCurrentTenant, setTenants, tenants } = useTenantStore.getState();
         const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!activeTenantId || !UUID_RE.test(activeTenantId)) {
             setActiveTenant(user.tenant.id);
         }
-        setCurrentTenant(user.tenant);
+        setCurrentTenant({
+            ...user.tenant,
+            currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+        });
+        // Ensure tenant is in the tenants array so currency lookups work
+        const tenantWithCurrency = {
+            ...user.tenant,
+            currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+        };
+        const exists = tenants.some((t) => t.id === user.tenant!.id);
+        if (!exists) {
+            setTenants([...tenants, tenantWithCurrency]);
+        } else {
+            setTenants(tenants.map((t) => (t.id === user.tenant!.id ? tenantWithCurrency : t)));
+        }
     }
 }
 

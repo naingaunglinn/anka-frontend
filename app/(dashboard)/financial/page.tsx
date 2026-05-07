@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
-import { useTenantStore } from '@/store/tenantStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney } from '@/lib/currency';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
@@ -16,8 +16,8 @@ import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 export default function FinancialPage() {
     const store = useBusinessStore();
-    const { activeTenantId, tenants } = useTenantStore();
-    const currency = tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
     // Load invoices, time entries, and org data so P&L is always populated
     useInvoiceList();
