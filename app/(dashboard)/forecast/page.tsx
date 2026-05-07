@@ -1,24 +1,29 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Calculator } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
+import { useInvoiceList } from '@/lib/queries/invoices';
+import { useTimeEntryList } from '@/lib/queries/timeEntries';
 
 export default function ForecastPage() {
     const store = useBusinessStore();
+    useOrganizationSync();
+    useInvoiceList();
+    useTimeEntryList();
     const pnlData = store.getFinancialPnL();
 
-    // Simulation Parameters
-    const [utilizationDrop, setUtilizationDrop] = useState([0]); // 0 to 50% drop
-    const [delayedDeals, setDelayedDeals] = useState([0]); // 0 to $200k
-    const [newHires, setNewHires] = useState([0]); // 0 to 10 devs
+    // Simulation Parameters — use scalar numbers internally
+    const [utilizationDrop, setUtilizationDrop] = useState(0);
+    const [delayedDeals, setDelayedDeals] = useState(0);
+    const [newHires, setNewHires] = useState(0);
 
-    // Generate accurate projection data based on the real store data
-    const generateProjection = () => {
-        // Base numbers from last month of actual data
+    // Inline projection logic directly in useMemo to avoid stale closures
+    const chartData = useMemo(() => {
         let baseRevenue = 0;
         let baseCosts = 0;
 
@@ -26,14 +31,9 @@ export default function ForecastPage() {
             const lastMonth = pnlData[pnlData.length - 1];
             baseRevenue = lastMonth.revenue;
             baseCosts = lastMonth.directLabor + lastMonth.overhead;
-        } else {
-            // Fallback if no actual data yet
-            baseRevenue = 150000;
-            baseCosts = 90000;
         }
 
-        const hireCost = newHires[0] * 8000; // Assume $8k/mo per new hire
-
+        const hireCost = newHires * 8000;
         const months = ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'];
         const data = [];
 
@@ -41,40 +41,39 @@ export default function ForecastPage() {
         let currentCost = baseCosts + hireCost;
 
         for (let i = 0; i < months.length; i++) {
-            // Apply simulation penalties over time
-            const revPenalty = (utilizationDrop[0] / 100) * currentRev;
-            const delayPenalty = i < 3 ? (delayedDeals[0] / 3) : 0; // Spread deal delay over 3 months
+            const revPenalty = (utilizationDrop / 100) * currentRev;
+            const delayPenalty = i < 3 ? (delayedDeals / 3) : 0;
 
             const projectedRev = currentRev - revPenalty - delayPenalty;
-            const projectedCost = currentCost; // Costs stay sticky
+            const projectedCost = currentCost;
             const projectedProfit = projectedRev - projectedCost;
 
             data.push({
                 month: months[i],
-                BaselineProfit: currentRev - currentCost, // What profit would be without shock
+                BaselineProfit: currentRev - currentCost,
                 ProjectedProfit: projectedProfit,
                 ProjectedRevenue: projectedRev,
-                ProjectedCost: projectedCost
+                ProjectedCost: projectedCost,
             });
 
-            // Slight organic growth baseline
             currentRev *= 1.02;
         }
 
         return data;
-    };
+    }, [utilizationDrop, delayedDeals, newHires, pnlData]);
 
-    const chartData = useMemo(() => generateProjection(), [utilizationDrop, delayedDeals, newHires, pnlData]);
+    // Wrap slider handlers to extract scalar value from array
+    const handleUtilizationChange = useCallback((val: number[]) => setUtilizationDrop(val[0] ?? 0), []);
+    const handleDelayedDealsChange = useCallback((val: number[]) => setDelayedDeals(val[0] ?? 0), []);
+    const handleNewHiresChange = useCallback((val: number[]) => setNewHires(val[0] ?? 0), []);
 
-    // Financial Health Analysis String
-    const getHealthAnalysis = () => {
+    // Financial Health Analysis
+    const analysis = useMemo(() => {
         const lowestProfit = Math.min(...chartData.map(d => d.ProjectedProfit));
         if (lowestProfit < 0) return { text: "Critical: Simulation shows negative cashflow.", color: "text-rose-600", bg: "bg-rose-50 border-rose-200" };
         if (lowestProfit < 20000) return { text: "Warning: Margins become dangerously thin.", color: "text-amber-600", bg: "bg-amber-50 border-amber-200" };
         return { text: "Healthy: Operations remain profitable.", color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200" };
-    };
-
-    const analysis = getHealthAnalysis();
+    }, [chartData]);
 
     return (
         <div className="p-6 space-y-6">
@@ -85,6 +84,17 @@ export default function ForecastPage() {
                 </div>
             </div>
 
+            {pnlData.length === 0 ? (
+                <Card className="shadow-sm border-slate-100">
+                    <CardContent className="p-12 text-center">
+                        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-slate-900 mb-2">Insufficient Data</h3>
+                        <p className="text-slate-500 max-w-md mx-auto">
+                            No financial history found. Log paid invoices and approved time entries to generate a forecast baseline.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Simulation Controls Panel */}
@@ -101,27 +111,27 @@ export default function ForecastPage() {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-slate-300">Utilization Drop (Bench Risk)</span>
-                                <span className="text-sm font-bold text-rose-400">{utilizationDrop[0]}%</span>
+                                <span className="text-sm font-bold text-rose-400">{utilizationDrop}%</span>
                             </div>
-                            <Slider value={utilizationDrop} onValueChange={setUtilizationDrop} max={50} step={5} />
+                            <Slider value={[utilizationDrop]} onValueChange={handleUtilizationChange} max={50} step={5} />
                             <p className="text-xs text-slate-500">Simulates clients pulling back, dropping billable hours.</p>
                         </div>
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-slate-300">Delayed Pipeline Deals</span>
-                                <span className="text-sm font-bold text-amber-400">${delayedDeals[0].toLocaleString()}</span>
+                                <span className="text-sm font-bold text-amber-400">${delayedDeals.toLocaleString()}</span>
                             </div>
-                            <Slider value={delayedDeals} onValueChange={setDelayedDeals} max={300000} step={25000} />
+                            <Slider value={[delayedDeals]} onValueChange={handleDelayedDealsChange} max={300000} step={25000} />
                             <p className="text-xs text-slate-500">Revenue pushed out from current CRM pipeline.</p>
                         </div>
 
                         <div className="space-y-4 border-t border-slate-800 pt-6">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-slate-300">New Developer Hires</span>
-                                <span className="text-sm font-bold text-blue-400">{newHires[0]} Staff</span>
+                                <span className="text-sm font-bold text-blue-400">{newHires} Staff</span>
                             </div>
-                            <Slider value={newHires} onValueChange={setNewHires} max={10} step={1} />
+                            <Slider value={[newHires]} onValueChange={handleNewHiresChange} max={10} step={1} />
                             <p className="text-xs text-slate-500">Increases fixed salary costs independent of revenue.</p>
                         </div>
 
@@ -212,6 +222,7 @@ export default function ForecastPage() {
 
                 </div>
             </div>
+            )}
         </div>
     );
 }
