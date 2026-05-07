@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useBusinessStore } from "@/store/businessStore";
+import { useUIStore } from "@/store/uiStore";
 import { useDealList } from "@/lib/queries/deals";
 import { useProjectList } from "@/lib/queries/projects";
 import { useInvoiceList } from "@/lib/queries/invoices";
@@ -15,13 +16,31 @@ import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { formatMoney } from "@/lib/currency";
 
+const demoPnlData = [
+    { month: "Jan", revenue: 680000, operatingProfit: 182000 },
+    { month: "Feb", revenue: 720000, operatingProfit: 205000 },
+    { month: "Mar", revenue: 790000, operatingProfit: 233000 },
+    { month: "Apr", revenue: 845000, operatingProfit: 262000 },
+    { month: "May", revenue: 910000, operatingProfit: 289000 },
+    { month: "Jun", revenue: 980000, operatingProfit: 321000 },
+];
+
+const demoPipelineDeals = [
+    { name: "GlobalPay Rollout", weightedValue: 312000, rawTarget: 480000 },
+    { name: "Skyline ERP Phase 2", weightedValue: 275000, rawTarget: 430000 },
+    { name: "Vertex Billing Revamp", weightedValue: 232000, rawTarget: 350000 },
+    { name: "Nova CRM Expansion", weightedValue: 184000, rawTarget: 300000 },
+    { name: "Atlas Migration", weightedValue: 152000, rawTarget: 260000 },
+];
+
 export default function DashboardPage() {
     const [isMounted, setIsMounted] = useState(false);
+    const isDemoMode = useUIStore((s) => s.isDemoMode);
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
-    // Load all data needed for the dashboard independently, seeding the store
+    // Keep hooks stable; demo mode swaps displayed data below.
     useDealList();
     useProjectList();
     useInvoiceList();
@@ -31,7 +50,10 @@ export default function DashboardPage() {
         setIsMounted(true);
     }, []);
 
-    const pnlData = useMemo(() => store.getFinancialPnL(), [store]);
+    const pnlData = useMemo(() => {
+        if (isDemoMode) return demoPnlData;
+        return store.getFinancialPnL();
+    }, [isDemoMode, store]);
 
     // Summary Metrics
     const { totalRev, totalProfit } = useMemo(() => {
@@ -44,18 +66,22 @@ export default function DashboardPage() {
         return { totalRev: rev, totalProfit: profit };
     }, [pnlData]);
 
-    const activeProjectsCount = store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
+    const activeProjectsCount = isDemoMode
+        ? 14
+        : store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
 
     // Pipeline Deals
-    const pipelineDeals = store.deals
-        .filter(d => d.status !== 'won' && d.status !== 'lost')
-        .map(d => ({
-            name: d.name,
-            weightedValue: (d.estimatedValue || 0) * ((d.winProbability || 0) / 100),
-            rawTarget: d.estimatedValue || 0,
-        }))
-        .sort((a, b) => b.weightedValue - a.weightedValue)
-        .slice(0, 10);
+    const pipelineDeals = isDemoMode
+        ? demoPipelineDeals
+        : store.deals
+            .filter(d => d.status !== 'won' && d.status !== 'lost')
+            .map(d => ({
+                name: d.name,
+                weightedValue: (d.estimatedValue || 0) * ((d.winProbability || 0) / 100),
+                rawTarget: d.estimatedValue || 0,
+            }))
+            .sort((a, b) => b.weightedValue - a.weightedValue)
+            .slice(0, 10);
 
     if (!isMounted) return null;
 
@@ -65,8 +91,23 @@ export default function DashboardPage() {
         <div className="container mx-auto p-6 max-w-7xl space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground">High-level overview of revenue, pipeline, and active projects.</p>
+                <p className="text-muted-foreground">
+                    {isDemoMode
+                        ? "Demo snapshot: sample gross-profit intelligence, pipeline, and recommendation signals."
+                        : "High-level overview of revenue, pipeline, and active projects."}
+                </p>
             </div>
+
+            {isDemoMode && (
+                <Card className="border-[#00a6f4]/25 bg-[#00a6f4]/5">
+                    <CardContent className="pt-6">
+                        <p className="text-sm text-[#0c4a6e]">
+                            Demo Version is intentionally scoped. You can explore Dashboard insights with sample data, while edit actions
+                            and advanced modules are hidden.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-4">
@@ -99,7 +140,15 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatMoney(store.deals.reduce((sum, d) => d.status !== 'won' && d.status !== 'lost' ? sum + (d.estimatedValue || d.clientBudget || 0) : sum, 0), currency)}
+                            {formatMoney(
+                                isDemoMode
+                                    ? 1820000
+                                    : store.deals.reduce(
+                                        (sum, d) => d.status !== 'won' && d.status !== 'lost' ? sum + (d.estimatedValue || d.clientBudget || 0) : sum,
+                                        0
+                                    ),
+                                currency
+                            )}
                         </div>
                         <p className="text-xs text-muted-foreground">Total un-won deal targets</p>
                     </CardContent>

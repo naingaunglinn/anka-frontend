@@ -40,6 +40,11 @@ const orgRoutes = [
     { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
 ];
 
+const demoRoutes = [
+    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-sky-500' },
+    { label: 'Forecast Preview', icon: LineChart, href: '/forecast', color: 'text-indigo-500' },
+];
+
 const superAdminRoutes = [
     { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-sky-500' },
     { label: 'Tenant Management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
@@ -50,7 +55,7 @@ const superAdminRoutes = [
 
 export const Sidebar = () => {
     const pathname = usePathname();
-    const { isSidebarCollapsed, toggleSidebar } = useUIStore();
+    const { isSidebarCollapsed, toggleSidebar, isDemoMode } = useUIStore();
     const user = useAuthStore((s) => s.user);
     const [mounted, setMounted] = useState(false);
 
@@ -61,8 +66,8 @@ export const Sidebar = () => {
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
-    const routes = user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes;
-    const homeHref = user?.isSuperAdmin ? '/tenant' : '/dashboard';
+    const routes = isDemoMode ? demoRoutes : (user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes);
+    const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl relative transition-all duration-300 w-full overflow-hidden">
@@ -92,6 +97,9 @@ export const Sidebar = () => {
 
                 {user?.isSuperAdmin && !isSidebarCollapsed && (
                     <p className="text-[11px] uppercase tracking-wider text-slate-500 px-3 mb-2">Admin Panel</p>
+                )}
+                {isDemoMode && !isSidebarCollapsed && (
+                    <p className="text-[11px] uppercase tracking-wider text-sky-400 px-3 mb-2">Demo Version (Read Only)</p>
                 )}
 
                 <div className="space-y-1">

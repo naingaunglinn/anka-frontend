@@ -20,7 +20,7 @@ export default function Home() {
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/login" className="hidden text-sm font-medium text-[#171717] hover:text-[#00a6f4] md:inline-flex">Sign in</Link>
-            <Link href="/register" className="inline-flex items-center gap-2 rounded-full bg-[#171717] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#00a6f4]">
+            <Link href="/login?demo=1" className="inline-flex items-center gap-2 rounded-full bg-[#171717] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#00a6f4]">
               Request demo
               <ArrowRight className="h-4 w-4" />
             </Link>
