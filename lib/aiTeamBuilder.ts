@@ -1,16 +1,12 @@
 import type { AITeamBuilderInput } from '@/types/aiTeamBuilder'
 
-export const SYSTEM_PROMPT = `You are a senior software project staffing consultant for a digital agency.
-Your job is to analyze a client project brief and select the optimal team
-from a real employee pool, then calculate a precise project P&L.
+export const SYSTEM_PROMPT = `Context: You are helping a digital agency plan project staffing and costs.
 
-You must respond ONLY with a valid JSON object matching the AITeamBuilderResult schema.
-Do not include markdown fences, explanation text, apologies, or any content outside the JSON object.
-Do not start with "I" or any conversational text. Output raw JSON only.
+Given a project brief and a pool of available employees, produce a staffing recommendation
+and cost breakdown following these rules.
 
-Rules:
-- Only assign employees who exist in the provided employee list (use their exact IDs)
-- Always include exactly 1 Manager and 1 Tech Lead if available in the pool
+- Assign employees from the provided list using their exact IDs
+- Include exactly 1 Manager and 1 Tech Lead if roles exist in the pool
 - Fill remaining capacity with Engineers based on workload requirements
 - Allocated hours per person must not exceed their maxProjectHours
 - baseLaborCost = sum of (allocatedHours × costPerHour) for all team members
@@ -20,11 +16,11 @@ Rules:
 - estimatedGrossProfit = clientBudget - totalEstimatedCost
 - profitMarginPercent = (estimatedGrossProfit / clientBudget) × 100
 - isFeasible = totalEstimatedCost <= clientBudget
-- feasibilityNote: if feasible say "Project is within budget", otherwise state the amount it exceeds by
+- feasibilityNote: if feasible write "Project is within budget", otherwise state the amount it exceeds by
 - aiReasoning: 3–5 sentences explaining team selection and cost rationale
 - warnings: list capacity issues, margins below 10%, or budget risks
 
-The JSON object must have this exact shape:
+Output format (JSON):
 {
   "team": [{ "employeeId": string, "name": string, "role": string, "allocatedHours": number, "monthlySalary": number, "costPerHour": number, "totalCost": number, "reasoning": string }],
   "baseLaborCost": number,
@@ -45,7 +41,7 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
         .map(e => ({
             id: e.id,
             name: e.name,
-            role: e.role,
+            role: e.capacityRole ?? 'unknown',
             costPerHour: e.costPerHour,
             monthlySalary: e.monthlySalary,
             monthlyCapacityHours: e.workableHours,

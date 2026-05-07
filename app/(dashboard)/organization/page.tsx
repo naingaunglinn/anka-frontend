@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmployeesTable } from '@/components/tables/EmployeesTable';
 import { EmployeeForm } from '@/components/forms/EmployeeForm';
 import { DepartmentsTable } from '@/components/tables/DepartmentsTable';
@@ -13,6 +13,7 @@ import {
     type DepartmentFormValues,
     type RoleFormValues,
     type EmployeeFormValues,
+    type EmployeeCreateValues,
     type OverheadFormValues,
 } from '@/lib/schemas/organization.schema';
 import {
@@ -24,20 +25,57 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
 import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
+import { useTimeEntryList } from '@/lib/queries/timeEntries';
 export default function EmployeesPage() {
     // Connect to Store
     const store = useBusinessStore();
     const { syncing, syncError } = useOrganizationSync();
+
+    // Fetch current-month time entries so the EmployeesTable can compute
+    // each employee's "Available Hours" without depending on whether the user
+    // already visited /time-tracking. Filtered by date range so the response
+    // stays small even on tenants with thousands of historical entries.
+    // Note: this query is filtered, so by design it does NOT mirror to
+    // businessStore — the table reads from the prop instead.
+    const monthEntriesQuery = useMemo(() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const start = new Date(year, month, 1).toISOString().slice(0, 10);
+        const end   = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+        return { date_from: start, date_to: end, per_page: 200 };
+    }, []);
+    const timeEntriesThisMonth =
+        useTimeEntryList(monthEntriesQuery).data?.data ?? [];
+
     // Employees State
     const [isEmpDialogOpen, setIsEmpDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+    // Employees filter state — keep client-side; the dataset is small.
+    const [empSearchName, setEmpSearchName] = useState('');
+    const [empRoleFilter, setEmpRoleFilter] = useState<string>('all');
+    const [empStatusFilter, setEmpStatusFilter] = useState<string>('all');
+
+    // Apply the three search filters above the EmployeesTable. All client-side
+    // since the employee list is small enough that round-trips would be wasteful.
+    const filteredEmployees = useMemo(() => {
+        const needle = empSearchName.trim().toLowerCase();
+        return store.employees.filter((e) => {
+            if (needle && !e.name.toLowerCase().includes(needle)) return false;
+            if (empRoleFilter !== 'all' && e.role !== empRoleFilter) return false;
+            if (empStatusFilter !== 'all' && e.status !== empStatusFilter) return false;
+            return true;
+        });
+    }, [store.employees, empSearchName, empRoleFilter, empStatusFilter]);
 
     // Departments State
     const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
@@ -68,42 +106,55 @@ export default function EmployeesPage() {
     ]);
 
     // --- Employee Handlers ---
-    const handleAddEmployee = async (data: EmployeeFormValues) => {
+    const handleAddEmployee = async (data: EmployeeCreateValues) => {
         const role = store.roles.find(r => r.id === data.role);
         const dept = store.departments.find(d => d.id === data.departmentId);
-        await store.addEmployee({
-            id: crypto.randomUUID(),
-            name: data.name,
-            role: data.role,
-            roleName: role?.title,
-            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
-            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
-                ? data.capacityRole as Employee['capacityRole']
-                : undefined,
-            monthlySalary: data.monthlySalary,
-            workableHours: data.workableHours,
-            costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
-            status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        });
+        await store.addEmployee(
+            {
+                id: crypto.randomUUID(),
+                name: data.name,
+                role: data.role,
+                roleName: role?.title,
+                departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
+                capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                    ? data.capacityRole as Employee['capacityRole']
+                    : undefined,
+                monthlySalary: data.monthlySalary,
+                workableHours: data.workableHours,
+                costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
+                status: data.status as 'Active' | 'On Leave' | 'Terminated',
+            },
+            { email: data.email, password: data.password },
+        );
         setIsEmpDialogOpen(false);
     };
 
     const handleEditEmployee = async (data: EmployeeFormValues) => {
         if (!editingEmployee) return;
         const role = store.roles.find(r => r.id === data.role);
-        await store.updateEmployee(editingEmployee.id, {
-            name: data.name,
-            role: data.role,
-            roleName: role?.title,
-            departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
-            capacityRole: (data.capacityRole && data.capacityRole !== 'none')
-                ? data.capacityRole as Employee['capacityRole']
-                : undefined,
-            monthlySalary: data.monthlySalary,
-            workableHours: data.workableHours,
-            costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
-            status: data.status as 'Active' | 'On Leave' | 'Terminated',
-        });
+        // Only forward credentials when at least one was actually provided —
+        // empty/undefined means "no change" and the backend skips the user update.
+        const credentials =
+            data.email || data.password
+                ? { email: data.email, password: data.password }
+                : undefined;
+        await store.updateEmployee(
+            editingEmployee.id,
+            {
+                name: data.name,
+                role: data.role,
+                roleName: role?.title,
+                departmentId: data.departmentId && data.departmentId !== 'none' ? data.departmentId : undefined,
+                capacityRole: (data.capacityRole && data.capacityRole !== 'none')
+                    ? data.capacityRole as Employee['capacityRole']
+                    : undefined,
+                monthlySalary: data.monthlySalary,
+                workableHours: data.workableHours,
+                costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
+                status: data.status as 'Active' | 'On Leave' | 'Terminated',
+            },
+            credentials,
+        );
         setEditingEmployee(null);
     };
 
@@ -331,9 +382,62 @@ export default function EmployeesPage() {
                         </Dialog>
                     </div>
 
+                    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                            <div className="relative md:flex-1">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <Input
+                                    value={empSearchName}
+                                    onChange={(e) => setEmpSearchName(e.target.value)}
+                                    placeholder="Search by name..."
+                                    className="pl-9"
+                                />
+                            </div>
+                            <div className="md:w-48">
+                                <Select value={empRoleFilter} onValueChange={setEmpRoleFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All roles" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All roles</SelectItem>
+                                        {store.roles.map((r) => (
+                                            <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="md:w-48">
+                                <Select value={empStatusFilter} onValueChange={setEmpStatusFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All statuses" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All statuses</SelectItem>
+                                        <SelectItem value="Active">Active</SelectItem>
+                                        <SelectItem value="On Leave">On Leave</SelectItem>
+                                        <SelectItem value="Terminated">Terminated</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
+                            <p className="mt-2 text-xs text-slate-500">
+                                Showing {filteredEmployees.length} of {store.employees.length} employees.
+                                <button
+                                    type="button"
+                                    onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpStatusFilter('all'); }}
+                                    className="ml-2 text-slate-700 underline hover:no-underline"
+                                >
+                                    Clear filters
+                                </button>
+                            </p>
+                        )}
+                    </div>
+
                     <EmployeesTable
-                        data={store.employees}
+                        data={filteredEmployees}
                         roles={store.roles}
+                        timeEntries={timeEntriesThisMonth}
                         onEdit={setEditingEmployee}
                         onDelete={(id) => store.deleteEmployee(id)}
                     />

@@ -3,6 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { ReactNode, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { LoadingState } from '@/components/LoadingState';
 
 export interface ProtectedRouteProps {
     children: ReactNode;
@@ -31,7 +32,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         }
     }, [user, isLoading, allowedRoles, router, pathname]);
 
-    if (isLoading) return <div className="flex h-screen w-full items-center justify-center">Loading...</div>;
+    if (isLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center">
+                <LoadingState size="lg" message="Loading your workspace…" />
+            </div>
+        );
+    }
 
     if (!user) return null;
 

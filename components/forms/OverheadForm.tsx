@@ -52,12 +52,14 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
         resolver: zodResolver(globalOverheadSchema) as any,
         mode: 'onBlur',
         reValidateMode: 'onChange',
-        defaultValues: initialData || {
-            category:       '',
-            description:    '',
-            monthlyCost:    0,
-            effectiveMonth: undefined,
-            effectiveYear:  undefined,
+        // Explicitly coerce optional fields away from `null` (API may return
+        // null for unset months/years — Zod's `.optional()` only accepts undefined).
+        defaultValues: {
+            category:       initialData?.category ?? '',
+            description:    initialData?.description ?? '',
+            monthlyCost:    initialData?.monthlyCost ?? 0,
+            effectiveMonth: initialData?.effectiveMonth ?? undefined,
+            effectiveYear:  initialData?.effectiveYear ?? undefined,
         },
     });
 

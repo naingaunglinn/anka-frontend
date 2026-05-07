@@ -14,6 +14,15 @@ export const roleSchema = z.object({
 
 // capacityRole uses 'none' as a sentinel for "unset" because HTML select elements
 // cannot natively represent undefined. The store/API layer strips this back to null.
+// email/password are optional on the base schema (used for edit) but required
+// on employeeCreateSchema, since every newly-created employee gets a login account.
+//
+// The preprocess() wrappers convert blank-string inputs to undefined BEFORE the
+// inner validator runs. On edit this means leaving the password field empty
+// reads as "no change" instead of triggering the .min(6) validator.
+const blankToUndefined = (v: unknown) =>
+    typeof v === 'string' && v.trim() === '' ? undefined : v;
+
 export const employeeSchema = z.object({
     name:          z.string().min(2, 'Name must be at least 2 characters').max(100),
     role:          z.string().min(1, 'Please select a role.'),
@@ -22,6 +31,19 @@ export const employeeSchema = z.object({
     monthlySalary: z.coerce.number().min(0, 'Salary must be ≥ 0'),
     workableHours: z.coerce.number().min(1, 'Must be > 0').max(744, 'Max 744 h/month'),
     status:        z.enum(['Active', 'On Leave', 'Terminated']),
+    email: z.preprocess(
+        blankToUndefined,
+        z.string().email('Please enter a valid email').max(255).optional(),
+    ),
+    password: z.preprocess(
+        blankToUndefined,
+        z.string().min(6, 'Password must be at least 6 characters').max(255).optional(),
+    ),
+});
+
+export const employeeCreateSchema = employeeSchema.extend({
+    email:    z.string().email('Please enter a valid email').max(255),
+    password: z.string().min(6, 'Password must be at least 6 characters').max(255),
 });
 
 export const globalOverheadSchema = z.object({
@@ -36,4 +58,5 @@ export const globalOverheadSchema = z.object({
 export type DepartmentFormValues = z.infer<typeof departmentSchema>;
 export type RoleFormValues        = z.infer<typeof roleSchema>;
 export type EmployeeFormValues    = z.infer<typeof employeeSchema>;
+export type EmployeeCreateValues  = z.infer<typeof employeeCreateSchema>;
 export type OverheadFormValues    = z.infer<typeof globalOverheadSchema>;

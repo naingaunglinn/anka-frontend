@@ -36,10 +36,13 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
         resolver: zodResolver(roleSchema) as any,
         mode: 'onBlur',
         reValidateMode: 'onChange',
-        defaultValues: initialData || {
-            title: '',
-            departmentId: '',
-            rate: 0,
+        defaultValues: {
+            title:        initialData?.title ?? '',
+            // departmentId is required (min(1)). API may return null if a role
+            // has no linked department — treat that as an empty string so the
+            // schema's "select one" message fires instead of the generic "expected string".
+            departmentId: initialData?.departmentId ?? '',
+            rate:         initialData?.rate ?? 0,
         },
     });
 

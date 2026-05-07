@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, Trash2 } from 'lucide-react';
+import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
@@ -25,7 +25,7 @@ export default function TimeTrackingPage() {
     const store = useBusinessStore();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
-    const { createTimeEntry, approveTimeEntry, deleteTimeEntry } = useTimeEntryMutations();
+    const { createTimeEntry, approveTimeEntry, rejectTimeEntry, deleteTimeEntry } = useTimeEntryMutations();
     const projects = projectsQuery.data?.data ?? [];
     const timeEntries = timeEntriesQuery.data?.data ?? [];
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -284,9 +284,21 @@ export default function TimeTrackingPage() {
                                                         className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                                                         disabled={approveTimeEntry.isPending}
                                                         onClick={() => approveTimeEntry.mutate(entry.id)}
-                                                        title="Approve"
+                                                        title="Approve & Close"
                                                     >
                                                         <CheckCircle2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                                {entry.status === 'Pending' && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                        disabled={rejectTimeEntry.isPending}
+                                                        onClick={() => rejectTimeEntry.mutate(entry.id)}
+                                                        title="Reject"
+                                                    >
+                                                        <XCircle className="h-4 w-4" />
                                                     </Button>
                                                 )}
                                                 <Button
