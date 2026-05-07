@@ -138,8 +138,8 @@ export function useDealMutations() {
      * ⚠️  Confirm with the user before calling — this action cannot be undone.
      */
     const winDeal = useMutation({
-        mutationFn: (dealId: string) =>
-            useBusinessStore.getState().winDeal(dealId),
+        mutationFn: ({ dealId, winReason }: { dealId: string; winReason?: string }) =>
+            useBusinessStore.getState().winDeal(dealId, winReason),
         onSettled: () => {
             // The stored proc touches three tables — invalidate all three caches
             queryClient.invalidateQueries({ queryKey: dealKeys.all });
@@ -148,5 +148,13 @@ export function useDealMutations() {
         },
     });
 
-    return { createDeal, updateDeal, deleteDeal, updateDealStage, winDeal };
+    /** Calls `POST /deals/:id/lose`. Requires a loss_reason. */
+    const loseDeal = useMutation({
+        mutationFn: ({ dealId, lossReason }: { dealId: string; lossReason: string }) =>
+            useBusinessStore.getState().loseDeal(dealId, lossReason),
+        onSettled: () =>
+            queryClient.invalidateQueries({ queryKey: dealKeys.all }),
+    });
+
+    return { createDeal, updateDeal, deleteDeal, updateDealStage, winDeal, loseDeal };
 }

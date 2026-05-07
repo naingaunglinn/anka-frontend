@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
+import { AlertCircle } from 'lucide-react';
 import { Employee } from '@/types/business';
 import { departmentSchema, type DepartmentFormValues } from '@/lib/schemas/organization.schema';
 
@@ -33,6 +34,8 @@ interface DepartmentFormProps {
 export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel }: DepartmentFormProps) {
     const form = useForm<DepartmentFormValues>({
         resolver: zodResolver(departmentSchema) as any,
+        mode: 'onBlur',
+        reValidateMode: 'onChange',
         defaultValues: initialData || {
             name:      '',
             managerId: undefined,
@@ -45,17 +48,38 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
         await onSubmit(data);
     };
 
+    function onFormError(errors: FieldErrors<DepartmentFormValues>) {
+        const firstKey = Object.keys(errors)[0] as keyof DepartmentFormValues | undefined;
+        if (!firstKey) return;
+        const el = document.querySelector(`[name="${firstKey}"]`) as HTMLElement | null
+                ?? document.getElementById(firstKey);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus?.();
+    }
+
+    const errorCount = Object.keys(form.formState.errors).length;
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleSubmit, onFormError)} className="space-y-4">
+                {form.formState.isSubmitted && errorCount > 0 && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            {errorCount === 1
+                                ? 'Please fix the highlighted field before saving.'
+                                : `Please fill in ${errorCount} required fields before saving.`}
+                        </span>
+                    </div>
+                )}
                 <FormField
                     control={form.control}
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Department Name</FormLabel>
+                            <FormLabel>Department Name <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="Engineering" {...field} />
+                                <Input placeholder="e.g. Engineering" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -66,7 +90,7 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     name="managerId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Manager <span className="text-muted-foreground font-normal">(optional — assign after adding employees)</span></FormLabel>
+                            <FormLabel>Manager <span className="text-muted-foreground text-xs font-normal">(optional — assign after adding employees)</span></FormLabel>
                             <Select
                                 onValueChange={(v) => field.onChange(v === 'none' ? undefined : v)}
                                 defaultValue={field.value ?? 'none'}
@@ -88,7 +112,10 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     )}
                 />
 
-                <div className="flex justify-end gap-2 pt-4">
+                <p className="text-xs text-muted-foreground">
+                    Fields marked <span className="text-destructive">*</span> are required.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
                             Cancel

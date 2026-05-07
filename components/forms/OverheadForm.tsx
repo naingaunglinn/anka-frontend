@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { DialogClose } from '@/components/ui/dialog';
+import { AlertCircle } from 'lucide-react';
 import { globalOverheadSchema, type OverheadFormValues } from '@/lib/schemas/organization.schema';
 
 const MONTHS = [
@@ -49,6 +50,8 @@ interface OverheadFormProps {
 export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormProps) {
     const form = useForm<OverheadFormValues>({
         resolver: zodResolver(globalOverheadSchema) as any,
+        mode: 'onBlur',
+        reValidateMode: 'onChange',
         defaultValues: initialData || {
             category:       '',
             description:    '',
@@ -62,15 +65,36 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
         await onSubmit(data);
     };
 
+    function onFormError(errors: FieldErrors<OverheadFormValues>) {
+        const firstKey = Object.keys(errors)[0] as keyof OverheadFormValues | undefined;
+        if (!firstKey) return;
+        const el = document.querySelector(`[name="${firstKey}"]`) as HTMLElement | null
+                ?? document.getElementById(firstKey);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus?.();
+    }
+
+    const errorCount = Object.keys(form.formState.errors).length;
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleSubmit, onFormError)} className="space-y-4">
+                {form.formState.isSubmitted && errorCount > 0 && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            {errorCount === 1
+                                ? 'Please fix the highlighted field before saving.'
+                                : `Please fill in ${errorCount} required fields before saving.`}
+                        </span>
+                    </div>
+                )}
                 <FormField
                     control={form.control}
                     name="category"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Category Name</FormLabel>
+                            <FormLabel>Category Name <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                                 <Input placeholder="Software Licenses" {...field} />
                             </FormControl>
@@ -83,7 +107,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="description"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Description</FormLabel>
+                            <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                                 <Input placeholder="AWS, GitHub, Slack" {...field} />
                             </FormControl>
@@ -96,9 +120,9 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="monthlyCost"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Monthly Cost ($)</FormLabel>
+                            <FormLabel>Monthly Cost ($) <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input type="number" {...field} />
+                                <Input type="number" placeholder="e.g. 500" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -160,7 +184,10 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-4">
+                <p className="text-xs text-muted-foreground">
+                    Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
                             Cancel

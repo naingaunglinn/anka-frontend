@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { DialogClose } from '@/components/ui/dialog';
+import { AlertCircle } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -33,6 +34,8 @@ interface RoleFormProps {
 export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleFormProps) {
     const form = useForm<RoleFormValues>({
         resolver: zodResolver(roleSchema) as any,
+        mode: 'onBlur',
+        reValidateMode: 'onChange',
         defaultValues: initialData || {
             title: '',
             departmentId: '',
@@ -44,17 +47,38 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
         await onSubmit(data);
     };
 
+    function onFormError(errors: FieldErrors<RoleFormValues>) {
+        const firstKey = Object.keys(errors)[0] as keyof RoleFormValues | undefined;
+        if (!firstKey) return;
+        const el = document.querySelector(`[name="${firstKey}"]`) as HTMLElement | null
+                ?? document.getElementById(firstKey);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus?.();
+    }
+
+    const errorCount = Object.keys(form.formState.errors).length;
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleSubmit, onFormError)} className="space-y-4">
+                {form.formState.isSubmitted && errorCount > 0 && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            {errorCount === 1
+                                ? 'Please fix the highlighted field before saving.'
+                                : `Please fill in ${errorCount} required fields before saving.`}
+                        </span>
+                    </div>
+                )}
                 <FormField
                     control={form.control}
                     name="title"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Role Title</FormLabel>
+                            <FormLabel>Role Title <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="Senior Developer" {...field} />
+                                <Input placeholder="e.g. Senior Developer" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -65,7 +89,7 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     name="departmentId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Department</FormLabel>
+                            <FormLabel>Department <span className="text-destructive">*</span></FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
@@ -87,16 +111,19 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     name="rate"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Standard Bill Rate ($/hr)</FormLabel>
+                            <FormLabel>Standard Bill Rate ($/hr) <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input type="number" {...field} />
+                                <Input type="number" placeholder="e.g. 85" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
 
-                <div className="flex justify-end gap-2 pt-4">
+                <p className="text-xs text-muted-foreground">
+                    Fields marked <span className="text-destructive">*</span> are required.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
                             Cancel

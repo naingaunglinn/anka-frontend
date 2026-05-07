@@ -108,7 +108,8 @@ export interface BusinessState {
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
     // Actions — Cross-module trigger
-    winDeal: (dealId: string) => Promise<void>;
+    winDeal: (dealId: string, winReason?: string) => Promise<void>;
+    loseDeal: (dealId: string, lossReason: string) => Promise<void>;
 
     // Actions — Contracts (routed through lib/api.ts; created only via winDeal)
     updateContract: (id: string, updates: Partial<Contract>) => Promise<void>;
@@ -365,7 +366,7 @@ export const useBusinessStore = create<BusinessState>()(
                 }
             },
 
-            winDeal: async (dealId) => {
+            winDeal: async (dealId, winReason) => {
                 const snapshotDeals     = get().deals;
                 const snapshotContracts = get().contracts;
                 const snapshotProjects  = get().projects;
@@ -374,12 +375,15 @@ export const useBusinessStore = create<BusinessState>()(
                 // before we hear back from the stored procedure
                 set(s => ({
                     deals: s.deals.map(d =>
-                        d.id === dealId ? { ...d, status: 'won' as const, winProbability: 100 } : d
+                        d.id === dealId
+                            ? { ...d, status: 'won' as const, winProbability: 100, winReason }
+                            : d
                     ),
                 }));
 
                 try {
-                    const { data } = await api.post(`/deals/${dealId}/win`);
+                    const body = winReason ? { win_reason: winReason } : {};
+                    const { data } = await api.post(`/deals/${dealId}/win`, body);
 
                     const serverContract = toContract(data.contract);
                     const serverProject  = toProject(data.project);
@@ -400,6 +404,26 @@ export const useBusinessStore = create<BusinessState>()(
                     // The stored proc raises a constraint violation on duplicate wins or
                     // missing required data — surface the server's message directly
                     toast.error(`Failed to win deal: ${message}`);
+                }
+            },
+
+            loseDeal: async (dealId, lossReason) => {
+                const snapshot = get().deals;
+                set(s => ({
+                    deals: s.deals.map(d =>
+                        d.id === dealId
+                            ? { ...d, status: 'lost' as const, winProbability: 0, lossReason }
+                            : d
+                    ),
+                }));
+                try {
+                    const { data } = await api.post(`/deals/${dealId}/lose`, { loss_reason: lossReason });
+                    const updated = toDeal(data.data ?? data);
+                    set(s => ({ deals: s.deals.map(d => d.id === dealId ? { ...d, ...updated } : d) }));
+                    toast.success('Deal marked as lost.');
+                } catch (err) {
+                    set({ deals: snapshot });
+                    toast.error(`Failed to mark deal as lost: ${normalizeError(err).message}`);
                 }
             },
 

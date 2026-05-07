@@ -33,10 +33,10 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, ArrowRight, Upload, UserPlus } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Upload, UserPlus, AlertCircle } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
-import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
+import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 
 export default function EditDealPage() {
@@ -58,8 +58,9 @@ export default function EditDealPage() {
 
     // Local hard-assignments state so user can add / remove staff before saving
     const [hardAssignments, setHardAssignments] = useState<{ employeeId: string; allocatedHours: number }[]>([]);
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-    const [selectedHours, setSelectedHours] = useState<number>(0);
+
+    // Per-ghost-role input state for staffing add rows (key = ghost role index)
+    const [staffingInputs, setStaffingInputs] = useState<Record<number, { employeeId: string; hours: number }>>({});
 
     // Sync local hardAssignments when deal loads or AI result is accepted
     useEffect(() => {
@@ -68,16 +69,16 @@ export default function EditDealPage() {
         }
     }, [dealToEdit?.hardAssignments]);
 
-    function addHardAssignment() {
-        if (!selectedEmployeeId || selectedHours <= 0) return;
-        const already = hardAssignments.find(a => a.employeeId === selectedEmployeeId);
+    function addHardAssignmentForRole(grIndex: number) {
+        const input = staffingInputs[grIndex];
+        if (!input?.employeeId || (input.hours || 0) <= 0) return;
+        const already = hardAssignments.find(a => a.employeeId === input.employeeId);
         if (already) {
-            setHardAssignments(prev => prev.map(a => a.employeeId === selectedEmployeeId ? { ...a, allocatedHours: selectedHours } : a));
+            setHardAssignments(prev => prev.map(a => a.employeeId === input.employeeId ? { ...a, allocatedHours: input.hours } : a));
         } else {
-            setHardAssignments(prev => [...prev, { employeeId: selectedEmployeeId, allocatedHours: selectedHours }]);
+            setHardAssignments(prev => [...prev, { employeeId: input.employeeId, allocatedHours: input.hours }]);
         }
-        setSelectedEmployeeId("");
-        setSelectedHours(0);
+        setStaffingInputs(prev => ({ ...prev, [grIndex]: { employeeId: '', hours: 0 } }));
     }
 
     function removeHardAssignment(employeeId: string) {
@@ -90,11 +91,38 @@ export default function EditDealPage() {
 
     async function handleAcceptAIResult(result: AITeamBuilderResult) {
         setAcceptedAIResult(result);
+
+        // Derive ghost roles from AI team composition
+        const roleGroups = result.team.reduce((acc, member) => {
+            if (!acc[member.role]) {
+                acc[member.role] = { members: [], minSalary: Infinity, maxSalary: -Infinity };
+            }
+            acc[member.role].members.push(member);
+            acc[member.role].minSalary = Math.min(acc[member.role].minSalary, member.monthlySalary);
+            acc[member.role].maxSalary = Math.max(acc[member.role].maxSalary, member.monthlySalary);
+            return acc;
+        }, {} as Record<string, { members: typeof result.team; minSalary: number; maxSalary: number }>);
+
+        const newGhostRoles = Object.entries(roleGroups).map(([roleName, group]) => {
+            const matchedRole = roles.find(r => r.title === roleName);
+            return {
+                id: uuidv4(),
+                roleType: matchedRole?.id || roleName,
+                quantity: group.members.length,
+                months: timelineMonths,
+                minMonthlySalary: group.minSalary,
+                maxMonthlySalary: group.maxSalary,
+            };
+        });
+
+        form.setValue('ghostRoles', newGhostRoles);
+
         const newAssignments = result.team.map(m => ({
             employeeId: m.employeeId,
             allocatedHours: m.allocatedHours,
         }));
         setHardAssignments(newAssignments);
+
         await updateDeal.mutateAsync({
             id: dealId,
             updates: {
@@ -103,6 +131,7 @@ export default function EditDealPage() {
                 bufferCost: result.bufferCost,
                 totalEstimatedCost: result.totalEstimatedCost,
                 estimatedGrossProfit: result.estimatedGrossProfit,
+                ghostRoles: newGhostRoles,
                 hardAssignments: newAssignments,
             },
         });
@@ -110,17 +139,24 @@ export default function EditDealPage() {
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealSchema) as Resolver<DealFormValues>,
+        mode: 'onBlur',
+        reValidateMode: 'onChange',
         defaultValues: {
             name: dealToEdit?.name || "",
             client: dealToEdit?.client || "",
+            contactName: dealToEdit?.contactName || "",
+            contactEmail: dealToEdit?.contactEmail || "",
+            contactPhone: dealToEdit?.contactPhone || "",
+            expectedCloseDate: dealToEdit?.expectedCloseDate || "",
+            leadSource: dealToEdit?.leadSource,
             clientBudget: dealToEdit?.clientBudget || 0,
             timelineMonths: dealToEdit?.timelineMonths || 1,
             workloadHours: dealToEdit?.workloadHours || 0,
-            winProbability: dealToEdit?.winProbability || 50,
-            workloadDescription: ((dealToEdit as unknown as Record<string, unknown>)?.workloadDescription as string) || "",
+            winProbability: dealToEdit?.winProbability ?? 20,
+            workloadDescription: dealToEdit?.workloadDescription || "",
             ghostRoles: dealToEdit?.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
-                : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, avgMonthlySalary: 0 }],
+                : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
         },
     });
 
@@ -129,14 +165,19 @@ export default function EditDealPage() {
             form.reset({
                 name: dealToEdit.name || "",
                 client: dealToEdit.client || "",
+                contactName: dealToEdit.contactName || "",
+                contactEmail: dealToEdit.contactEmail || "",
+                contactPhone: dealToEdit.contactPhone || "",
+                expectedCloseDate: dealToEdit.expectedCloseDate || "",
+                leadSource: dealToEdit.leadSource,
                 clientBudget: dealToEdit.clientBudget || 0,
                 timelineMonths: dealToEdit.timelineMonths || 1,
                 workloadHours: dealToEdit.workloadHours || 0,
-                winProbability: dealToEdit.winProbability || 50,
+                winProbability: dealToEdit.winProbability ?? 20,
                 workloadDescription: dealToEdit.workloadDescription || "",
                 ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                     ? dealToEdit.ghostRoles
-                    : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, avgMonthlySalary: 0 }],
+                    : [{ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
             });
         }
     }, [dealToEdit, form]);
@@ -163,7 +204,8 @@ export default function EditDealPage() {
     }
 
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
-        return total + (role.quantity || 0) * (role.months || 0) * (role.avgMonthlySalary || 0);
+        const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
+        return total + (role.quantity || 0) * (role.months || 0) * avgSalary;
     }, 0);
 
     const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
@@ -186,6 +228,16 @@ export default function EditDealPage() {
         return "text-green-500";
     };
 
+    function onFormError() {
+        const errors = form.formState.errors;
+        const firstKey = Object.keys(errors)[0];
+        if (!firstKey) return;
+        const el = document.querySelector(`[name="${firstKey}"]`) as HTMLElement | null
+                ?? document.getElementById(firstKey);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus?.();
+    }
+
     async function onSubmit(data: DealFormValues) {
         if (!dealToEdit) return;
 
@@ -194,14 +246,20 @@ export default function EditDealPage() {
             roleType: gr.roleType as RoleType,
             quantity: gr.quantity,
             months: gr.months,
-            avgMonthlySalary: gr.avgMonthlySalary,
+            minMonthlySalary: gr.minMonthlySalary,
+            maxMonthlySalary: gr.maxMonthlySalary,
         }));
 
         await updateDeal.mutateAsync({
             id: dealId,
             updates: {
                 name: data.name,
-                client: data.client || undefined,
+                client: data.client,
+                contactName: data.contactName,
+                contactEmail: data.contactEmail,
+                contactPhone: data.contactPhone,
+                expectedCloseDate: data.expectedCloseDate || undefined,
+                leadSource: data.leadSource,
                 clientBudget: data.clientBudget,
                 timelineMonths: data.timelineMonths,
                 workloadHours: data.workloadHours,
@@ -252,7 +310,17 @@ export default function EditDealPage() {
                         </CardHeader>
                         <CardContent>
                             <Form {...form}>
-                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <form onSubmit={form.handleSubmit(onSubmit, onFormError)} className="space-y-6">
+                                    {form.formState.isSubmitted && Object.keys(form.formState.errors).length > 0 && (
+                                        <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                                            <span>
+                                                {Object.keys(form.formState.errors).length === 1
+                                                    ? 'Please fix the highlighted field before saving.'
+                                                    : `Please fix ${Object.keys(form.formState.errors).length} fields before saving.`}
+                                            </span>
+                                        </div>
+                                    )}
                                     <Tabs defaultValue="context" className="w-full">
                                         <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100/50">
                                             <TabsTrigger value="context">Sales Context</TabsTrigger>
@@ -268,7 +336,7 @@ export default function EditDealPage() {
                                                     name="name"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>Deal Name</FormLabel>
+                                                            <FormLabel>Deal Name <span className="text-destructive">*</span></FormLabel>
                                                             <FormControl>
                                                                 <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
                                                             </FormControl>
@@ -282,7 +350,7 @@ export default function EditDealPage() {
                                                     name="client"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>Client Name</FormLabel>
+                                                            <FormLabel>Client / Company Name <span className="text-destructive">*</span></FormLabel>
                                                             <FormControl>
                                                                 <Input placeholder="e.g. Acme Corporation" className="bg-white" {...field} />
                                                             </FormControl>
@@ -291,13 +359,95 @@ export default function EditDealPage() {
                                                     )}
                                                 />
 
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="contactName"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Contact Name <span className="text-destructive">*</span></FormLabel>
+                                                                <FormControl>
+                                                                    <Input placeholder="e.g. Jane Smith" className="bg-white" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="contactEmail"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Contact Email <span className="text-destructive">*</span></FormLabel>
+                                                                <FormControl>
+                                                                    <Input type="email" placeholder="jane@acme.com" className="bg-white" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="contactPhone"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Contact Phone <span className="text-destructive">*</span></FormLabel>
+                                                                <FormControl>
+                                                                    <Input placeholder="+1 555 000 0000" className="bg-white" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-6">
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="expectedCloseDate"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Expected Close Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                                <FormControl>
+                                                                    <Input type="date" className="bg-white" {...field} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="leadSource"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                                                                    <FormControl>
+                                                                        <SelectTrigger className="bg-white">
+                                                                            <SelectValue placeholder="How did they find you?" />
+                                                                        </SelectTrigger>
+                                                                    </FormControl>
+                                                                    <SelectContent>
+                                                                        {LEAD_SOURCE_OPTIONS.map((opt) => (
+                                                                            <SelectItem key={opt.value} value={opt.value}>
+                                                                                {opt.label}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                </div>
+
                                                 <div className="grid grid-cols-2 gap-6">
                                                     <FormField
                                                         control={form.control}
                                                         name="clientBudget"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Client Budget ($)</FormLabel>
+                                                                <FormLabel>Client Budget ($) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -310,7 +460,7 @@ export default function EditDealPage() {
                                                         name="winProbability"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Win Probability (%)</FormLabel>
+                                                                <FormLabel>Win Probability (%) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -323,7 +473,7 @@ export default function EditDealPage() {
                                                         name="timelineMonths"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Timeline (Months)</FormLabel>
+                                                                <FormLabel>Timeline (Months) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -336,7 +486,7 @@ export default function EditDealPage() {
                                                         name="workloadHours"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Total Workload (Hours)</FormLabel>
+                                                                <FormLabel>Total Workload (Hours) <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -351,7 +501,7 @@ export default function EditDealPage() {
                                                     name="workloadDescription"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>Project Scope / Workload Description</FormLabel>
+                                                            <FormLabel>Project Scope / Workload Description <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
                                                             <FormControl>
                                                                 <Textarea
                                                                     placeholder="Describe the project scope, deliverables, tech stack requirements, and any other details that will help AI assemble the right team..."
@@ -399,7 +549,7 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="bg-white shadow-sm"
-                                                        onClick={() => append({ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, avgMonthlySalary: 0 })}
+                                                        onClick={() => append({ roleType: roles[0]?.id ?? "", quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 })}
                                                     >
                                                         <Plus className="h-4 w-4 mr-2" /> Add Role
                                                     </Button>
@@ -461,10 +611,23 @@ export default function EditDealPage() {
                                                             />
                                                             <FormField
                                                                 control={form.control}
-                                                                name={`ghostRoles.${index}.avgMonthlySalary`}
+                                                                name={`ghostRoles.${index}.minMonthlySalary`}
                                                                 render={({ field }) => (
-                                                                    <FormItem className="w-28">
-                                                                        <FormLabel className="text-xs text-slate-500">Mo. Salary</FormLabel>
+                                                                    <FormItem className="w-24">
+                                                                        <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                                        <FormControl>
+                                                                            <Input type="number" {...field} />
+                                                                        </FormControl>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`ghostRoles.${index}.maxMonthlySalary`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="w-24">
+                                                                        <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
                                                                         <FormControl>
                                                                             <Input type="number" {...field} />
                                                                         </FormControl>
@@ -487,112 +650,231 @@ export default function EditDealPage() {
                                                 </div>
                                             </div>
 
+                                            <AITeamBuilder
+                                                dealId={dealId}
+                                                clientBudget={clientBudget}
+                                                timelineMonths={timelineMonths}
+                                                workloadHours={workloadHours}
+                                                workloadDescription={workloadDescription}
+                                                workloadDocumentText={workloadDocText}
+                                                onAccept={handleAcceptAIResult}
+                                            />
                                         </TabsContent>
 
                                         <TabsContent value="staffing" className="space-y-6">
-                                            {/* ── Assigned Staff ── */}
-                                            <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h3 className="text-sm font-semibold text-slate-900">Assigned Staff</h3>
-                                                        <p className="text-xs text-muted-foreground mt-1">Engineers hard-assigned to this deal.</p>
-                                                    </div>
+                                            {ghostRoles.length === 0 ? (
+                                                <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center">
+                                                    <p className="text-sm text-slate-500">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
                                                 </div>
+                                            ) : (
+                                                ghostRoles.map((gr, grIndex) => {
+                                                    const role = roles.find(r => r.id === gr.roleType);
+                                                    const roleName = role?.title || gr.roleType;
 
-                                                {hardAssignments.length > 0 ? (
-                                                    <Table>
-                                                        <TableHeader>
-                                                            <TableRow>
-                                                                <TableHead>Name</TableHead>
-                                                                <TableHead>Role</TableHead>
-                                                                <TableHead className="text-right">Available Hrs</TableHead>
-                                                                <TableHead className="text-right">Hours in Deal</TableHead>
-                                                                <TableHead className="text-right">Mo. Salary</TableHead>
-                                                                <TableHead className="text-right">Total Cost</TableHead>
-                                                                <TableHead className="w-10"></TableHead>
-                                                            </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {hardAssignments.map((assignment) => {
-                                                                const emp = employees.find(e => e.id === assignment.employeeId);
-                                                                if (!emp) return null;
-                                                                const totalCost = assignment.allocatedHours * emp.costPerHour;
-                                                                return (
-                                                                    <TableRow key={assignment.employeeId}>
-                                                                        <TableCell className="font-medium">{emp.name}</TableCell>
-                                                                        <TableCell className="text-slate-500">{emp.roleName || emp.role}</TableCell>
-                                                                        <TableCell className="text-right">{emp.workableHours}</TableCell>
-                                                                        <TableCell className="text-right">
-                                                                            <Input
-                                                                                type="number"
-                                                                                className="w-20 ml-auto h-8 text-right"
-                                                                                value={assignment.allocatedHours}
-                                                                                onChange={(e) => updateAssignmentHours(assignment.employeeId, Number(e.target.value))}
-                                                                            />
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
-                                                                        <TableCell className="text-right font-medium">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
-                                                                        <TableCell>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                                                                onClick={() => removeHardAssignment(assignment.employeeId)}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                );
-                                                            })}
-                                                        </TableBody>
-                                                    </Table>
-                                                ) : (
-                                                    <p className="text-sm text-slate-400">No staff assigned yet. Use the AI Team Builder or add manually below.</p>
-                                                )}
+                                                    const assigned = hardAssignments.filter(a => {
+                                                        const emp = employees.find(e => e.id === a.employeeId);
+                                                        if (!emp) return false;
+                                                        return emp.role === gr.roleType;
+                                                    });
 
-                                                {/* Add staff row */}
-                                                <div className="flex gap-3 items-end pt-2 border-t border-slate-100">
-                                                    <div className="flex-1">
-                                                        <label className="text-xs text-slate-500 block mb-1">Employee</label>
-                                                        <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                                                            <SelectTrigger className="bg-white">
-                                                                <SelectValue placeholder="Select employee" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {employees
-                                                                    .filter(e => e.status === 'Active' && !hardAssignments.some(a => a.employeeId === e.id))
-                                                                    .map(e => (
-                                                                        <SelectItem key={e.id} value={e.id}>
-                                                                            {e.name} — {e.roleName || e.role}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                    const assignedCount = assigned.length;
+                                                    const canAddMore = assignedCount < gr.quantity;
+
+                                                    const availableEmployees = employees.filter(e =>
+                                                        e.status === 'Active' &&
+                                                        e.role === gr.roleType &&
+                                                        e.monthlySalary >= gr.minMonthlySalary &&
+                                                        e.monthlySalary <= gr.maxMonthlySalary &&
+                                                        !hardAssignments.some(a => a.employeeId === e.id)
+                                                    );
+
+                                                    const input = staffingInputs[grIndex] || { employeeId: '', hours: 0 };
+
+                                                    return (
+                                                        <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
+                                                            <div className="flex items-center justify-between">
+                                                                <div>
+                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleName}</h3>
+                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                        Assigned {assignedCount} of {gr.quantity} • Salary range: ${gr.minMonthlySalary.toLocaleString()} – ${gr.maxMonthlySalary.toLocaleString()}
+                                                                    </p>
+                                                                </div>
+                                                                {assignedCount > gr.quantity && (
+                                                                    <span className="text-xs text-red-600 font-medium">
+                                                                        ⚠️ Over-assigned ({assignedCount - gr.quantity} extra)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {assigned.length > 0 ? (
+                                                                <Table>
+                                                                    <TableHeader>
+                                                                        <TableRow>
+                                                                            <TableHead>Name</TableHead>
+                                                                            <TableHead className="text-right">Available Hrs</TableHead>
+                                                                            <TableHead className="text-right">Hours in Deal</TableHead>
+                                                                            <TableHead className="text-right">Mo. Salary</TableHead>
+                                                                            <TableHead className="text-right">Total Cost</TableHead>
+                                                                            <TableHead className="w-10"></TableHead>
+                                                                        </TableRow>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        {assigned.map((assignment) => {
+                                                                            const emp = employees.find(e => e.id === assignment.employeeId);
+                                                                            if (!emp) return null;
+                                                                            const totalCost = assignment.allocatedHours * emp.costPerHour;
+                                                                            const inRange = emp.monthlySalary >= gr.minMonthlySalary && emp.monthlySalary <= gr.maxMonthlySalary;
+                                                                            return (
+                                                                                <TableRow key={assignment.employeeId}>
+                                                                                    <TableCell className="font-medium">
+                                                                                        {emp.name}
+                                                                                        {!inRange && (
+                                                                                            <span className="ml-2 text-xs text-amber-600">(outside range)</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">{emp.workableHours}</TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        <Input
+                                                                                            type="number"
+                                                                                            className="w-20 ml-auto h-8 text-right"
+                                                                                            value={assignment.allocatedHours}
+                                                                                            onChange={(e) => updateAssignmentHours(assignment.employeeId, Number(e.target.value))}
+                                                                                        />
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
+                                                                                    <TableCell className="text-right font-medium">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                                                    <TableCell>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                                            onClick={() => removeHardAssignment(assignment.employeeId)}
+                                                                                        >
+                                                                                            <Trash2 className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            );
+                                                                        })}
+                                                                    </TableBody>
+                                                                </Table>
+                                                            ) : (
+                                                                <p className="text-sm text-slate-400">No staff assigned to this role yet.</p>
+                                                            )}
+
+                                                            {canAddMore && availableEmployees.length > 0 && (
+                                                                <div className="flex gap-3 items-end pt-2 border-t border-slate-100">
+                                                                    <div className="flex-1">
+                                                                        <label className="text-xs text-slate-500 block mb-1">Employee</label>
+                                                                        <Select
+                                                                            value={input.employeeId}
+                                                                            onValueChange={(v) => setStaffingInputs(prev => ({ ...prev, [grIndex]: { ...input, employeeId: v } }))}
+                                                                        >
+                                                                            <SelectTrigger className="bg-white">
+                                                                                <SelectValue placeholder="Select employee" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {availableEmployees.map(e => (
+                                                                                    <SelectItem key={e.id} value={e.id}>
+                                                                                        {e.name} — ${e.monthlySalary.toLocaleString()}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                    <div className="w-32">
+                                                                        <label className="text-xs text-slate-500 block mb-1">Hours</label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="bg-white"
+                                                                            value={input.hours || ""}
+                                                                            onChange={(e) => setStaffingInputs(prev => ({ ...prev, [grIndex]: { ...input, hours: Number(e.target.value) } }))}
+                                                                            placeholder="e.g. 160"
+                                                                        />
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="bg-white shadow-sm mb-0.5"
+                                                                        onClick={() => addHardAssignmentForRole(grIndex)}
+                                                                        disabled={!input.employeeId || (input.hours || 0) <= 0}
+                                                                    >
+                                                                        <UserPlus className="h-4 w-4 mr-2" /> Add
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+
+                                                            {canAddMore && availableEmployees.length === 0 && (
+                                                                <p className="text-xs text-amber-600 pt-2">
+                                                                    No available employees match this role and salary range.
+                                                                </p>
+                                                            )}
+
+                                                            {!canAddMore && (
+                                                                <p className="text-xs text-slate-400 pt-2">
+                                                                    Role capacity reached ({gr.quantity} of {gr.quantity} assigned).
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+
+                                            {/* ── Unassigned employees warning ── */}
+                                            {(() => {
+                                                const unassigned = hardAssignments.filter(a => {
+                                                    const emp = employees.find(e => e.id === a.employeeId);
+                                                    if (!emp) return false;
+                                                    return !ghostRoles.some(gr => emp.role === gr.roleType);
+                                                });
+                                                if (unassigned.length === 0) return null;
+                                                return (
+                                                    <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
+                                                        <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
+                                                        <p className="text-xs text-amber-700">
+                                                            These employees' roles don't match any role in Estimation. Update Estimation to include them.
+                                                        </p>
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead>Name</TableHead>
+                                                                    <TableHead>Role</TableHead>
+                                                                    <TableHead className="text-right">Hours</TableHead>
+                                                                    <TableHead className="text-right">Mo. Salary</TableHead>
+                                                                    <TableHead className="w-10"></TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {unassigned.map((assignment) => {
+                                                                    const emp = employees.find(e => e.id === assignment.employeeId);
+                                                                    if (!emp) return null;
+                                                                    return (
+                                                                        <TableRow key={assignment.employeeId}>
+                                                                            <TableCell className="font-medium">{emp.name}</TableCell>
+                                                                            <TableCell className="text-slate-500">{emp.roleName || emp.role}</TableCell>
+                                                                            <TableCell className="text-right">{assignment.allocatedHours}</TableCell>
+                                                                            <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
+                                                                            <TableCell>
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                                    onClick={() => removeHardAssignment(assignment.employeeId)}
+                                                                                >
+                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    );
+                                                                })}
+                                                            </TableBody>
+                                                        </Table>
                                                     </div>
-                                                    <div className="w-32">
-                                                        <label className="text-xs text-slate-500 block mb-1">Hours</label>
-                                                        <Input
-                                                            type="number"
-                                                            className="bg-white"
-                                                            value={selectedHours || ""}
-                                                            onChange={(e) => setSelectedHours(Number(e.target.value))}
-                                                            placeholder="e.g. 160"
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="bg-white shadow-sm mb-0.5"
-                                                        onClick={addHardAssignment}
-                                                        disabled={!selectedEmployeeId || selectedHours <= 0}
-                                                    >
-                                                        <UserPlus className="h-4 w-4 mr-2" /> Add
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                                );
+                                            })()}
 
                                             {/* ── Team Engineers Summary ── */}
                                             {hardAssignments.length > 0 && (() => {
@@ -632,16 +914,6 @@ export default function EditDealPage() {
                                                     </div>
                                                 );
                                             })()}
-
-                                            <AITeamBuilder
-                                                dealId={dealId}
-                                                clientBudget={clientBudget}
-                                                timelineMonths={timelineMonths}
-                                                workloadHours={workloadHours}
-                                                workloadDescription={workloadDescription}
-                                                workloadDocumentText={workloadDocText}
-                                                onAccept={handleAcceptAIResult}
-                                            />
                                         </TabsContent>
 
                                         <TabsContent value="contracts" className="space-y-6">
@@ -657,8 +929,11 @@ export default function EditDealPage() {
                                         </TabsContent>
                                     </Tabs>
 
-                                    <div className="flex justify-end pt-6 border-t mt-6">
-                                        <Button type="submit" size="lg" className="w-full md:w-auto shadow-sm" disabled={updateDeal.isPending}>
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
+                                        <p className="text-xs text-muted-foreground">
+                                            Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                                        </p>
+                                        <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={updateDeal.isPending}>
                                             {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
                                         </Button>
                                     </div>

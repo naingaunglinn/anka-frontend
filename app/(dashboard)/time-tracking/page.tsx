@@ -36,12 +36,22 @@ export default function TimeTrackingPage() {
     const [hoursLogged, setHoursLogged] = useState('');
     const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [billable, setBillable] = useState(true);
+    const [timeErrors, setTimeErrors] = useState<{
+        employee?: string; project?: string; task?: string; hours?: string;
+    }>({});
 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
     const handleSaveTime = async () => {
-        if (!selectedProjectId || !selectedEmployeeId || !taskDesc || !hoursLogged) return;
+        const errs: typeof timeErrors = {};
+        if (!selectedEmployeeId) errs.employee = 'Please select a team member.';
+        if (!selectedProjectId) errs.project = 'Please select a project.';
+        if (!taskDesc.trim()) errs.task = 'Please describe the task.';
+        if (!hoursLogged) errs.hours = 'Please enter the hours logged.';
+        else if (Number(hoursLogged) <= 0) errs.hours = 'Hours must be greater than zero.';
+        setTimeErrors(errs);
+        if (Object.keys(errs).length > 0) return;
 
         const newEntry: TimeEntry = {
             id: `TIME-${crypto.randomUUID().split('-')[0]}`,
@@ -59,6 +69,7 @@ export default function TimeTrackingPage() {
         setTaskDesc('');
         setHoursLogged('');
         setBillable(true);
+        setTimeErrors({});
     };
 
     const totalHoursLogged = timeEntries.reduce((sum, e) => sum + e.hours, 0);
@@ -98,10 +109,11 @@ export default function TimeTrackingPage() {
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Employee</label>
-                                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                                    <SelectTrigger>
+                            <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Employee <span className="text-destructive">*</span></label>
+                                <Select value={selectedEmployeeId} onValueChange={v => { setSelectedEmployeeId(v); if (timeErrors.employee) setTimeErrors(p => ({ ...p, employee: undefined })); }}>
+                                    <SelectTrigger aria-invalid={!!timeErrors.employee}>
                                         <SelectValue placeholder="Select team member..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -110,11 +122,12 @@ export default function TimeTrackingPage() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {timeErrors.employee && <p className="text-xs text-destructive">{timeErrors.employee}</p>}
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Project</label>
-                                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                                    <SelectTrigger>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Project <span className="text-destructive">*</span></label>
+                                <Select value={selectedProjectId} onValueChange={v => { setSelectedProjectId(v); if (timeErrors.project) setTimeErrors(p => ({ ...p, project: undefined })); }}>
+                                    <SelectTrigger aria-invalid={!!timeErrors.project}>
                                         <SelectValue placeholder="Select active project..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -123,19 +136,37 @@ export default function TimeTrackingPage() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {timeErrors.project && <p className="text-xs text-destructive">{timeErrors.project}</p>}
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Date</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Date <span className="text-destructive">*</span></label>
                                 <Input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Task Description</label>
-                                    <Input value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="e.g. API Integration" />
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Task Description <span className="text-destructive">*</span></label>
+                                    <Input
+                                        value={taskDesc}
+                                        onChange={e => { setTaskDesc(e.target.value); if (timeErrors.task) setTimeErrors(p => ({ ...p, task: undefined })); }}
+                                        onBlur={() => { if (!taskDesc.trim()) setTimeErrors(p => ({ ...p, task: 'Please describe the task.' })); }}
+                                        placeholder="e.g. API Integration"
+                                        aria-invalid={!!timeErrors.task}
+                                    />
+                                    {timeErrors.task && <p className="text-xs text-destructive">{timeErrors.task}</p>}
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Hours</label>
-                                    <Input type="number" min="0.5" step="0.5" value={hoursLogged} onChange={e => setHoursLogged(e.target.value)} placeholder="4.0" />
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Hours <span className="text-destructive">*</span></label>
+                                    <Input
+                                        type="number"
+                                        min="0.5"
+                                        step="0.5"
+                                        value={hoursLogged}
+                                        onChange={e => { setHoursLogged(e.target.value); if (timeErrors.hours) setTimeErrors(p => ({ ...p, hours: undefined })); }}
+                                        onBlur={() => { if (!hoursLogged || Number(hoursLogged) <= 0) setTimeErrors(p => ({ ...p, hours: 'Enter a valid number of hours.' })); }}
+                                        placeholder="4.0"
+                                        aria-invalid={!!timeErrors.hours}
+                                    />
+                                    {timeErrors.hours && <p className="text-xs text-destructive">{timeErrors.hours}</p>}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">

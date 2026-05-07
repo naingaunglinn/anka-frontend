@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Deal } from '@/types/business';
 
+type DealFormErrors = { name?: string; winProbability?: string };
+
 interface DealFormProps {
     isOpen: boolean;
     onClose: () => void;
@@ -20,7 +22,8 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const [client, setClient] = useState('');
     const [estimatedValue, setEstimatedValue] = useState<number | ''>('');
     const [winProbability, setWinProbability] = useState<number | ''>('');
-    const [status, setStatus] = useState<Deal['status']>('lead');
+    const [status, setStatus] = useState<Deal['status']>('inquiry');
+    const [errors, setErrors] = useState<DealFormErrors>({});
 
     useEffect(() => {
         if (initialData && isOpen) {
@@ -28,24 +31,31 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             setClient(initialData.client || '');
             setEstimatedValue(initialData.estimatedValue || 0);
             setWinProbability(initialData.winProbability || 0);
-            setStatus(initialData.status || 'lead');
+            setStatus(initialData.status || 'inquiry');
         } else if (isOpen) {
             setName('');
             setClient('');
             setEstimatedValue('');
-            setWinProbability(50);
-            setStatus('lead');
+            setWinProbability(20);
+            setStatus('inquiry');
         }
+        setErrors({});
     }, [initialData, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const errs: DealFormErrors = {};
+        if (!name.trim()) errs.name = 'Please enter a deal name.';
+        const prob = Number(winProbability);
+        if (winProbability === '' || prob < 0 || prob > 100) errs.winProbability = 'Win probability must be between 0 and 100.';
+        setErrors(errs);
+        if (Object.keys(errs).length > 0) return;
 
         const dealData = {
             name,
             client,
             estimatedValue: Number(estimatedValue) || 0,
-            winProbability: Number(winProbability) || 0,
+            winProbability: prob,
             status,
             estimationResources: initialData?.estimationResources || [],
             projectOverheads: initialData?.projectOverheads || [],
@@ -68,30 +78,69 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         <DialogTitle>{initialData ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">Name</Label>
-                            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" required />
+                        <p className="text-xs text-muted-foreground col-span-4">
+                            Fields marked <span className="text-destructive">*</span> are required.
+                        </p>
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="name" className="text-right pt-2">
+                                Name <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="col-span-3 space-y-1">
+                                <Input
+                                    id="name"
+                                    value={name}
+                                    onChange={e => { setName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: undefined })); }}
+                                    onBlur={() => { if (!name.trim()) setErrors(p => ({ ...p, name: 'Please enter a deal name.' })); }}
+                                    aria-invalid={!!errors.name}
+                                    placeholder="e.g. Acme Corp Web App"
+                                />
+                                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+                            </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="client" className="text-right">Client</Label>
-                            <Input id="client" value={client} onChange={(e) => setClient(e.target.value)} className="col-span-3" required />
+                            <Label htmlFor="client" className="text-right">
+                                Client <span className="text-muted-foreground text-xs font-normal">(opt.)</span>
+                            </Label>
+                            <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder="e.g. Acme Corp" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="value" className="text-right">Value ($)</Label>
-                            <Input id="value" type="number" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value ? Number(e.target.value) : '')} className="col-span-3" required min="0" />
+                            <Input
+                                id="value"
+                                type="number"
+                                value={estimatedValue}
+                                onChange={e => setEstimatedValue(e.target.value ? Number(e.target.value) : '')}
+                                className="col-span-3"
+                                min="0"
+                                placeholder="0"
+                            />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="probability" className="text-left">Win Prob (%)</Label>
-                            <Input id="probability" type="number" value={winProbability} onChange={(e) => setWinProbability(e.target.value ? Number(e.target.value) : '')} className="col-span-3" required min="0" max="100" />
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="probability" className="text-right pt-2">
+                                Win % <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="col-span-3 space-y-1">
+                                <Input
+                                    id="probability"
+                                    type="number"
+                                    value={winProbability}
+                                    onChange={e => { setWinProbability(e.target.value ? Number(e.target.value) : ''); if (errors.winProbability) setErrors(p => ({ ...p, winProbability: undefined })); }}
+                                    min="0"
+                                    max="100"
+                                    aria-invalid={!!errors.winProbability}
+                                />
+                                {errors.winProbability && <p className="text-xs text-destructive">{errors.winProbability}</p>}
+                            </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="stage" className="text-right">Stage</Label>
                             <div className="col-span-3">
-                                <Select value={status} onValueChange={(val) => setStatus(val as Deal['status'])}>
+                                <Select value={status} onValueChange={val => setStatus(val as Deal['status'])}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="inquiry">Inquiry</SelectItem>
                                         <SelectItem value="lead">Lead</SelectItem>
                                         <SelectItem value="opportunity">Opportunity</SelectItem>
                                         <SelectItem value="proposal">Proposal</SelectItem>
