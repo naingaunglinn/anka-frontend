@@ -22,6 +22,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PHONE_COUNTRIES } from '@/lib/phoneCountries';
+import { FlagIcon } from '@/components/FlagIcon';
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -55,7 +56,6 @@ export default function RegisterPage() {
     };
 
     const selectedCountry = PHONE_COUNTRIES.find((c) => c.iso === countryIso) ?? PHONE_COUNTRIES[0];
-    const getFlagUrl = (iso: string) => `https://flagcdn.com/w20/${iso.toLowerCase()}.png`;
     const syncPhoneNumber = (iso: string, localInput: string) => {
         const country = PHONE_COUNTRIES.find((c) => c.iso === iso) ?? PHONE_COUNTRIES[0];
         const digitsOnly = localInput.replace(/\D/g, '');
@@ -148,10 +148,7 @@ export default function RegisterPage() {
                                                         <FormControl>
                                                             <SelectTrigger className="h-11 w-[120px] shrink-0 border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
                                                                 <div className="flex items-center gap-2">
-                                                                    <div
-                                                                        className="h-3.5 w-5 shrink-0 rounded-sm bg-cover bg-center"
-                                                                        style={{ backgroundImage: `url(${getFlagUrl(selectedCountry.iso)})` }}
-                                                                    />
+                                                                    <FlagIcon iso={selectedCountry.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
                                                                     <SelectValue>{selectedCountry.dial}</SelectValue>
                                                                 </div>
                                                             </SelectTrigger>
@@ -160,10 +157,7 @@ export default function RegisterPage() {
                                                             {PHONE_COUNTRIES.map((country) => (
                                                                 <SelectItem key={country.iso} value={country.iso}>
                                                                     <div className="flex items-center gap-2">
-                                                                        <div
-                                                                            className="h-3.5 w-5 shrink-0 rounded-sm bg-cover bg-center"
-                                                                            style={{ backgroundImage: `url(${getFlagUrl(country.iso)})` }}
-                                                                        />
+                                                                        <FlagIcon iso={country.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
                                                                         <span>{country.label} {country.dial}</span>
                                                                     </div>
                                                                 </SelectItem>
