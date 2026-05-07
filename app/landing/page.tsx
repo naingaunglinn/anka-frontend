@@ -29,7 +29,7 @@ export default function Home() {
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(112deg,rgba(248,250,252,0)_0%,rgba(255,255,255,0.8)_46%,rgba(248,250,252,0)_100%)]" />
 
       <section className="relative mx-auto flex w-full max-w-6xl flex-col px-6 pb-14 pt-10 md:px-10 md:pt-16">
-        <header className="mb-18 flex animate-rise-in items-center justify-between">
+        <header className="mb-16 flex animate-rise-in items-center justify-between">
           <div className="inline-flex items-center gap-3 rounded-full border border-[#00a6f4]/35 bg-white/85 px-4 py-2 shadow-sm backdrop-blur-sm">
             <span className="h-2.5 w-2.5 rounded-full bg-[#00a6f4]" />
             <span className="text-sm font-semibold tracking-wide">ANKA</span>

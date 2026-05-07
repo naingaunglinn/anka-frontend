@@ -16,7 +16,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogIn } from 'lucide-react';
+import { ArrowRight, ChartNoAxesCombined, LogIn, Sparkles, Target } from 'lucide-react';
 import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth.schema';
 
 export default function LoginPage() {
@@ -36,7 +36,6 @@ export default function LoginPage() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
-            // Redirect super admins to tenant management; org users to the dashboard.
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
             router.push(isSuperAdmin ? '/tenant' : '/dashboard');
@@ -49,57 +48,106 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden">
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[100px]" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]" />
+        <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,166,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,rgba(248,250,252,0.2),rgba(255,255,255,0.75),rgba(248,250,252,0.2))]" />
 
             <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
-                <section className="order-2 lg:order-1">
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white px-4 py-1.5">
+                <section>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white/95 px-4 py-2 shadow-sm">
                         <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a6f4]">ANKA</span>
                     </div>
-                    <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
-                    <CardDescription className="text-center">
-                        Enter your credentials to access the Anka SaaS Platform
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="name@example.com" {...field} className="h-11" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input type="password" placeholder="••••••••" {...field} className="h-11" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <Button type="submit" className="w-full h-11 text-base shadow-sm" disabled={isLoggingIn}>
-                                {isLoggingIn ? 'Signing in...' : 'Sign In'}
-                            </Button>
-                        </form>
-                    </Form>
-                </CardContent>
-            </Card>
-        </div>
+
+                    <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+                        Gross Profit Suggestion
+                        <span className="block text-[#00a6f4]">System For Real Decisions</span>
+                    </h1>
+
+                    <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
+                        Predict margins early, compare scenarios fast, and act on concrete suggestions before project kickoff.
+                    </p>
+
+                    <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <ChartNoAxesCombined className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Forecast</p>
+                        </article>
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Target className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Optimize</p>
+                        </article>
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Sparkles className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Suggest</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section>
+                    <Card className="mx-auto w-full max-w-md border-[#00a6f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                        <CardHeader className="space-y-2 pb-6">
+                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a6f4] text-white shadow-lg">
+                                <LogIn className="h-6 w-6" />
+                            </div>
+                            <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
+                            <CardDescription className="text-[#171717]/65">
+                                Continue to your gross-profit insights workspace.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[#171717]/90">Work Email</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="name@company.com"
+                                                        {...field}
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="password"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[#171717]/90">Password</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="********"
+                                                        {...field}
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <Button
+                                        type="submit"
+                                        className="h-11 w-full bg-[#00a6f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,166,244,0.35)] hover:bg-[#0599df]"
+                                        disabled={isLoggingIn}
+                                    >
+                                        {isLoggingIn ? 'Signing in...' : 'Enter ANKA'}
+                                        {!isLoggingIn && <ArrowRight className="ml-2 h-4 w-4" />}
+                                    </Button>
+                                </form>
+                            </Form>
+                        </CardContent>
+                    </Card>
+                </section>
+            </div>
+        </main>
     );
 }
