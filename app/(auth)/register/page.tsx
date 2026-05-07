@@ -137,7 +137,7 @@ export default function RegisterPage() {
                                         render={() => (
                                             <FormItem>
                                                 <FormLabel className="text-[#171717]/90">Phone Number (International)</FormLabel>
-                                                <div className="flex gap-2">
+                                                <div className="grid grid-cols-[110px_1fr] gap-2">
                                                     <Select
                                                         value={countryIso}
                                                         onValueChange={(nextIso) => {
@@ -146,7 +146,7 @@ export default function RegisterPage() {
                                                         }}
                                                     >
                                                         <FormControl>
-                                                            <SelectTrigger className="h-11 flex-1 border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
+                                                            <SelectTrigger className="h-11 w-full border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
                                                                 <div className="flex items-center gap-2">
                                                                     <FlagIcon iso={selectedCountry.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
                                                                     <SelectValue>{selectedCountry.dial}</SelectValue>
@@ -173,7 +173,7 @@ export default function RegisterPage() {
                                                             setPhoneLocal(nextLocal);
                                                             syncPhoneNumber(countryIso, nextLocal);
                                                         }}
-                                                        className="h-11 flex-1 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 w-full border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
                                                     />
                                                 </div>
                                                 <FormMessage />
