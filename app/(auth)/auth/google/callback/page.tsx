@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
 
@@ -26,7 +26,7 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
     };
 }
 
-export default function GoogleCallbackPage() {
+function GoogleCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [status, setStatus] = useState('Finalizing Google sign-in...');
@@ -97,5 +97,20 @@ export default function GoogleCallbackPage() {
                 </button>
             </div>
         </main>
+    );
+}
+
+export default function GoogleCallbackPage() {
+    return (
+        <Suspense fallback={
+            <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-6 text-[#171717]">
+                <div className="w-full max-w-lg rounded-2xl border border-[#00a6f4]/20 bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+                    <h1 className="text-2xl font-bold">ANKA Google Sign-In</h1>
+                    <p className="mt-3 text-sm text-[#171717]/70">Loading...</p>
+                </div>
+            </main>
+        }>
+            <GoogleCallbackContent />
+        </Suspense>
     );
 }
