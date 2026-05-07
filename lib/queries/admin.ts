@@ -90,6 +90,7 @@ export function useAdminMutations() {
                 name:      updates.name,
                 slug:      updates.slug,
                 plan:      updates.plan,
+                currency:  updates.currency,
                 is_active: updates.isActive,
             });
             return toAdminTenant(data.data ?? data);
