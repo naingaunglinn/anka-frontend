@@ -7,10 +7,14 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingDown, TrendingUp, AlertTriangle, Calculator } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
+import { useInvoiceList } from '@/lib/queries/invoices';
+import { useTimeEntryList } from '@/lib/queries/timeEntries';
 
 export default function ForecastPage() {
     const store = useBusinessStore();
     useOrganizationSync();
+    useInvoiceList();
+    useTimeEntryList();
     const pnlData = store.getFinancialPnL();
 
     // Simulation Parameters
