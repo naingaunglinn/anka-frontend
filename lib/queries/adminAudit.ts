@@ -3,12 +3,22 @@ import api from '@/lib/api';
 
 export const auditKeys = {
     all: ['admin', 'audit'] as const,
-    logs: (page = 1) => [...auditKeys.all, 'logs', page] as const,
+    logs: (filters: AuditFilters) => [...auditKeys.all, 'logs', filters] as const,
 };
+
+export interface AuditFilters {
+    tenantId?: string;
+    userId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    level?: string;
+    page?: number;
+}
 
 export interface AuditLog {
     id: string;
     action: string;
+    level: string;
     target_type: string | null;
     target_id: string | null;
     details: string | null;
@@ -18,6 +28,10 @@ export interface AuditLog {
         id: string;
         name: string;
         email: string;
+    } | null;
+    tenant: {
+        id: string;
+        name: string;
     } | null;
 }
 
@@ -31,11 +45,18 @@ export interface AuditLogResponse {
     };
 }
 
-export function useAdminAuditLogs(page = 1) {
+export function useAdminAuditLogs(filters: AuditFilters = {}) {
     return useQuery<AuditLogResponse>({
-        queryKey: auditKeys.logs(page),
+        queryKey: auditKeys.logs(filters),
         queryFn: async () => {
-            const { data } = await api.get('/admin/audit-logs', { params: { page } });
+            const params: Record<string, unknown> = { page: filters.page ?? 1 };
+            if (filters.tenantId) params.tenant_id = filters.tenantId;
+            if (filters.userId) params.user_id = filters.userId;
+            if (filters.dateFrom) params.date_from = filters.dateFrom;
+            if (filters.dateTo) params.date_to = filters.dateTo;
+            if (filters.level) params.level = filters.level;
+
+            const { data } = await api.get('/admin/audit-logs', { params });
             return {
                 data: data.data,
                 meta: data.meta,
