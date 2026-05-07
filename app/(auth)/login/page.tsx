@@ -16,7 +16,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogIn } from 'lucide-react';
+import { ArrowRight, ChartNoAxesCombined, LogIn, Sparkles, Target } from 'lucide-react';
 import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth.schema';
 
 export default function LoginPage() {
@@ -36,10 +36,9 @@ export default function LoginPage() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
-            // Redirect super admins to tenant management; org users to the dashboard.
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
-            router.push(isSuperAdmin ? '/tenant' : '/dashboard');
+            router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {
@@ -48,57 +47,152 @@ export default function LoginPage() {
         }
     };
 
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden">
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[100px]" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]" />
+    const startGoogleLogin = () => {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+        const callbackUrl = `${window.location.origin}/auth/google/callback`;
+        const oauthUrl = `${backendUrl}/api/auth/google/redirect?redirect_uri=${encodeURIComponent(callbackUrl)}`;
+        window.location.href = oauthUrl;
+    };
 
-            <Card className="w-full max-w-md relative z-10 shadow-2xl border-white/20 bg-white/80 backdrop-blur-xl">
-                <CardHeader className="space-y-1 items-center pb-6">
-                    <div className="w-12 h-12 bg-primary text-white rounded-xl flex items-center justify-center mb-2 shadow-lg">
-                        <LogIn className="w-6 h-6" />
+    return (
+        <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,166,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,rgba(248,250,252,0.2),rgba(255,255,255,0.75),rgba(248,250,252,0.2))]" />
+
+            <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
+                <section>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white/95 px-4 py-2 shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a6f4]">ANKA</span>
                     </div>
-                    <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
-                    <CardDescription className="text-center">
-                        Enter your credentials to access the Anka SaaS Platform
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="name@example.com" {...field} className="h-11" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input type="password" placeholder="••••••••" {...field} className="h-11" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <Button type="submit" className="w-full h-11 text-base shadow-sm" disabled={isLoggingIn}>
-                                {isLoggingIn ? 'Signing in...' : 'Sign In'}
+
+                    <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+                        Gross Profit Suggestion
+                        <span className="block text-[#00a6f4]">System For Real Decisions</span>
+                    </h1>
+
+                    <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
+                        Predict margins early, compare scenarios fast, and act on concrete suggestions before project kickoff.
+                    </p>
+
+                    <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <ChartNoAxesCombined className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Forecast</p>
+                        </article>
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Target className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Optimize</p>
+                        </article>
+                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Sparkles className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                            <p className="text-xs font-semibold">Suggest</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section>
+                    <Card className="mx-auto w-full max-w-md border-[#00a6f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                        <CardHeader className="space-y-2 pb-6">
+                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a6f4] text-white shadow-lg">
+                                <LogIn className="h-6 w-6" />
+                            </div>
+                            <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
+                            <CardDescription className="text-[#171717]/65">
+                                Continue to your gross-profit insights workspace.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="mb-5 h-11 w-full border-[#171717]/20 bg-white text-[#171717] hover:bg-[#f1f5f9]"
+                                onClick={startGoogleLogin}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    className="mr-2 h-5 w-5"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fill="#EA4335"
+                                        d="M12 10.2v3.9h5.5c-.2 1.2-1.4 3.6-5.5 3.6-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3 14.7 2 12 2 6.5 2 2 6.5 2 12s4.5 10 10 10c5.8 0 9.6-4.1 9.6-9.8 0-.7-.1-1.3-.2-2H12z"
+                                    />
+                                    <path
+                                        fill="#34A853"
+                                        d="M3.2 7.3l3.2 2.3C7.2 7.6 9.4 6 12 6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3 14.7 2 12 2 8.1 2 4.7 4.2 3.2 7.3z"
+                                    />
+                                    <path
+                                        fill="#FBBC05"
+                                        d="M12 22c2.6 0 4.8-.9 6.4-2.4l-3-2.4c-.8.5-1.9.9-3.4.9-4 0-5.2-2.7-5.5-3.6l-3.2 2.5C4.8 19.9 8.1 22 12 22z"
+                                    />
+                                    <path
+                                        fill="#4285F4"
+                                        d="M21.6 12.2c0-.7-.1-1.3-.2-2H12v3.9h5.5c-.3 1.4-1.1 2.4-2.1 3.1l3 2.4c1.8-1.7 3.2-4.3 3.2-7.4z"
+                                    />
+                                </svg>
+                                Continue with Google
                             </Button>
-                        </form>
-                    </Form>
-                </CardContent>
-            </Card>
-        </div>
+
+                            <div className="mb-5 flex items-center gap-3">
+                                <div className="h-px flex-1 bg-[#171717]/15" />
+                                <p className="text-xs uppercase tracking-[0.16em] text-[#171717]/55">or use email</p>
+                                <div className="h-px flex-1 bg-[#171717]/15" />
+                            </div>
+
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[#171717]/90">Work Email</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="name@company.com"
+                                                        {...field}
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="password"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[#171717]/90">Password</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="********"
+                                                        {...field}
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <Button
+                                        type="submit"
+                                        className="h-11 w-full bg-[#00a6f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,166,244,0.35)] hover:bg-[#0599df]"
+                                        disabled={isLoggingIn}
+                                    >
+                                        {isLoggingIn ? 'Signing in...' : 'Enter ANKA'}
+                                        {!isLoggingIn && <ArrowRight className="ml-2 h-4 w-4" />}
+                                    </Button>
+                                </form>
+                            </Form>
+                        </CardContent>
+                    </Card>
+                </section>
+            </div>
+        </main>
     );
 }

@@ -97,23 +97,37 @@ export function KanbanBoard({
         if (!result.destination) return;
         const { source, destination, draggableId } = result;
 
-        if (source.droppableId !== destination.droppableId) {
-            const stageProbability: Record<string, number> = {
-                inquiry:     20,
-                lead:        20,
-                opportunity: 40,
-                proposal:    60,
-                contract:    80,
-                won:         100,
-            };
-            const newProb = stageProbability[destination.droppableId] ?? 50;
+        if (source.droppableId === destination.droppableId) return;
 
-            updateDealStage.mutate({
-                id: draggableId,
-                status: destination.droppableId,
-                probability: newProb,
-            });
+        // Prevent moving from terminal statuses (won / lost)
+        if (source.droppableId === 'won' || source.droppableId === 'lost') {
+            return;
         }
+
+        // Dragging to Won opens the confirmation dialog and triggers win_deal()
+        if (destination.droppableId === 'won') {
+            const deal = columns[source.droppableId]?.deals.find(d => d.id === draggableId);
+            if (deal) {
+                openWinDeal(draggableId, deal.name);
+            }
+            return;
+        }
+
+        const stageProbability: Record<string, number> = {
+            inquiry:     20,
+            lead:        20,
+            opportunity: 40,
+            proposal:    60,
+            contract:    80,
+            won:         100,
+        };
+        const newProb = stageProbability[destination.droppableId] ?? 50;
+
+        updateDealStage.mutate({
+            id: draggableId,
+            status: destination.droppableId,
+            probability: newProb,
+        });
     };
 
     const openDeleteDeal = (dealId: string) => {

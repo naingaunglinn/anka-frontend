@@ -21,6 +21,10 @@ import {
     Building2,
     ChevronLeft,
     ChevronRight,
+    Shield,
+    Receipt,
+    BrainCircuit,
+    ScrollText,
 } from 'lucide-react';
 
 const orgRoutes = [
@@ -37,7 +41,11 @@ const orgRoutes = [
 ];
 
 const superAdminRoutes = [
-    { label: 'Tenant Management', icon: Building2, href: '/tenant', color: 'text-violet-400' },
+    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-sky-500' },
+    { label: 'Tenant Management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
+    { label: 'Billing & Plans',   icon: Receipt,          href: '/admin/billing',    color: 'text-emerald-400' },
+    { label: 'Audit Logs',        icon: ScrollText,       href: '/admin/audit',      color: 'text-amber-400' },
+    { label: 'AI Usage',          icon: BrainCircuit,     href: '/admin/ai-usage',   color: 'text-pink-400' },
 ];
 
 export const Sidebar = () => {

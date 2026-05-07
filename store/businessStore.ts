@@ -101,7 +101,7 @@ export interface BusinessState {
     deleteGlobalOverhead: (id: string) => Promise<void>;
 
     // Actions — CRM & Deals (routed through lib/api.ts)
-    addDeal: (deal: Deal) => Promise<void>;
+    addDeal: (deal: Deal) => Promise<Deal>;
     updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
     deleteDeal: (id: string) => Promise<void>;
     updateDealStage: (id: string, status: string, probability?: number) => Promise<void>;
@@ -327,9 +327,11 @@ export const useBusinessStore = create<BusinessState>()(
                     const { data } = await api.post('/deals', dealToApiPayload(deal));
                     const created = toDeal(data.data ?? data);
                     set(s => ({ deals: s.deals.map(d => d.id === tempId ? created : d) }));
+                    return created;
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to create deal: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
             updateDeal: async (id, updates) => {
@@ -388,19 +390,33 @@ export const useBusinessStore = create<BusinessState>()(
                     const body = winReason ? { win_reason: winReason } : {};
                     const { data } = await api.post(`/deals/${dealId}/win`, body);
 
-                    const serverContract = toContract(data.contract);
-                    const serverProject  = toProject(data.project);
+                    const serverContract = data.contract ? toContract(data.contract) : null;
+                    const serverProject  = data.project ? toProject(data.project) : null;
 
-                    set(s => ({
-                        // Merge server fields into the existing deal to preserve ghost roles and
-                        // hard assignments that the win endpoint may not eager-load
-                        deals: s.deals.map(d => d.id === dealId ? { ...d, ...toDeal(data.deal) } : d),
-                        // Filter-before-append keeps the operation idempotent on retry
-                        contracts: [...s.contracts.filter(c => c.id !== serverContract.id), serverContract],
-                        projects:  [...s.projects.filter(p => p.id !== serverProject.id),  serverProject],
-                    }));
+                    set(s => {
+                        const nextContracts = serverContract
+                            ? [...s.contracts.filter(c => c.id !== serverContract.id), serverContract]
+                            : s.contracts;
+                        const nextProjects = serverProject
+                            ? [...s.projects.filter(p => p.id !== serverProject.id), serverProject]
+                            : s.projects;
 
-                    toast.success(`Deal won! Contract ${data.contract.contract_number} created.`);
+                        return {
+                            // Merge server fields into the existing deal to preserve ghost roles and
+                            // hard assignments that the win endpoint may not eager-load
+                            deals: s.deals.map(d => d.id === dealId ? { ...d, ...toDeal(data.deal) } : d),
+                            // Filter-before-append keeps the operation idempotent on retry
+                            contracts: nextContracts,
+                            projects: nextProjects,
+                        };
+                    });
+
+                    if (serverContract) {
+                        toast.success(`Deal won! Contract ${serverContract.contractNumber ?? serverContract.id.slice(0, 8)} created.`);
+                    } else {
+                        toast.success('Deal won!');
+                        toast.error('Contract was not created — check server logs for the win_deal() stored procedure.');
+                    }
                 } catch (err) {
                     set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
                     const { message } = normalizeError(err);

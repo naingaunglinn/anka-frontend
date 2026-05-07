@@ -1,4 +1,4 @@
-export type RoleType = "frontend" | "backend" | "pm" | "qa" | "design" | string;
+export type RoleType = "frontend" | "backend" | "pm" | "qa" | "design";
 
 // --- Organization ---
 export interface Role {
@@ -94,6 +94,8 @@ export interface HardAssignment {
     allocatedHours: number;
 }
 
+export type DealWizardStep = 'context' | 'estimation' | 'staffing' | 'complete';
+
 export type DealLeadSource =
     | 'inbound'
     | 'referral'
@@ -114,6 +116,7 @@ export interface Deal {
     estimatedValue?: number;
     winProbability?: number;
     status?: "lead" | "opportunity" | "inquiry" | "proposal" | "contract" | "won" | "lost";
+    wizardStep?: DealWizardStep;
     expectedCloseDate?: string;   // YYYY-MM-DD
     leadSource?: DealLeadSource;
 

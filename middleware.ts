@@ -9,7 +9,7 @@ const ORG_PREFIXES = [
 ];
 
 // Routes only super admins can access.
-const SUPER_ADMIN_PREFIXES = ['/tenant'];
+const SUPER_ADMIN_PREFIXES = ['/tenant', '/admin'];
 
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
@@ -35,15 +35,15 @@ export function middleware(request: NextRequest) {
 
     // Redirect away from login page.
     if (isLoginPage) {
-        const dest = isSuperAdmin ? '/tenant' : '/dashboard';
+        const dest = isSuperAdmin ? '/admin/dashboard' : '/dashboard';
         return NextResponse.redirect(new URL(dest, request.nextUrl));
     }
 
-    // Block super admin from org routes → send them to tenant management.
+    // Block super admin from org routes → send them to admin dashboard.
     if (isSuperAdmin) {
         const isOrgRoute = ORG_PREFIXES.some((p) => path.startsWith(p));
         if (isOrgRoute) {
-            return NextResponse.redirect(new URL('/tenant', request.nextUrl));
+            return NextResponse.redirect(new URL('/admin/dashboard', request.nextUrl));
         }
         return NextResponse.next();
     }
@@ -71,6 +71,7 @@ export const config = {
         '/forecast/:path*',
         '/profile/:path*',
         '/tenant/:path*',
+        '/admin/:path*',
         '/login',
     ],
 };

@@ -10,13 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 export default function FinancialPage() {
     const store = useBusinessStore();
 
-    // Load invoices and time entries so P&L is always populated
+    // Load invoices, time entries, and org data so P&L is always populated
     useInvoiceList();
     useTimeEntryList();
+    useOrganizationSync();
 
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -24,11 +26,20 @@ export default function FinancialPage() {
     // Dynamic P&L from store
     const allPnlData = store.getFinancialPnL();
 
+    // Helper: parse "Jan 2026" → "2026-01" for reliable comparison
+    const parseMonthKey = (displayMonth: string): string => {
+        const d = new Date(`${displayMonth} 01`);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    };
+
     const pnlData = useMemo(() => {
         if (!dateFrom && !dateTo) return allPnlData;
         return allPnlData.filter(row => {
-            if (dateFrom && row.month < dateFrom) return false;
-            if (dateTo && row.month > dateTo + '-31') return false;
+            const rowKey = parseMonthKey(row.month);
+            if (dateFrom && rowKey < dateFrom) return false;
+            if (dateTo && rowKey > dateTo) return false;
             return true;
         });
     }, [allPnlData, dateFrom, dateTo]);
