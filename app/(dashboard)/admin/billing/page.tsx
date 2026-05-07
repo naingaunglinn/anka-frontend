@@ -4,19 +4,32 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminTenantList, useAdminMutations } from '@/lib/queries/admin';
-import { Building2, Check, X, Loader2 } from 'lucide-react';
+import { useTenantStore, type Currency, CURRENCY_CONFIG } from '@/store/tenantStore';
+import { Building2, Check, X, Loader2, Banknote } from 'lucide-react';
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise'];
+
+const CURRENCIES: Currency[] = ['MMK', 'JPY'];
 
 export default function AdminBillingPage() {
     const { data: tenants, isLoading } = useAdminTenantList();
     const { updateTenant } = useAdminMutations();
+    const { setTenantCurrency, tenants: storedTenants } = useTenantStore();
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+    const getTenantCurrency = (tenantId: string): Currency => {
+        const stored = storedTenants.find((t) => t.id === tenantId);
+        return stored?.currency ?? 'MMK';
+    };
 
     const handlePlanChange = async (tenantId: string, newPlan: string) => {
         setUpdatingId(tenantId);
         await updateTenant.mutateAsync({ id: tenantId, updates: { plan: newPlan } });
         setUpdatingId(null);
+    };
+
+    const handleCurrencyChange = (tenantId: string, currency: Currency) => {
+        setTenantCurrency(tenantId, currency);
     };
 
     const handleToggleActive = async (tenantId: string, currentActive: boolean) => {
@@ -82,6 +95,7 @@ export default function AdminBillingPage() {
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Tenant</th>
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Slug</th>
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Plan</th>
+                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Currency</th>
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Status</th>
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Users</th>
                                     <th className="text-left py-3 px-4 font-medium text-slate-500">Created</th>
@@ -106,6 +120,19 @@ export default function AdminBillingPage() {
                                                 {PLANS.map((plan) => (
                                                     <option key={plan} value={plan}>
                                                         {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <select
+                                                value={getTenantCurrency(tenant.id)}
+                                                onChange={(e) => handleCurrencyChange(tenant.id, e.target.value as Currency)}
+                                                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                {CURRENCIES.map((c) => (
+                                                    <option key={c} value={c}>
+                                                        {CURRENCY_CONFIG[c].symbol} {c}
                                                     </option>
                                                 ))}
                                             </select>
@@ -150,7 +177,7 @@ export default function AdminBillingPage() {
                                 ))}
                                 {(!tenants || tenants.length === 0) && (
                                     <tr>
-                                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                                        <td colSpan={8} className="py-8 text-center text-slate-400">
                                             No tenants found
                                         </td>
                                     </tr>
