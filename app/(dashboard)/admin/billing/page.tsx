@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminTenantList, useAdminMutations } from '@/lib/queries/admin';
@@ -17,19 +17,16 @@ export default function AdminBillingPage() {
     const { setTenantCurrency, tenants: storedTenants } = useTenantStore();
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [currencyMap, setCurrencyMap] = useState<Record<string, Currency>>({});
-    const initialized = useRef(false);
 
-    // Initialize currency map once when tenants first load
+    // Initialize currency map from API data when tenants load
     useEffect(() => {
-        if (!tenants || initialized.current) return;
-        initialized.current = true;
+        if (!tenants) return;
         const initial: Record<string, Currency> = {};
         tenants.forEach((t) => {
-            const stored = storedTenants.find((st) => st.id === t.id);
-            initial[t.id] = stored?.currency ?? 'MMK';
+            initial[t.id] = (t.currency as Currency) ?? 'MMK';
         });
         setCurrencyMap(initial);
-    }, [tenants, storedTenants]);
+    }, [tenants]);
 
     const getTenantCurrency = (tenantId: string): Currency => {
         return currencyMap[tenantId] ?? 'MMK';
@@ -41,9 +38,12 @@ export default function AdminBillingPage() {
         setUpdatingId(null);
     };
 
-    const handleCurrencyChange = (tenantId: string, currency: Currency) => {
+    const handleCurrencyChange = async (tenantId: string, currency: Currency) => {
+        setUpdatingId(tenantId);
         setCurrencyMap((prev) => ({ ...prev, [tenantId]: currency }));
         setTenantCurrency(tenantId, currency);
+        await updateTenant.mutateAsync({ id: tenantId, updates: { currency } });
+        setUpdatingId(null);
     };
 
     const handleToggleActive = async (tenantId: string, currentActive: boolean) => {
@@ -142,7 +142,8 @@ export default function AdminBillingPage() {
                                             <select
                                                 value={getTenantCurrency(tenant.id)}
                                                 onChange={(e) => handleCurrencyChange(tenant.id, e.target.value as Currency)}
-                                                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                disabled={updatingId === tenant.id}
+                                                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                             >
                                                 {CURRENCIES.map((c) => (
                                                     <option key={c} value={c}>
