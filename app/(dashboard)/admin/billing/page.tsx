@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminTenantList, useAdminMutations } from '@/lib/queries/admin';
@@ -17,10 +17,12 @@ export default function AdminBillingPage() {
     const { setTenantCurrency, tenants: storedTenants } = useTenantStore();
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [currencyMap, setCurrencyMap] = useState<Record<string, Currency>>({});
+    const initialized = useRef(false);
 
-    // Initialize currency map when tenants load
+    // Initialize currency map once when tenants first load
     useEffect(() => {
-        if (!tenants) return;
+        if (!tenants || initialized.current) return;
+        initialized.current = true;
         const initial: Record<string, Currency> = {};
         tenants.forEach((t) => {
             const stored = storedTenants.find((st) => st.id === t.id);

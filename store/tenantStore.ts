@@ -36,15 +36,21 @@ export const useTenantStore = create<TenantState>()(
             setCurrentTenant: (tenant) => set({ currentTenant: tenant }),
             setTenants: (tenants) => set({ tenants }),
             setTenantCurrency: (tenantId, currency) =>
-                set((state) => ({
-                    tenants: state.tenants.map((t) =>
-                        t.id === tenantId ? { ...t, currency } : t
-                    ),
-                    currentTenant:
-                        state.currentTenant?.id === tenantId
-                            ? { ...state.currentTenant, currency }
-                            : state.currentTenant,
-                })),
+                set((state) => {
+                    const exists = state.tenants.some((t) => t.id === tenantId);
+                    const tenants = exists
+                        ? state.tenants.map((t) =>
+                              t.id === tenantId ? { ...t, currency } : t
+                          )
+                        : [...state.tenants, { id: tenantId, name: '', slug: '', currency }];
+                    return {
+                        tenants,
+                        currentTenant:
+                            state.currentTenant?.id === tenantId
+                                ? { ...state.currentTenant, currency }
+                                : state.currentTenant,
+                    };
+                }),
             clearTenant: () => set({ activeTenantId: null, currentTenant: null, tenants: [] }),
         }),
         {
