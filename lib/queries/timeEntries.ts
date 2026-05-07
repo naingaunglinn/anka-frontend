@@ -5,6 +5,11 @@ import { toTimeEntry } from '@/lib/dealsMapper';
 import type { TimeEntry } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
 
+async function patchStatus(id: string, action: 'submit' | 'reject'): Promise<TimeEntry> {
+    const { data } = await api.patch(`/time-entries/${id}/${action}`);
+    return toTimeEntry(data.data ?? data);
+}
+
 // ── Query key factory ────────────────────────────────────────────────────────
 
 export const timeEntryKeys = {
@@ -20,7 +25,13 @@ export interface TimeEntryListParams {
     per_page?: number;
     project_id?: string;
     employee_id?: string;
-    status?: TimeEntry['status'];
+    /**
+     * Single status, or a comma-separated list (e.g. `'Draft,Rejected'`).
+     * The backend explodes CSVs and matches via `whereIn`.
+     */
+    status?: TimeEntry['status'] | string;
+    /** Substring match on the task description. */
+    q?: string;
     date_from?: string;
     date_to?: string;
 }
@@ -32,16 +43,26 @@ export interface TimeEntryListParams {
  *
  * @param params Optional pagination and filter params (project, employee, status, date range).
  */
-export function useTimeEntryList(params: TimeEntryListParams = {}) {
+export function useTimeEntryList(
+    params: TimeEntryListParams = {},
+    options: { enabled?: boolean } = {},
+) {
     return useQuery<PaginatedResponse<TimeEntry>>({
         queryKey: timeEntryKeys.list(params),
         queryFn: async () => {
             const { data: body } = await api.get('/time-entries', { params });
             const timeEntries = (body.data ?? []).map(toTimeEntry);
-            useBusinessStore.setState({ timeEntries });
+            // Only mirror to the global businessStore for unfiltered queries
+            // (the manager Time Tracking page). Filtered/paginated calls — like
+            // the per-tab My Tasks queries — must not overwrite the store, or
+            // the manager view's KPIs would scope to whichever filter ran last.
+            if (Object.keys(params).length === 0) {
+                useBusinessStore.setState({ timeEntries });
+            }
             return { ...body, data: timeEntries } as PaginatedResponse<TimeEntry>;
         },
         staleTime: 30_000,
+        enabled: options.enabled ?? true,
     });
 }
 
@@ -103,5 +124,24 @@ export function useTimeEntryMutations() {
             queryClient.invalidateQueries({ queryKey: timeEntryKeys.all }),
     });
 
-    return { createTimeEntry, approveTimeEntry, deleteTimeEntry };
+    /**
+     * Employee marks a Draft entry as self-completed (Draft -> Pending).
+     * Only valid for the assigned employee; backend rejects otherwise.
+     */
+    const submitTimeEntry = useMutation({
+        mutationFn: (id: string) => patchStatus(id, 'submit'),
+        onSettled: () =>
+            queryClient.invalidateQueries({ queryKey: timeEntryKeys.all }),
+    });
+
+    /**
+     * Manager rejects a self-completed entry (Pending -> Rejected).
+     */
+    const rejectTimeEntry = useMutation({
+        mutationFn: (id: string) => patchStatus(id, 'reject'),
+        onSettled: () =>
+            queryClient.invalidateQueries({ queryKey: timeEntryKeys.all }),
+    });
+
+    return { createTimeEntry, approveTimeEntry, submitTimeEntry, rejectTimeEntry, deleteTimeEntry };
 }

@@ -36,9 +36,11 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
         resolver: zodResolver(departmentSchema) as any,
         mode: 'onBlur',
         reValidateMode: 'onChange',
-        defaultValues: initialData || {
-            name:      '',
-            managerId: undefined,
+        // Explicit normalization so a `null` managerId from the API doesn't trip
+        // Zod's `.optional()` validator (which rejects null).
+        defaultValues: {
+            name:      initialData?.name ?? '',
+            managerId: initialData?.managerId ?? undefined,
         },
     });
 

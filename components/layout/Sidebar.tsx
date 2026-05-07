@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
+import { canAccessRoute } from '@/lib/route-permissions';
 import { useEffect, useState } from 'react';
 import {
     LayoutDashboard,
@@ -14,6 +15,7 @@ import {
     FileSignature,
     FolderKanban,
     Clock,
+    ClipboardList,
     PieChart,
     LineChart,
     Building2,
@@ -29,6 +31,7 @@ const orgRoutes = [
     { label: 'Contracts & Billing', icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
     { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },
     { label: 'Time Tracking',     icon: Clock,           href: '/time-tracking', color: 'text-amber-500' },
+    { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-cyan-500' },
     { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-blue-700' },
     { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
 ];
@@ -49,7 +52,8 @@ export const Sidebar = () => {
         return <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl w-64"></div>;
     }
 
-    const routes = user?.isSuperAdmin ? superAdminRoutes : orgRoutes;
+    const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
+    const routes = user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes;
     const homeHref = user?.isSuperAdmin ? '/tenant' : '/dashboard';
 
     return (

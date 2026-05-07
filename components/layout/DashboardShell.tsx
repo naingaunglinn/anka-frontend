@@ -2,6 +2,7 @@
 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { RouteGuard } from '@/components/RouteGuard';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
@@ -22,6 +23,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     return (
         <AppProviders>
         <div className="h-full relative overflow-hidden bg-slate-50">
+            <RouteGuard />
             <Toaster position="top-right" />
             {/* Sidebar - fixed on desktop */}
             <div className={cn(

@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 // Routes only org users can access.
 const ORG_PREFIXES = [
     '/crm', '/organization', '/estimation', '/contracts',
-    '/projects', '/time-tracking', '/financial', '/forecast', '/dashboard',
+    '/projects', '/time-tracking', '/my-tasks', '/financial', '/forecast', '/dashboard',
     '/profile',
 ];
 
@@ -66,6 +66,7 @@ export const config = {
         '/contracts/:path*',
         '/projects/:path*',
         '/time-tracking/:path*',
+        '/my-tasks/:path*',
         '/financial/:path*',
         '/forecast/:path*',
         '/profile/:path*',
