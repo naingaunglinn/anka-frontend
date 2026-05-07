@@ -6,9 +6,11 @@ import { Slider } from '@/components/ui/slider';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Calculator } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 export default function ForecastPage() {
     const store = useBusinessStore();
+    useOrganizationSync();
     const pnlData = store.getFinancialPnL();
 
     // Simulation Parameters

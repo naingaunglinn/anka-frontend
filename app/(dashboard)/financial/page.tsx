@@ -10,13 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 export default function FinancialPage() {
     const store = useBusinessStore();
 
-    // Load invoices and time entries so P&L is always populated
+    // Load invoices, time entries, and org data so P&L is always populated
     useInvoiceList();
     useTimeEntryList();
+    useOrganizationSync();
 
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
