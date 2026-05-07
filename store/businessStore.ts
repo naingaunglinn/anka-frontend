@@ -87,8 +87,8 @@ export interface BusinessState {
 
     // Actions — Org (all routed through lib/queries/organization.ts → Laravel API)
     updateCompanySettings: (settings: Partial<CompanySettings>) => Promise<void>;
-    addEmployee: (emp: Employee) => Promise<void>;
-    updateEmployee: (id: string, emp: Partial<Employee>) => Promise<void>;
+    addEmployee: (emp: Employee, credentials?: { email: string; password: string }) => Promise<void>;
+    updateEmployee: (id: string, emp: Partial<Employee>, credentials?: { email?: string; password?: string }) => Promise<void>;
     deleteEmployee: (id: string) => Promise<void>;
     addRole: (role: Role) => Promise<void>;
     updateRole: (id: string, role: Partial<Role>) => Promise<void>;
@@ -173,29 +173,32 @@ export const useBusinessStore = create<BusinessState>()(
                 }
             },
 
-            addEmployee: async (emp) => {
+            addEmployee: async (emp, credentials) => {
                 const snapshot = get().employees;
                 set(s => {
                     const employees = [...s.employees, emp];
                     return { employees, engineers: employeesToEngineers(employees) };
                 });
                 try {
-                    await insertEmployee(emp);
+                    await insertEmployee(emp, credentials);
                 } catch (err) {
                     set({ employees: snapshot, engineers: employeesToEngineers(snapshot) });
                     toast.error(`Failed to add employee: ${normalizeError(err).message}`);
                 }
             },
-            updateEmployee: async (id, emp) => {
+            updateEmployee: async (id, emp, credentials) => {
                 const snapshot = get().employees;
                 const existing = snapshot.find(e => e.id === id);
                 if (!existing) return;
+                // Merge `emp` (and a new email if the manager changed it) into the
+                // optimistic store update so the UI reflects the change immediately.
+                const merged = { ...existing, ...emp, ...(credentials?.email ? { email: credentials.email } : {}) };
                 set(s => {
-                    const employees = s.employees.map(e => e.id === id ? { ...e, ...emp } : e);
+                    const employees = s.employees.map(e => e.id === id ? merged : e);
                     return { employees, engineers: employeesToEngineers(employees) };
                 });
                 try {
-                    await updateEmployeeDB({ ...existing, ...emp });
+                    await updateEmployeeDB(merged, credentials);
                 } catch (err) {
                     set({ employees: snapshot, engineers: employeesToEngineers(snapshot) });
                     toast.error(`Failed to update employee: ${normalizeError(err).message}`);
