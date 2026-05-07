@@ -134,7 +134,7 @@ export default function EditDealPage() {
             id: uuidv4(),
             roleType: roleName as RoleType,
             quantity: group.members.length,
-            months: timelineMonths,
+            months: 100, // percentage allocation — AI result always means 100%
             minMonthlySalary: group.minSalary,
             maxMonthlySalary: group.maxSalary,
         }));
@@ -216,6 +216,7 @@ export default function EditDealPage() {
     const timelineMonths = form.watch("timelineMonths") ?? 1;
     const workloadHours = form.watch("workloadHours") ?? 0;
     const workloadDescription = form.watch("workloadDescription") || "";
+    const expectedCloseDate = form.watch("expectedCloseDate");
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -229,7 +230,7 @@ export default function EditDealPage() {
 
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
-        return total + (role.quantity || 0) * (role.months || 0) * avgSalary;
+        return total + (role.quantity || 0) * (role.months || 100) / 100 * avgSalary;
     }, 0);
 
     const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
@@ -431,7 +432,7 @@ export default function EditDealPage() {
                                                         name="expectedCloseDate"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Expected Close Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                                <FormLabel>Expected Start Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="date" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -439,31 +440,40 @@ export default function EditDealPage() {
                                                             </FormItem>
                                                         )}
                                                     />
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="leadSource"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
-                                                                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="bg-white">
-                                                                            <SelectValue placeholder="How did they find you?" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        {LEAD_SOURCE_OPTIONS.map((opt) => (
-                                                                            <SelectItem key={opt.value} value={opt.value}>
-                                                                                {opt.label}
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                                    <FormItem>
+                                                        <FormLabel>Expected End Date</FormLabel>
+                                                        <div className="h-9 flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                                                            {expectedCloseDate && timelineMonths
+                                                                ? new Date(new Date(expectedCloseDate).getTime() + Number(timelineMonths) * 30.44 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                                                                : '—'}
+                                                        </div>
+                                                    </FormItem>
                                                 </div>
+
+                                                <FormField
+                                                    control={form.control}
+                                                    name="leadSource"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                                                                <FormControl>
+                                                                    <SelectTrigger className="bg-white">
+                                                                        <SelectValue placeholder="How did they find you?" />
+                                                                    </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent>
+                                                                    {LEAD_SOURCE_OPTIONS.map((opt) => (
+                                                                        <SelectItem key={opt.value} value={opt.value}>
+                                                                            {opt.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
 
                                                 <div className="grid grid-cols-2 gap-6">
                                                     <FormField
@@ -499,20 +509,7 @@ export default function EditDealPage() {
                                                             <FormItem>
                                                                 <FormLabel>Timeline (Months) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" className="bg-white" {...field} />
-                                                                </FormControl>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="workloadHours"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel>Total Workload (Hours) <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
-                                                                <FormControl>
-                                                                    <Input type="number" className="bg-white" {...field} />
+                                                                    <Input type="number" step="0.5" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -596,7 +593,7 @@ export default function EditDealPage() {
                                                             className="bg-white shadow-sm"
                                                                 onClick={() => {
                                                                     const range = getSuggestedSalaryRange('frontend', employees);
-                                                                    append({ roleType: 'frontend', quantity: 1, months: timelineMonths || 1, minMonthlySalary: range.min, maxMonthlySalary: range.max });
+                                                                    append({ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: range.min, maxMonthlySalary: range.max });
                                                                 }}
                                                         >
                                                             <Plus className="h-4 w-4 mr-2" /> Add Role
@@ -605,100 +602,100 @@ export default function EditDealPage() {
 
                                                     <div className="space-y-4">
                                                         {fields.map((field, index) => (
-                                                            <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`ghostRoles.${index}.roleType`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem className="flex-1">
-                                                                            <FormLabel className="text-xs text-slate-500">Role</FormLabel>
-                                                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                                                <FormControl>
-                                                                                    <SelectTrigger>
-                                                                                        <SelectValue placeholder="Select a role" />
-                                                                                    </SelectTrigger>
-                                                                                </FormControl>
-                                                                                <SelectContent>
-                                                                                    {CAPACITY_ROLE_OPTIONS.map((role) => (
-                                                                                        <SelectItem key={role.value} value={role.value}>
-                                                                                            {role.label}
-                                                                                        </SelectItem>
-                                                                                    ))}
-                                                                                </SelectContent>
-                                                                            </Select>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`ghostRoles.${index}.quantity`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem className="w-20">
-                                                                            <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
-                                                                            <FormControl>
-                                                                                <Input type="number" {...field} />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`ghostRoles.${index}.months`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem className="w-20">
-                                                                            <FormLabel className="text-xs text-slate-500">Mos.</FormLabel>
-                                                                            <FormControl>
-                                                                                <Input type="number" {...field} />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                                 <div className="flex items-end gap-1">
-                                                                     <FormField
-                                                                         control={form.control}
-                                                                         name={`ghostRoles.${index}.minMonthlySalary`}
-                                                                         render={({ field }) => (
-                                                                             <FormItem className="w-24">
-                                                                                 <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                            <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
+                                                                 <FormField
+                                                                     control={form.control}
+                                                                     name={`ghostRoles.${index}.roleType`}
+                                                                     render={({ field }) => (
+                                                                         <FormItem className="flex-1 shrink-0 min-w-[120px]">
+                                                                             <FormLabel className="text-xs text-slate-500">Role</FormLabel>
+                                                                             <Select onValueChange={field.onChange} value={field.value}>
                                                                                  <FormControl>
-                                                                                     <Input type="number" {...field} />
+                                                                                     <SelectTrigger>
+                                                                                         <SelectValue placeholder="Select a role" />
+                                                                                     </SelectTrigger>
                                                                                  </FormControl>
-                                                                                 <FormMessage />
-                                                                             </FormItem>
-                                                                         )}
-                                                                     />
-                                                                     <FormField
-                                                                         control={form.control}
-                                                                         name={`ghostRoles.${index}.maxMonthlySalary`}
-                                                                         render={({ field }) => (
-                                                                             <FormItem className="w-24">
-                                                                                 <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
-                                                                                 <FormControl>
-                                                                                     <Input type="number" {...field} />
-                                                                                 </FormControl>
-                                                                                 <FormMessage />
-                                                                             </FormItem>
-                                                                         )}
-                                                                     />
-                                                                     <Button
-                                                                         type="button"
-                                                                         variant="ghost"
-                                                                         size="icon"
-                                                                         className="h-9 w-9 text-slate-400 hover:text-indigo-600"
-                                                                         title="Pull salary range from organization"
-                                                                         onClick={() => {
-                                                                             const gr = form.getValues(`ghostRoles.${index}`);
-                                                                             const range = getSuggestedSalaryRange(gr.roleType, employees);
-                                                                             form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
-                                                                             form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
-                                                                         }}
-                                                                     >
-                                                                         <UserPlus className="h-4 w-4" />
-                                                                     </Button>
-                                                                 </div>
+                                                                                 <SelectContent>
+                                                                                     {CAPACITY_ROLE_OPTIONS.map((role) => (
+                                                                                         <SelectItem key={role.value} value={role.value}>
+                                                                                             {role.label}
+                                                                                         </SelectItem>
+                                                                                     ))}
+                                                                                 </SelectContent>
+                                                                             </Select>
+                                                                             <FormMessage />
+                                                                         </FormItem>
+                                                                     )}
+                                                                 />
+                                                                 <FormField
+                                                                     control={form.control}
+                                                                     name={`ghostRoles.${index}.quantity`}
+                                                                     render={({ field }) => (
+                                                                         <FormItem className="w-20 shrink-0">
+                                                                             <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
+                                                                             <FormControl>
+                                                                                 <Input type="number" {...field} />
+                                                                             </FormControl>
+                                                                             <FormMessage />
+                                                                         </FormItem>
+                                                                     )}
+                                                                 />
+                                                                 <FormField
+                                                                     control={form.control}
+                                                                     name={`ghostRoles.${index}.months`}
+                                                                     render={({ field }) => (
+                                                                         <FormItem className="w-20 shrink-0">
+                                                                             <FormLabel className="text-xs text-slate-500">Alloc %</FormLabel>
+                                                                             <FormControl>
+                                                                                 <Input type="number" step="10" min="10" max="100" {...field} />
+                                                                             </FormControl>
+                                                                             <FormMessage />
+                                                                         </FormItem>
+                                                                     )}
+                                                                 />
+                                                                  <div className="flex items-end gap-1 shrink-0">
+                                                                      <FormField
+                                                                          control={form.control}
+                                                                          name={`ghostRoles.${index}.minMonthlySalary`}
+                                                                          render={({ field }) => (
+                                                                              <FormItem className="w-24 shrink-0">
+                                                                                  <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                                                  <FormControl>
+                                                                                      <Input type="number" {...field} />
+                                                                                  </FormControl>
+                                                                                  <FormMessage />
+                                                                              </FormItem>
+                                                                          )}
+                                                                      />
+                                                                      <FormField
+                                                                          control={form.control}
+                                                                          name={`ghostRoles.${index}.maxMonthlySalary`}
+                                                                          render={({ field }) => (
+                                                                              <FormItem className="w-24 shrink-0">
+                                                                                  <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
+                                                                                  <FormControl>
+                                                                                      <Input type="number" {...field} />
+                                                                                  </FormControl>
+                                                                                  <FormMessage />
+                                                                              </FormItem>
+                                                                          )}
+                                                                      />
+                                                                      <Button
+                                                                          type="button"
+                                                                          variant="ghost"
+                                                                          size="icon"
+                                                                          className="h-9 w-9 text-slate-400 hover:text-indigo-600 shrink-0"
+                                                                          title="Pull salary range from organization"
+                                                                          onClick={() => {
+                                                                              const gr = form.getValues(`ghostRoles.${index}`);
+                                                                              const range = getSuggestedSalaryRange(gr.roleType, employees);
+                                                                              form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
+                                                                              form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
+                                                                          }}
+                                                                      >
+                                                                          <UserPlus className="h-4 w-4" />
+                                                                      </Button>
+                                                                  </div>
                                                                 <Button
                                                                     type="button"
                                                                     variant="ghost"

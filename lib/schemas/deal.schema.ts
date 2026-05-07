@@ -17,7 +17,7 @@ export const ghostRoleSchema = z.object({
     id: z.string().optional(),
     roleType: z.enum(['frontend', 'backend', 'pm', 'qa', 'design']),
     quantity: z.coerce.number().int().min(1, 'At least 1'),
-    months: z.coerce.number().int().min(1, 'At least 1 month'),
+    months: z.coerce.number().min(1).max(100).default(100), // allocation percentage (1-100%), default 100%
     minMonthlySalary: z.coerce.number().min(0, 'Must be ≥ 0'),
     maxMonthlySalary: z.coerce.number().min(0, 'Must be ≥ 0'),
 }).refine(data => data.maxMonthlySalary >= data.minMonthlySalary, {
@@ -46,7 +46,7 @@ export const dealSchema = z.object({
         'inbound', 'referral', 'cold_outreach', 'social', 'event', 'partner', 'other',
     ]).optional(),
     clientBudget: z.coerce.number().min(0, 'Budget must be ≥ 0'),
-    timelineMonths: z.coerce.number().int().min(1, 'Timeline is required'),
+    timelineMonths: z.coerce.number().min(0.5, 'Timeline is required'),
     workloadHours: z.coerce.number().min(0, 'Must be ≥ 0'),
     winProbability: z.coerce.number().min(0).max(100),
     workloadDescription: z.string().max(5000).optional(),
