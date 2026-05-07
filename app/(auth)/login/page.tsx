@@ -39,7 +39,7 @@ export default function LoginPage() {
             // Redirect super admins to tenant management; org users to the dashboard.
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
-            router.push(isSuperAdmin ? '/tenant' : '/dashboard');
+            router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {
