@@ -25,6 +25,8 @@ export default function LoginPage() {
 
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
+        mode: 'onBlur',
+        reValidateMode: 'onChange',
         defaultValues: {
             email: '',
             password: '',
@@ -69,7 +71,7 @@ export default function LoginPage() {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
                                             <Input placeholder="name@example.com" {...field} className="h-11" />
                                         </FormControl>
@@ -82,7 +84,7 @@ export default function LoginPage() {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Password</FormLabel>
+                                        <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
                                             <Input type="password" placeholder="••••••••" {...field} className="h-11" />
                                         </FormControl>

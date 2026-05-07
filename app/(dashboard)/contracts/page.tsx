@@ -14,11 +14,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useContractList, useContractMutations } from '@/lib/queries/contracts';
 import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
 import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestones';
+import { useDealList } from '@/lib/queries/deals';
+import { useProjectList } from '@/lib/queries/projects';
+import { useRouter } from 'next/navigation';
 
 export default function ContractsPage() {
+    const router = useRouter();
     const contractsQuery = useContractList();
     const invoicesQuery = useInvoiceList();
     const milestonesQuery = useMilestoneList();
+    const dealsQuery = useDealList();
+    const projectsQuery = useProjectList();
     const { payInvoice, createInvoice, deleteInvoice } = useInvoiceMutations();
     const { updateContract, deleteContract } = useContractMutations();
     const { createMilestone, deleteMilestone } = useMilestoneMutations();
@@ -26,6 +32,8 @@ export default function ContractsPage() {
     const contracts = useMemo(() => contractsQuery.data?.data ?? [], [contractsQuery.data]);
     const invoices = useMemo(() => invoicesQuery.data?.data ?? [], [invoicesQuery.data]);
     const milestones = useMemo(() => milestonesQuery.data?.data ?? [], [milestonesQuery.data]);
+    const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
+    const projects = useMemo(() => projectsQuery.data?.data ?? [], [projectsQuery.data]);
 
     const totalContractValue = contracts.reduce((sum, c) => sum + c.totalValue, 0);
     const totalRecognized = contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
@@ -45,9 +53,15 @@ export default function ContractsPage() {
     const [invAmount, setInvAmount] = useState('');
     const [invTax, setInvTax] = useState('0');
     const [invNotes, setInvNotes] = useState('');
+    const [invErrors, setInvErrors] = useState<{ contractId?: string; amount?: string }>({});
 
     const handleCreateInvoice = async () => {
-        if (!invContractId || !invIssueDate || !invAmount) return;
+        const errs: typeof invErrors = {};
+        if (!invContractId) errs.contractId = 'Please select a contract.';
+        if (!invAmount) errs.amount = 'Please enter an invoice amount.';
+        else if (Number(invAmount) <= 0) errs.amount = 'Amount must be greater than zero.';
+        setInvErrors(errs);
+        if (Object.keys(errs).length > 0) return;
         await createInvoice.mutateAsync({
             contractId: invContractId,
             milestoneId: invMilestoneId || undefined,
@@ -64,6 +78,7 @@ export default function ContractsPage() {
         setInvAmount('');
         setInvTax('0');
         setInvNotes('');
+        setInvErrors({});
     };
 
     // ── Create Milestone state ──────────────────────────────────────────────
@@ -72,9 +87,17 @@ export default function ContractsPage() {
     const [msName, setMsName] = useState('');
     const [msDueDate, setMsDueDate] = useState('');
     const [msAmount, setMsAmount] = useState('');
+    const [msErrors, setMsErrors] = useState<{ contractId?: string; name?: string; dueDate?: string; amount?: string }>({});
 
     const handleCreateMilestone = async () => {
-        if (!msContractId || !msName || !msDueDate || !msAmount) return;
+        const errs: typeof msErrors = {};
+        if (!msContractId) errs.contractId = 'Please select a contract.';
+        if (!msName.trim()) errs.name = 'Please enter a milestone name.';
+        if (!msDueDate) errs.dueDate = 'Please select a due date.';
+        if (!msAmount) errs.amount = 'Please enter a milestone amount.';
+        else if (Number(msAmount) <= 0) errs.amount = 'Amount must be greater than zero.';
+        setMsErrors(errs);
+        if (Object.keys(errs).length > 0) return;
         await createMilestone.mutateAsync({
             contractId: msContractId,
             name: msName,
@@ -87,6 +110,7 @@ export default function ContractsPage() {
         setMsName('');
         setMsDueDate('');
         setMsAmount('');
+        setMsErrors({});
     };
 
     // ── Edit Contract state ────────────────────────────────────────────────
@@ -156,10 +180,11 @@ export default function ContractsPage() {
                             <DialogDescription>Issue an invoice against an active contract.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-2">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Contract</label>
-                                <Select value={invContractId} onValueChange={(v) => { setInvContractId(v); setInvMilestoneId(''); }}>
-                                    <SelectTrigger><SelectValue placeholder="Select contract..." /></SelectTrigger>
+                            <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
+                                <Select value={invContractId} onValueChange={(v) => { setInvContractId(v); setInvMilestoneId(''); if (invErrors.contractId) setInvErrors(p => ({ ...p, contractId: undefined })); }}>
+                                    <SelectTrigger aria-invalid={!!invErrors.contractId}><SelectValue placeholder="Select contract..." /></SelectTrigger>
                                     <SelectContent>
                                         {contracts.map(c => (
                                             <SelectItem key={c.id} value={c.id}>
@@ -168,9 +193,10 @@ export default function ContractsPage() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {invErrors.contractId && <p className="text-xs text-destructive">{invErrors.contractId}</p>}
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Milestone <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Milestone <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
                                 <Select value={invMilestoneId} onValueChange={setInvMilestoneId}>
                                     <SelectTrigger><SelectValue placeholder="Select milestone..." /></SelectTrigger>
                                     <SelectContent>
@@ -183,33 +209,41 @@ export default function ContractsPage() {
                                 </Select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Issue Date</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Issue Date <span className="text-destructive">*</span></label>
                                     <Input type="date" value={invIssueDate} onChange={e => setInvIssueDate(e.target.value)} />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Due Date</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Due Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
                                     <Input type="date" value={invDueDate} onChange={e => setInvDueDate(e.target.value)} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Amount ($)</label>
-                                    <Input type="number" min="0" step="0.01" value={invAmount} onChange={e => setInvAmount(e.target.value)} placeholder="10000" />
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                    <Input
+                                        type="number" min="0" step="0.01"
+                                        value={invAmount}
+                                        onChange={e => { setInvAmount(e.target.value); if (invErrors.amount) setInvErrors(p => ({ ...p, amount: undefined })); }}
+                                        onBlur={() => { if (!invAmount || Number(invAmount) <= 0) setInvErrors(p => ({ ...p, amount: 'Enter a valid amount.' })); }}
+                                        placeholder="10000"
+                                        aria-invalid={!!invErrors.amount}
+                                    />
+                                    {invErrors.amount && <p className="text-xs text-destructive">{invErrors.amount}</p>}
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Tax ($)</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Tax ($) <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
                                     <Input type="number" min="0" step="0.01" value={invTax} onChange={e => setInvTax(e.target.value)} placeholder="0" />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Notes</label>
-                                <Input value={invNotes} onChange={e => setInvNotes(e.target.value)} placeholder="Optional..." />
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Notes <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                <Input value={invNotes} onChange={e => setInvNotes(e.target.value)} placeholder="e.g. Payment for Phase 1 delivery" />
                             </div>
                             <Button
                                 className="w-full bg-slate-900"
                                 onClick={handleCreateInvoice}
-                                disabled={createInvoice.isPending || !invContractId || !invAmount}
+                                disabled={createInvoice.isPending}
                             >
                                 {createInvoice.isPending ? 'Creating...' : 'Create Invoice'}
                             </Button>
@@ -286,6 +320,8 @@ export default function ContractsPage() {
                                 <TableRow>
                                     <TableHead>Contract ID</TableHead>
                                     <TableHead>Client</TableHead>
+                                    <TableHead>Source Deal</TableHead>
+                                    <TableHead>Linked Project</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Total Value</TableHead>
                                     <TableHead className="text-right">Recognized</TableHead>
@@ -293,46 +329,84 @@ export default function ContractsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {contracts.map((contract) => (
-                                    <TableRow key={contract.id}>
-                                        <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
-                                        <TableCell>{contract.client}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className={
-                                                contract.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    'bg-slate-100 text-slate-700 border-slate-200'
-                                            }>
-                                                {contract.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">${contract.totalValue.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right text-slate-600">${contract.revenueRecognized.toLocaleString()}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
-                                                        Edit Contract
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        className="text-rose-600"
-                                                        onClick={() => openArchive(contract.id)}
+                                {contracts.map((contract) => {
+                                    const sourceDeal     = deals.find(d => d.id === contract.dealId);
+                                    const linkedProject  = projects.find(p => p.contractId === contract.id);
+                                    return (
+                                        <TableRow key={contract.id}>
+                                            <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
+                                            <TableCell>{contract.client}</TableCell>
+                                            <TableCell>
+                                                {sourceDeal ? (
+                                                    <button
+                                                        className="text-sm text-blue-600 hover:underline text-left"
+                                                        onClick={() => router.push(`/crm/${sourceDeal.id}`)}
                                                     >
-                                                        Archive
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                                        {sourceDeal.name}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {linkedProject ? (
+                                                    <button
+                                                        className="text-sm text-purple-600 hover:underline text-left"
+                                                        onClick={() => router.push('/projects')}
+                                                    >
+                                                        {linkedProject.projectNumber ?? linkedProject.name}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className={
+                                                    contract.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        'bg-slate-100 text-slate-700 border-slate-200'
+                                                }>
+                                                    {contract.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium">${contract.totalValue.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right text-slate-600">${contract.revenueRecognized.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        {sourceDeal && (
+                                                            <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
+                                                                View Source Deal
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        {linkedProject && (
+                                                            <DropdownMenuItem onClick={() => router.push('/projects')}>
+                                                                View Linked Project
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
+                                                            Edit Contract
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            className="text-rose-600"
+                                                            onClick={() => openArchive(contract.id)}
+                                                        >
+                                                            Archive
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                                 {contracts.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
+                                        <TableCell colSpan={8} className="text-center py-6 text-slate-500">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -354,10 +428,11 @@ export default function ContractsPage() {
                                     <DialogDescription>Create a billing milestone for a contract.</DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-2">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium">Contract</label>
-                                        <Select value={msContractId} onValueChange={setMsContractId}>
-                                            <SelectTrigger><SelectValue placeholder="Please select" /></SelectTrigger>
+                                    <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
+                                        <Select value={msContractId} onValueChange={v => { setMsContractId(v); if (msErrors.contractId) setMsErrors(p => ({ ...p, contractId: undefined })); }}>
+                                            <SelectTrigger aria-invalid={!!msErrors.contractId}><SelectValue placeholder="Please select" /></SelectTrigger>
                                             <SelectContent>
                                                 {contracts.map(c => (
                                                     <SelectItem key={c.id} value={c.id}>
@@ -366,25 +441,47 @@ export default function ContractsPage() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                        {msErrors.contractId && <p className="text-xs text-destructive">{msErrors.contractId}</p>}
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium">Milestone Name</label>
-                                        <Input value={msName} onChange={e => setMsName(e.target.value)} placeholder="e.g. Phase 1 Delivery" />
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Milestone Name <span className="text-destructive">*</span></label>
+                                        <Input
+                                            value={msName}
+                                            onChange={e => { setMsName(e.target.value); if (msErrors.name) setMsErrors(p => ({ ...p, name: undefined })); }}
+                                            onBlur={() => { if (!msName.trim()) setMsErrors(p => ({ ...p, name: 'Please enter a milestone name.' })); }}
+                                            placeholder="e.g. Phase 1 Delivery"
+                                            aria-invalid={!!msErrors.name}
+                                        />
+                                        {msErrors.name && <p className="text-xs text-destructive">{msErrors.name}</p>}
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Due Date</label>
-                                            <Input type="date" value={msDueDate} onChange={e => setMsDueDate(e.target.value)} />
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium">Due Date <span className="text-destructive">*</span></label>
+                                            <Input
+                                                type="date"
+                                                value={msDueDate}
+                                                onChange={e => { setMsDueDate(e.target.value); if (msErrors.dueDate) setMsErrors(p => ({ ...p, dueDate: undefined })); }}
+                                                aria-invalid={!!msErrors.dueDate}
+                                            />
+                                            {msErrors.dueDate && <p className="text-xs text-destructive">{msErrors.dueDate}</p>}
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Amount ($)</label>
-                                            <Input type="number" min="0" value={msAmount} onChange={e => setMsAmount(e.target.value)} placeholder="5000" />
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                            <Input
+                                                type="number" min="0"
+                                                value={msAmount}
+                                                onChange={e => { setMsAmount(e.target.value); if (msErrors.amount) setMsErrors(p => ({ ...p, amount: undefined })); }}
+                                                onBlur={() => { if (!msAmount || Number(msAmount) <= 0) setMsErrors(p => ({ ...p, amount: 'Enter a valid amount.' })); }}
+                                                placeholder="5000"
+                                                aria-invalid={!!msErrors.amount}
+                                            />
+                                            {msErrors.amount && <p className="text-xs text-destructive">{msErrors.amount}</p>}
                                         </div>
                                     </div>
                                     <Button
                                         className="w-full bg-slate-900"
                                         onClick={handleCreateMilestone}
-                                        disabled={createMilestone.isPending || !msContractId || !msName || !msDueDate || !msAmount}
+                                        disabled={createMilestone.isPending}
                                     >
                                         {createMilestone.isPending ? 'Creating...' : 'Add Milestone'}
                                     </Button>

@@ -1,5 +1,6 @@
 import type {
     Deal,
+    DealLeadSource,
     GhostRole,
     HardAssignment,
     EstimationResource,
@@ -42,9 +43,14 @@ interface ApiDeal {
     id: string;
     name: string;
     client?: string;
+    contact_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
     estimated_value?: number;
     win_probability?: number;
     status?: Deal['status'];
+    expected_close_date?: string;
+    lead_source?: string;
     client_budget?: number;
     timeline_months?: number;
     workload_hours?: number;
@@ -55,6 +61,8 @@ interface ApiDeal {
     buffer_cost?: number;
     total_estimated_cost?: number;
     estimated_gross_profit?: number;
+    win_reason?: string;
+    loss_reason?: string;
     ghost_roles?: ApiGhostRole[];
     hard_assignments?: ApiHardAssignment[];
     estimation_resources?: ApiEstimationResource[];
@@ -117,12 +125,14 @@ interface ApiTimeEntry {
 }
 
 function toGhostRole(row: ApiGhostRole): GhostRole {
+    const avg = row.avg_monthly_salary ?? 0;
     return {
         id: row.id,
         roleType: row.role_type,
         quantity: row.quantity,
         months: row.months,
-        avgMonthlySalary: row.avg_monthly_salary,
+        minMonthlySalary: avg,
+        maxMonthlySalary: avg,
     };
 }
 
@@ -155,9 +165,14 @@ export function toDeal(row: ApiDeal): Deal {
         id: row.id,
         name: row.name,
         client: row.client,
+        contactName: row.contact_name,
+        contactEmail: row.contact_email,
+        contactPhone: row.contact_phone,
         estimatedValue: row.estimated_value,
         winProbability: row.win_probability,
         status: row.status,
+        expectedCloseDate: row.expected_close_date,
+        leadSource: row.lead_source as DealLeadSource | undefined,
         clientBudget: row.client_budget,
         timelineMonths: row.timeline_months,
         workloadHours: row.workload_hours,
@@ -168,6 +183,8 @@ export function toDeal(row: ApiDeal): Deal {
         bufferCost: row.buffer_cost,
         totalEstimatedCost: row.total_estimated_cost,
         estimatedGrossProfit: row.estimated_gross_profit,
+        winReason: row.win_reason,
+        lossReason: row.loss_reason,
         ghostRoles: (row.ghost_roles ?? []).map(toGhostRole),
         hardAssignments: (row.hard_assignments ?? []).map(toHardAssignment),
         estimationResources: (row.estimation_resources ?? []).map(toEstimationResource),
@@ -250,8 +267,15 @@ export function toTimeEntry(row: ApiTimeEntry): TimeEntry {
 
 export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
-    if (deal.name !== undefined) payload.name = deal.name;
-    if (deal.client !== undefined) payload.client = deal.client;
+    if (deal.name !== undefined)          payload.name           = deal.name;
+    if (deal.client !== undefined)        payload.client         = deal.client;
+    if (deal.contactName !== undefined)   payload.contact_name   = deal.contactName || null;
+    if (deal.contactEmail !== undefined)  payload.contact_email  = deal.contactEmail || null;
+    if (deal.contactPhone !== undefined)  payload.contact_phone  = deal.contactPhone || null;
+    if (deal.expectedCloseDate !== undefined) payload.expected_close_date = deal.expectedCloseDate || null;
+    if (deal.leadSource !== undefined)    payload.lead_source    = deal.leadSource || null;
+    if (deal.winReason !== undefined)     payload.win_reason     = deal.winReason || null;
+    if (deal.lossReason !== undefined)    payload.loss_reason    = deal.lossReason || null;
     if (deal.estimatedValue !== undefined) payload.estimated_value = deal.estimatedValue;
     if (deal.winProbability !== undefined) payload.win_probability = deal.winProbability;
     if (deal.status !== undefined) payload.status = deal.status;
@@ -270,7 +294,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
             role_type: role.roleType,
             quantity: role.quantity,
             months: role.months,
-            avg_monthly_salary: role.avgMonthlySalary,
+            avg_monthly_salary: ((role.minMonthlySalary ?? 0) + (role.maxMonthlySalary ?? 0)) / 2,
         }));
     }
     if (deal.hardAssignments !== undefined) {

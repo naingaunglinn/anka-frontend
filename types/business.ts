@@ -84,7 +84,8 @@ export interface GhostRole {
     roleType: RoleType; // capacity pool bucket — maps to deal_ghost_roles.role_type
     quantity: number;
     months: number;
-    avgMonthlySalary: number;
+    minMonthlySalary: number;
+    maxMonthlySalary: number;
 }
 
 export interface HardAssignment {
@@ -92,13 +93,28 @@ export interface HardAssignment {
     allocatedHours: number;
 }
 
+export type DealLeadSource =
+    | 'inbound'
+    | 'referral'
+    | 'cold_outreach'
+    | 'social'
+    | 'event'
+    | 'partner'
+    | 'other';
+
 export interface Deal {
     id: string;
     name: string;
     client?: string;
+    // Primary contact at the client company
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
     estimatedValue?: number;
     winProbability?: number;
     status?: "lead" | "opportunity" | "inquiry" | "proposal" | "contract" | "won" | "lost";
+    expectedCloseDate?: string;   // YYYY-MM-DD
+    leadSource?: DealLeadSource;
 
     // Legacy fields for Deals UI
     clientBudget?: number;
@@ -117,6 +133,10 @@ export interface Deal {
     estimationResources?: EstimationResource[];
     projectOverheads?: ProjectOverhead[];
     targetMargin?: number;
+
+    // Closure metadata
+    winReason?: string;
+    lossReason?: string;
 }
 
 // --- Contracts & Billing ---

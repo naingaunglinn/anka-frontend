@@ -4,10 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Users, Trophy } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Users, Trophy, XCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal } from '@/types/business';
@@ -36,7 +39,7 @@ export function KanbanBoard({
 }) {
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
-    const { updateDealStage, deleteDeal, winDeal } = useDealMutations();
+    const { updateDealStage, deleteDeal, winDeal, loseDeal } = useDealMutations();
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -45,6 +48,10 @@ export function KanbanBoard({
     const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
     const [winOpen, setWinOpen] = useState(false);
     const [winningDeal, setWinningDeal] = useState<{ id: string; name: string } | null>(null);
+    const [winReason, setWinReason] = useState('');
+    const [lostOpen, setLostOpen] = useState(false);
+    const [losingDeal, setLosingDeal] = useState<{ id: string; name: string } | null>(null);
+    const [lossReason, setLossReason] = useState('');
 
     useEffect(() => {
         setIsMounted(true);
@@ -52,11 +59,12 @@ export function KanbanBoard({
 
     const columns = useMemo(() => {
         const cols: Record<string, ColumnData> = {
-            lead: { id: 'lead', title: 'Lead', deals: [] },
-            inquiry: { id: 'inquiry', title: 'Inquiry', deals: [] },
-            proposal: { id: 'proposal', title: 'Proposal', deals: [] },
-            contract: { id: 'contract', title: 'Contract', deals: [] },
-            won: { id: 'won', title: 'Won', deals: [] },
+            inquiry:     { id: 'inquiry',     title: 'Inquiry',     deals: [] },
+            lead:        { id: 'lead',        title: 'Lead',        deals: [] },
+            opportunity: { id: 'opportunity', title: 'Opportunity', deals: [] },
+            proposal:    { id: 'proposal',    title: 'Proposal',    deals: [] },
+            contract:    { id: 'contract',    title: 'Contract',    deals: [] },
+            won:         { id: 'won',         title: 'Won',         deals: [] },
         };
 
         deals.forEach(deal => {
@@ -90,12 +98,15 @@ export function KanbanBoard({
         const { source, destination, draggableId } = result;
 
         if (source.droppableId !== destination.droppableId) {
-            let newProb = 50;
-            if (destination.droppableId === 'lead') newProb = 20;
-            if (destination.droppableId === 'inquiry') newProb = 50;
-            if (destination.droppableId === 'proposal') newProb = 75;
-            if (destination.droppableId === 'contract') newProb = 90;
-            if (destination.droppableId === 'won') newProb = 100;
+            const stageProbability: Record<string, number> = {
+                inquiry:     20,
+                lead:        20,
+                opportunity: 40,
+                proposal:    60,
+                contract:    80,
+                won:         100,
+            };
+            const newProb = stageProbability[destination.droppableId] ?? 50;
 
             updateDealStage.mutate({
                 id: draggableId,
@@ -119,24 +130,40 @@ export function KanbanBoard({
 
     const openWinDeal = (dealId: string, dealName: string) => {
         setWinningDeal({ id: dealId, name: dealName });
+        setWinReason('');
         setWinOpen(true);
     };
 
     const handleWinDeal = () => {
         if (!winningDeal) return;
-        winDeal.mutate(winningDeal.id);
+        winDeal.mutate({ dealId: winningDeal.id, winReason: winReason || undefined });
         setWinOpen(false);
         setWinningDeal(null);
+        setWinReason('');
+    };
+
+    const openLoseDeal = (dealId: string, dealName: string) => {
+        setLosingDeal({ id: dealId, name: dealName });
+        setLossReason('');
+        setLostOpen(true);
+    };
+
+    const handleLoseDeal = () => {
+        if (!losingDeal || !lossReason.trim()) return;
+        loseDeal.mutate({ dealId: losingDeal.id, lossReason: lossReason.trim() });
+        setLostOpen(false);
+        setLosingDeal(null);
+        setLossReason('');
     };
 
     if (!isMounted) return <div className="h-96 w-full animate-pulse bg-slate-100 rounded-lg" />;
 
     return (
         <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-6 overflow-x-auto pb-4 h-full min-h-[500px]">
+            <div className="flex gap-6 overflow-x-auto pb-4">
                 {Object.entries(columns).map(([columnId, column]) => {
                     return (
-                        <div key={columnId} className="flex flex-col min-w-[320px] bg-slate-100 rounded-xl max-h-full">
+                        <div key={columnId} className="flex flex-col min-w-[280px] w-[280px] bg-slate-100 rounded-xl shrink-0">
                             <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-slate-200 flex justify-between items-center">
                                 <h3 className="font-semibold text-slate-700">{column.title}</h3>
                                 <Badge variant="secondary" className="bg-white">{column.deals.length}</Badge>
@@ -147,7 +174,7 @@ export function KanbanBoard({
                                     <div
                                         {...provided.droppableProps}
                                         ref={provided.innerRef}
-                                        className={`flex-1 p-3 overflow-y-auto space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200' : ''}`}
+                                        className={`p-3 space-y-3 transition-colors min-h-[120px] ${snapshot.isDraggingOver ? 'bg-slate-200' : ''}`}
                                     >
                                         {column.deals.map((deal, index) => {
                                             const estimation = getDealEstimation(deal.id);
@@ -192,14 +219,24 @@ export function KanbanBoard({
                                                                                     AI Staffing
                                                                                 </DropdownMenuItem>
                                                                                 {!isWon && deal.status !== 'lost' && (
-                                                                                    <DropdownMenuItem
-                                                                                        onClick={() => openWinDeal(deal.id, deal.name)}
-                                                                                        disabled={winDeal.isPending}
-                                                                                        className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                                    >
-                                                                                        <Trophy className="mr-2 h-4 w-4" />
-                                                                                        Win Deal
-                                                                                    </DropdownMenuItem>
+                                                                                    <>
+                                                                                        <DropdownMenuItem
+                                                                                            onClick={() => openWinDeal(deal.id, deal.name)}
+                                                                                            disabled={winDeal.isPending}
+                                                                                            className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                                        >
+                                                                                            <Trophy className="mr-2 h-4 w-4" />
+                                                                                            Win Deal
+                                                                                        </DropdownMenuItem>
+                                                                                        <DropdownMenuItem
+                                                                                            onClick={() => openLoseDeal(deal.id, deal.name)}
+                                                                                            disabled={loseDeal.isPending}
+                                                                                            className="text-orange-600 focus:text-orange-700 focus:bg-orange-50"
+                                                                                        >
+                                                                                            <XCircle className="mr-2 h-4 w-4" />
+                                                                                            Mark as Lost
+                                                                                        </DropdownMenuItem>
+                                                                                    </>
                                                                                 )}
                                                                                 <DropdownMenuItem onClick={() => openDeleteDeal(deal.id)} className="text-red-600 focus:text-red-700 focus:bg-red-50">
                                                                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -304,7 +341,7 @@ export function KanbanBoard({
             </Dialog>
 
             {/* ── Win Deal Confirm Dialog ──────────────────────────────────────── */}
-            <Dialog open={winOpen} onOpenChange={setWinOpen}>
+            <Dialog open={winOpen} onOpenChange={(open) => { setWinOpen(open); if (!open) setWinReason(''); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Win Deal</DialogTitle>
@@ -313,10 +350,58 @@ export function KanbanBoard({
                         Mark <strong>{winningDeal?.name}</strong> as Won?<br />
                         This will atomically create a Contract and Project. This action cannot be undone.
                     </p>
+                    <div className="mt-3 space-y-1">
+                        <Label htmlFor="win-reason" className="text-sm text-slate-600">
+                            Win reason <span className="text-slate-400 font-normal">(optional)</span>
+                        </Label>
+                        <Input
+                            id="win-reason"
+                            placeholder="e.g. Best price, strong relationship, unique capability"
+                            value={winReason}
+                            onChange={(e) => setWinReason(e.target.value)}
+                            maxLength={500}
+                        />
+                    </div>
                     <div className="flex justify-end gap-3 mt-4">
                         <Button variant="outline" onClick={() => setWinOpen(false)}>Cancel</Button>
                         <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleWinDeal} disabled={winDeal.isPending}>
                             {winDeal.isPending ? 'Processing...' : 'Win Deal'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Mark as Lost Dialog ──────────────────────────────────────────── */}
+            <Dialog open={lostOpen} onOpenChange={(open) => { setLostOpen(open); if (!open) setLossReason(''); }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Mark as Lost</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-slate-600">
+                        Mark <strong>{losingDeal?.name}</strong> as Lost?<br />
+                        The deal will be removed from the active pipeline.
+                    </p>
+                    <div className="mt-3 space-y-1">
+                        <Label htmlFor="loss-reason" className="text-sm text-slate-600">
+                            Loss reason <span className="text-red-500">*</span>
+                        </Label>
+                        <Textarea
+                            id="loss-reason"
+                            placeholder="e.g. Lost to competitor on price, project cancelled, budget frozen"
+                            value={lossReason}
+                            onChange={(e) => setLossReason(e.target.value)}
+                            maxLength={500}
+                            className="min-h-[80px]"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setLostOpen(false)}>Cancel</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleLoseDeal}
+                            disabled={loseDeal.isPending || !lossReason.trim()}
+                        >
+                            {loseDeal.isPending ? 'Processing...' : 'Mark as Lost'}
                         </Button>
                     </div>
                 </DialogContent>

@@ -13,12 +13,16 @@ import { useBusinessStore } from '@/store/businessStore';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
 import toast from 'react-hot-toast';
 
-export function EstimationSimulator() {
+interface EstimationSimulatorProps {
+    initialDealId?: string;
+}
+
+export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorProps) {
     const router = useRouter();
     const store = useBusinessStore();
 
     // UI selections
-    const [selectedDealId, setSelectedDealId] = useState<string>('');
+    const [selectedDealId, setSelectedDealId] = useState<string>(initialDealId);
     const [version, setVersion] = useState<string>('v1.0 (Draft)');
 
     // Local estimation state before saving
