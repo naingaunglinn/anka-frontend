@@ -13,6 +13,7 @@ export const contractKeys = {
     list: (params: ContractListParams = {}) => [...contractKeys.lists(), params] as const,
     details: () => [...contractKeys.all, 'detail'] as const,
     detail: (id: string) => [...contractKeys.details(), id] as const,
+    linked: (dealId: string) => [...contractKeys.all, 'linked', dealId] as const,
 };
 
 export interface ContractListParams {
@@ -58,6 +59,29 @@ export function useContractDetail(id: string) {
             return toContract(body.data ?? body);
         },
         enabled: !!id,
+    });
+}
+
+/**
+ * Fetches the contract linked to a specific deal from `GET /deals/:dealId/contract`.
+ *
+ * This is useful when you have a won deal and need to show its linked contract
+ * without relying on the global contract list being in memory.
+ *
+ * @param dealId Deal UUID. Query is disabled when empty.
+ * @returns The linked Contract, or `null` if the deal has no linked contract.
+ */
+export function useLinkedContract(dealId: string) {
+    return useQuery<Contract | null>({
+        queryKey: contractKeys.linked(dealId),
+        queryFn: async () => {
+            const { data: body } = await api.get(`/deals/${dealId}/contract`);
+            const raw = body.data ?? body;
+            if (!raw || !raw.id) return null;
+            return toContract(raw);
+        },
+        enabled: !!dealId,
+        staleTime: 60_000,
     });
 }
 

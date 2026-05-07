@@ -10,8 +10,11 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
     const tenant = raw.tenant as Record<string, unknown> | null | undefined;
     const isSuperAdmin = !!(raw.is_super_admin ?? raw.isSuperAdmin);
 
+    const employeeId = (raw.employee_id ?? raw.employeeId) as string | null | undefined;
+
     return {
         id: raw.id as string,
+        employeeId: employeeId ?? undefined,
         firstName: (raw.first_name ?? raw.firstName) as string,
         lastName: (raw.last_name ?? raw.lastName) as string,
         email: raw.email as string,

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export interface AuthUser {
     id: string;
+    employeeId?: string;
     firstName: string;
     lastName: string;
     email: string;

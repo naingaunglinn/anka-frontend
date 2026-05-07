@@ -22,7 +22,12 @@ import {
 import { DialogClose } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { Role, Department } from '@/types/business';
-import { employeeSchema, type EmployeeFormValues } from '@/lib/schemas/organization.schema';
+import {
+    employeeSchema,
+    employeeCreateSchema,
+    type EmployeeFormValues,
+    type EmployeeCreateValues,
+} from '@/lib/schemas/organization.schema';
 
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
 
@@ -30,31 +35,45 @@ interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
     roles: Role[];
     departments?: Department[];
-    onSubmit: (data: EmployeeFormValues) => void | Promise<void>;
+    onSubmit: (data: EmployeeCreateValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
 export function EmployeeForm({ initialData, roles, departments = [], onSubmit, onCancel }: EmployeeFormProps) {
-    const form = useForm<EmployeeFormValues>({
-        resolver: zodResolver(employeeSchema) as any,
+    const isEdit = !!initialData;
+
+    // On CREATE: email/password start blank so the inputs are controlled.
+    // On EDIT: pre-fill email from the linked user (so the manager can change
+    // it). Password starts undefined — the form treats undefined as "no change"
+    // and the schema's .optional() short-circuits, so leaving it blank does
+    // NOT trigger the .min(6) validator.
+    const emailDefault    = isEdit ? (initialData?.email ?? '') : '';
+    const passwordDefault = isEdit ? undefined : '';
+
+    const form = useForm<EmployeeCreateValues>({
+        resolver: zodResolver(isEdit ? employeeSchema : employeeCreateSchema) as any,
         mode: 'onBlur',
         reValidateMode: 'onChange',
-        defaultValues: initialData || {
-            name: '',
-            role: '',
-            departmentId: '',
-            capacityRole: '',
-            monthlySalary: 0,
-            workableHours: 160,
-            status: 'Active',
-        },
+        // Defensive: API may return `null` for any optional field. Coerce to
+        // empty string / undefined so Zod's `.optional()` accepts it on submit.
+        defaultValues: {
+            name:          initialData?.name ?? '',
+            role:          initialData?.role ?? '',
+            departmentId:  initialData?.departmentId ?? '',
+            capacityRole:  initialData?.capacityRole ?? '',
+            monthlySalary: initialData?.monthlySalary ?? 0,
+            workableHours: initialData?.workableHours ?? 160,
+            status:        initialData?.status ?? 'Active',
+            email:         emailDefault,
+            password:      passwordDefault,
+        } as EmployeeCreateValues,
     });
 
-    const handleSubmit = async (data: EmployeeFormValues) => {
+    const handleSubmit = async (data: EmployeeCreateValues) => {
         await onSubmit(data);
     };
 
-    function onFormError(errors: FieldErrors<EmployeeFormValues>) {
+    function onFormError(errors: FieldErrors<EmployeeCreateValues>) {
         const firstKey = Object.keys(errors)[0] as keyof EmployeeFormValues | undefined;
         if (!firstKey) return;
         const el = document.querySelector(`[name="${firstKey}"]`) as HTMLElement | null
@@ -211,6 +230,62 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         </FormItem>
                     )}
                 />
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <p className="text-xs font-medium text-slate-700">
+                        Login Credentials
+                    </p>
+                    <p className="-mt-2 text-xs text-slate-500">
+                        {!isEdit
+                            ? 'The employee will use these to sign in and view their assigned tasks.'
+                            : initialData?.email
+                                ? 'Update the employee’s sign-in details. Leave the password blank to keep the current one.'
+                                : 'This employee has no login yet. Set both an email and a password to create one.'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>
+                                        Email {!isEdit && <span className="text-destructive">*</span>}
+                                    </FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="email"
+                                            placeholder="jane@company.com"
+                                            {...field}
+                                            value={field.value ?? ''}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>
+                                        {isEdit ? 'New Password' : (
+                                            <>Password <span className="text-destructive">*</span></>
+                                        )}
+                                    </FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="password"
+                                            placeholder={isEdit ? 'Leave blank to keep current' : 'At least 6 characters'}
+                                            {...field}
+                                            value={field.value ?? ''}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
                     Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
                 </p>
