@@ -43,7 +43,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Toaster position="top-right" />
             {/* Sidebar - fixed on desktop */}
             <div className={cn(
-                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-[#171717] transition-all duration-300",
+                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] transition-all duration-300",
                 mounted && isSidebarCollapsed ? "md:w-20" : "md:w-64"
             )}>
                 <Sidebar />

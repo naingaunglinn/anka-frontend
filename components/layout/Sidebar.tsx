@@ -62,7 +62,7 @@ export const Sidebar = () => {
     useEffect(() => setMounted(true), []);
 
     if (!mounted) {
-        return <div className="space-y-4 py-4 flex flex-col h-full bg-[#171717] text-white shadow-xl w-64"></div>;
+        return <div className="space-y-4 py-4 flex flex-col h-full bg-white text-[#171717] shadow-xl w-64 border-r border-[#e6e9ee]"></div>;
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
@@ -70,24 +70,24 @@ export const Sidebar = () => {
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-[#171717] text-white shadow-xl relative transition-all duration-300 w-full overflow-hidden">
+        <div className="space-y-4 py-4 flex flex-col h-full bg-white text-[#171717] shadow-xl relative transition-all duration-300 w-full overflow-hidden border-r border-[#e6e9ee]">
             <button
                 onClick={toggleSidebar}
-                className="absolute -right-3 top-6 bg-[#171717] text-white rounded-full p-1 border border-[#2a2a2a] hover:bg-[#2a2a2a] z-50 transform"
+                className="absolute -right-3 top-6 bg-white text-[#4a4a4a] rounded-full p-1 border border-[#e6e9ee] hover:bg-[#f8fafc] hover:text-[#00a7f4] z-50 transform shadow-sm"
                 style={{ right: '-0.75rem' }}
             >
                 {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </button>
             <div className="px-3 py-2 flex-1 overflow-x-hidden overflow-y-auto no-scrollbar">
                 <Link href={homeHref} className={cn("flex items-center mb-10", isSidebarCollapsed ? "justify-center px-0" : "pl-3")}>
-                    <div className="relative w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-xl shrink-0">
+                    <div className="relative w-8 h-8 bg-[#00a7f4] rounded-lg flex items-center justify-center font-bold text-xl shrink-0 text-white">
                         A
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="ml-4 min-w-0">
-                            <h1 className="text-xl font-bold truncate leading-tight">Anka SaaS</h1>
+                            <h1 className="text-xl font-bold truncate leading-tight text-[#171717]">Anka SaaS</h1>
                             {user?.isSuperAdmin && (
-                                <span className="text-[10px] font-semibold tracking-widest uppercase text-violet-400">
+                                <span className="text-[10px] font-semibold tracking-widest uppercase text-[#0086c4]">
                                     Super Admin
                                 </span>
                             )}
@@ -108,8 +108,8 @@ export const Sidebar = () => {
                             href={route.href}
                             key={route.href}
                             className={cn(
-                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-white hover:bg-[#00a7f4]/15 rounded-lg transition items-center",
-                                pathname.startsWith(route.href) ? "text-white bg-[#00a7f4]/15" : "text-zinc-400",
+                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-[#0086c4] hover:bg-[#00a7f4]/10 rounded-lg transition items-center",
+                                pathname.startsWith(route.href) ? "text-[#0086c4] bg-[#00a7f4]/10" : "text-[#4a4a4a]",
                                 isSidebarCollapsed ? "justify-center" : "justify-start"
                             )}
                             title={isSidebarCollapsed ? route.label : undefined}
