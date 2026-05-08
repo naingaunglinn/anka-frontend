@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -28,25 +28,25 @@ import {
 } from 'lucide-react';
 
 const orgRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-sky-500' },
+    { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-[#00a7f4]' },
     { label: 'Organization',      icon: Users,           href: '/organization',  color: 'text-violet-500' },
     { label: 'CRM & Pipeline',    icon: Briefcase,       href: '/crm',           color: 'text-pink-700' },
     { label: 'Estimation',        icon: Calculator,      href: '/estimation',    color: 'text-orange-700' },
     { label: 'Contracts & Billing', icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
     { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },
     { label: 'Time Tracking',     icon: Clock,           href: '/time-tracking', color: 'text-amber-500' },
-    { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-cyan-500' },
-    { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-blue-700' },
+    { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-[#00a7f4]' },
+    { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-[#0086c4]' },
     { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
 ];
 
 const demoRoutes = [
-    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-sky-500' },
+    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-[#00a7f4]' },
     { label: 'Forecast Preview', icon: LineChart, href: '/forecast', color: 'text-indigo-500' },
 ];
 
 const superAdminRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-sky-500' },
+    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-[#00a7f4]' },
     { label: 'Tenant Management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
     { label: 'Billing & Plans',   icon: Receipt,          href: '/admin/billing',    color: 'text-emerald-400' },
     { label: 'Audit Logs',        icon: ScrollText,       href: '/admin/audit',      color: 'text-amber-400' },
@@ -99,7 +99,7 @@ export const Sidebar = () => {
                     <p className="text-[11px] uppercase tracking-wider text-slate-500 px-3 mb-2">Admin Panel</p>
                 )}
                 {isDemoMode && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-sky-400 px-3 mb-2">Demo Version (Read Only)</p>
+                    <p className="text-[11px] uppercase tracking-wider text-[#00a7f4] px-3 mb-2">Demo Version (Read Only)</p>
                 )}
 
                 <div className="space-y-1">
@@ -108,8 +108,8 @@ export const Sidebar = () => {
                             href={route.href}
                             key={route.href}
                             className={cn(
-                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition items-center",
-                                pathname.startsWith(route.href) ? "text-white bg-white/10" : "text-zinc-400",
+                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-white hover:bg-[#00a7f4]/15 rounded-lg transition items-center",
+                                pathname.startsWith(route.href) ? "text-white bg-[#00a7f4]/15" : "text-zinc-400",
                                 isSidebarCollapsed ? "justify-center" : "justify-start"
                             )}
                             title={isSidebarCollapsed ? route.label : undefined}

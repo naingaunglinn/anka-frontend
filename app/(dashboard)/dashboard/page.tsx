@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useMemo } from "react";
 import { useBusinessStore } from "@/store/businessStore";
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             </div>
 
             {isDemoMode && (
-                <Card className="border-[#00a6f4]/25 bg-[#00a6f4]/5">
+                <Card className="border-[#00a7f4]/25 bg-[#00a7f4]/5">
                     <CardContent className="pt-6">
                         <p className="text-sm text-[#0c4a6e]">
                             Demo Version is intentionally scoped. You can explore Dashboard insights with sample data, while edit actions
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Operating Profit (YTD)</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-blue-500" />
+                        <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
                     </CardHeader>
                     <CardContent>
                         <div className={`text-2xl font-bold ${totalProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
                                     <Tooltip formatter={(value: any) => formatMoney(Number(value), currency)} />
                                     <Legend />
                                     <Bar name="Revenue" dataKey="revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                    <Bar name="Op. Profit" dataKey="operatingProfit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                    <Bar name="Op. Profit" dataKey="operatingProfit" fill="#00a7f4" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (

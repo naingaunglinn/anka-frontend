@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -97,7 +97,7 @@ export default function TimeTrackingPage() {
                 </div>
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-slate-900 gap-2">
+                        <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
                             <Plus className="h-4 w-4" /> Log Time
                         </Button>
                     </DialogTrigger>
@@ -179,7 +179,7 @@ export default function TimeTrackingPage() {
                                 />
                                 <label htmlFor="billable" className="text-sm font-medium text-slate-700">Billable</label>
                             </div>
-                            <Button className="w-full bg-slate-900" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
+                            <Button className="w-full bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
                                 {createTimeEntry.isPending ? 'Submitting...' : 'Submit Time Entry'}
                             </Button>
                         </div>
@@ -192,7 +192,7 @@ export default function TimeTrackingPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Total Hours Logged</p>
-                            <Clock className="h-5 w-5 text-blue-500" />
+                            <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">{totalHoursLogged}h</span>

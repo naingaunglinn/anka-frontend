@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminAIUsage } from '@/lib/queries/aiUsage';
@@ -49,7 +49,7 @@ export default function AdminAIUsagePage() {
                     title="Total Calls"
                     value={totals.totalCalls.toLocaleString()}
                     icon={MessageSquare}
-                    iconColor="text-blue-500"
+                    iconColor="text-[#00a7f4]"
                 />
                 <KpiCard
                     title="Total Tokens"

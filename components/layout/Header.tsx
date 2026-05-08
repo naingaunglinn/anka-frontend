@@ -67,13 +67,13 @@ export const Header = () => {
 
             <div className="flex items-center gap-x-4">
                 {isDemoMode && (
-                    <div className="flex items-center gap-2 rounded-md border border-[#00a6f4]/30 bg-[#00a6f4]/10 px-3 py-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0085c4]">Demo Version</span>
+                    <div className="flex items-center gap-2 rounded-md border border-[#00a7f4]/30 bg-[#00a7f4]/10 px-3 py-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0086c4]">Demo Version</span>
                         <button
                             type="button"
                             onClick={handleExitDemo}
-                            className="ml-1 text-xs font-medium text-[#0085c4] underline-offset-2 hover:underline"
+                            className="ml-1 text-xs font-medium text-[#0086c4] underline-offset-2 hover:underline"
                         >
                             Exit
                         </button>

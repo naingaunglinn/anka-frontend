@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -170,8 +170,8 @@ export default function FinancialPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Overall Profit Margin</p>
-                            <div className="h-4 w-4 rounded-full bg-blue-100 flex items-center justify-center">
-                                <span className="text-blue-600 text-[10px] font-bold">%</span>
+                            <div className="h-4 w-4 rounded-full bg-[#00a7f4]/10 flex items-center justify-center">
+                                <span className="text-[#00a7f4] text-[10px] font-bold">%</span>
                             </div>
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -215,7 +215,7 @@ export default function FinancialPage() {
                                         <TableCell className="text-right py-4">
                                             <Badge variant="outline" className={
                                                 margin > 20 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    margin > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    margin > 0 ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                                         'bg-rose-50 text-rose-700 border-rose-200'
                                             }>
                                                 {margin.toFixed(1)}%

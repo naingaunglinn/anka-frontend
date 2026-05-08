@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +22,7 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
 };
 
 const LEVEL_CONFIG: Record<string, { color: string; icon: React.ElementType }> = {
-    info:    { color: 'text-blue-600 bg-blue-50 border-blue-200', icon: Info },
+    info:    { color: 'text-[#00a7f4] bg-[#00a7f4]/5 border-[#00a7f4]/20', icon: Info },
     warning: { color: 'text-amber-600 bg-amber-50 border-amber-200', icon: AlertCircle },
     error:   { color: 'text-rose-600 bg-rose-50 border-rose-200', icon: AlertTriangle },
     critical:{ color: 'text-red-700 bg-red-50 border-red-300', icon: Bug },

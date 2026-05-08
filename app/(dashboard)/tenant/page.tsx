@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, Fragment } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,7 +91,7 @@ function OrgTenantSettings() {
                                     <Label>Plan</Label>
                                     <p className="text-sm font-medium text-slate-700">{tenantQuery.data.plan ?? 'Free'}</p>
                                 </div>
-                                <Button className="w-full mt-2 gap-2 bg-slate-900" onClick={handleSave} disabled={updateTenant.isPending}>
+                                <Button className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSave} disabled={updateTenant.isPending}>
                                     <Save className="w-4 h-4" />
                                     {updateTenant.isPending ? 'Saving...' : 'Save Profile'}
                                 </Button>
@@ -231,7 +231,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                            className="h-7 w-7 text-slate-400 hover:text-[#00a7f4]"
                                             onClick={() => openEdit(u)}
                                         >
                                             <Pencil className="w-3.5 h-3.5" />
@@ -487,7 +487,7 @@ function SuperAdminTenantManagement() {
                 </div>
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button className="gap-2 bg-slate-900">
+                        <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                             <Plus className="w-4 h-4" /> New Tenant
                         </Button>
                     </DialogTrigger>
@@ -558,7 +558,7 @@ function SuperAdminTenantManagement() {
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
                         <p className="text-sm text-slate-500">Total Users</p>
-                        <p className="text-3xl font-bold mt-1 text-blue-600">{totalUsers}</p>
+                        <p className="text-3xl font-bold mt-1 text-[#00a7f4]">{totalUsers}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -641,7 +641,7 @@ function SuperAdminTenantManagement() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                                    className="h-8 w-8 text-slate-400 hover:text-[#00a7f4]"
                                                     title="Edit"
                                                     onClick={() => openEdit(tenant)}
                                                 >

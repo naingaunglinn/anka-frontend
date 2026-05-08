@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -215,7 +215,7 @@ export function KanbanBoard({
                                                                 <CardContent className="p-4 space-y-3">
                                                                     {/* Header: Name + Menu */}
                                                                     <div className="flex justify-between items-start">
-                                                                        <div className="font-semibold text-sm line-clamp-1 hover:text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/crm/${deal.id}`)}>{deal.name}</div>
+                                                                        <div className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer" onClick={() => router.push(`/crm/${deal.id}`)}>{deal.name}</div>
                                                                         <DropdownMenu>
                                                                             <DropdownMenuTrigger asChild>
                                                                                 <Button variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-100 shrink-0">
@@ -300,7 +300,7 @@ export function KanbanBoard({
                                                                                 <span className="text-[10px] font-semibold">{deal.winProbability || 0}%</span>
                                                                                 <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mt-0.5">
                                                                                     <div
-                                                                                        className={`h-full ${(deal.winProbability || 0) >= 75 ? 'bg-emerald-500' : (deal.winProbability || 0) >= 50 ? 'bg-blue-500' : 'bg-slate-400'}`}
+                                                                                        className={`h-full ${(deal.winProbability || 0) >= 75 ? 'bg-emerald-500' : (deal.winProbability || 0) >= 50 ? 'bg-[#00a7f4]/50' : 'bg-slate-400'}`}
                                                                                         style={{ width: `${deal.winProbability || 0}%` }}
                                                                                     />
                                                                                 </div>
@@ -311,7 +311,7 @@ export function KanbanBoard({
                                                                     {/* Soft/Hard Booked badge (ported from deals/page.tsx) */}
                                                                     <div className="flex justify-end pt-1">
                                                                         {isWon ? (
-                                                                            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[10px]">
+                                                                            <Badge variant="default" className="bg-[#171717] hover:bg-[#00a7f4] text-[10px]">
                                                                                 Hard Booked
                                                                             </Badge>
                                                                         ) : (

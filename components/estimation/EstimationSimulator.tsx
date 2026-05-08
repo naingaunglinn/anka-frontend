@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -32,9 +32,9 @@ function CompareBanner({
     const store = useBusinessStore()
 
     return (
-        <div className="border-t bg-blue-50 p-4 space-y-2">
+        <div className="border-t bg-[#00a7f4]/5 p-4 space-y-2">
             <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                <p className="text-xs font-semibold text-[#0086c4] uppercase tracking-wider">
                     Comparing with v{version.versionNumber} {version.notes ? `· ${version.notes}` : ''}
                 </p>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>Close</Button>
@@ -431,7 +431,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">Hours</label>
                                 <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAdd} className="h-9 bg-slate-900 gap-2">
+                            <Button onClick={handleAdd} className="h-9 bg-[#171717] hover:bg-[#00a7f4] gap-2">
                                 <Plus className="h-4 w-4" /> Add
                             </Button>
                         </div>
@@ -481,7 +481,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">Cost ($)</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAddOverhead} className="h-9 bg-slate-900 gap-2">
+                            <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] hover:bg-[#00a7f4] gap-2">
                                 <Plus className="h-4 w-4" /> Add
                             </Button>
                         </div>
@@ -490,13 +490,13 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             </div>
 
             <div className={`space-y-6 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <Card className="shadow-sm border-slate-100 bg-slate-900 text-white">
+                <Card className="shadow-sm border-[#e6e9ee] bg-white text-[#171717]">
                     <CardHeader className="pb-4">
-                        <CardTitle className="flex items-center gap-2 text-lg text-white">
-                            <Calculator className="h-5 w-5 text-blue-400" />
+                        <CardTitle className="flex items-center gap-2 text-lg text-[#171717]">
+                            <Calculator className="h-5 w-5 text-[#00a7f4]" />
                             Margin Simulator
                         </CardTitle>
-                        <CardDescription className="text-slate-400">Drag to target margin</CardDescription>
+                        <CardDescription className="text-[#8a8a8a]">Drag to target margin</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
@@ -533,7 +533,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             </div>
                             <div className="pt-2 flex justify-between items-end border-t border-slate-800">
                                 <span className="text-sm font-medium text-slate-300">Suggested Price</span>
-                                <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                                <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#00a7f4] to-emerald-400">
                                     ${suggestedPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </span>
                             </div>
@@ -549,7 +549,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <Button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                        <Button onClick={handleSave} className="w-full bg-[#171717] hover:bg-[#00a7f4] text-white gap-2">
                             <Save className="h-4 w-4" /> Save Estimate v{nextVersion}{dirty ? '+' : ''}
                         </Button>
                     </CardContent>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -45,7 +45,7 @@ export default function CRMPage() {
                 <Card className="bg-white border-slate-100 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Pipeline Value</CardTitle>
-                        <DollarSign className="h-4 w-4 text-blue-600" />
+                        <DollarSign className="h-4 w-4 text-[#00a7f4]" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">

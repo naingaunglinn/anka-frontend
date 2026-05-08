@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +40,7 @@ export default function ProjectsPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Active Projects</p>
-                            <Clock className="h-5 w-5 text-blue-500" />
+                            <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">{projects.length}</span>
@@ -106,7 +106,7 @@ export default function ProjectsPage() {
                                 ? Math.min(Math.round((project.consumedHours / project.budgetHours) * 100), 100)
                                 : 0;
 
-                            let progressColor = "bg-blue-500";
+                            let progressColor = "bg-[#00a7f4]/50";
                             if (burnPercentage > 85) progressColor = "bg-rose-500";
                             else if (burnPercentage > 70) progressColor = "bg-amber-500";
 
@@ -127,7 +127,7 @@ export default function ProjectsPage() {
                                     <TableCell>
                                         {linkedContract ? (
                                             <button
-                                                className="text-sm text-blue-600 hover:underline text-left"
+                                                className="text-sm text-[#00a7f4] hover:underline text-left"
                                                 onClick={() => router.push('/contracts')}
                                             >
                                                 {linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)}
@@ -151,7 +151,7 @@ export default function ProjectsPage() {
                                     <TableCell>
                                         <Badge variant="outline" className={
                                             project.status === 'Completed'   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                            project.status === 'On Track'    ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                            project.status === 'On Track'    ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                             project.status === 'At Risk'     ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                             project.status === 'Over Budget' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                                                'bg-slate-100 text-slate-700 border-slate-200'

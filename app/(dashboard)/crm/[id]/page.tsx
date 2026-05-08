@@ -19,7 +19,7 @@ import { useMemo, useState } from 'react';
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    inquiry:     { label: 'Inquiry',     color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    inquiry:     { label: 'Inquiry',     color: 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' },
     opportunity: { label: 'Opportunity', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
     proposal:    { label: 'Proposal',    color: 'bg-amber-50 text-amber-700 border-amber-200' },
     contract:    { label: 'Contract',    color: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -41,11 +41,11 @@ function WorkflowBar({ steps }: { steps: WorkflowStep[] }) {
         <div className="flex items-center gap-0 rounded-lg border border-slate-200 bg-white overflow-hidden">
             {steps.map((step, i) => (
                 <div key={step.label} className="flex items-center flex-1">
-                    <div className={`flex-1 px-4 py-3 ${step.done ? 'bg-emerald-50' : step.active ? 'bg-blue-50' : 'bg-slate-50'}`}>
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${step.done ? 'text-emerald-700' : step.active ? 'text-blue-700' : 'text-slate-400'}`}>
+                    <div className={`flex-1 px-4 py-3 ${step.done ? 'bg-emerald-50' : step.active ? 'bg-[#00a7f4]/5' : 'bg-slate-50'}`}>
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${step.done ? 'text-emerald-700' : step.active ? 'text-[#0086c4]' : 'text-slate-400'}`}>
                             {step.label}
                         </p>
-                        <p className={`text-xs mt-0.5 ${step.done ? 'text-emerald-600' : step.active ? 'text-blue-600' : 'text-slate-400'}`}>
+                        <p className={`text-xs mt-0.5 ${step.done ? 'text-emerald-600' : step.active ? 'text-[#00a7f4]' : 'text-slate-400'}`}>
                             {step.detail}
                         </p>
                     </div>
@@ -238,7 +238,7 @@ export default function DealDetailPage() {
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Gross Profit</p>
-                            <DollarSign className="h-4 w-4 text-blue-500" />
+                            <DollarSign className="h-4 w-4 text-[#00a7f4]" />
                         </div>
                         <div className="mt-1 text-2xl font-bold">
                             <span className={marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}>
@@ -375,11 +375,11 @@ export default function DealDetailPage() {
                             <CardContent className="p-4 space-y-3">
                                 {linkedContract && (
                                     <button
-                                        className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition-colors text-left"
+                                        className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 hover:bg-[#00a7f4]/5 hover:border-[#00a7f4]/20 transition-colors text-left"
                                         onClick={() => router.push('/contracts')}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                            <FileText className="h-4 w-4 text-[#00a7f4] flex-shrink-0" />
                                             <div>
                                                 <p className="text-xs text-slate-500">Contract</p>
                                                 <p className="text-sm font-medium">

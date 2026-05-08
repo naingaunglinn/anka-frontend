@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -187,7 +187,7 @@ export default function ContractsPage() {
                 </div>
                 <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-slate-900 gap-2">
+                        <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
                             <Plus className="h-4 w-4" /> Create Invoice
                         </Button>
                     </DialogTrigger>
@@ -258,7 +258,7 @@ export default function ContractsPage() {
                                 <Input value={invNotes} onChange={e => setInvNotes(e.target.value)} placeholder="e.g. Payment for Phase 1 delivery" />
                             </div>
                             <Button
-                                className="w-full bg-slate-900"
+                                className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                 onClick={handleCreateInvoice}
                                 disabled={createInvoice.isPending}
                             >
@@ -287,7 +287,7 @@ export default function ContractsPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Active Contracts</p>
-                            <FileText className="h-5 w-5 text-blue-500" />
+                            <FileText className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">{contracts.filter(c => c.status === 'Active').length}</span>
@@ -356,7 +356,7 @@ export default function ContractsPage() {
                                             <TableCell>
                                                 {sourceDeal ? (
                                                     <button
-                                                        className="text-sm text-blue-600 hover:underline text-left"
+                                                        className="text-sm text-[#00a7f4] hover:underline text-left"
                                                         onClick={() => router.push(`/crm/${sourceDeal.id}`)}
                                                     >
                                                         {sourceDeal.name}
@@ -379,7 +379,7 @@ export default function ContractsPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={
-                                                    contract.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    contract.status === 'Active' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                                     contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
@@ -496,7 +496,7 @@ export default function ContractsPage() {
                                         </div>
                                     </div>
                                     <Button
-                                        className="w-full bg-slate-900"
+                                        className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                         onClick={handleCreateMilestone}
                                         disabled={createMilestone.isPending}
                                     >
@@ -529,7 +529,7 @@ export default function ContractsPage() {
                                             <TableCell>
                                                 <Badge variant="outline" className={
                                                     ms.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    ms.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    ms.status === 'In Progress' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                                         'bg-amber-50 text-amber-700 border-amber-200'
                                                 }>
                                                     {ms.status}
@@ -659,7 +659,7 @@ export default function ContractsPage() {
                                 <Input value={editContract.notes} onChange={e => setEditContract({ ...editContract, notes: e.target.value })} placeholder="Optional notes..." />
                             </div>
                             <Button
-                                className="w-full bg-slate-900"
+                                className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                 onClick={handleUpdateContract}
                                 disabled={updateContract.isPending}
                             >

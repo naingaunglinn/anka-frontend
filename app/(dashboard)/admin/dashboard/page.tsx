@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminDashboardStats } from '@/lib/queries/adminDashboard';
@@ -7,7 +7,7 @@ import { Building2, Users, Activity, BrainCircuit, TrendingUp, TrendingDown } fr
 import { formatMoney } from '@/lib/currency';
 // Skeleton component not available — using simple div with animate-pulse
 
-const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
+const COLORS = ['#10B981', '#00a7f4', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 export default function AdminDashboardPage() {
     const { data: stats, isLoading } = useAdminDashboardStats();
@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
                     value={stats.total_users}
                     subValue="Across all tenants"
                     icon={Users}
-                    iconColor="text-sky-500"
+                    iconColor="text-[#00a7f4]"
                 />
                 <KpiCard
                     title="AI Calls"
@@ -88,7 +88,7 @@ export default function AdminDashboardPage() {
                                         formatter={(value: any) => [value, 'Signups']}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     />
-                                    <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="count" fill="#00a7f4" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
@@ -161,7 +161,7 @@ export default function AdminDashboardPage() {
                                         <td className="py-3 px-4 font-medium text-slate-900">{tenant.name}</td>
                                         <td className="py-3 px-4 text-slate-500">{tenant.slug}</td>
                                         <td className="py-3 px-4">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#00a7f4]/5 text-[#0086c4]">
                                                 {tenant.plan}
                                             </span>
                                         </td>

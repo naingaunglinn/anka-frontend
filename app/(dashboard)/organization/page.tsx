@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { EmployeesTable } from '@/components/tables/EmployeesTable';
@@ -276,7 +276,7 @@ export default function EmployeesPage() {
                         </div>
                         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Department
                                 </Button>
                             </DialogTrigger>
@@ -322,7 +322,7 @@ export default function EmployeesPage() {
                         </div>
                         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Role
                                 </Button>
                             </DialogTrigger>
@@ -368,7 +368,7 @@ export default function EmployeesPage() {
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
@@ -507,7 +507,7 @@ export default function EmployeesPage() {
                         </div>
                         <Dialog open={isOverheadDialogOpen} onOpenChange={setIsOverheadDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Overhead
                                 </Button>
                             </DialogTrigger>
