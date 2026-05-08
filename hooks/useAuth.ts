@@ -40,7 +40,7 @@ function setTenantContext(user: AuthUser) {
     if (user.tenant?.id) {
         const { activeTenantId, setActiveTenant, setCurrentTenant, setTenants, tenants } = useTenantStore.getState();
         const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!activeTenantId || !UUID_RE.test(activeTenantId)) {
+        if (!activeTenantId || !UUID_RE.test(activeTenantId) || activeTenantId !== user.tenant.id) {
             setActiveTenant(user.tenant.id);
         }
         setCurrentTenant({

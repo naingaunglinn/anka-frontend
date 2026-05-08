@@ -11,6 +11,7 @@ import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { formatMoney } from "@/lib/currency";
 import { Deal, GhostRole, RoleType } from "@/types/business";
 import { v4 as uuidv4 } from "uuid";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 
 import {
     Form,
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/table";
 
 export default function NewDealPage() {
+    useOrganizationSync();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';

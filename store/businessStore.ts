@@ -15,6 +15,7 @@ import {
     Engineer,
     DepartmentCapacity,
     RoleType,
+    Skill,
 } from "../types/business";
 import { calculateSoftBookedHours } from "../lib/calculations";
 import {
@@ -84,6 +85,7 @@ export interface BusinessState {
     milestones: Milestone[];
     projects: Project[];
     timeEntries: TimeEntry[];
+    skills: Skill[];
 
     // Actions — Org (all routed through lib/queries/organization.ts → Laravel API)
     updateCompanySettings: (settings: Partial<CompanySettings>) => Promise<void>;
@@ -145,6 +147,7 @@ export const useBusinessStore = create<BusinessState>()(
             employees: [],
             engineers: [],
             globalOverheads: [],
+            skills: [],
             companySettings: {
                 overheadPercentage: 20,
                 bufferPercentage: 10,

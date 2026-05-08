@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoney, formatMoneyShort } from '@/lib/currency';
 import { Deal } from '@/types/business';
 import { useDealMutations } from '@/lib/queries/deals';
 
@@ -40,6 +42,8 @@ export function KanbanBoard({
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
     const { updateDealStage, deleteDeal, winDeal, loseDeal } = useDealMutations();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -65,6 +69,7 @@ export function KanbanBoard({
             proposal:    { id: 'proposal',    title: 'Proposal',    deals: [] },
             contract:    { id: 'contract',    title: 'Contract',    deals: [] },
             won:         { id: 'won',         title: 'Won',         deals: [] },
+            lost:        { id: 'lost',        title: 'Lost',        deals: [] },
         };
 
         deals.forEach(deal => {
@@ -275,13 +280,13 @@ export function KanbanBoard({
                                                                         <div className="flex flex-col">
                                                                             <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Est. Cost</span>
                                                                             <span className="text-sm font-semibold text-slate-600">
-                                                                                ${(estimatedCost / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(estimatedCost, currency)}
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">
                                                                             <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Gross Profit</span>
                                                                             <span className={`text-sm font-bold ${marginColorClass}`}>
-                                                                                ${(grossProfit / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(grossProfit, currency)}
                                                                             </span>
                                                                         </div>
                                                                     </div>
@@ -291,7 +296,7 @@ export function KanbanBoard({
                                                                         <div className="flex flex-col">
                                                                             <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Budget</span>
                                                                             <span className="text-sm font-bold text-slate-800">
-                                                                                ${(budget / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(budget, currency)}
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">

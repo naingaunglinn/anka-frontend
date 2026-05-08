@@ -55,8 +55,27 @@ export const globalOverheadSchema = z.object({
     effectiveYear:  z.number().int().min(2000).optional(),
 });
 
+export const capacityRoleSchema = z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters').max(100),
+    code: z.string().min(2, 'Code must be at least 2 characters').max(50)
+        .regex(/^[a-z0-9_-]+$/, 'Lowercase letters, numbers, hyphens and underscores only'),
+});
+
+export const skillSchema = z.object({
+    name:     z.string().min(2, 'Name must be at least 2 characters').max(100),
+    category: z.string().min(1, 'Please select a category.'),
+});
+
+export const employeeSkillSchema = z.object({
+    skillId:     z.string().uuid('Please select a skill.'),
+    proficiency: z.enum(['beginner', 'intermediate', 'expert']),
+});
+
 export type DepartmentFormValues = z.infer<typeof departmentSchema>;
 export type RoleFormValues        = z.infer<typeof roleSchema>;
 export type EmployeeFormValues    = z.infer<typeof employeeSchema>;
 export type EmployeeCreateValues  = z.infer<typeof employeeCreateSchema>;
 export type OverheadFormValues    = z.infer<typeof globalOverheadSchema>;
+export type CapacityRoleFormValues = z.infer<typeof capacityRoleSchema>;
+export type SkillFormValues        = z.infer<typeof skillSchema>;
+export type EmployeeSkillFormValues = z.infer<typeof employeeSkillSchema>;

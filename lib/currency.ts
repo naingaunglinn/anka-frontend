@@ -1,7 +1,13 @@
 import { Currency, CURRENCY_CONFIG } from '@/store/tenantStore';
 
+const FALLBACK_CFG = CURRENCY_CONFIG['MMK'];
+
+function getCfg(currency: Currency) {
+    return CURRENCY_CONFIG[currency] ?? FALLBACK_CFG;
+}
+
 export function formatMoney(amount: number, currency: Currency = 'MMK'): string {
-    const cfg = CURRENCY_CONFIG[currency];
+    const cfg = getCfg(currency);
     if (currency === 'JPY') {
         return `${cfg.symbol}${Math.round(amount).toLocaleString(cfg.locale)}`;
     }
@@ -9,7 +15,7 @@ export function formatMoney(amount: number, currency: Currency = 'MMK'): string 
 }
 
 export function formatMoneyShort(amount: number, currency: Currency = 'MMK'): string {
-    const cfg = CURRENCY_CONFIG[currency];
+    const cfg = getCfg(currency);
     if (amount >= 1_000_000) {
         return `${cfg.symbol}${(amount / 1_000_000).toFixed(1)}M`;
     }

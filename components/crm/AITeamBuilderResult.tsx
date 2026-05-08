@@ -217,6 +217,29 @@ export function AITeamBuilderResultPanel({
             )}
 
             {/* — Actions — */}
+            {result.skillGapAnalysis && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
+                        Skill Gap Analysis
+                    </p>
+                    {result.skillGapAnalysis.gapSkills.length > 0 && (
+                        <div>
+                            <span className="text-xs font-medium text-indigo-700">Missing skills: </span>
+                            <span className="text-xs text-indigo-600">
+                                {result.skillGapAnalysis.gapSkills.join(', ')}
+                            </span>
+                        </div>
+                    )}
+                    {result.skillGapAnalysis.recommendations.length > 0 && (
+                        <ul className="text-xs text-indigo-700 space-y-0.5 list-disc list-inside">
+                            {result.skillGapAnalysis.recommendations.map((r, i) => (
+                                <li key={i}>{r}</li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
+
             <div className="flex gap-3 pt-2">
                 <Button
                     type="button"

@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { RouteGuard } from '@/components/RouteGuard';
 import { AppProviders } from '@/components/providers/AppProviders';
+import { ChatBot } from '@/components/chatbot/ChatBot';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useBusinessStore } from '@/store/businessStore';
@@ -57,6 +58,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     {children}
                 </div>
             </main>
+
+            {/* Floating AI Chatbot */}
+            <ChatBot />
         </div>
         </AppProviders>
     );

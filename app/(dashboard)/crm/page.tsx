@@ -9,10 +9,14 @@ import { DollarSign, Target, TrendingUp, Plus } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoneyShort } from '@/lib/currency';
 
 export default function CRMPage() {
     const [pipelineTotal, setPipelineTotal] = useState(0);
     const [weightedTotal, setWeightedTotal] = useState(0);
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     const dealsQuery = useDealList();
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
 
@@ -49,7 +53,7 @@ export default function CRMPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ${(pipelineTotal / 1000).toFixed(1)}k
+                            {formatMoneyShort(pipelineTotal, currency)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Sum of all deals in pipeline
@@ -64,7 +68,7 @@ export default function CRMPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ${(weightedTotal / 1000).toFixed(1)}k
+                            {formatMoneyShort(weightedTotal, currency)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Value × Win Probability

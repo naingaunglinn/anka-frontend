@@ -12,8 +12,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 
 export default function StaffingPage() {
+    useOrganizationSync();
     const params = useParams();
     const router = useRouter();
     const dealId = params.id as string;

@@ -9,7 +9,7 @@ import { Building2, Check, X, Loader2 } from 'lucide-react';
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise'];
 
-const CURRENCIES: Currency[] = ['MMK', 'JPY'];
+const CURRENCIES: Currency[] = ['MMK', 'JPY', 'USD'];
 
 export default function AdminBillingPage() {
     const { data: tenants, isLoading } = useAdminTenantList();

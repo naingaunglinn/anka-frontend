@@ -6,8 +6,17 @@ import { useTenantStore } from '@/store/tenantStore'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { AITeamBuilderResultPanel } from './AITeamBuilderResult'
 import { Button } from '@/components/ui/button'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2, Sparkles, ChevronDown, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { SkillCoverageMatrix } from './SkillCoverageMatrix'
 
 interface Props {
     dealId: string
@@ -17,6 +26,7 @@ interface Props {
     workloadDescription: string
     workloadDocumentText?: string
     onAccept?: (result: AITeamBuilderResult) => void
+    skills?: { id: string; name: string; category: string }[]
 }
 
 const LOADING_STEPS = [
@@ -29,17 +39,27 @@ export function AITeamBuilder(props: Props) {
     const [result, setResult] = useState<AITeamBuilderResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingStep, setLoadingStep] = useState(0)
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([])
 
     const employees = useBusinessStore(s => s.employees)
     const engineers = useBusinessStore(s => s.engineers)
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
     const activeTenantId = useTenantStore(s => s.activeTenantId)
+    const allSkills = useBusinessStore(s => s.skills ?? []) as { id: string; name: string; category: string }[]
 
     const canRun =
         props.clientBudget > 0 &&
         props.timelineMonths > 0 &&
         props.workloadHours > 0
+
+    function toggleSkill(skillId: string) {
+        setSelectedSkillIds(prev =>
+            prev.includes(skillId)
+                ? prev.filter(id => id !== skillId)
+                : [...prev, skillId]
+        )
+    }
 
     async function handleBuild() {
         setLoading(true)
@@ -50,6 +70,10 @@ export function AITeamBuilder(props: Props) {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
 
+        const requiredSkills = selectedSkillIds
+            .map(id => allSkills.find(s => s.id === id)?.name)
+            .filter(Boolean) as string[]
+
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
             clientBudget: props.clientBudget,
@@ -57,6 +81,7 @@ export function AITeamBuilder(props: Props) {
             workloadHours: props.workloadHours,
             workloadDescription: props.workloadDescription,
             workloadDocumentText: props.workloadDocumentText,
+            requiredSkills,
             employees,
             engineers,
             globalOverheads,
@@ -93,6 +118,43 @@ export function AITeamBuilder(props: Props) {
 
     return (
         <div className="mt-6 space-y-4">
+            {allSkills.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <label className="text-xs font-medium text-slate-600">
+                        Filter by Required Skills (optional)
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {allSkills.map(skill => {
+                            const selected = selectedSkillIds.includes(skill.id)
+                            return (
+                                <Badge
+                                    key={skill.id}
+                                    variant={selected ? 'default' : 'outline'}
+                                    className={`cursor-pointer select-none transition-colors ${
+                                        selected
+                                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                            : 'hover:bg-slate-100 text-slate-600'
+                                    }`}
+                                    onClick={() => toggleSkill(skill.id)}
+                                >
+                                    {skill.name}
+                                    {selected && <X className="ml-1 h-3 w-3" />}
+                                </Badge>
+                            )
+                        })}
+                    </div>
+                    {selectedSkillIds.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedSkillIds([])}
+                            className="text-xs text-indigo-600 hover:text-indigo-700 hover:underline"
+                        >
+                            Clear skill filters
+                        </button>
+                    )}
+                </div>
+            )}
+
             <Button
                 type="button"
                 onClick={handleBuild}
@@ -121,13 +183,23 @@ export function AITeamBuilder(props: Props) {
             )}
 
             {result && (
-                <AITeamBuilderResultPanel
-                    result={result}
-                    dealId={props.dealId}
-                    clientBudget={props.clientBudget}
-                    onRegenerate={handleBuild}
-                    onAccept={props.onAccept}
-                />
+                <>
+                    {result.skillGapAnalysis && selectedSkillIds.length > 0 && (
+                        <SkillCoverageMatrix
+                            requiredSkillNames={selectedSkillIds
+                                .map(id => allSkills.find(s => s.id === id)?.name)
+                                .filter(Boolean) as string[]}
+                            team={result.team}
+                        />
+                    )}
+                    <AITeamBuilderResultPanel
+                        result={result}
+                        dealId={props.dealId}
+                        clientBudget={props.clientBudget}
+                        onRegenerate={handleBuild}
+                        onAccept={props.onAccept}
+                    />
+                </>
             )}
         </div>
     )

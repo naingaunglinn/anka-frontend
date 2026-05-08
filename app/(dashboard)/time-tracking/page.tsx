@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
-import { TimeEntry } from '@/types/business';
+import { TimeEntry, ProjectTeamAssignment } from '@/types/business';
 import { useProjectList } from '@/lib/queries/projects';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
+import { ProjectTeamPanel } from '@/components/projects/ProjectTeamPanel';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 const STATUS_VARIANTS: Record<string, string> = {
     Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -23,6 +25,7 @@ const STATUS_VARIANTS: Record<string, string> = {
 
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
+    useOrganizationSync();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
     const { createTimeEntry, approveTimeEntry, rejectTimeEntry, deleteTimeEntry } = useTimeEntryMutations();
@@ -42,6 +45,37 @@ export default function TimeTrackingPage() {
 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+    const [showTeamPanel, setShowTeamPanel] = useState(false);
+    const [projectTeamAssignments, setProjectTeamAssignments] = useState<ProjectTeamAssignment[]>([]);
+
+    const handleProjectSelect = async (projectId: string) => {
+        setSelectedProjectId(projectId);
+        if (projectId) {
+            setShowTeamPanel(true);
+            try {
+                const res = await fetch(`/api/projects/${projectId}/team`, {
+                    credentials: 'include',
+                });
+                const data = await res.json();
+                const list = (data.data ?? data) as Record<string, unknown>[];
+                setProjectTeamAssignments(list.map((a: Record<string, unknown>) => ({
+                    id: a.id as string,
+                    projectId: a.project_id as string,
+                    employeeId: a.employee_id as string,
+                    employeeName: a.employee_name as string,
+                    allocatedHours: a.allocated_hours as number,
+                    assignmentSource: (a.assignment_source ?? 'manual') as 'manual' | 'ai' | 'deal_transfer',
+                    costPerHour: a.cost_per_hour as number | undefined,
+                    monthlySalary: a.monthly_salary as number | undefined,
+                })));
+            } catch {
+                setProjectTeamAssignments([]);
+            }
+        } else {
+            setShowTeamPanel(false);
+            setProjectTeamAssignments([]);
+        }
+    };
 
     const handleSaveTime = async () => {
         const errs: typeof timeErrors = {};
@@ -126,7 +160,11 @@ export default function TimeTrackingPage() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium">Project <span className="text-destructive">*</span></label>
-                                <Select value={selectedProjectId} onValueChange={v => { setSelectedProjectId(v); if (timeErrors.project) setTimeErrors(p => ({ ...p, project: undefined })); }}>
+                                <Select value={selectedProjectId} onValueChange={v => {
+                                    setSelectedProjectId(v);
+                                    if (timeErrors.project) setTimeErrors(p => ({ ...p, project: undefined }));
+                                    handleProjectSelect(v);
+                                }}>
                                     <SelectTrigger aria-invalid={!!timeErrors.project}>
                                         <SelectValue placeholder="Select active project..." />
                                     </SelectTrigger>
@@ -236,10 +274,19 @@ export default function TimeTrackingPage() {
                     </CardContent>
                 </Card>
             ) : (
-            <Card className="shadow-sm border-slate-100">
-                <CardHeader>
-                    <CardTitle className="text-lg">Recent Time Entries</CardTitle>
-                </CardHeader>
+                <>
+                    {showTeamPanel && selectedProjectId && (
+                        <ProjectTeamPanel
+                            projectId={selectedProjectId}
+                            assignments={projectTeamAssignments}
+                            onAssignmentsChange={setProjectTeamAssignments}
+                        />
+                    )}
+
+                    <Card className="shadow-sm border-slate-100">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Recent Time Entries</CardTitle>
+                        </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader className="bg-slate-50">
@@ -327,8 +374,9 @@ export default function TimeTrackingPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-            </Card>
-            )}
+                </Card>
+                    </>
+                )}
 
             <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <DialogContent className="sm:max-w-md">

@@ -7,6 +7,7 @@ export interface AITeamBuilderInput {
     workloadHours: number
     workloadDescription: string
     workloadDocumentText?: string
+    requiredSkills?: string[]           // skill names required for this project
     employees: Employee[]
     engineers: Engineer[]
     globalOverheads: GlobalOverhead[]
@@ -22,6 +23,14 @@ export interface AITeamMember {
     costPerHour: number
     totalCost: number
     reasoning: string
+    matchedSkills?: string[]            // skills this member covers
+    skillMatchScore?: number             // percentage 0-100
+}
+
+export interface SkillGapAnalysis {
+    coveredSkills: string[]
+    gapSkills: string[]
+    recommendations: string[]
 }
 
 export interface AITeamBuilderResult {
@@ -36,4 +45,5 @@ export interface AITeamBuilderResult {
     feasibilityNote: string
     aiReasoning: string
     warnings: string[]
+    skillGapAnalysis?: SkillGapAnalysis  // NEW: AI-generated skill gap analysis
 }

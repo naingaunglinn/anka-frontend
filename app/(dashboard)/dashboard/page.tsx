@@ -14,7 +14,8 @@ import {
 } from "recharts";
 import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatMoneyShort } from "@/lib/currency";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 
 const demoPnlData = [
     { month: "Jan", revenue: 680000, operatingProfit: 182000 },
@@ -34,6 +35,7 @@ const demoPipelineDeals = [
 ];
 
 export default function DashboardPage() {
+    useOrganizationSync();
     const [isMounted, setIsMounted] = useState(false);
     const isDemoMode = useUIStore((s) => s.isDemoMode);
     const store = useBusinessStore();
@@ -51,9 +53,8 @@ export default function DashboardPage() {
     }, []);
 
     const pnlData = useMemo(() => {
-        if (isDemoMode) return demoPnlData;
         return store.getFinancialPnL();
-    }, [isDemoMode, store]);
+    }, [store]);
 
     // Summary Metrics
     const { totalRev, totalProfit } = useMemo(() => {
@@ -66,14 +67,10 @@ export default function DashboardPage() {
         return { totalRev: rev, totalProfit: profit };
     }, [pnlData]);
 
-    const activeProjectsCount = isDemoMode
-        ? 14
-        : store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
+    const activeProjectsCount = store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
 
     // Pipeline Deals
-    const pipelineDeals = isDemoMode
-        ? demoPipelineDeals
-        : store.deals
+    const pipelineDeals = store.deals
             .filter(d => d.status !== 'won' && d.status !== 'lost')
             .map(d => ({
                 name: d.name,
@@ -92,22 +89,9 @@ export default function DashboardPage() {
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
                 <p className="text-muted-foreground">
-                    {isDemoMode
-                        ? "Demo snapshot: sample gross-profit intelligence, pipeline, and recommendation signals."
-                        : "High-level overview of revenue, pipeline, and active projects."}
+                    High-level overview of revenue, pipeline, and active projects.
                 </p>
             </div>
-
-            {isDemoMode && (
-                <Card className="border-[#00a6f4]/25 bg-[#00a6f4]/5">
-                    <CardContent className="pt-6">
-                        <p className="text-sm text-[#0c4a6e]">
-                            Demo Version is intentionally scoped. You can explore Dashboard insights with sample data, while edit actions
-                            and advanced modules are hidden.
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-4">

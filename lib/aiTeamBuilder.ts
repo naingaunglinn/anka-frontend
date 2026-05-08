@@ -19,10 +19,11 @@ and cost breakdown following these rules.
 - feasibilityNote: if feasible write "Project is within budget", otherwise state the amount it exceeds by
 - aiReasoning: 3–5 sentences explaining team selection and cost rationale
 - warnings: list capacity issues, margins below 10%, or budget risks
+- skillGapAnalysis: analyze required skills vs available employees; for each team member include matchedSkills (skills they have from the required list) and skillMatchScore (percentage of required skills they cover 0-100); coveredSkills = skills from required list that have at least one team member; gapSkills = required skills with no employee coverage; recommendations = actionable suggestions to fill gaps
 
 Output format (JSON):
 {
-  "team": [{ "employeeId": string, "name": string, "role": string, "allocatedHours": number, "monthlySalary": number, "costPerHour": number, "totalCost": number, "reasoning": string }],
+  "team": [{ "employeeId": string, "name": string, "role": string, "allocatedHours": number, "monthlySalary": number, "costPerHour": number, "totalCost": number, "reasoning": string, "matchedSkills": string[], "skillMatchScore": number }],
   "baseLaborCost": number,
   "overheadCost": number,
   "bufferCost": number,
@@ -32,7 +33,12 @@ Output format (JSON):
   "isFeasible": boolean,
   "feasibilityNote": string,
   "aiReasoning": string,
-  "warnings": string[]
+  "warnings": string[],
+  "skillGapAnalysis": {
+    "coveredSkills": string[],
+    "gapSkills": string[],
+    "recommendations": string[]
+  }
 }`
 
 export function buildUserPrompt(input: AITeamBuilderInput): string {
@@ -46,6 +52,10 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
             monthlySalary: e.monthlySalary,
             monthlyCapacityHours: e.workableHours,
             maxProjectHours: e.workableHours * input.timelineMonths,
+            skills: (e.skills ?? []).map((s: { name?: string; skillId?: string; proficiency?: string }) => ({
+                name: s.name ?? s.skillId ?? 'unknown',
+                proficiency: s.proficiency ?? 'intermediate',
+            })),
         }))
 
     const overheadDecimal = input.companySettings.overheadPercentage / 100
@@ -63,14 +73,16 @@ ${input.workloadDocumentText
             ? `\nAdditional Document:\n${input.workloadDocumentText.slice(0, 3000)}`
             : ''}
 
----
+## Required Skills
+${input.requiredSkills && input.requiredSkills.length > 0
+    ? input.requiredSkills.map(s => `- ${s}`).join('\n')
+    : 'No specific skills required.'}
 
-## Available Employees (active only)
+## Available Employees (active only with skills)
 
 ${JSON.stringify(activeEmployees, null, 2)}
 
 ---
-
 ## Company Financial Settings
 
 Overhead Percentage: ${input.companySettings.overheadPercentage}% (use decimal ${overheadDecimal} for calculations)

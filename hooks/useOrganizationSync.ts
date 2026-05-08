@@ -37,6 +37,7 @@ export function useOrganizationSync() {
                     employees: data.employees,
                     engineers: employeesToEngineers(data.employees),
                     globalOverheads: data.globalOverheads,
+                    skills: data.skills,
                     ...(data.companySettings
                         ? { companySettings: data.companySettings }
                         : {}

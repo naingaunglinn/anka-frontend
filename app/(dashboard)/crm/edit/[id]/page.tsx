@@ -13,6 +13,7 @@ import { formatMoney } from "@/lib/currency";
 import { GhostRole, RoleType } from "@/types/business";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { v4 as uuidv4 } from "uuid";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 
 import {
     Form,
@@ -46,6 +47,7 @@ import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useLinkedContract } from "@/lib/queries/contracts";
 
 export default function EditDealPage() {
+    useOrganizationSync();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';

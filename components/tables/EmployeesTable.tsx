@@ -239,6 +239,30 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             },
         },
         {
+            id: 'skills',
+            header: 'Skills',
+            cell: ({ row }) => {
+                const skills = row.original.skills ?? [];
+                if (skills.length === 0) {
+                    return <span className="text-slate-400 text-sm">—</span>;
+                }
+                return (
+                    <div className="flex flex-wrap gap-1">
+                        {skills.slice(0, 3).map((s) => (
+                            <Badge key={s.skillId} variant="outline" className="text-xs">
+                                {s.name}
+                            </Badge>
+                        ))}
+                        {skills.length > 3 && (
+                            <Badge variant="secondary" className="text-xs">
+                                +{skills.length - 3}
+                            </Badge>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             id: 'actions',
             cell: ({ row }) => {
                 const employee = row.original;
