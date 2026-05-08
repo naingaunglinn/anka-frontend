@@ -8,12 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoney } from '@/lib/currency';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 export default function FinancialPage() {
     const store = useBusinessStore();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
     // Load invoices, time entries, and org data so P&L is always populated
     useInvoiceList();
@@ -131,7 +135,7 @@ export default function FinancialPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">
-                                ${summary.totalRev.toLocaleString()}
+                                {formatMoney(summary.totalRev, currency)}
                             </span>
                         </div>
                     </CardContent>
@@ -144,7 +148,7 @@ export default function FinancialPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-slate-900">
-                                ${summary.totalCost.toLocaleString()}
+                                {formatMoney(summary.totalCost, currency)}
                             </span>
                         </div>
                     </CardContent>
@@ -157,7 +161,7 @@ export default function FinancialPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-emerald-600">
-                                ${summary.totalProfit.toLocaleString()}
+                                {formatMoney(summary.totalProfit, currency)}
                             </span>
                         </div>
                     </CardContent>
@@ -203,11 +207,11 @@ export default function FinancialPage() {
                                 return (
                                     <TableRow key={i} className="hover:bg-slate-50/50 transition-colors">
                                         <TableCell className="font-semibold text-slate-900 py-4">{row.month}</TableCell>
-                                        <TableCell className="text-right text-slate-600 py-4">${row.revenue.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right text-rose-600 py-4">-${row.directLabor.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right font-medium text-slate-900 py-4">${row.grossProfit.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right text-rose-600 py-4">-${row.overhead.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right font-bold text-slate-900 py-4">${row.operatingProfit.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right text-slate-600 py-4">{formatMoney(row.revenue, currency)}</TableCell>
+                                        <TableCell className="text-right text-rose-600 py-4">-{formatMoney(row.directLabor, currency)}</TableCell>
+                                        <TableCell className="text-right font-medium text-slate-900 py-4">{formatMoney(row.grossProfit, currency)}</TableCell>
+                                        <TableCell className="text-right text-rose-600 py-4">-{formatMoney(row.overhead, currency)}</TableCell>
+                                        <TableCell className="text-right font-bold text-slate-900 py-4">{formatMoney(row.operatingProfit, currency)}</TableCell>
                                         <TableCell className="text-right py-4">
                                             <Badge variant="outline" className={
                                                 margin > 20 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :

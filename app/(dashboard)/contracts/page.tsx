@@ -17,10 +17,14 @@ import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestone
 import { useDealList } from '@/lib/queries/deals';
 import { useProjectList } from '@/lib/queries/projects';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoney } from '@/lib/currency';
 import { useRouter } from 'next/navigation';
 
 export default function ContractsPage() {
     const router = useRouter();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     const contractsQuery = useContractList();
     const invoicesQuery = useInvoiceList();
     const milestonesQuery = useMilestoneList();
@@ -215,7 +219,7 @@ export default function ContractsPage() {
                                     <SelectContent>
                                         {milestones.filter(m => m.contractId === invContractId).map(ms => (
                                             <SelectItem key={ms.id} value={ms.id}>
-                                                {ms.name} — ${ms.amount.toLocaleString()}
+                                                {ms.name} — {formatMoney(ms.amount, currency)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -295,11 +299,11 @@ export default function ContractsPage() {
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">Total Contract Value</p>
                             <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                                <span className="text-emerald-600 font-bold">$</span>
+                                <span className="text-emerald-600 font-bold text-xs">{currency}</span>
                             </div>
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">${totalContractValue.toLocaleString()}</span>
+                            <span className="text-3xl font-bold tracking-tight text-slate-900">{formatMoney(totalContractValue, currency)}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -310,7 +314,7 @@ export default function ContractsPage() {
                             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-emerald-600">${totalRecognized.toLocaleString()}</span>
+                            <span className="text-3xl font-bold tracking-tight text-emerald-600">{formatMoney(totalRecognized, currency)}</span>
                             <span className="text-sm font-medium text-slate-500">
                                 ({totalContractValue > 0 ? Math.round((totalRecognized / totalContractValue) * 100) : 0}%)
                             </span>
@@ -382,8 +386,8 @@ export default function ContractsPage() {
                                                     {contract.status}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium">${contract.totalValue.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right text-slate-600">${contract.revenueRecognized.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(contract.totalValue, currency)}</TableCell>
+                                            <TableCell className="text-right text-slate-600">{formatMoney(contract.revenueRecognized, currency)}</TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -531,7 +535,7 @@ export default function ContractsPage() {
                                                     {ms.status}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium">${ms.amount.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(ms.amount, currency)}</TableCell>
                                             <TableCell>
                                                 <Button
                                                     variant="ghost"
@@ -590,7 +594,7 @@ export default function ContractsPage() {
                                                     {invoice.status}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium">${invoice.amount.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(invoice.amount, currency)}</TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>

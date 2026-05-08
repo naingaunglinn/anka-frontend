@@ -22,6 +22,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PHONE_COUNTRIES } from '@/lib/phoneCountries';
+import { FlagIcon } from '@/components/FlagIcon';
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -55,7 +56,6 @@ export default function RegisterPage() {
     };
 
     const selectedCountry = PHONE_COUNTRIES.find((c) => c.iso === countryIso) ?? PHONE_COUNTRIES[0];
-    const getFlagUrl = (iso: string) => `https://flagcdn.com/24x18/${iso.toLowerCase()}.png`;
     const syncPhoneNumber = (iso: string, localInput: string) => {
         const country = PHONE_COUNTRIES.find((c) => c.iso === iso) ?? PHONE_COUNTRIES[0];
         const digitsOnly = localInput.replace(/\D/g, '');
@@ -137,7 +137,7 @@ export default function RegisterPage() {
                                         render={() => (
                                             <FormItem>
                                                 <FormLabel className="text-[#171717]/90">Phone Number (International)</FormLabel>
-                                                <div className="flex gap-2">
+                                                <div className="grid grid-cols-[110px_1fr] gap-2">
                                                     <Select
                                                         value={countryIso}
                                                         onValueChange={(nextIso) => {
@@ -146,28 +146,20 @@ export default function RegisterPage() {
                                                         }}
                                                     >
                                                         <FormControl>
-                                                            <SelectTrigger className="h-11 w-[42%] border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
-                                                                <SelectValue>
-                                                                    <span className="flex items-center gap-2">
-                                                                        <img
-                                                                            src={getFlagUrl(selectedCountry.iso)}
-                                                                            alt={`${selectedCountry.label} flag`}
-                                                                            className="h-[14px] w-5 rounded-[2px] object-cover"
-                                                                        />
-                                                                        <span>{selectedCountry.dial}</span>
-                                                                    </span>
-                                                                </SelectValue>
+                                                            <SelectTrigger className="h-11 w-full border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
+                                                                <div className="flex items-center gap-2">
+                                                                    <FlagIcon iso={selectedCountry.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
+                                                                    <SelectValue>{selectedCountry.dial}</SelectValue>
+                                                                </div>
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent>
                                                             {PHONE_COUNTRIES.map((country) => (
                                                                 <SelectItem key={country.iso} value={country.iso}>
-                                                                    <img
-                                                                        src={getFlagUrl(country.iso)}
-                                                                        alt={`${country.label} flag`}
-                                                                        className="mr-2 h-[14px] w-5 rounded-[2px] object-cover"
-                                                                    />
-                                                                    {country.label} {country.dial}
+                                                                    <div className="flex items-center gap-2">
+                                                                        <FlagIcon iso={country.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
+                                                                        <span>{country.label} {country.dial}</span>
+                                                                    </div>
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>
@@ -181,7 +173,7 @@ export default function RegisterPage() {
                                                             setPhoneLocal(nextLocal);
                                                             syncPhoneNumber(countryIso, nextLocal);
                                                         }}
-                                                        className="h-11 w-[58%] border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 w-full border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
                                                     />
                                                 </div>
                                                 <FormMessage />

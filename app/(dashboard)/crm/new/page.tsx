@@ -7,6 +7,8 @@ import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
+import { useTenantStore, type Currency } from "@/store/tenantStore";
+import { formatMoney } from "@/lib/currency";
 import { Deal, GhostRole, RoleType } from "@/types/business";
 import { v4 as uuidv4 } from "uuid";
 
@@ -42,6 +44,8 @@ import {
 
 export default function NewDealPage() {
     const router = useRouter();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
     const { createDeal } = useDealMutations();
@@ -640,7 +644,7 @@ export default function NewDealPage() {
                                                                 <div>
                                                                     <h3 className="text-sm font-semibold text-slate-900">{roleLabel}</h3>
                                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                                        Assigned {assignedCount} of {gr.quantity} • Salary range: ${gr.minMonthlySalary.toLocaleString()} – ${gr.maxMonthlySalary.toLocaleString()}
+                                                                        Assigned {assignedCount} of {gr.quantity} • Salary range: {formatMoney(gr.minMonthlySalary, currency)} – {formatMoney(gr.maxMonthlySalary, currency)}
                                                                     </p>
                                                                 </div>
                                                                 {assignedCount > gr.quantity && (
@@ -685,8 +689,8 @@ export default function NewDealPage() {
                                                                                             onChange={(e) => updateAssignmentHours(assignment.employeeId, Number(e.target.value))}
                                                                                         />
                                                                                     </TableCell>
-                                                                                    <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
-                                                                                    <TableCell className="text-right font-medium">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                                                    <TableCell className="text-right">{formatMoney(emp.monthlySalary, currency)}</TableCell>
+                                                                                    <TableCell className="text-right font-medium">{formatMoney(totalCost, currency)}</TableCell>
                                                                                     <TableCell>
                                                                                         <Button
                                                                                             type="button"
@@ -721,7 +725,7 @@ export default function NewDealPage() {
                                                                             <SelectContent>
                                                                                 {availableEmployees.map(e => (
                                                                                     <SelectItem key={e.id} value={e.id}>
-                                                                                        {e.name} — ${e.monthlySalary.toLocaleString()}
+                                                                                        {e.name} — {formatMoney(e.monthlySalary, currency)}
                                                                                     </SelectItem>
                                                                                 ))}
                                                                             </SelectContent>
@@ -799,7 +803,7 @@ export default function NewDealPage() {
                                                                             <TableCell className="font-medium">{emp.name}</TableCell>
                                                                             <TableCell className="text-slate-500">{emp.roleName || emp.role}</TableCell>
                                                                             <TableCell className="text-right">{assignment.allocatedHours}</TableCell>
-                                                                            <TableCell className="text-right">${emp.monthlySalary.toLocaleString()}</TableCell>
+                                                                            <TableCell className="text-right">{formatMoney(emp.monthlySalary, currency)}</TableCell>
                                                                             <TableCell>
                                                                                 <Button
                                                                                     type="button"
@@ -850,7 +854,7 @@ export default function NewDealPage() {
                                                                         <TableCell className="font-medium">{role}</TableCell>
                                                                         <TableCell className="text-right">{data.qty}</TableCell>
                                                                         <TableCell className="text-right">{data.hours}</TableCell>
-                                                                        <TableCell className="text-right font-medium">${data.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                                        <TableCell className="text-right font-medium">{formatMoney(data.cost, currency)}</TableCell>
                                                                     </TableRow>
                                                                 ))}
                                                             </TableBody>
@@ -888,28 +892,28 @@ export default function NewDealPage() {
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Base Labor Cost</span>
-                                    <span className="font-medium text-slate-700">${baseLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Overhead ({companySettings.overheadPercentage}%)</span>
-                                    <span className="font-medium text-red-500/80">+${overheadCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span className="font-medium text-red-500/80">+{formatMoney(overheadCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Risk Buffer ({companySettings.bufferPercentage}%)</span>
-                                    <span className="font-medium text-red-500/80">+${bufferCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span className="font-medium text-red-500/80">+{formatMoney(bufferCost, currency)}</span>
                                 </div>
                             </div>
 
                             <div className="border-t border-slate-100 pt-5">
                                 <div className="flex justify-between font-bold text-slate-800 mb-3">
                                     <span>Total Est. Cost</span>
-                                    <span>${totalEstimatedCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>{formatMoney(totalEstimatedCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <span className="font-bold text-slate-800">Gross Profit</span>
                                     <div className="flex flex-col items-end">
                                         <span className={`font-bold text-lg ${getMarginColor(profitMargin)}`}>
-                                            ${estimatedGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            {formatMoney(estimatedGrossProfit, currency)}
                                         </span>
                                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(profitMargin)}`}>
                                             {profitMargin.toFixed(1)}% Margin

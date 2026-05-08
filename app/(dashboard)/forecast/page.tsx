@@ -6,12 +6,16 @@ import { Slider } from '@/components/ui/slider';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Calculator } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoney, formatMoneyShort } from '@/lib/currency';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 
 export default function ForecastPage() {
     const store = useBusinessStore();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     useOrganizationSync();
     useInvoiceList();
     useTimeEntryList();
@@ -120,7 +124,7 @@ export default function ForecastPage() {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-slate-300">Delayed Pipeline Deals</span>
-                                <span className="text-sm font-bold text-amber-400">${delayedDeals.toLocaleString()}</span>
+                                <span className="text-sm font-bold text-amber-400">{formatMoney(delayedDeals, currency)}</span>
                             </div>
                             <Slider value={[delayedDeals]} onValueChange={handleDelayedDealsChange} max={300000} step={25000} />
                             <p className="text-xs text-slate-500">Revenue pushed out from current CRM pipeline.</p>
@@ -166,14 +170,14 @@ export default function ForecastPage() {
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
                                     <YAxis
-                                        tickFormatter={(value) => `$${value / 1000}k`}
+                                        tickFormatter={(value) => formatMoneyShort(value, currency)}
                                         axisLine={false}
                                         tickLine={false}
                                         tick={{ fill: '#64748B', fontSize: 12 }}
                                         dx={-10}
                                     />
                                     <Tooltip
-                                        formatter={(value: any) => [`$${Number(value).toLocaleString()}`, undefined]}
+                                        formatter={(value: any) => [formatMoney(Number(value), currency), undefined]}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
@@ -206,7 +210,7 @@ export default function ForecastPage() {
                             <CardContent className="p-6">
                                 <p className="text-sm font-medium text-slate-500">M6 Stressed Revenue</p>
                                 <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
-                                    ${chartData[5].ProjectedRevenue.toLocaleString()}
+                                    {formatMoney(chartData[5].ProjectedRevenue, currency)}
                                 </span>
                             </CardContent>
                         </Card>
@@ -214,7 +218,7 @@ export default function ForecastPage() {
                             <CardContent className="p-6">
                                 <p className="text-sm font-medium text-slate-500">M6 Fixed Costs</p>
                                 <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
-                                    ${chartData[5].ProjectedCost.toLocaleString()}
+                                    {formatMoney(chartData[5].ProjectedCost, currency)}
                                 </span>
                             </CardContent>
                         </Card>

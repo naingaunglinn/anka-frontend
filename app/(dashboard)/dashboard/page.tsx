@@ -13,6 +13,8 @@ import {
     Legend
 } from "recharts";
 import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
+import { useTenantStore, type Currency } from "@/store/tenantStore";
+import { formatMoney } from "@/lib/currency";
 
 const demoPnlData = [
     { month: "Jan", revenue: 680000, operatingProfit: 182000 },
@@ -35,6 +37,8 @@ export default function DashboardPage() {
     const [isMounted, setIsMounted] = useState(false);
     const isDemoMode = useUIStore((s) => s.isDemoMode);
     const store = useBusinessStore();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
     // Keep hooks stable; demo mode swaps displayed data below.
     useDealList();
@@ -81,9 +85,7 @@ export default function DashboardPage() {
 
     if (!isMounted) return null;
 
-    const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
-    };
+
 
     return (
         <div className="container mx-auto p-6 max-w-7xl space-y-8">
@@ -115,7 +117,7 @@ export default function DashboardPage() {
                         <DollarSign className="h-4 w-4 text-emerald-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(totalRev)}</div>
+                        <div className="text-2xl font-bold">{formatMoney(totalRev, currency)}</div>
                         <p className="text-xs text-muted-foreground">Recognized from Paid Invoices</p>
                     </CardContent>
                 </Card>
@@ -126,7 +128,7 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className={`text-2xl font-bold ${totalProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                            {formatCurrency(totalProfit)}
+                            {formatMoney(totalProfit, currency)}
                         </div>
                         <p className="text-xs text-muted-foreground">EBITDA after all costs</p>
                     </CardContent>
@@ -138,13 +140,14 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatCurrency(
+                            {formatMoney(
                                 isDemoMode
                                     ? 1820000
                                     : store.deals.reduce(
                                         (sum, d) => d.status !== 'won' && d.status !== 'lost' ? sum + (d.estimatedValue || d.clientBudget || 0) : sum,
                                         0
-                                    )
+                                    ),
+                                currency
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground">Total un-won deal targets</p>
@@ -177,8 +180,8 @@ export default function DashboardPage() {
                                 <BarChart data={pnlData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                     <XAxis dataKey="month" />
-                                    <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
-                                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                                    <YAxis tickFormatter={(val) => formatMoney(Number(val), currency)} />
+                                    <Tooltip formatter={(value: any) => formatMoney(Number(value), currency)} />
                                     <Legend />
                                     <Bar name="Revenue" dataKey="revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
                                     <Bar name="Op. Profit" dataKey="operatingProfit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
@@ -203,9 +206,9 @@ export default function DashboardPage() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={pipelineDeals} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                    <XAxis type="number" tickFormatter={(val) => `$${val / 1000}k`} />
+                                    <XAxis type="number" tickFormatter={(val) => formatMoney(Number(val), currency)} />
                                     <YAxis type="category" dataKey="name" width={120} />
-                                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                                    <Tooltip formatter={(value: any) => formatMoney(Number(value), currency)} />
                                     <Legend />
                                     <Bar name="Weighted Value" dataKey="weightedValue" fill="#8B5CF6" radius={[0, 4, 4, 0]} />
                                     <Bar name="Target Value (100% Win)" dataKey="rawTarget" fill="#E2E8F0" radius={[0, 4, 4, 0]} />

@@ -6,6 +6,7 @@ export interface AdminTenant {
     name: string;
     slug: string;
     plan: string | null;
+    currency: string;
     isActive: boolean;
     createdAt: string;
     usersCount: number;
@@ -17,6 +18,7 @@ function toAdminTenant(row: Record<string, unknown>): AdminTenant {
         name:      row.name as string,
         slug:      row.slug as string,
         plan:      row.plan as string | null,
+        currency:  (row.currency as string) ?? 'MMK',
         isActive:  row.is_active as boolean,
         createdAt: row.created_at as string,
         usersCount: (row.users_count as number) ?? 0,
@@ -88,6 +90,7 @@ export function useAdminMutations() {
                 name:      updates.name,
                 slug:      updates.slug,
                 plan:      updates.plan,
+                currency:  updates.currency,
                 is_active: updates.isActive,
             });
             return toAdminTenant(data.data ?? data);

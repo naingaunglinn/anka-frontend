@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminDashboardStats } from '@/lib/queries/adminDashboard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Building2, Users, Activity, BrainCircuit, TrendingUp, TrendingDown } from 'lucide-react';
+import { formatMoney } from '@/lib/currency';
 // Skeleton component not available — using simple div with animate-pulse
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -62,8 +63,8 @@ export default function AdminDashboardPage() {
                 />
                 <KpiCard
                     title="AI Cost"
-                    value={`$${stats.ai_usage.total_cost.toFixed(2)}`}
-                    subValue="Estimated USD"
+                    value={formatMoney(stats.ai_usage.total_cost)}
+                    subValue="Estimated"
                     icon={Activity}
                     iconColor="text-emerald-500"
                 />
