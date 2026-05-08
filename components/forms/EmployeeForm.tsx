@@ -116,7 +116,7 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         name="departmentId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Department <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                <FormLabel>Department <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
@@ -161,7 +161,7 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         name="capacityRole"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Capacity Pool <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                <FormLabel>Capacity Pool <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
@@ -230,11 +230,11 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         </FormItem>
                     )}
                 />
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <div className="rounded-md border border-[#e6e9ee] bg-white p-3 space-y-3">
                     <p className="text-xs font-medium text-slate-700">
                         Login Credentials
                     </p>
-                    <p className="-mt-2 text-xs text-slate-500">
+                    <p className="-mt-2 text-xs text-[#8a8a8a]">
                         {!isEdit
                             ? 'The employee will use these to sign in and view their assigned tasks.'
                             : initialData?.email
@@ -286,7 +286,7 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         />
                     </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a4a4a]">
                     Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">

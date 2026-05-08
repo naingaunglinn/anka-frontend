@@ -83,17 +83,17 @@ export default function ForecastPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Scenario Forecasting</h1>
-                    <p className="text-slate-500 mt-1">Stress-test your agency's finances against market shocks based on current real-time P&L baselines.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Scenario Forecasting</h1>
+                    <p className="text-[#8a8a8a] mt-1">Stress-test your agency's finances against market shocks based on current real-time P&L baselines.</p>
                 </div>
             </div>
 
             {pnlData.length === 0 ? (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-12 text-center">
                         <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-slate-900 mb-2">Insufficient Data</h3>
-                        <p className="text-slate-500 max-w-md mx-auto">
+                        <h3 className="text-lg font-semibold text-[#171717] mb-2">Insufficient Data</h3>
+                        <p className="text-[#8a8a8a] max-w-md mx-auto">
                             No financial history found. Log paid invoices and approved time entries to generate a forecast baseline.
                         </p>
                     </CardContent>
@@ -102,41 +102,41 @@ export default function ForecastPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Simulation Controls Panel */}
-                <Card className="shadow-sm border-slate-100 lg:col-span-1 bg-slate-900 text-white">
-                    <CardHeader className="pb-4 border-b border-slate-800">
-                        <CardTitle className="flex items-center gap-2 text-lg text-white">
-                            <Calculator className="h-5 w-5 text-blue-400" />
+                <Card className="shadow-sm border-[#e6e9ee] lg:col-span-1 bg-white text-[#171717]">
+                    <CardHeader className="pb-4 border-b border-[#e6e9ee]">
+                        <CardTitle className="flex items-center gap-2 text-lg text-[#171717]">
+                            <Calculator className="h-5 w-5 text-[#00a7f4]" />
                             Shock Variables
                         </CardTitle>
-                        <CardDescription className="text-slate-400">Adjust parameters to simulate 6-month impact.</CardDescription>
+                        <CardDescription className="text-[#8a8a8a]">Adjust parameters to simulate 6-month impact.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-8 pt-6">
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-300">Utilization Drop (Bench Risk)</span>
-                                <span className="text-sm font-bold text-rose-400">{utilizationDrop}%</span>
+                                <span className="text-sm font-medium text-[#4a4a4a]">Utilization Drop (Bench Risk)</span>
+                                <span className="text-sm font-bold text-rose-500">{utilizationDrop}%</span>
                             </div>
                             <Slider value={[utilizationDrop]} onValueChange={handleUtilizationChange} max={50} step={5} />
-                            <p className="text-xs text-slate-500">Simulates clients pulling back, dropping billable hours.</p>
+                            <p className="text-xs text-[#8a8a8a]">Simulates clients pulling back, dropping billable hours.</p>
                         </div>
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-300">Delayed Pipeline Deals</span>
-                                <span className="text-sm font-bold text-amber-400">{formatMoney(delayedDeals, currency)}</span>
+                                <span className="text-sm font-medium text-[#4a4a4a]">Delayed Pipeline Deals</span>
+                                <span className="text-sm font-bold text-amber-600">{formatMoney(delayedDeals, currency)}</span>
                             </div>
                             <Slider value={[delayedDeals]} onValueChange={handleDelayedDealsChange} max={300000} step={25000} />
-                            <p className="text-xs text-slate-500">Revenue pushed out from current CRM pipeline.</p>
+                            <p className="text-xs text-[#8a8a8a]">Revenue pushed out from current CRM pipeline.</p>
                         </div>
 
-                        <div className="space-y-4 border-t border-slate-800 pt-6">
+                        <div className="space-y-4 border-t border-[#e6e9ee] pt-6">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-300">New Developer Hires</span>
-                                <span className="text-sm font-bold text-blue-400">{newHires} Staff</span>
+                                <span className="text-sm font-medium text-[#4a4a4a]">New Developer Hires</span>
+                                <span className="text-sm font-bold text-[#00a7f4]">{newHires} Staff</span>
                             </div>
                             <Slider value={[newHires]} onValueChange={handleNewHiresChange} max={10} step={1} />
-                            <p className="text-xs text-slate-500">Increases fixed salary costs independent of revenue.</p>
+                            <p className="text-xs text-[#8a8a8a]">Increases fixed salary costs independent of revenue.</p>
                         </div>
 
                         <div className={`mt-6 p-4 rounded-lg border ${analysis.bg} shadow-inner`}>
@@ -154,7 +154,7 @@ export default function ForecastPage() {
 
                 {/* Charts Panel */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="shadow-sm border-slate-100">
+                    <Card className="shadow-sm border-[#e6e9ee]">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-lg flex justify-between">
                                 6-Month Profit Projection
@@ -206,18 +206,18 @@ export default function ForecastPage() {
                     </Card>
 
                     <div className="grid grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardContent className="p-6">
-                                <p className="text-sm font-medium text-slate-500">M6 Stressed Revenue</p>
-                                <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
+                                <p className="text-sm font-medium text-[#8a8a8a]">M6 Stressed Revenue</p>
+                                <span className="text-2xl font-bold tracking-tight text-[#171717] block mt-2">
                                     {formatMoney(chartData[5].ProjectedRevenue, currency)}
                                 </span>
                             </CardContent>
                         </Card>
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardContent className="p-6">
-                                <p className="text-sm font-medium text-slate-500">M6 Fixed Costs</p>
-                                <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
+                                <p className="text-sm font-medium text-[#8a8a8a]">M6 Fixed Costs</p>
+                                <span className="text-2xl font-bold tracking-tight text-[#171717] block mt-2">
                                     {formatMoney(chartData[5].ProjectedCost, currency)}
                                 </span>
                             </CardContent>

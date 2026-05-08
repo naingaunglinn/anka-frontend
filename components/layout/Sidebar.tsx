@@ -28,25 +28,25 @@ import {
 } from 'lucide-react';
 
 const orgRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-sky-500' },
+    { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-[#00a7f4]' },
     { label: 'Organization',      icon: Users,           href: '/organization',  color: 'text-violet-500' },
     { label: 'CRM & Pipeline',    icon: Briefcase,       href: '/crm',           color: 'text-pink-700' },
     { label: 'Estimation',        icon: Calculator,      href: '/estimation',    color: 'text-orange-700' },
     { label: 'Contracts & Billing', icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
     { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },
     { label: 'Time Tracking',     icon: Clock,           href: '/time-tracking', color: 'text-amber-500' },
-    { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-cyan-500' },
-    { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-blue-700' },
+    { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-[#00a7f4]' },
+    { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-[#0086c4]' },
     { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
 ];
 
 const demoRoutes = [
-    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-sky-500' },
+    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-[#00a7f4]' },
     { label: 'Forecast Preview', icon: LineChart, href: '/forecast', color: 'text-indigo-500' },
 ];
 
 const superAdminRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-sky-500' },
+    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-[#00a7f4]' },
     { label: 'Tenant Management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
     { label: 'Billing & Plans',   icon: Receipt,          href: '/admin/billing',    color: 'text-emerald-400' },
     { label: 'Audit Logs',        icon: ScrollText,       href: '/admin/audit',      color: 'text-amber-400' },
@@ -62,7 +62,7 @@ export const Sidebar = () => {
     useEffect(() => setMounted(true), []);
 
     if (!mounted) {
-        return <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl w-64"></div>;
+        return <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl w-64 border-r border-[#e6e9ee]"></div>;
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
@@ -70,24 +70,24 @@ export const Sidebar = () => {
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl relative transition-all duration-300 w-full overflow-hidden">
+        <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl relative transition-all duration-300 w-full border-r border-[#e6e9ee]">
             <button
                 onClick={toggleSidebar}
-                className="absolute -right-3 top-6 bg-slate-800 text-white rounded-full p-1 border border-slate-700 hover:bg-slate-700 z-50 transform"
+                className="absolute -right-3 top-6 bg-white text-[#4a4a4a] rounded-full p-1 border border-[#e6e9ee] hover:bg-[#f8fafc] hover:text-[#00a7f4] z-50 transform shadow-sm"
                 style={{ right: '-0.75rem' }}
             >
                 {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </button>
             <div className="px-3 py-2 flex-1 overflow-x-hidden overflow-y-auto no-scrollbar">
                 <Link href={homeHref} className={cn("flex items-center mb-10", isSidebarCollapsed ? "justify-center px-0" : "pl-3")}>
-                    <div className="relative w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-xl shrink-0">
+                    <div className="relative w-8 h-8 bg-[#00a7f4] rounded-lg flex items-center justify-center font-bold text-xl shrink-0 text-white">
                         A
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="ml-4 min-w-0">
-                            <h1 className="text-xl font-bold truncate leading-tight">Anka SaaS</h1>
+                            <h1 className="text-xl font-bold truncate leading-tight text-[#171717]">Anka SaaS</h1>
                             {user?.isSuperAdmin && (
-                                <span className="text-[10px] font-semibold tracking-widest uppercase text-violet-400">
+                                <span className="text-[10px] font-semibold tracking-widest uppercase text-[#0086c4]">
                                     Super Admin
                                 </span>
                             )}
@@ -96,10 +96,10 @@ export const Sidebar = () => {
                 </Link>
 
                 {user?.isSuperAdmin && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-slate-500 px-3 mb-2">Admin Panel</p>
+                    <p className="text-[11px] uppercase tracking-wider text-[#8a8a8a] px-3 mb-2">Admin Panel</p>
                 )}
                 {isDemoMode && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-sky-400 px-3 mb-2">Demo Version (Read Only)</p>
+                    <p className="text-[11px] uppercase tracking-wider text-[#00a7f4] px-3 mb-2">Demo Version (Read Only)</p>
                 )}
 
                 <div className="space-y-1">
@@ -108,8 +108,8 @@ export const Sidebar = () => {
                             href={route.href}
                             key={route.href}
                             className={cn(
-                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition items-center",
-                                pathname.startsWith(route.href) ? "text-white bg-white/10" : "text-zinc-400",
+                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-[#0086c4] hover:bg-[#00a7f4]/10 rounded-lg transition items-center",
+                                pathname.startsWith(route.href) ? "text-[#0086c4] bg-[#00a7f4]/10" : "text-[#4a4a4a]",
                                 isSidebarCollapsed ? "justify-center" : "justify-start"
                             )}
                             title={isSidebarCollapsed ? route.label : undefined}

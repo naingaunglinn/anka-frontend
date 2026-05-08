@@ -61,7 +61,7 @@ export default function ContractsPage() {
         invoicesQuery.refetch();
     };
 
-    // ── Create Invoice state ────────────────────────────────────────────────
+    // -- Create Invoice state ------------------------------------------------
     const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
     const [invContractId, setInvContractId] = useState('');
     const [invMilestoneId, setInvMilestoneId] = useState('');
@@ -98,7 +98,7 @@ export default function ContractsPage() {
         setInvErrors({});
     };
 
-    // ── Create Milestone state ──────────────────────────────────────────────
+    // -- Create Milestone state ----------------------------------------------
     const [isMilestoneOpen, setIsMilestoneOpen] = useState(false);
     const [msContractId, setMsContractId] = useState('');
     const [msName, setMsName] = useState('');
@@ -130,10 +130,10 @@ export default function ContractsPage() {
         setMsErrors({});
     };
 
-    // ── Edit Contract state ────────────────────────────────────────────────
+    // -- Edit Contract state ------------------------------------------------
     const [editContract, setEditContract] = useState<{ id: string; status: string; notes: string } | null>(null);
 
-    // ── Confirm dialog states ───────────────────────────────────────────────
+    // -- Confirm dialog states -----------------------------------------------
     const [archiveOpen, setArchiveOpen] = useState(false);
     const [archivingContract, setArchivingContract] = useState<string | null>(null);
     const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
@@ -182,12 +182,12 @@ export default function ContractsPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Contracts & Billing</h1>
-                    <p className="text-slate-500 mt-1">Manage active contracts, milestones, and client invoices.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Contracts & Billing</h1>
+                    <p className="text-[#8a8a8a] mt-1">Manage active contracts, milestones, and client invoices.</p>
                 </div>
                 <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-slate-900 gap-2">
+                        <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
                             <Plus className="h-4 w-4" /> Create Invoice
                         </Button>
                     </DialogTrigger>
@@ -197,7 +197,7 @@ export default function ContractsPage() {
                             <DialogDescription>Issue an invoice against an active contract.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-2">
-                            <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                            <p className="text-xs text-[#4a4a4a]">Fields marked <span className="text-destructive">*</span> are required.</p>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
                                 <Select value={invContractId} onValueChange={(v) => { setInvContractId(v); setInvMilestoneId(''); if (invErrors.contractId) setInvErrors(p => ({ ...p, contractId: undefined })); }}>
@@ -213,7 +213,7 @@ export default function ContractsPage() {
                                 {invErrors.contractId && <p className="text-xs text-destructive">{invErrors.contractId}</p>}
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Milestone <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                <label className="text-sm font-medium">Milestone <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
                                 <Select value={invMilestoneId} onValueChange={setInvMilestoneId}>
                                     <SelectTrigger><SelectValue placeholder="Select milestone..." /></SelectTrigger>
                                     <SelectContent>
@@ -231,7 +231,7 @@ export default function ContractsPage() {
                                     <Input type="date" value={invIssueDate} onChange={e => setInvIssueDate(e.target.value)} />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Due Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                    <label className="text-sm font-medium">Due Date <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
                                     <Input type="date" value={invDueDate} onChange={e => setInvDueDate(e.target.value)} />
                                 </div>
                             </div>
@@ -249,16 +249,16 @@ export default function ContractsPage() {
                                     {invErrors.amount && <p className="text-xs text-destructive">{invErrors.amount}</p>}
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Tax ($) <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                    <label className="text-sm font-medium">Tax ($) <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
                                     <Input type="number" min="0" step="0.01" value={invTax} onChange={e => setInvTax(e.target.value)} placeholder="0" />
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Notes <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                                <label className="text-sm font-medium">Notes <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
                                 <Input value={invNotes} onChange={e => setInvNotes(e.target.value)} placeholder="e.g. Payment for Phase 1 delivery" />
                             </div>
                             <Button
-                                className="w-full bg-slate-900"
+                                className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                 onClick={handleCreateInvoice}
                                 disabled={createInvoice.isPending}
                             >
@@ -270,52 +270,52 @@ export default function ContractsPage() {
             </div>
 
             {isLoading && (
-                <Card className="h-40 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+                <Card className="h-40 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
             )}
 
             {isError && (
-                <Card className="border-slate-100 shadow-sm">
+                <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-slate-600">Could not load contracts or invoices.</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load contracts or invoices.</p>
                         <Button variant="outline" onClick={retry}>Retry</Button>
                     </CardContent>
                 </Card>
             )}
 
             {!isLoading && !isError && <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Active Contracts</p>
-                            <FileText className="h-5 w-5 text-blue-500" />
+                            <p className="text-sm font-medium text-[#8a8a8a]">Active Contracts</p>
+                            <FileText className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{contracts.filter(c => c.status === 'Active').length}</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{contracts.filter(c => c.status === 'Active').length}</span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Contract Value</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Contract Value</p>
                             <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
                                 <span className="text-emerald-600 font-bold text-xs">{currency}</span>
                             </div>
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{formatMoney(totalContractValue, currency)}</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{formatMoney(totalContractValue, currency)}</span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Revenue Recognized</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Revenue Recognized</p>
                             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-emerald-600">{formatMoney(totalRecognized, currency)}</span>
-                            <span className="text-sm font-medium text-slate-500">
+                            <span className="text-sm font-medium text-[#8a8a8a]">
                                 ({totalContractValue > 0 ? Math.round((totalRecognized / totalContractValue) * 100) : 0}%)
                             </span>
                         </div>
@@ -331,9 +331,9 @@ export default function ContractsPage() {
                 </TabsList>
 
                 <TabsContent value="contracts">
-                    <Card className="shadow-sm border-slate-100">
+                    <Card className="shadow-sm border-[#e6e9ee]">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-white">
                                 <TableRow>
                                     <TableHead>Contract ID</TableHead>
                                     <TableHead>Client</TableHead>
@@ -356,13 +356,13 @@ export default function ContractsPage() {
                                             <TableCell>
                                                 {sourceDeal ? (
                                                     <button
-                                                        className="text-sm text-blue-600 hover:underline text-left"
+                                                        className="text-sm text-[#00a7f4] hover:underline text-left"
                                                         onClick={() => router.push(`/crm/${sourceDeal.id}`)}
                                                     >
                                                         {sourceDeal.name}
                                                     </button>
                                                 ) : (
-                                                    <span className="text-slate-400 text-sm">—</span>
+                                                    <span className="text-[#8a8a8a] text-sm">—</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
@@ -374,12 +374,12 @@ export default function ContractsPage() {
                                                         {linkedProject.projectNumber ?? linkedProject.name}
                                                     </button>
                                                 ) : (
-                                                    <span className="text-slate-400 text-sm">—</span>
+                                                    <span className="text-[#8a8a8a] text-sm">—</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={
-                                                    contract.status === 'Active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    contract.status === 'Active' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                                     contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
@@ -387,7 +387,7 @@ export default function ContractsPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(contract.totalValue, currency)}</TableCell>
-                                            <TableCell className="text-right text-slate-600">{formatMoney(contract.revenueRecognized, currency)}</TableCell>
+                                            <TableCell className="text-right text-[#4a4a4a]">{formatMoney(contract.revenueRecognized, currency)}</TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -423,7 +423,7 @@ export default function ContractsPage() {
                                 })}
                                 {contracts.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={8} className="text-center py-6 text-slate-500">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
+                                        <TableCell colSpan={8} className="text-center py-6 text-[#8a8a8a]">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -445,7 +445,7 @@ export default function ContractsPage() {
                                     <DialogDescription>Create a billing milestone for a contract.</DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-2">
-                                    <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                                    <p className="text-xs text-[#4a4a4a]">Fields marked <span className="text-destructive">*</span> are required.</p>
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium">Contract <span className="text-destructive">*</span></label>
                                         <Select value={msContractId} onValueChange={v => { setMsContractId(v); if (msErrors.contractId) setMsErrors(p => ({ ...p, contractId: undefined })); }}>
@@ -496,7 +496,7 @@ export default function ContractsPage() {
                                         </div>
                                     </div>
                                     <Button
-                                        className="w-full bg-slate-900"
+                                        className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                         onClick={handleCreateMilestone}
                                         disabled={createMilestone.isPending}
                                     >
@@ -506,9 +506,9 @@ export default function ContractsPage() {
                             </DialogContent>
                         </Dialog>
                     </div>
-                    <Card className="shadow-sm border-slate-100">
+                    <Card className="shadow-sm border-[#e6e9ee]">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-white">
                                 <TableRow>
                                     <TableHead>Contract</TableHead>
                                     <TableHead>Milestone Name</TableHead>
@@ -523,13 +523,13 @@ export default function ContractsPage() {
                                     const contract = contracts.find(c => c.id === ms.contractId);
                                     return (
                                         <TableRow key={ms.id}>
-                                            <TableCell className="text-slate-600 text-sm">{contract?.contractNumber ?? ms.contractId.slice(0, 8)}</TableCell>
+                                            <TableCell className="text-[#4a4a4a] text-sm">{contract?.contractNumber ?? ms.contractId.slice(0, 8)}</TableCell>
                                             <TableCell className="font-medium">{ms.name}</TableCell>
                                             <TableCell>{ms.dueDate}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={
                                                     ms.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    ms.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    ms.status === 'In Progress' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                                         'bg-amber-50 text-amber-700 border-amber-200'
                                                 }>
                                                     {ms.status}
@@ -555,7 +555,7 @@ export default function ContractsPage() {
                                 })}
                                 {milestones.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No milestones yet. Add milestones to track delivery phases.</TableCell>
+                                        <TableCell colSpan={6} className="text-center py-6 text-[#8a8a8a]">No milestones yet. Add milestones to track delivery phases.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -564,9 +564,9 @@ export default function ContractsPage() {
                 </TabsContent>
 
                 <TabsContent value="invoices">
-                    <Card className="shadow-sm border-slate-100">
+                    <Card className="shadow-sm border-[#e6e9ee]">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-white">
                                 <TableRow>
                                     <TableHead>Invoice #</TableHead>
                                     <TableHead>Contract</TableHead>
@@ -582,7 +582,7 @@ export default function ContractsPage() {
                                     return (
                                         <TableRow key={invoice.id}>
                                             <TableCell className="font-medium">{invoice.invoiceNumber ?? invoice.id.slice(0, 8)}</TableCell>
-                                            <TableCell className="text-slate-600">{contract?.contractNumber ?? invoice.contractId.slice(0, 8)}</TableCell>
+                                            <TableCell className="text-[#4a4a4a]">{contract?.contractNumber ?? invoice.contractId.slice(0, 8)}</TableCell>
                                             <TableCell>{invoice.issueDate}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={
@@ -623,7 +623,7 @@ export default function ContractsPage() {
                                 })}
                                 {invoices.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">No invoices yet. Use the Create Invoice button above.</TableCell>
+                                        <TableCell colSpan={6} className="text-center py-6 text-[#8a8a8a]">No invoices yet. Use the Create Invoice button above.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -659,7 +659,7 @@ export default function ContractsPage() {
                                 <Input value={editContract.notes} onChange={e => setEditContract({ ...editContract, notes: e.target.value })} placeholder="Optional notes..." />
                             </div>
                             <Button
-                                className="w-full bg-slate-900"
+                                className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                 onClick={handleUpdateContract}
                                 disabled={updateContract.isPending}
                             >
@@ -670,13 +670,13 @@ export default function ContractsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Archive Contract Confirm Dialog ──────────────────────────────── */}
+            {/* -- Archive Contract Confirm Dialog -------------------------------- */}
             <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Archive Contract</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to archive this contract? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -688,13 +688,13 @@ export default function ContractsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Delete Invoice Confirm Dialog ────────────────────────────────── */}
+            {/* -- Delete Invoice Confirm Dialog ---------------------------------- */}
             <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete Invoice</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to delete this invoice? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -706,13 +706,13 @@ export default function ContractsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Delete Milestone Confirm Dialog ───────────────────────────────── */}
+            {/* -- Delete Milestone Confirm Dialog --------------------------------- */}
             <Dialog open={deleteMilestoneOpen} onOpenChange={setDeleteMilestoneOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete Milestone</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to delete this milestone? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">

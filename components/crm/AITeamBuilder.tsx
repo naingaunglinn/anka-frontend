@@ -114,7 +114,7 @@ export function AITeamBuilder(props: Props) {
             </Button>
 
             {!canRun && (
-                <p className="text-xs text-muted-foreground text-center">
+                <p className="text-xs text-[#4a4a4a] text-center">
                     Fill in Budget, Timeline, and Workload Hours to enable AI team
                     building.
                 </p>

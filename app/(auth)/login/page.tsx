@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
@@ -92,19 +92,19 @@ function LoginFormContent() {
 
     return (
         <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,166,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,167,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,rgba(248,250,252,0.2),rgba(255,255,255,0.75),rgba(248,250,252,0.2))]" />
 
             <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
                 <section>
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white/95 px-4 py-2 shadow-sm">
-                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a6f4]">ANKA</span>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a7f4]/30 bg-white/95 px-4 py-2 shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a7f4]">ANKA</span>
                     </div>
 
                     <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
                         Gross Profit Suggestion
-                        <span className="block text-[#00a6f4]">System For Real Decisions</span>
+                        <span className="block text-[#00a7f4]">System For Real Decisions</span>
                     </h1>
 
                     <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
@@ -112,25 +112,25 @@ function LoginFormContent() {
                     </p>
 
                     <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <ChartNoAxesCombined className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <ChartNoAxesCombined className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Forecast</p>
                         </article>
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <Target className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Target className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Optimize</p>
                         </article>
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <Sparkles className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <Sparkles className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Suggest</p>
                         </article>
                     </div>
                 </section>
 
                 <section>
-                    <Card className="mx-auto w-full max-w-md border-[#00a6f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                    <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
                         <CardHeader className="space-y-2 pb-6">
-                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a6f4] text-white shadow-lg">
+                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a7f4] text-white shadow-lg">
                                 <LogIn className="h-6 w-6" />
                             </div>
                             <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
@@ -199,7 +199,7 @@ function LoginFormContent() {
                                                     <Input
                                                         placeholder="name@company.com"
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -217,7 +217,7 @@ function LoginFormContent() {
                                                         type="password"
                                                         placeholder="********"
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -227,7 +227,7 @@ function LoginFormContent() {
 
                                     <Button
                                         type="submit"
-                                        className="h-11 w-full bg-[#00a6f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,166,244,0.35)] hover:bg-[#0599df]"
+                                        className="h-11 w-full bg-[#00a7f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,167,244,0.35)] hover:bg-[#0599df]"
                                         disabled={isLoggingIn}
                                     >
                                         {isLoggingIn ? 'Signing in...' : 'Enter ANKA'}
@@ -254,25 +254,25 @@ export default function LoginPage() {
 function LoginSkeleton() {
     return (
         <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,166,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,167,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
             <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
                 <section>
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white/95 px-4 py-2 shadow-sm">
-                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a6f4]">ANKA</span>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a7f4]/30 bg-white/95 px-4 py-2 shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a7f4]">ANKA</span>
                     </div>
                     <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
                         Gross Profit Suggestion
-                        <span className="block text-[#00a6f4]">System For Real Decisions</span>
+                        <span className="block text-[#00a7f4]">System For Real Decisions</span>
                     </h1>
                     <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
                         Predict margins early, compare scenarios fast, and act on concrete suggestions before project kickoff.
                     </p>
                 </section>
                 <section>
-                    <Card className="mx-auto w-full max-w-md border-[#00a6f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                    <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
                         <CardHeader className="space-y-2 pb-6">
-                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a6f4] text-white shadow-lg">
+                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a7f4] text-white shadow-lg">
                                 <LogIn className="h-6 w-6" />
                             </div>
                             <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
@@ -281,7 +281,7 @@ function LoginSkeleton() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col items-center gap-4 py-8">
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#00a6f4] border-t-transparent" />
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#00a7f4] border-t-transparent" />
                             <p className="text-sm text-[#171717]/55">Loading sign-in...</p>
                         </CardContent>
                     </Card>

@@ -50,30 +50,30 @@ export const Header = () => {
     };
 
     return (
-        <header className="h-16 w-full flex items-center justify-between px-6 bg-white border-b shadow-sm">
+        <header className="h-16 w-full flex items-center justify-between px-6 bg-[#f0f9ff] border-b border-[#e6e9ee] shadow-sm">
             <div className="flex items-center">
                 {user?.isSuperAdmin ? (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-violet-50 border border-violet-200">
-                        <Building2 className="w-4 h-4 text-violet-600" />
-                        <span className="text-sm font-semibold text-violet-700">Super Admin</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#f0f9ff] border border-[#00a7f4]/20">
+                        <Building2 className="w-4 h-4 text-[#00a7f4]" />
+                        <span className="text-sm font-semibold text-[#0086c4]">Super Admin</span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 min-w-[200px]">
-                        <Building2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-semibold">{currentTenant?.name ?? 'Select Tenant'}</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#f0f9ff] border border-[#00a7f4]/20 min-w-[200px]">
+                        <Building2 className="w-4 h-4 text-[#00a7f4]" />
+                        <span className="font-semibold text-[#171717]">{currentTenant?.name ?? 'Select Tenant'}</span>
                     </div>
                 )}
             </div>
 
             <div className="flex items-center gap-x-4">
                 {isDemoMode && (
-                    <div className="flex items-center gap-2 rounded-md border border-[#00a6f4]/30 bg-[#00a6f4]/10 px-3 py-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0085c4]">Demo Version</span>
+                    <div className="flex items-center gap-2 rounded-md border border-[#00a7f4]/30 bg-[#00a7f4]/10 px-3 py-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0086c4]">Demo Version</span>
                         <button
                             type="button"
                             onClick={handleExitDemo}
-                            className="ml-1 text-xs font-medium text-[#0085c4] underline-offset-2 hover:underline"
+                            className="ml-1 text-xs font-medium text-[#0086c4] underline-offset-2 hover:underline"
                         >
                             Exit
                         </button>
@@ -94,7 +94,7 @@ export const Header = () => {
                         <DropdownMenuLabel>
                             <div className="flex flex-col space-y-1">
                                 <p className="text-sm font-medium leading-none">{displayName}</p>
-                                <p className="text-xs leading-none text-muted-foreground">
+                                <p className="text-xs leading-none text-[#4a4a4a]">
                                     {user?.email || 'user@example.com'}
                                 </p>
                                 <p className="text-xs font-bold text-primary mt-1">
