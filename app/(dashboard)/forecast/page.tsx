@@ -83,17 +83,17 @@ export default function ForecastPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Scenario Forecasting</h1>
-                    <p className="text-slate-500 mt-1">Stress-test your agency's finances against market shocks based on current real-time P&L baselines.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Scenario Forecasting</h1>
+                    <p className="text-[#8a8a8a] mt-1">Stress-test your agency's finances against market shocks based on current real-time P&L baselines.</p>
                 </div>
             </div>
 
             {pnlData.length === 0 ? (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-12 text-center">
                         <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-slate-900 mb-2">Insufficient Data</h3>
-                        <p className="text-slate-500 max-w-md mx-auto">
+                        <h3 className="text-lg font-semibold text-[#171717] mb-2">Insufficient Data</h3>
+                        <p className="text-[#8a8a8a] max-w-md mx-auto">
                             No financial history found. Log paid invoices and approved time entries to generate a forecast baseline.
                         </p>
                     </CardContent>
@@ -154,7 +154,7 @@ export default function ForecastPage() {
 
                 {/* Charts Panel */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="shadow-sm border-slate-100">
+                    <Card className="shadow-sm border-[#e6e9ee]">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-lg flex justify-between">
                                 6-Month Profit Projection
@@ -206,18 +206,18 @@ export default function ForecastPage() {
                     </Card>
 
                     <div className="grid grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardContent className="p-6">
-                                <p className="text-sm font-medium text-slate-500">M6 Stressed Revenue</p>
-                                <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
+                                <p className="text-sm font-medium text-[#8a8a8a]">M6 Stressed Revenue</p>
+                                <span className="text-2xl font-bold tracking-tight text-[#171717] block mt-2">
                                     {formatMoney(chartData[5].ProjectedRevenue, currency)}
                                 </span>
                             </CardContent>
                         </Card>
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardContent className="p-6">
-                                <p className="text-sm font-medium text-slate-500">M6 Fixed Costs</p>
-                                <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">
+                                <p className="text-sm font-medium text-[#8a8a8a]">M6 Fixed Costs</p>
+                                <span className="text-2xl font-bold tracking-tight text-[#171717] block mt-2">
                                     {formatMoney(chartData[5].ProjectedCost, currency)}
                                 </span>
                             </CardContent>

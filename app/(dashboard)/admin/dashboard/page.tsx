@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminDashboardStats } from '@/lib/queries/adminDashboard';
@@ -19,8 +19,8 @@ export default function AdminDashboardPage() {
     if (!stats) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-bold text-slate-900">Platform Dashboard</h1>
-                <p className="text-slate-500 mt-2">Unable to load dashboard data.</p>
+                <h1 className="text-2xl font-bold text-[#171717]">Platform Dashboard</h1>
+                <p className="text-[#8a8a8a] mt-2">Unable to load dashboard data.</p>
             </div>
         );
     }
@@ -32,8 +32,8 @@ export default function AdminDashboardPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Platform Dashboard</h1>
-                <p className="text-slate-500 mt-1">Overview of all tenants, users, and platform activity.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Platform Dashboard</h1>
+                <p className="text-[#8a8a8a] mt-1">Overview of all tenants, users, and platform activity.</p>
             </div>
 
             {/* KPI Cards */}
@@ -73,7 +73,7 @@ export default function AdminDashboardPage() {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Signups Over Time */}
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">Tenant Signups (Last 6 Months)</CardTitle>
                     </CardHeader>
@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                            <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
                                 No signup data yet
                             </div>
                         )}
@@ -100,7 +100,7 @@ export default function AdminDashboardPage() {
                 </Card>
 
                 {/* Plan Distribution */}
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">Plan Distribution</CardTitle>
                     </CardHeader>
@@ -130,7 +130,7 @@ export default function AdminDashboardPage() {
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                            <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
                                 No plan data yet
                             </div>
                         )}
@@ -139,27 +139,27 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Recent Signups Table */}
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">Recent Signups</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50">
+                            <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Tenant</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Slug</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Plan</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Created</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Slug</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Plan</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Status</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Created</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {stats.recent_signups.map((tenant) => (
                                     <tr key={tenant.id} className="border-b last:border-0 hover:bg-slate-50/50">
-                                        <td className="py-3 px-4 font-medium text-slate-900">{tenant.name}</td>
-                                        <td className="py-3 px-4 text-slate-500">{tenant.slug}</td>
+                                        <td className="py-3 px-4 font-medium text-[#171717]">{tenant.name}</td>
+                                        <td className="py-3 px-4 text-[#8a8a8a]">{tenant.slug}</td>
                                         <td className="py-3 px-4">
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#00a7f4]/5 text-[#0086c4]">
                                                 {tenant.plan}
@@ -174,14 +174,14 @@ export default function AdminDashboardPage() {
                                                 {tenant.is_active ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 text-slate-500">
+                                        <td className="py-3 px-4 text-[#8a8a8a]">
                                             {new Date(tenant.created_at).toLocaleDateString()}
                                         </td>
                                     </tr>
                                 ))}
                                 {stats.recent_signups.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                                        <td colSpan={5} className="py-8 text-center text-[#8a8a8a]">
                                             No tenants yet
                                         </td>
                                     </tr>
@@ -213,17 +213,17 @@ function KpiCard({
     trendValue?: string;
 }) {
     return (
-        <Card className="shadow-sm border-slate-100">
+        <Card className="shadow-sm border-[#e6e9ee]">
             <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-500">{title}</p>
+                    <p className="text-sm font-medium text-[#8a8a8a]">{title}</p>
                     <Icon className={`h-5 w-5 ${iconColor}`} />
                 </div>
                 <div className="mt-2">
-                    <span className="text-3xl font-bold tracking-tight text-slate-900">{value}</span>
+                    <span className="text-3xl font-bold tracking-tight text-[#171717]">{value}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
-                    <span className="text-xs text-slate-400">{subValue}</span>
+                    <span className="text-xs text-[#8a8a8a]">{subValue}</span>
                     {trend && trendValue && (
                         <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                             trend === 'up' ? 'text-emerald-600' : 'text-rose-600'
@@ -247,7 +247,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
-                    <Card key={i} className="shadow-sm border-slate-100">
+                    <Card key={i} className="shadow-sm border-[#e6e9ee]">
                         <CardContent className="p-6 space-y-3">
                             <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
                             <div className="h-10 w-20 bg-slate-200 rounded animate-pulse" />
@@ -257,12 +257,12 @@ function DashboardSkeleton() {
                 ))}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 h-[300px]">
                         <div className="h-full w-full bg-slate-200 rounded animate-pulse" />
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 h-[300px]">
                         <div className="h-full w-full bg-slate-200 rounded animate-pulse" />
                     </CardContent>

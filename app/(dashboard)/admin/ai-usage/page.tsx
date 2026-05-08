@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminAIUsage } from '@/lib/queries/aiUsage';
@@ -28,8 +28,8 @@ export default function AdminAIUsagePage() {
     if (!data) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-bold text-slate-900">AI Usage</h1>
-                <p className="text-slate-500 mt-2">Unable to load AI usage data.</p>
+                <h1 className="text-2xl font-bold text-[#171717]">AI Usage</h1>
+                <p className="text-[#8a8a8a] mt-2">Unable to load AI usage data.</p>
             </div>
         );
     }
@@ -39,8 +39,8 @@ export default function AdminAIUsagePage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">AI Usage & Costs</h1>
-                <p className="text-slate-500 mt-1">Platform-wide AI consumption and estimated costs.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">AI Usage & Costs</h1>
+                <p className="text-[#8a8a8a] mt-1">Platform-wide AI consumption and estimated costs.</p>
             </div>
 
             {/* KPI Cards */}
@@ -72,7 +72,7 @@ export default function AdminAIUsagePage() {
             </div>
 
             {/* Cost Per Tenant Chart */}
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg">Cost Per Tenant</CardTitle>
                 </CardHeader>
@@ -92,7 +92,7 @@ export default function AdminAIUsagePage() {
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                        <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
                             No AI usage data yet
                         </div>
                     )}
@@ -100,31 +100,31 @@ export default function AdminAIUsagePage() {
             </Card>
 
             {/* Per-Tenant Breakdown Table */}
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">Per-Tenant Breakdown</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50">
+                            <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Tenant</th>
-                                    <th className="text-right py-3 px-4 font-medium text-slate-500">Calls</th>
-                                    <th className="text-right py-3 px-4 font-medium text-slate-500">Input Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-slate-500">Output Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-slate-500">Total Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-slate-500">Est. Cost</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Calls</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Input Tokens</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Output Tokens</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Total Tokens</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Est. Cost</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {tenants.map((tenant) => (
                                     <tr key={tenant.tenantId} className="border-b last:border-0 hover:bg-slate-50/50">
-                                        <td className="py-3 px-4 font-medium text-slate-900">{tenant.tenantName}</td>
-                                        <td className="py-3 px-4 text-right text-slate-600">{tenant.totalCalls.toLocaleString()}</td>
-                                        <td className="py-3 px-4 text-right text-slate-600">{tenant.totalInputTokens.toLocaleString()}</td>
-                                        <td className="py-3 px-4 text-right text-slate-600">{tenant.totalOutputTokens.toLocaleString()}</td>
-                                        <td className="py-3 px-4 text-right font-medium text-slate-900">
+                                        <td className="py-3 px-4 font-medium text-[#171717]">{tenant.tenantName}</td>
+                                        <td className="py-3 px-4 text-right text-[#4a4a4a]">{tenant.totalCalls.toLocaleString()}</td>
+                                        <td className="py-3 px-4 text-right text-[#4a4a4a]">{tenant.totalInputTokens.toLocaleString()}</td>
+                                        <td className="py-3 px-4 text-right text-[#4a4a4a]">{tenant.totalOutputTokens.toLocaleString()}</td>
+                                        <td className="py-3 px-4 text-right font-medium text-[#171717]">
                                             {(tenant.totalInputTokens + tenant.totalOutputTokens).toLocaleString()}
                                         </td>
                                         <td className="py-3 px-4 text-right font-medium text-amber-600">
@@ -134,7 +134,7 @@ export default function AdminAIUsagePage() {
                                 ))}
                                 {tenants.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                                        <td colSpan={6} className="py-8 text-center text-[#8a8a8a]">
                                             No AI usage data yet
                                         </td>
                                     </tr>
@@ -160,14 +160,14 @@ function KpiCard({
     iconColor: string;
 }) {
     return (
-        <Card className="shadow-sm border-slate-100">
+        <Card className="shadow-sm border-[#e6e9ee]">
             <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-500">{title}</p>
+                    <p className="text-sm font-medium text-[#8a8a8a]">{title}</p>
                     <Icon className={`h-5 w-5 ${iconColor}`} />
                 </div>
                 <div className="mt-2">
-                    <span className="text-3xl font-bold tracking-tight text-slate-900">{value}</span>
+                    <span className="text-3xl font-bold tracking-tight text-[#171717]">{value}</span>
                 </div>
             </CardContent>
         </Card>

@@ -54,7 +54,7 @@ const USD_FORMATTER = new Intl.NumberFormat('en-US', {
 function formatMoneyOrDash(raw: unknown): ReactNode {
     const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
     if (!Number.isFinite(n) || n < 0) {
-        return <span className="text-slate-400">—</span>;
+        return <span className="text-[#8a8a8a]">—</span>;
     }
     return USD_FORMATTER.format(n);
 }
@@ -107,7 +107,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('name')}</div>,
         },
         {
             accessorKey: 'role',
@@ -132,7 +132,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                 // roles list hadn't loaded yet.
                 const label = roles?.find(r => r.id === roleId)?.title || row.original.roleName?.trim();
                 if (!label) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 return <Badge variant="secondary">{label}</Badge>;
             },
@@ -184,7 +184,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => {
                 const raw = Number(row.getValue('workableHours'));
                 if (!Number.isFinite(raw) || raw <= 0) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 return <div className="font-medium">{raw}h</div>;
             },
@@ -208,7 +208,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => {
                 const total = Number(row.original.workableHours);
                 if (!Number.isFinite(total) || total <= 0) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 const assigned   = assignedByEmployee.get(row.original.id) ?? 0;
                 const available  = total - assigned;
@@ -217,7 +217,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     <div className={overbooked ? 'text-rose-600 font-medium' : ''}>
                         {available}h
                         {assigned > 0 && (
-                            <span className="ml-1 text-xs text-slate-500">
+                            <span className="ml-1 text-xs text-[#8a8a8a]">
                                 ({assigned}h assigned)
                             </span>
                         )}
@@ -311,7 +311,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No employees found.
                                 </TableCell>
                             </TableRow>

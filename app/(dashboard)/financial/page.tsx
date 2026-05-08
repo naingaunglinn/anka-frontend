@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -30,7 +30,7 @@ export default function FinancialPage() {
     // Dynamic P&L from store
     const allPnlData = store.getFinancialPnL();
 
-    // Helper: parse "Jan 2026" → "2026-01" for reliable comparison
+    // Helper: parse "Jan 2026" ? "2026-01" for reliable comparison
     const parseMonthKey = (displayMonth: string): string => {
         const d = new Date(`${displayMonth} 01`);
         const y = d.getFullYear();
@@ -94,8 +94,8 @@ export default function FinancialPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Financial Performance (P&L)</h1>
-                    <p className="text-slate-500 mt-1">Real-time profit and loss tracking derived from invoices, time tracking, and overheads.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Financial Performance (P&L)</h1>
+                    <p className="text-[#8a8a8a] mt-1">Real-time profit and loss tracking derived from invoices, time tracking, and overheads.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function FinancialPage() {
                             placeholder="From"
                             className="w-40"
                         />
-                        <span className="text-sm text-slate-400">to</span>
+                        <span className="text-sm text-[#8a8a8a]">to</span>
                         <Input
                             type="month"
                             value={dateTo}
@@ -127,36 +127,36 @@ export default function FinancialPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Recognized Revenue</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Recognized Revenue</p>
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
                                 {formatMoney(summary.totalRev, currency)}
                             </span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Costs (Labor + Overhead)</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Costs (Labor + Overhead)</p>
                             <TrendingDown className="h-4 w-4 text-rose-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
                                 {formatMoney(summary.totalCost, currency)}
                             </span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Operating Profit</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Operating Profit</p>
                             <TrendingUp className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -166,16 +166,16 @@ export default function FinancialPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Overall Profit Margin</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Overall Profit Margin</p>
                             <div className="h-4 w-4 rounded-full bg-[#00a7f4]/10 flex items-center justify-center">
                                 <span className="text-[#00a7f4] text-[10px] font-bold">%</span>
                             </div>
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
                                 {summary.overallMargin.toFixed(1)}%
                             </span>
                         </div>
@@ -183,21 +183,21 @@ export default function FinancialPage() {
                 </Card>
             </div>
 
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">Monthly Profit & Loss Statement</CardTitle>
                     <CardDescription>Breakdown of revenue vs costs by month.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
-                        <TableHeader className="bg-slate-50">
+                        <TableHeader className="bg-white">
                             <TableRow>
                                 <TableHead className="py-4">Month</TableHead>
                                 <TableHead className="text-right py-4">Revenue (Invoices)</TableHead>
                                 <TableHead className="text-right py-4">Direct Labor (Timesheets)</TableHead>
                                 <TableHead className="text-right py-4">Gross Profit</TableHead>
                                 <TableHead className="text-right py-4">Global Overhead</TableHead>
-                                <TableHead className="text-right py-4 font-bold text-slate-900">Op. Profit (EBITDA)</TableHead>
+                                <TableHead className="text-right py-4 font-bold text-[#171717]">Op. Profit (EBITDA)</TableHead>
                                 <TableHead className="text-right py-4 font-bold text-emerald-600">Net Margin %</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -206,12 +206,12 @@ export default function FinancialPage() {
                                 const margin = row.revenue > 0 ? (row.netProfit / row.revenue) * 100 : 0;
                                 return (
                                     <TableRow key={i} className="hover:bg-slate-50/50 transition-colors">
-                                        <TableCell className="font-semibold text-slate-900 py-4">{row.month}</TableCell>
-                                        <TableCell className="text-right text-slate-600 py-4">{formatMoney(row.revenue, currency)}</TableCell>
+                                        <TableCell className="font-semibold text-[#171717] py-4">{row.month}</TableCell>
+                                        <TableCell className="text-right text-[#4a4a4a] py-4">{formatMoney(row.revenue, currency)}</TableCell>
                                         <TableCell className="text-right text-rose-600 py-4">-{formatMoney(row.directLabor, currency)}</TableCell>
-                                        <TableCell className="text-right font-medium text-slate-900 py-4">{formatMoney(row.grossProfit, currency)}</TableCell>
+                                        <TableCell className="text-right font-medium text-[#171717] py-4">{formatMoney(row.grossProfit, currency)}</TableCell>
                                         <TableCell className="text-right text-rose-600 py-4">-{formatMoney(row.overhead, currency)}</TableCell>
-                                        <TableCell className="text-right font-bold text-slate-900 py-4">{formatMoney(row.operatingProfit, currency)}</TableCell>
+                                        <TableCell className="text-right font-bold text-[#171717] py-4">{formatMoney(row.operatingProfit, currency)}</TableCell>
                                         <TableCell className="text-right py-4">
                                             <Badge variant="outline" className={
                                                 margin > 20 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -226,7 +226,7 @@ export default function FinancialPage() {
                             })}
                             {pnlData.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                                    <TableCell colSpan={7} className="text-center py-8 text-[#8a8a8a]">
                                         No financial data. Add invoices and time entries to generate P&L statements.
                                     </TableCell>
                                 </TableRow>

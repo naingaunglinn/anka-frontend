@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -96,7 +96,7 @@ export const Sidebar = () => {
                 </Link>
 
                 {user?.isSuperAdmin && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-slate-500 px-3 mb-2">Admin Panel</p>
+                    <p className="text-[11px] uppercase tracking-wider text-[#8a8a8a] px-3 mb-2">Admin Panel</p>
                 )}
                 {isDemoMode && !isSidebarCollapsed && (
                     <p className="text-[11px] uppercase tracking-wider text-[#00a7f4] px-3 mb-2">Demo Version (Read Only)</p>

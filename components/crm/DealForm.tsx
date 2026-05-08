@@ -78,7 +78,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         <DialogTitle>{initialData ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <p className="text-xs text-muted-foreground col-span-4">
+                        <p className="text-xs text-[#4a4a4a] col-span-4">
                             Fields marked <span className="text-destructive">*</span> are required.
                         </p>
                         <div className="grid grid-cols-4 items-start gap-4">
@@ -99,7 +99,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="client" className="text-right">
-                                Client <span className="text-muted-foreground text-xs font-normal">(opt.)</span>
+                                Client <span className="text-[#4a4a4a] text-xs font-normal">(opt.)</span>
                             </Label>
                             <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder="e.g. Acme Corp" />
                         </div>

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -40,9 +40,9 @@ function CompareBanner({
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>Close</Button>
             </div>
             <div className="grid grid-cols-3 gap-4 text-xs">
-                <div className="font-medium text-slate-500">Role</div>
-                <div className="font-medium text-slate-500 text-right">Saved (v{version.versionNumber})</div>
-                <div className="font-medium text-slate-500 text-right">Current</div>
+                <div className="font-medium text-[#8a8a8a]">Role</div>
+                <div className="font-medium text-[#8a8a8a] text-right">Saved (v{version.versionNumber})</div>
+                <div className="font-medium text-[#8a8a8a] text-right">Current</div>
                 {allRoleIds.map(roleId => {
                     const role = store.roles.find(r => r.id === roleId)
                     const savedH = savedMap.get(roleId) ?? 0
@@ -50,9 +50,9 @@ function CompareBanner({
                     const diff = currH - savedH
                     return (
                         <div key={roleId} className="contents">
-                            <div className="text-slate-700">{role?.title ?? roleId}</div>
-                            <div className="text-right text-slate-500">{savedH}h</div>
-                            <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                            <div className="text-[#4a4a4a]">{role?.title ?? roleId}</div>
+                            <div className="text-right text-[#8a8a8a]">{savedH}h</div>
+                            <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-[#4a4a4a]'}`}>
                                 {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
                             </div>
                         </div>
@@ -125,7 +125,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * 160 * (deal.timelineMonths || 1);
                         ghostToResources.push({
                             id: gr.id || crypto.randomUUID(),
-                            featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
+                            featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (·${gr.quantity}, ${gr.months || 100}% alloc)`,
                             roleId,
                             hours: Math.round(hours),
                         });
@@ -225,7 +225,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         }
     };
 
-    // Calculations — use role billable rate × 0.4 as estimated cost rate (40% margin on billable)
+    // Calculations · use role billable rate · 0.4 as estimated cost rate (40% margin on billable)
     const laborCost = resources.reduce((sum, res) => {
         const role = store.roles.find(r => r.id === res.roleId);
         // Look up an employee with this job role to get actual cost_per_hour if available
@@ -245,9 +245,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-                <Card className="shadow-sm border-slate-100 bg-slate-50">
+                <Card className="shadow-sm border-[#e6e9ee] bg-white">
                     <CardHeader className="pb-4">
-                        <CardTitle className="text-sm uppercase tracking-wider text-slate-500">Target Deal</CardTitle>
+                        <CardTitle className="text-sm uppercase tracking-wider text-[#8a8a8a]">Target Deal</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-3">
@@ -272,7 +272,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardContent>
                 </Card>
 
-                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Card className={`shadow-sm border-[#e6e9ee] ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
                         <div className="flex justify-between items-center">
                             <div>
@@ -280,9 +280,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <div className="flex items-center gap-2 text-xs text-[#8a8a8a]">
                                     <Clock className="h-3.5 w-3.5" />
-                                    <span className="font-medium text-slate-700">
+                                    <span className="font-medium text-[#4a4a4a]">
                                         v{currentVersion?.versionNumber ?? 0}{dirty ? '+' : ''}
                                     </span>
                                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
@@ -294,7 +294,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         {dirty ? 'Draft' : 'Saved'}
                                     </span>
                                     {lastSavedAt && (
-                                        <span className="text-slate-400">· {lastSavedAt}</span>
+                                        <span className="text-[#8a8a8a]">· {lastSavedAt}</span>
                                     )}
                                 </div>
                                 <Button
@@ -320,14 +320,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         </div>
                     </CardHeader>
                     {showHistory && versions.length > 0 && (
-                        <div className="border-t bg-slate-50 p-4 space-y-2">
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Version History</p>
+                        <div className="border-t bg-white p-4 space-y-2">
+                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wider mb-3">Version History</p>
                             {versions.map((v, idx) => (
-                                <div key={v.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100">
+                                <div key={v.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-[#e6e9ee]">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-slate-800">v{v.versionNumber}</span>
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-medium">
+                                            <span className="text-sm font-semibold text-[#171717]">v{v.versionNumber}</span>
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#f8fafc] text-[#8a8a8a] font-medium">
                                                 {v.resourceCount} resources · {v.overheadCount} overheads
                                             </span>
                                             {idx === 0 && (
@@ -335,9 +335,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                             )}
                                         </div>
                                         {v.notes && (
-                                            <p className="text-xs text-slate-500 mt-1">{v.notes}</p>
+                                            <p className="text-xs text-[#8a8a8a] mt-1">{v.notes}</p>
                                         )}
-                                        <p className="text-xs text-slate-400 mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
+                                        <p className="text-xs text-[#8a8a8a] mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {idx > 0 && (
@@ -374,7 +374,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     )}
                     <CardContent className="p-0">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-white">
                                 <TableRow>
                                     <TableHead>Feature</TableHead>
                                     <TableHead>Role</TableHead>
@@ -407,13 +407,13 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             </TableBody>
                         </Table>
 
-                        <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
+                        <div className="p-4 bg-white border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Feature Name</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Feature Name</label>
                                 <Input value={newFeature} onChange={e => setNewFeature(e.target.value)} placeholder="e.g. User Profile" className="h-9 bg-white" />
                             </div>
                             <div className="w-[200px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Role</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Role</label>
                                 <Select
                                 value={newRoleId}
                                 onValueChange={setNewRoleId}>
@@ -428,7 +428,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 </Select>
                             </div>
                             <div className="w-[100px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Hours</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Hours</label>
                                 <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAdd} className="h-9 bg-[#171717] hover:bg-[#00a7f4] gap-2">
@@ -438,14 +438,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardContent>
                 </Card>
 
-                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Card className={`shadow-sm border-[#e6e9ee] ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
                         <CardTitle className="text-lg">Project-Specific Overhead</CardTitle>
                         <CardDescription>Add one-time expenses specific to this contract (travel, audits, specialized licenses).</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-white">
                                 <TableRow>
                                     <TableHead>Overhead Category / Description</TableHead>
                                     <TableHead className="text-right">Project Cost</TableHead>
@@ -466,19 +466,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 ))}
                                 {overheads.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">No specific overheads added.</TableCell>
+                                        <TableCell colSpan={3} className="text-center text-[#4a4a4a] py-6">No specific overheads added.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
 
-                        <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
+                        <div className="p-4 bg-white border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Expense Name</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Expense Name</label>
                                 <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Cost ($)</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Cost ($)</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] hover:bg-[#00a7f4] gap-2">
@@ -501,8 +501,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-300">Target Margin</span>
-                                <span className="text-2xl font-bold text-emerald-400">{margin[0]}%</span>
+                                <span className="text-sm font-medium text-[#4a4a4a]">Target Margin</span>
+                                <span className="text-2xl font-bold text-emerald-600">{margin[0]}%</span>
                             </div>
                             <Slider
                                 value={margin}
@@ -514,25 +514,25 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <div className="pt-4 border-t border-slate-800 space-y-4">
+                        <div className="pt-4 border-t border-[#e6e9ee] space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Total Labor Cost</span>
+                                <span className="text-[#8a8a8a]">Total Labor Cost</span>
                                 <span className="font-medium">${laborCost.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Total Project Overhead</span>
-                                <span className="font-medium text-rose-400">${totalOverheadCost.toLocaleString()}</span>
+                                <span className="text-[#8a8a8a]">Total Project Overhead</span>
+                                <span className="font-medium text-rose-600">${totalOverheadCost.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-800 pt-2">
-                                <span className="text-slate-300">Total Project Cost</span>
+                            <div className="flex justify-between items-center text-sm font-semibold border-t border-[#e6e9ee] pt-2">
+                                <span className="text-[#4a4a4a]">Total Project Cost</span>
                                 <span>${totalCost.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Expected Profit</span>
-                                <span className="font-medium text-emerald-400">+${expectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className="text-[#8a8a8a]">Expected Profit</span>
+                                <span className="font-medium text-emerald-600">+${expectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
-                            <div className="pt-2 flex justify-between items-end border-t border-slate-800">
-                                <span className="text-sm font-medium text-slate-300">Suggested Price</span>
+                            <div className="pt-2 flex justify-between items-end border-t border-[#e6e9ee]">
+                                <span className="text-sm font-medium text-[#4a4a4a]">Suggested Price</span>
                                 <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#00a7f4] to-emerald-400">
                                     ${suggestedPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </span>
@@ -540,12 +540,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         </div>
 
                         <div className="pt-2">
-                            <label className="text-xs font-medium text-slate-400 mb-1 block">Version Notes (optional)</label>
+                            <label className="text-xs font-medium text-[#8a8a8a] mb-1 block">Version Notes (optional)</label>
                             <Input
                                 value={versionNotes}
                                 onChange={e => setVersionNotes(e.target.value)}
                                 placeholder="What changed in this version?"
-                                className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-500"
+                                className="h-8 text-xs bg-white border-[#e6e9ee] text-[#171717] placeholder:text-[#8a8a8a]"
                             />
                         </div>
 

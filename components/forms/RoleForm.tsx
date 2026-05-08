@@ -123,7 +123,7 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     )}
                 />
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a4a4a]">
                     Fields marked <span className="text-destructive">*</span> are required.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">

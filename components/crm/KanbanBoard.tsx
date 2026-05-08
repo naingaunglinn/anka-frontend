@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -43,7 +43,7 @@ export function KanbanBoard({
 
     const [isMounted, setIsMounted] = useState(false);
 
-    // ── Confirm dialog states ─────────────────────────────────────────────────
+    // -- Confirm dialog states -------------------------------------------------
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
     const [winOpen, setWinOpen] = useState(false);
@@ -178,7 +178,7 @@ export function KanbanBoard({
                 {Object.entries(columns).map(([columnId, column]) => {
                     return (
                         <div key={columnId} className="flex flex-col min-w-[280px] w-[280px] bg-slate-100 rounded-xl shrink-0">
-                            <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-slate-200 flex justify-between items-center">
+                            <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-[#e6e9ee] flex justify-between items-center">
                                 <h3 className="font-semibold text-slate-700">{column.title}</h3>
                                 <Badge variant="secondary" className="bg-white">{column.deals.length}</Badge>
                             </div>
@@ -219,7 +219,7 @@ export function KanbanBoard({
                                                                         <DropdownMenu>
                                                                             <DropdownMenuTrigger asChild>
                                                                                 <Button variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-100 shrink-0">
-                                                                                    <MoreVertical className="h-4 w-4 text-slate-400" />
+                                                                                    <MoreVertical className="h-4 w-4 text-[#8a8a8a]" />
                                                                                     <span className="sr-only">Open menu</span>
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
@@ -261,7 +261,7 @@ export function KanbanBoard({
                                                                     </div>
 
                                                                     {/* Client + Staffing badge */}
-                                                                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                                                    <div className="flex justify-between items-center text-xs text-[#4a4a4a]">
                                                                         <span>{deal.client || 'Unknown Client'}</span>
                                                                         {rolesNeededCount > 0 ? (
                                                                             <Badge variant={isFullyStaffed ? 'default' : 'secondary'} className={`h-5 text-[10px] ${isFullyStaffed ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}`}>
@@ -273,13 +273,13 @@ export function KanbanBoard({
                                                                     {/* Est. Cost + Gross Profit (ported from deals/page.tsx) */}
                                                                     <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                                                                         <div className="flex flex-col">
-                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Est. Cost</span>
-                                                                            <span className="text-sm font-semibold text-slate-600">
+                                                                            <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Est. Cost</span>
+                                                                            <span className="text-sm font-semibold text-[#4a4a4a]">
                                                                                 ${(estimatedCost / 1000).toFixed(0)}k
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">
-                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Gross Profit</span>
+                                                                            <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Gross Profit</span>
                                                                             <span className={`text-sm font-bold ${marginColorClass}`}>
                                                                                 ${(grossProfit / 1000).toFixed(0)}k
                                                                             </span>
@@ -289,13 +289,13 @@ export function KanbanBoard({
                                                                     {/* Budget + Win Probability */}
                                                                     <div className="grid grid-cols-2 gap-2">
                                                                         <div className="flex flex-col">
-                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Budget</span>
+                                                                            <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Budget</span>
                                                                             <span className="text-sm font-bold text-slate-800">
                                                                                 ${(budget / 1000).toFixed(0)}k
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">
-                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Win Prob</span>
+                                                                            <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Win Prob</span>
                                                                             <div className="flex flex-col items-end w-full mt-1">
                                                                                 <span className="text-[10px] font-semibold">{deal.winProbability || 0}%</span>
                                                                                 <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mt-0.5">
@@ -336,13 +336,13 @@ export function KanbanBoard({
                 })}
             </div>
 
-            {/* ── Delete Deal Confirm Dialog ───────────────────────────────────── */}
+            {/* -- Delete Deal Confirm Dialog ------------------------------------- */}
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete Deal</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to delete this deal? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -354,19 +354,19 @@ export function KanbanBoard({
                 </DialogContent>
             </Dialog>
 
-            {/* ── Win Deal Confirm Dialog ──────────────────────────────────────── */}
+            {/* -- Win Deal Confirm Dialog ---------------------------------------- */}
             <Dialog open={winOpen} onOpenChange={(open) => { setWinOpen(open); if (!open) setWinReason(''); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Win Deal</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Mark <strong>{winningDeal?.name}</strong> as Won?<br />
                         This will atomically create a Contract and Project. This action cannot be undone.
                     </p>
                     <div className="mt-3 space-y-1">
-                        <Label htmlFor="win-reason" className="text-sm text-slate-600">
-                            Win reason <span className="text-slate-400 font-normal">(optional)</span>
+                        <Label htmlFor="win-reason" className="text-sm text-[#4a4a4a]">
+                            Win reason <span className="text-[#8a8a8a] font-normal">(optional)</span>
                         </Label>
                         <Input
                             id="win-reason"
@@ -385,18 +385,18 @@ export function KanbanBoard({
                 </DialogContent>
             </Dialog>
 
-            {/* ── Mark as Lost Dialog ──────────────────────────────────────────── */}
+            {/* -- Mark as Lost Dialog -------------------------------------------- */}
             <Dialog open={lostOpen} onOpenChange={(open) => { setLostOpen(open); if (!open) setLossReason(''); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Mark as Lost</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Mark <strong>{losingDeal?.name}</strong> as Lost?<br />
                         The deal will be removed from the active pipeline.
                     </p>
                     <div className="mt-3 space-y-1">
-                        <Label htmlFor="loss-reason" className="text-sm text-slate-600">
+                        <Label htmlFor="loss-reason" className="text-sm text-[#4a4a4a]">
                             Loss reason <span className="text-red-500">*</span>
                         </Label>
                         <Textarea

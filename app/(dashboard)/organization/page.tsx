@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { EmployeesTable } from '@/components/tables/EmployeesTable';
@@ -232,7 +232,7 @@ export default function EmployeesPage() {
     if (syncing) {
         return (
             <div className="flex items-center justify-center h-64">
-                <p className="text-sm text-muted-foreground animate-pulse">
+                <p className="text-sm text-[#4a4a4a] animate-pulse">
                     Loading organization data...
                 </p>
             </div>
@@ -253,8 +253,8 @@ export default function EmployeesPage() {
         <div className="space-y-6">
             <div>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
-                    <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Organization Settings</h2>
+                    <p className="text-[#4a4a4a] mt-1">Manage your departments, roles, employees, and cost structures.</p>
                 </div>
             </div>
 
@@ -269,10 +269,10 @@ export default function EmployeesPage() {
 
                 {/* DEPARTMENTS TAB */}
                 <TabsContent value="departments" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Departments</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organizational departments.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Departments</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organizational departments.</p>
                         </div>
                         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                             <DialogTrigger asChild>
@@ -315,10 +315,10 @@ export default function EmployeesPage() {
 
                 {/* ROLES TAB */}
                 <TabsContent value="roles" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Roles & Rates</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define roles and standard billable rates.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Roles & Rates</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define roles and standard billable rates.</p>
                         </div>
                         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                             <DialogTrigger asChild>
@@ -361,10 +361,10 @@ export default function EmployeesPage() {
 
                 {/* EMPLOYEES TAB */}
                 <TabsContent value="employees" className="mt-0 space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Employees List</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Employees List</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
@@ -382,10 +382,10 @@ export default function EmployeesPage() {
                         </Dialog>
                     </div>
 
-                    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-[#e6e9ee] bg-white p-4 shadow-sm">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center">
                             <div className="relative md:flex-1">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
                                 <Input
                                     value={empSearchName}
                                     onChange={(e) => setEmpSearchName(e.target.value)}
@@ -421,7 +421,7 @@ export default function EmployeesPage() {
                             </div>
                         </div>
                         {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-[#8a8a8a]">
                                 Showing {filteredEmployees.length} of {store.employees.length} employees.
                                 <button
                                     type="button"
@@ -464,7 +464,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -500,10 +500,10 @@ export default function EmployeesPage() {
 
                 {/* OVERHEAD TAB */}
                 <TabsContent value="overhead" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Global Overhead Categories</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Global Overhead Categories</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
                         </div>
                         <Dialog open={isOverheadDialogOpen} onOpenChange={setIsOverheadDialogOpen}>
                             <DialogTrigger asChild>

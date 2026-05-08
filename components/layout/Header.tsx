@@ -58,8 +58,8 @@ export const Header = () => {
                         <span className="text-sm font-semibold text-violet-700">Super Admin</span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 min-w-[200px]">
-                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white border border-[#e6e9ee] min-w-[200px]">
+                        <Building2 className="w-4 h-4 text-[#4a4a4a]" />
                         <span className="font-semibold">{currentTenant?.name ?? 'Select Tenant'}</span>
                     </div>
                 )}
@@ -94,7 +94,7 @@ export const Header = () => {
                         <DropdownMenuLabel>
                             <div className="flex flex-col space-y-1">
                                 <p className="text-sm font-medium leading-none">{displayName}</p>
-                                <p className="text-xs leading-none text-muted-foreground">
+                                <p className="text-xs leading-none text-[#4a4a4a]">
                                     {user?.email || 'user@example.com'}
                                 </p>
                                 <p className="text-xs font-bold text-primary mt-1">

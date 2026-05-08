@@ -57,7 +57,7 @@ export function RolesTable({ data, onEdit, onDelete }: RolesTableProps) {
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('title')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('title')}</div>,
         },
         {
             accessorKey: 'department',
@@ -167,7 +167,7 @@ export function RolesTable({ data, onEdit, onDelete }: RolesTableProps) {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No roles found.
                                 </TableCell>
                             </TableRow>

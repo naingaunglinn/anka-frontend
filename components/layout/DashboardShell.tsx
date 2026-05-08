@@ -34,7 +34,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     return (
         <AppProviders>
-        <div className="h-full relative overflow-hidden bg-slate-50">
+        <div className="h-full relative overflow-hidden bg-[#f8fafc]">
             <RouteGuard />
             <Toaster position="top-right" />
             {/* Sidebar - fixed on desktop */}
@@ -47,7 +47,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
             {/* Main content wrapper */}
             <main className={cn(
-                "flex flex-col h-full bg-slate-50 transition-all duration-300",
+                "flex flex-col h-full bg-[#f8fafc] transition-all duration-300",
                 mounted && isSidebarCollapsed ? "md:pl-20" : "md:pl-64"
             )}>
                 <Header />
