@@ -36,8 +36,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <AppProviders>
         <div className="h-full relative overflow-hidden bg-[#f8fafc]">
             {/* Blue radial gradient glow - matches landing page atmosphere */}
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(0,167,244,0.08),transparent_40%)] z-0" />
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_85%_80%,rgba(0,167,244,0.04),transparent_50%)] z-0" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_15%,rgba(0,167,244,0.14),transparent_35%)] z-0" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_88%_85%,rgba(0,167,244,0.08),transparent_40%)] z-0" />
 
             <RouteGuard />
             <Toaster position="top-right" />

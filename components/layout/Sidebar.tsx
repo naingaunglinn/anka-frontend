@@ -62,7 +62,7 @@ export const Sidebar = () => {
     useEffect(() => setMounted(true), []);
 
     if (!mounted) {
-        return <div className="space-y-4 py-4 flex flex-col h-full bg-white text-[#171717] shadow-xl w-64 border-r border-[#e6e9ee]"></div>;
+        return <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl w-64 border-r border-[#e6e9ee]"></div>;
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
@@ -70,7 +70,7 @@ export const Sidebar = () => {
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-white text-[#171717] shadow-xl relative transition-all duration-300 w-full overflow-hidden border-r border-[#e6e9ee]">
+        <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl relative transition-all duration-300 w-full overflow-hidden border-r border-[#e6e9ee]">
             <button
                 onClick={toggleSidebar}
                 className="absolute -right-3 top-6 bg-white text-[#4a4a4a] rounded-full p-1 border border-[#e6e9ee] hover:bg-[#f8fafc] hover:text-[#00a7f4] z-50 transform shadow-sm"
