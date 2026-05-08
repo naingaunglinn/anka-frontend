@@ -50,7 +50,7 @@ export const Header = () => {
     };
 
     return (
-        <header className="h-16 w-full flex items-center justify-between px-6 bg-white/95 backdrop-blur-xl border-b border-[#e6e9ee] shadow-sm">
+        <header className="h-16 w-full flex items-center justify-between px-6 bg-[#f0f9ff] border-b border-[#e6e9ee] shadow-sm">
             <div className="flex items-center">
                 {user?.isSuperAdmin ? (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#f0f9ff] border border-[#00a7f4]/20">
