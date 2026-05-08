@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency, CURRENCY_CONFIG } from '@/store/tenantStore';
+import { formatMoney } from '@/lib/currency';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
 import { useEstimationVersions, useEstimationVersionMutations, EstimationVersion } from '@/lib/queries/estimationVersions';
 import toast from 'react-hot-toast';
@@ -70,6 +72,8 @@ interface EstimationSimulatorProps {
 export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorProps) {
     const router = useRouter();
     const store = useBusinessStore();
+    const { currentTenant } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? 'MMK';
 
     // UI selections
     const [selectedDealId, setSelectedDealId] = useState<string>(initialDealId);
@@ -393,9 +397,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
                                             <TableCell>{role?.title || 'Unknown Role'}</TableCell>
-                                            <TableCell className="text-right">${costRate}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
-                                            <TableCell className="text-right font-medium">${(res.hours * costRate).toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(res.id)}>
                                                     <Trash2 className="h-4 w-4" />
@@ -422,7 +426,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     </SelectTrigger>
                                     <SelectContent>
                                         {store.roles.map(r => (
-                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: ${r.rate})</SelectItem>
+                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: {formatMoney(r.rate, currency)})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -456,7 +460,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 {overheads.map((ov) => (
                                     <TableRow key={ov.id}>
                                         <TableCell className="font-medium">{ov.name}</TableCell>
-                                        <TableCell className="text-right font-medium text-rose-600">${ov.cost.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-medium text-rose-600">{formatMoney(ov.cost, currency)}</TableCell>
                                         <TableCell>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemoveOverhead(ov.id)}>
                                                 <Trash2 className="h-4 w-4" />
@@ -478,7 +482,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
-                                <label className="text-xs font-medium text-[#8a8a8a]">Cost ($)</label>
+                                <label className="text-xs font-medium text-[#8a8a8a]">Cost ({CURRENCY_CONFIG[currency].symbol})</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] hover:bg-[#00a7f4] gap-2">
@@ -517,24 +521,24 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <div className="pt-4 border-t border-[#e6e9ee] space-y-4">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-[#8a8a8a]">Total Labor Cost</span>
-                                <span className="font-medium">${laborCost.toLocaleString()}</span>
+                                <span className="font-medium">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-[#8a8a8a]">Total Project Overhead</span>
-                                <span className="font-medium text-rose-600">${totalOverheadCost.toLocaleString()}</span>
+                                <span className="font-medium text-rose-600">{formatMoney(totalOverheadCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-[#e6e9ee] pt-2">
                                 <span className="text-[#4a4a4a]">Total Project Cost</span>
-                                <span>${totalCost.toLocaleString()}</span>
+                                <span>{formatMoney(totalCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-[#8a8a8a]">Expected Profit</span>
-                                <span className="font-medium text-emerald-600">+${expectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className="font-medium text-emerald-600">+{formatMoney(expectedProfit, currency)}</span>
                             </div>
                             <div className="pt-2 flex justify-between items-end border-t border-[#e6e9ee]">
                                 <span className="text-sm font-medium text-[#4a4a4a]">Suggested Price</span>
                                 <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#00a7f4] to-emerald-400">
-                                    ${suggestedPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    {formatMoney(suggestedPrice, currency)}
                                 </span>
                             </div>
                         </div>
