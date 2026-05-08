@@ -13,8 +13,9 @@ import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import { useProjectList } from '@/lib/queries/projects';
+import { useProjectList, useProjectTeam } from '@/lib/queries/projects';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
+import type { Project } from '@/types/business';
 
 const STATUS_VARIANTS: Record<string, string> = {
     Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -245,46 +246,13 @@ export default function TimeTrackingPage() {
                 </Card>
             </div>
 
-            {/* AI Auto-Assign Section */}
-            {!isLoading && !isError && projects.filter(p => p.status === 'Not Started' || p.status === 'On Track').length > 0 && (
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-[#00a7f4]" />
-                            AI Team Assignment
-                        </CardTitle>
-                        <CardDescription>
-                            Automatically distribute workload hours across the project team based on skills and availability.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {projects
-                                .filter(p => p.status === 'Not Started' || p.status === 'On Track')
-                                .map(project => (
-                                    <div key={project.id} className="flex items-center justify-between rounded-lg border border-[#e6e9ee] bg-white p-4">
-                                        <div>
-                                            <p className="text-sm font-medium text-[#171717]">{project.name}</p>
-                                            <p className="text-xs text-[#8a8a8a]">{project.client} · {project.status}</p>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
-                                            onClick={() => handleAutoAssign(project.id)}
-                                            disabled={autoAssignLoading === project.id}
-                                        >
-                                            {autoAssignLoading === project.id ? (
-                                                <Clock className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="h-4 w-4" />
-                                            )}
-                                            Auto-Assign Team
-                                        </Button>
-                                    </div>
-                                ))}
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* AI Auto-Assign Section — only projects with NO team members yet */}
+            {!isLoading && !isError && (
+                <AutoAssignCard
+                    projects={projects.filter(p => p.status === 'Not Started' || p.status === 'On Track')}
+                    onAutoAssign={handleAutoAssign}
+                    autoAssignLoading={autoAssignLoading}
+                />
             )}
 
             {isLoading ? (
@@ -413,6 +381,87 @@ export default function TimeTrackingPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function AutoAssignCard({
+    projects,
+    onAutoAssign,
+    autoAssignLoading,
+}: {
+    projects: Project[];
+    onAutoAssign: (projectId: string) => void;
+    autoAssignLoading: string | null;
+}) {
+    return (
+        <Card className="shadow-sm border-[#e6e9ee]">
+            <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-[#00a7f4]" />
+                    AI Team Assignment
+                </CardTitle>
+                <CardDescription>
+                    Automatically distribute workload hours for newly contracted projects that don&apos;t have a team yet.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {projects.map(project => (
+                        <AutoAssignProjectRow
+                            key={project.id}
+                            project={project}
+                            onAutoAssign={onAutoAssign}
+                            autoAssignLoading={autoAssignLoading}
+                        />
+                    ))}
+                    {projects.length === 0 && (
+                        <p className="text-sm text-[#8a8a8a] text-center py-4">
+                            No unstaffed active projects. Win a deal to create a new project.
+                        </p>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function AutoAssignProjectRow({
+    project,
+    onAutoAssign,
+    autoAssignLoading,
+}: {
+    project: Project;
+    onAutoAssign: (projectId: string) => void;
+    autoAssignLoading: string | null;
+}) {
+    const teamQuery = useProjectTeam(project.id);
+    const hasTeam = (teamQuery.data?.length ?? 0) > 0;
+
+    // Don't show projects that already have team members assigned
+    if (hasTeam) return null;
+
+    return (
+        <div className="flex items-center justify-between rounded-lg border border-[#e6e9ee] bg-white p-4">
+            <div>
+                <p className="text-sm font-medium text-[#171717]">{project.name}</p>
+                <p className="text-xs text-[#8a8a8a]">{project.client} · {project.status}</p>
+            </div>
+            <Button
+                size="sm"
+                className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
+                onClick={() => onAutoAssign(project.id)}
+                disabled={autoAssignLoading === project.id || teamQuery.isLoading}
+            >
+                {autoAssignLoading === project.id ? (
+                    <Clock className="h-4 w-4 animate-spin" />
+                ) : (
+                    <Sparkles className="h-4 w-4" />
+                )}
+                Auto-Assign Team
+            </Button>
         </div>
     );
 }

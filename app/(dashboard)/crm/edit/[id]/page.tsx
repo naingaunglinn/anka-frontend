@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect } from "react";
 import toast from "react-hot-toast";
 import { useBusinessStore } from "@/store/businessStore";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
@@ -233,6 +232,18 @@ export default function EditDealPage() {
             setUploadedFileName(file.name);
         }
     }
+
+    // Auto-calculate workload hours from ghost roles
+    const computedWorkloadHours = useMemo(() => {
+        const months = Number(timelineMonths) || 1;
+        return ghostRoles.reduce((total, role) => {
+            return total + (role.quantity || 0) * 160 * months * ((role.months || 100) / 100);
+        }, 0);
+    }, [ghostRoles, timelineMonths]);
+
+    useEffect(() => {
+        form.setValue('workloadHours', Math.round(computedWorkloadHours), { shouldValidate: true });
+    }, [computedWorkloadHours, form]);
 
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
@@ -592,18 +603,24 @@ export default function EditDealPage() {
                                                             <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
                                                             <p className="text-xs text-muted-foreground mt-1">Estimate the shape of the team needed to deliver this deal.</p>
                                                         </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="bg-white shadow-sm"
-                                                                onClick={() => {
-                                                                    const range = getSuggestedSalaryRange('frontend', employees);
-                                                                    append({ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: range.min, maxMonthlySalary: range.max });
-                                                                }}
-                                                        >
-                                                            <Plus className="h-4 w-4 mr-2" /> Add Role
-                                                        </Button>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-xs text-muted-foreground">Computed Workload</p>
+                                                                <p className="text-sm font-semibold text-indigo-600">{Math.round(computedWorkloadHours).toLocaleString()} hrs</p>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="bg-white shadow-sm"
+                                                                    onClick={() => {
+                                                                        const range = getSuggestedSalaryRange('frontend', employees);
+                                                                        append({ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: range.min, maxMonthlySalary: range.max });
+                                                                    }}
+                                                            >
+                                                                <Plus className="h-4 w-4 mr-2" /> Add Role
+                                                            </Button>
+                                                        </div>
                                                     </div>
 
                                                     <div className="space-y-4">

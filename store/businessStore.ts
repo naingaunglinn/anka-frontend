@@ -758,7 +758,14 @@ export const useBusinessStore = create<BusinessState>()(
                     monthly[m].overhead += periodOverhead;
                 });
 
-                return Object.keys(monthly).map(month => {
+                // Sort chronologically so dashboard / forecast always read the last month correctly
+                const sortedMonths = Object.keys(monthly).sort((a, b) => {
+                    const da = new Date(`${a} 01`).getTime();
+                    const db = new Date(`${b} 01`).getTime();
+                    return da - db;
+                });
+
+                return sortedMonths.map(month => {
                     const { revenue, directLabor, overhead } = monthly[month];
                     const grossProfit    = revenue - directLabor;
                     const operatingProfit = grossProfit - overhead;

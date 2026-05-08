@@ -100,9 +100,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
+    // Helper to log usage — called for both real and demo calls
+    function logUsage(feature: string, model: string, inputTokens: number, outputTokens: number, costUsd: number) {
+        const sessionToken = req.cookies.get('__session')?.value
+        const tenantId     = req.headers.get('x-tenant-id')
+        if (sessionToken && tenantId) {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
+            fetch(`${apiUrl}/ai-usage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'Accept':        'application/json',
+                    'Authorization': `Bearer ${sessionToken}`,
+                    'X-Tenant-ID':   tenantId,
+                },
+                body: JSON.stringify({
+                    feature,
+                    model,
+                    input_tokens:       inputTokens,
+                    output_tokens:      outputTokens,
+                    estimated_cost_usd: costUsd,
+                }),
+            }).catch(() => {}) // intentional fire-and-forget
+        }
+    }
+
     // Demo fallback: if no API key OR demo mode is implied, return a realistic mock
     if (!apiKey) {
         console.log('[AI Team Builder] Demo fallback — no API key configured')
+        logUsage('ai_team_builder', 'demo-fallback', 0, 0, 0)
         return NextResponse.json(generateDemoResult(input))
     }
 
@@ -123,6 +149,7 @@ export async function POST(req: NextRequest) {
         const rawText = message.content[0]?.type === 'text' ? message.content[0].text : ''
 
         if (!rawText) {
+            logUsage('ai_team_builder', CLAUDE_MODEL, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
             return NextResponse.json(
                 { error: 'AI returned an empty response. Try again.' },
                 { status: 500 }
@@ -153,34 +180,12 @@ export async function POST(req: NextRequest) {
         } catch {
             // Claude refused or returned non-JSON — fall back to demo mode
             console.error('AI Team Builder: non-JSON response, falling back to demo mode')
+            logUsage('ai_team_builder', CLAUDE_MODEL, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
             return NextResponse.json(generateDemoResult(input))
         }
 
         // Fire-and-forget usage log — never blocks the AI response
-        const sessionToken = req.cookies.get('__session')?.value
-        const tenantId     = req.headers.get('x-tenant-id')
-        if (sessionToken && tenantId) {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
-            fetch(`${apiUrl}/ai-usage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type':  'application/json',
-                    'Accept':        'application/json',
-                    'Authorization': `Bearer ${sessionToken}`,
-                    'X-Tenant-ID':   tenantId,
-                },
-                body: JSON.stringify({
-                    feature:            'ai_team_builder',
-                    model:              message.model,
-                    input_tokens:       message.usage.input_tokens,
-                    output_tokens:      message.usage.output_tokens,
-                    estimated_cost_usd: estimateCost(
-                        message.usage.input_tokens,
-                        message.usage.output_tokens
-                    ),
-                }),
-            }).catch(() => {}) // intentional fire-and-forget
-        }
+        logUsage('ai_team_builder', message.model, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
 
         return NextResponse.json(result)
     } catch (err) {

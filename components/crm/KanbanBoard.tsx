@@ -59,12 +59,12 @@ export function KanbanBoard({
 
     const columns = useMemo(() => {
         const cols: Record<string, ColumnData> = {
-            inquiry:     { id: 'inquiry',     title: 'Inquiry',     deals: [] },
-            lead:        { id: 'lead',        title: 'Lead',        deals: [] },
+            inquiry: { id: 'inquiry', title: 'Inquiry', deals: [] },
+            lead: { id: 'lead', title: 'Lead', deals: [] },
             opportunity: { id: 'opportunity', title: 'Opportunity', deals: [] },
-            proposal:    { id: 'proposal',    title: 'Proposal',    deals: [] },
-            contract:    { id: 'contract',    title: 'Contract',    deals: [] },
-            won:         { id: 'won',         title: 'Won',         deals: [] },
+            proposal: { id: 'proposal', title: 'Proposal', deals: [] },
+            contract: { id: 'contract', title: 'Contract', deals: [] },
+            won: { id: 'won', title: 'Won', deals: [] },
         };
 
         deals.forEach(deal => {
@@ -114,12 +114,12 @@ export function KanbanBoard({
         }
 
         const stageProbability: Record<string, number> = {
-            inquiry:     20,
-            lead:        20,
+            inquiry: 20,
+            lead: 20,
             opportunity: 40,
-            proposal:    60,
-            contract:    80,
-            won:         100,
+            proposal: 60,
+            contract: 80,
+            won: 100,
         };
         const newProb = stageProbability[destination.droppableId] ?? 50;
 
@@ -188,7 +188,7 @@ export function KanbanBoard({
                                     <div
                                         {...provided.droppableProps}
                                         ref={provided.innerRef}
-                                        className={`p-3 space-y-3 transition-colors min-h-[120px] ${snapshot.isDraggingOver ? 'bg-slate-200' : ''}`}
+                                        className={`p-3 space-y-3 min-h-[120px] transition-all duration-300 ${snapshot.isDraggingOver ? 'bg-[#00a7f4]/5 ring-2 ring-[#00a7f4]/20 rounded-lg' : ''}`}
                                     >
                                         {column.deals.map((deal, index) => {
                                             const estimation = getDealEstimation(deal.id);
@@ -209,9 +209,15 @@ export function KanbanBoard({
                                                             ref={provided.innerRef}
                                                             {...provided.draggableProps}
                                                             {...provided.dragHandleProps}
-                                                            className={`select-none ${snapshot.isDragging ? 'opacity-90' : ''}`}
+                                                            className="select-none"
+                                                            style={{
+                                                                ...provided.draggableProps.style,
+                                                                transition: snapshot.isDropAnimating
+                                                                    ? 'transform 0.25s cubic-bezier(0.2, 0, 0, 1)'
+                                                                    : 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)',
+                                                            }}
                                                         >
-                                                            <Card className="border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing">
+                                                            <Card className={`border shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${snapshot.isDragging ? 'rotate-1 scale-[1.02] shadow-lg ring-2 ring-[#00a7f4]/30' : ''}`}>
                                                                 <CardContent className="p-4 space-y-3">
                                                                     {/* Header: Name + Menu */}
                                                                     <div className="flex justify-between items-start">
@@ -230,7 +236,7 @@ export function KanbanBoard({
                                                                                 </DropdownMenuItem>
                                                                                 <DropdownMenuItem onClick={() => router.push(`/crm/${deal.id}/staffing`)}>
                                                                                     <Users className="mr-2 h-4 w-4" />
-                                                                                    AI Staffing
+                                                                                    Staffing
                                                                                 </DropdownMenuItem>
                                                                                 {!isWon && deal.status !== 'lost' && (
                                                                                     <>
@@ -327,7 +333,9 @@ export function KanbanBoard({
                                                 </Draggable>
                                             );
                                         })}
-                                        {provided.placeholder}
+                                        <div className="transition-all duration-300 ease-out">
+                                            {provided.placeholder}
+                                        </div>
                                     </div>
                                 )}
                             </Droppable>

@@ -11,9 +11,9 @@ import toast from 'react-hot-toast'
 
 interface Props {
     dealId: string
-    clientBudget: number
-    timelineMonths: number
-    workloadHours: number
+    clientBudget: number | string
+    timelineMonths: number | string
+    workloadHours: number | string
     workloadDescription: string
     workloadDocumentText?: string
     onAccept?: (result: AITeamBuilderResult) => void
@@ -28,8 +28,8 @@ const LOADING_STEPS = [
 // Client-side fallback for when the API is completely unreachable (network down, server offline)
 function generateClientFallback(input: AITeamBuilderInput): AITeamBuilderResult {
     const activeEmps = input.employees.filter(e => e.status === 'Active')
-    const months = input.timelineMonths || 1
-    const totalHours = input.workloadHours || 160
+    const months = Number(input.timelineMonths) || 1
+    const totalHours = Number(input.workloadHours) || 160
     const desc = (input.workloadDescription || '').toLowerCase()
 
     const roleWeights: Record<string, number> = {
@@ -101,10 +101,11 @@ export function AITeamBuilder(props: Props) {
     const companySettings = useBusinessStore(s => s.companySettings)
     const activeTenantId = useTenantStore(s => s.activeTenantId)
 
-    const canRun =
-        props.clientBudget > 0 &&
-        props.timelineMonths > 0 &&
-        props.workloadHours > 0
+    const budget = Number(props.clientBudget) || 0
+    const months = Number(props.timelineMonths) || 0
+    const hours = Number(props.workloadHours) || 0
+
+    const canRun = budget > 0 && months > 0 && hours > 0
 
     async function handleBuild() {
         setLoading(true)
@@ -117,9 +118,9 @@ export function AITeamBuilder(props: Props) {
 
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
-            clientBudget: props.clientBudget,
-            timelineMonths: props.timelineMonths,
-            workloadHours: props.workloadHours,
+            clientBudget: budget,
+            timelineMonths: months,
+            workloadHours: hours,
             workloadDescription: props.workloadDescription,
             workloadDocumentText: props.workloadDocumentText,
             employees,
@@ -191,7 +192,7 @@ export function AITeamBuilder(props: Props) {
                 <AITeamBuilderResultPanel
                     result={result}
                     dealId={props.dealId}
-                    clientBudget={props.clientBudget}
+                    clientBudget={budget}
                     onRegenerate={handleBuild}
                     onAccept={props.onAccept}
                 />

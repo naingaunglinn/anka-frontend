@@ -12,7 +12,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     Legend
 } from "recharts";
-import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
+import { DollarSign, TrendingUp, Briefcase, Activity, Percent } from "lucide-react";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { formatMoney } from "@/lib/currency";
 
@@ -56,14 +56,15 @@ export default function DashboardPage() {
     }, [isDemoMode, store]);
 
     // Summary Metrics
-    const { totalRev, totalProfit } = useMemo(() => {
+    const { totalRev, totalProfit, profitMargin } = useMemo(() => {
         let rev = 0;
         let profit = 0;
         pnlData.forEach(m => {
             rev += m.revenue;
             profit += m.operatingProfit;
         });
-        return { totalRev: rev, totalProfit: profit };
+        const margin = rev > 0 ? (profit / rev) * 100 : 0;
+        return { totalRev: rev, totalProfit: profit, profitMargin: margin };
     }, [pnlData]);
 
     const activeProjectsCount = isDemoMode
@@ -110,7 +111,7 @@ export default function DashboardPage() {
             )}
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-5">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Total Revenue (YTD)</CardTitle>
@@ -131,6 +132,26 @@ export default function DashboardPage() {
                             {formatMoney(totalProfit, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a]">EBITDA after all costs</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Profit Margin</CardTitle>
+                        <Percent className="h-4 w-4 text-[#00a7f4]" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className={`text-2xl font-bold ${profitMargin >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                            {profitMargin.toFixed(1)}%
+                        </div>
+                        <div className="mt-2 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${profitMargin >= 30 ? 'bg-emerald-500' : profitMargin >= 15 ? 'bg-[#00a7f4]' : profitMargin >= 0 ? 'bg-amber-400' : 'bg-rose-500'}`}
+                                style={{ width: `${Math.min(Math.max(profitMargin, 0), 100)}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-[#4a4a4a] mt-1">
+                            {profitMargin >= 30 ? 'Excellent' : profitMargin >= 15 ? 'Healthy' : profitMargin >= 0 ? 'Thin' : 'Loss'}
+                        </p>
                     </CardContent>
                 </Card>
                 <Card>

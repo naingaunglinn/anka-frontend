@@ -123,9 +123,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Question is required' }, { status: 400 })
     }
 
+    // Helper to log usage
+    function logUsage(feature: string, model: string, inputTokens: number, outputTokens: number, costUsd: number) {
+        const sessionToken = req.cookies.get('__session')?.value
+        const tenantId     = req.headers.get('x-tenant-id')
+        if (sessionToken && tenantId) {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
+            fetch(`${apiUrl}/ai-usage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'Accept':        'application/json',
+                    'Authorization': `Bearer ${sessionToken}`,
+                    'X-Tenant-ID':   tenantId,
+                },
+                body: JSON.stringify({
+                    feature,
+                    model,
+                    input_tokens:       inputTokens,
+                    output_tokens:      outputTokens,
+                    estimated_cost_usd: costUsd,
+                }),
+            }).catch(() => {}) // intentional fire-and-forget
+        }
+    }
+
     // Demo fallback: if no API key, answer from knowledge base
     if (!apiKey) {
         console.log('[AI Chatbot] Demo fallback — no API key configured')
+        logUsage('ai_chatbot', 'demo-fallback', 0, 0, 0)
         const demo = generateDemoAnswer(body.question)
         return NextResponse.json({ ...demo, model: 'demo-mode' })
     }
@@ -153,6 +179,7 @@ export async function POST(req: NextRequest) {
         const rawText = message.content[0]?.type === 'text' ? message.content[0].text : ''
 
         if (!rawText) {
+            logUsage('ai_chatbot', CLAUDE_MODEL, message.usage.input_tokens, message.usage.output_tokens, 0.001)
             const demo = generateDemoAnswer(body.question)
             return NextResponse.json({ ...demo, model: 'demo-fallback' })
         }
@@ -164,6 +191,8 @@ export async function POST(req: NextRequest) {
             sources: relevantChunks.map(c => ({ title: c.source, category: c.category })),
             model: message.model,
         }
+
+        logUsage('ai_chatbot', message.model, message.usage.input_tokens, message.usage.output_tokens, 0.001)
 
         return NextResponse.json(response)
     } catch (err) {

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAdminAuditLogs, type AuditFilters } from '@/lib/queries/adminAudit';
+import { useAdminAuditLogs, type AuditFilters, type AuditLog } from '@/lib/queries/adminAudit';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAdminTenantList } from '@/lib/queries/admin';
 import { Shield, User, Building2, AlertTriangle, Bug, Info, AlertCircle } from 'lucide-react';
 
@@ -30,6 +31,7 @@ const LEVEL_CONFIG: Record<string, { color: string; icon: React.ElementType }> =
 
 export default function AdminAuditPage() {
     const [filters, setFilters] = useState<AuditFilters>({ page: 1 });
+    const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
     const { data, isLoading } = useAdminAuditLogs(filters);
     const { data: tenants } = useAdminTenantList();
 
@@ -180,8 +182,22 @@ export default function AdminAuditPage() {
                                                     <span className="text-[#8a8a8a]">-</span>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4 text-[#4a4a4a] max-w-xs truncate">
-                                                {log.details || '-'}
+                                            <td className="py-3 px-4">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="text-[#4a4a4a] max-w-xs truncate">
+                                                        {log.details || '-'}
+                                                    </div>
+                                                    {log.details && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                            onClick={() => setSelectedLog(log)}
+                                                        >
+                                                            View
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-3 px-4 text-[#8a8a8a]">
                                                 {log.user ? (
@@ -239,6 +255,55 @@ export default function AdminAuditPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Detail Dialog */}
+            <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+                <DialogContent className="sm:max-w-[600px] bg-white">
+                    <DialogHeader>
+                        <DialogTitle>Audit Log Details</DialogTitle>
+                    </DialogHeader>
+                    {selectedLog && (
+                        <div className="space-y-4 mt-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">Level: </span>
+                                    <span className="text-[#171717]">{selectedLog.level}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">Action: </span>
+                                    <span className="text-[#171717]">{selectedLog.action}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">Time: </span>
+                                    <span className="text-[#171717]">{new Date(selectedLog.created_at).toLocaleString()}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">IP Address: </span>
+                                    <span className="text-[#171717]">{selectedLog.ip_address || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">User: </span>
+                                    <span className="text-[#171717]">{selectedLog.user ? `${selectedLog.user.name} (${selectedLog.user.email})` : 'System'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-[#8a8a8a]">Tenant: </span>
+                                    <span className="text-[#171717]">{selectedLog.tenant ? selectedLog.tenant.name : '-'}</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="font-medium text-[#8a8a8a]">Target: </span>
+                                    <span className="text-[#171717]">{selectedLog.target_type ? `${selectedLog.target_type} : ${selectedLog.target_id}` : '-'}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <span className="font-medium text-[#8a8a8a] text-sm">Details Content:</span>
+                                <div className="bg-slate-50 p-4 rounded-md border border-slate-200 text-sm text-[#171717] whitespace-pre-wrap font-mono overflow-auto max-h-[300px]">
+                                    {selectedLog.details || 'No additional details provided.'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

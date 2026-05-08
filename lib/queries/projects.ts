@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toProject } from '@/lib/dealsMapper';
-import type { Project } from '@/types/business';
+import type { Project, ProjectTeamAssignment } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
 
 // ── Query key factory ────────────────────────────────────────────────────────
@@ -13,6 +13,7 @@ export const projectKeys = {
     list: (params: ProjectListParams = {}) => [...projectKeys.lists(), params] as const,
     details: () => [...projectKeys.all, 'detail'] as const,
     detail: (id: string) => [...projectKeys.details(), id] as const,
+    team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
 };
 
 export interface ProjectListParams {
@@ -58,6 +59,24 @@ export function useProjectDetail(id: string) {
             return toProject(body.data ?? body);
         },
         enabled: !!id,
+    });
+}
+
+/**
+ * Fetches team assignments for a project from `GET /projects/:id/team`.
+ *
+ * @param id Project UUID. Query is disabled when `id` is empty.
+ */
+export function useProjectTeam(id: string) {
+    return useQuery<ProjectTeamAssignment[]>({
+        queryKey: projectKeys.team(id),
+        queryFn: async () => {
+            const { data: body } = await api.get(`/projects/${id}/team`);
+            const assignments = (body.data ?? body ?? []) as ProjectTeamAssignment[];
+            return assignments;
+        },
+        enabled: !!id,
+        staleTime: 10_000,
     });
 }
 
