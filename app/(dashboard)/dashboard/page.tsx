@@ -14,8 +14,7 @@ import {
 } from "recharts";
 import { DollarSign, TrendingUp, Briefcase, Activity } from "lucide-react";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
-import { formatMoney, formatMoneyShort } from "@/lib/currency";
-import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { formatMoney } from "@/lib/currency";
 
 const demoPnlData = [
     { month: "Jan", revenue: 680000, operatingProfit: 182000 },
@@ -35,7 +34,6 @@ const demoPipelineDeals = [
 ];
 
 export default function DashboardPage() {
-    useOrganizationSync();
     const [isMounted, setIsMounted] = useState(false);
     const isDemoMode = useUIStore((s) => s.isDemoMode);
     const store = useBusinessStore();
@@ -53,8 +51,9 @@ export default function DashboardPage() {
     }, []);
 
     const pnlData = useMemo(() => {
+        if (isDemoMode) return demoPnlData;
         return store.getFinancialPnL();
-    }, [store]);
+    }, [isDemoMode, store]);
 
     // Summary Metrics
     const { totalRev, totalProfit } = useMemo(() => {
@@ -67,10 +66,14 @@ export default function DashboardPage() {
         return { totalRev: rev, totalProfit: profit };
     }, [pnlData]);
 
-    const activeProjectsCount = store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
+    const activeProjectsCount = isDemoMode
+        ? 14
+        : store.projects.filter(p => p.status === 'On Track' || p.status === 'At Risk' || p.status === 'Over Budget').length;
 
     // Pipeline Deals
-    const pipelineDeals = store.deals
+    const pipelineDeals = isDemoMode
+        ? demoPipelineDeals
+        : store.deals
             .filter(d => d.status !== 'won' && d.status !== 'lost')
             .map(d => ({
                 name: d.name,
@@ -88,10 +91,23 @@ export default function DashboardPage() {
         <div className="container mx-auto p-6 max-w-7xl space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground">
-                    High-level overview of revenue, pipeline, and active projects.
+                <p className="text-[#4a4a4a]">
+                    {isDemoMode
+                        ? "Demo snapshot: sample gross-profit intelligence, pipeline, and recommendation signals."
+                        : "High-level overview of revenue, pipeline, and active projects."}
                 </p>
             </div>
+
+            {isDemoMode && (
+                <Card className="border-[#00a7f4]/25 bg-[#00a7f4]/5">
+                    <CardContent className="pt-6">
+                        <p className="text-sm text-[#0c4a6e]">
+                            Demo Version is intentionally scoped. You can explore Dashboard insights with sample data, while edit actions
+                            and advanced modules are hidden.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-4">
@@ -102,19 +118,19 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{formatMoney(totalRev, currency)}</div>
-                        <p className="text-xs text-muted-foreground">Recognized from Paid Invoices</p>
+                        <p className="text-xs text-[#4a4a4a]">Recognized from Paid Invoices</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Operating Profit (YTD)</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-blue-500" />
+                        <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
                     </CardHeader>
                     <CardContent>
                         <div className={`text-2xl font-bold ${totalProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
                             {formatMoney(totalProfit, currency)}
                         </div>
-                        <p className="text-xs text-muted-foreground">EBITDA after all costs</p>
+                        <p className="text-xs text-[#4a4a4a]">EBITDA after all costs</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -134,7 +150,7 @@ export default function DashboardPage() {
                                 currency
                             )}
                         </div>
-                        <p className="text-xs text-muted-foreground">Total un-won deal targets</p>
+                        <p className="text-xs text-[#4a4a4a]">Total un-won deal targets</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -144,7 +160,7 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{activeProjectsCount}</div>
-                        <p className="text-xs text-muted-foreground">Projects currently in delivery</p>
+                        <p className="text-xs text-[#4a4a4a]">Projects currently in delivery</p>
                     </CardContent>
                 </Card>
             </div>
@@ -168,11 +184,11 @@ export default function DashboardPage() {
                                     <Tooltip formatter={(value: any) => formatMoney(Number(value), currency)} />
                                     <Legend />
                                     <Bar name="Revenue" dataKey="revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                    <Bar name="Op. Profit" dataKey="operatingProfit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                    <Bar name="Op. Profit" dataKey="operatingProfit" fill="#00a7f4" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <div className="flex h-full items-center justify-center text-[#4a4a4a]">
                                 No financial data. Add invoices and timesheets.
                             </div>
                         )}
@@ -199,7 +215,7 @@ export default function DashboardPage() {
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <div className="flex h-full items-center justify-center text-[#4a4a4a]">
                                 No active deals in pipeline.
                             </div>
                         )}

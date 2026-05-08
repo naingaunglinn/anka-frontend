@@ -58,7 +58,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('category')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('category')}</div>,
         },
         {
             accessorKey: 'description',
@@ -74,7 +74,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="text-muted-foreground">{row.getValue('description')}</div>,
+            cell: ({ row }) => <div className="text-[#4a4a4a]">{row.getValue('description')}</div>,
         },
         {
             id: 'period',
@@ -83,12 +83,12 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                 const oh = row.original;
                 if (oh.effectiveMonth && oh.effectiveYear) {
                     return (
-                        <div className="text-muted-foreground text-sm">
+                        <div className="text-[#4a4a4a] text-sm">
                             {MONTH_NAMES[oh.effectiveMonth]} {oh.effectiveYear}
                         </div>
                     );
                 }
-                return <div className="text-muted-foreground text-sm">All months</div>;
+                return <div className="text-[#4a4a4a] text-sm">All months</div>;
             },
         },
         {
@@ -187,7 +187,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No overheads found.
                                 </TableCell>
                             </TableRow>

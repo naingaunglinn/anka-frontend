@@ -56,7 +56,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('name')}</div>,
         },
         {
             accessorKey: 'managerName',
@@ -73,7 +73,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                 )
             },
             cell: ({ row }) => (
-                <div className="text-muted-foreground">
+                <div className="text-[#4a4a4a]">
                     {row.getValue('managerName') || '—'}
                 </div>
             ),
@@ -167,7 +167,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No departments found.
                                 </TableCell>
                             </TableRow>

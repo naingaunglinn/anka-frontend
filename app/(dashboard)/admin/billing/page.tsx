@@ -9,7 +9,7 @@ import { Building2, Check, X, Loader2 } from 'lucide-react';
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise'];
 
-const CURRENCIES: Currency[] = ['MMK', 'JPY', 'USD'];
+const CURRENCIES: Currency[] = ['MMK', 'JPY'];
 
 export default function AdminBillingPage() {
     const { data: tenants, isLoading } = useAdminTenantList();
@@ -73,23 +73,23 @@ export default function AdminBillingPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Billing & Plans</h1>
-                <p className="text-slate-500 mt-1">Manage tenant subscription plans and billing status.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Billing & Plans</h1>
+                <p className="text-[#8a8a8a] mt-1">Manage tenant subscription plans and billing status.</p>
             </div>
 
             {/* Plan Distribution Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {planStats.map((stat) => (
-                    <Card key={stat.plan} className="shadow-sm border-slate-100">
+                    <Card key={stat.plan} className="shadow-sm border-[#e6e9ee]">
                         <CardContent className="p-4">
-                            <p className="text-xs font-medium text-slate-500 uppercase">{stat.plan}</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{stat.count}</p>
+                            <p className="text-xs font-medium text-[#8a8a8a] uppercase">{stat.plan}</p>
+                            <p className="text-2xl font-bold text-[#171717] mt-1">{stat.count}</p>
                         </CardContent>
                     </Card>
                 ))}
                 {planStats.length === 0 && (
-                    <Card className="shadow-sm border-slate-100 col-span-full">
-                        <CardContent className="p-4 text-center text-slate-400 text-sm">
+                    <Card className="shadow-sm border-[#e6e9ee] col-span-full">
+                        <CardContent className="p-4 text-center text-[#8a8a8a] text-sm">
                             No tenant data
                         </CardContent>
                     </Card>
@@ -97,39 +97,39 @@ export default function AdminBillingPage() {
             </div>
 
             {/* Tenant Billing Table */}
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">Tenant Plans</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50">
+                            <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Tenant</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Slug</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Plan</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Currency</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Users</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Created</th>
-                                    <th className="text-left py-3 px-4 font-medium text-slate-500">Actions</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Slug</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Plan</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Currency</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Status</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Users</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Created</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {tenants?.map((tenant) => (
                                     <tr key={tenant.id} className="border-b last:border-0 hover:bg-slate-50/50">
-                                        <td className="py-3 px-4 font-medium text-slate-900 flex items-center gap-2">
-                                            <Building2 className="h-4 w-4 text-slate-400" />
+                                        <td className="py-3 px-4 font-medium text-[#171717] flex items-center gap-2">
+                                            <Building2 className="h-4 w-4 text-[#8a8a8a]" />
                                             {tenant.name}
                                         </td>
-                                        <td className="py-3 px-4 text-slate-500">{tenant.slug}</td>
+                                        <td className="py-3 px-4 text-[#8a8a8a]">{tenant.slug}</td>
                                         <td className="py-3 px-4">
                                             <select
                                                 value={tenant.plan ?? 'free'}
                                                 onChange={(e) => handlePlanChange(tenant.id, e.target.value)}
                                                 disabled={updatingId === tenant.id}
-                                                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                             >
                                                 {PLANS.map((plan) => (
                                                     <option key={plan} value={plan}>
@@ -143,7 +143,7 @@ export default function AdminBillingPage() {
                                                 value={getTenantCurrency(tenant.id)}
                                                 onChange={(e) => handleCurrencyChange(tenant.id, e.target.value as Currency)}
                                                 disabled={updatingId === tenant.id}
-                                                className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                             >
                                                 {CURRENCIES.map((c) => (
                                                     <option key={c} value={c}>
@@ -161,8 +161,8 @@ export default function AdminBillingPage() {
                                                 {tenant.isActive ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 text-slate-500">{tenant.usersCount}</td>
-                                        <td className="py-3 px-4 text-slate-500">
+                                        <td className="py-3 px-4 text-[#8a8a8a]">{tenant.usersCount}</td>
+                                        <td className="py-3 px-4 text-[#8a8a8a]">
                                             {new Date(tenant.createdAt).toLocaleDateString()}
                                         </td>
                                         <td className="py-3 px-4">
@@ -192,7 +192,7 @@ export default function AdminBillingPage() {
                                 ))}
                                 {(!tenants || tenants.length === 0) && (
                                     <tr>
-                                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                                        <td colSpan={8} className="py-8 text-center text-[#8a8a8a]">
                                             No tenants found
                                         </td>
                                     </tr>

@@ -10,11 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
-import { TimeEntry, ProjectTeamAssignment } from '@/types/business';
+import { TimeEntry } from '@/types/business';
 import { useProjectList } from '@/lib/queries/projects';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
-import { ProjectTeamPanel } from '@/components/projects/ProjectTeamPanel';
-import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 
 const STATUS_VARIANTS: Record<string, string> = {
     Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -25,7 +23,6 @@ const STATUS_VARIANTS: Record<string, string> = {
 
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
-    useOrganizationSync();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
     const { createTimeEntry, approveTimeEntry, rejectTimeEntry, deleteTimeEntry } = useTimeEntryMutations();
@@ -45,37 +42,6 @@ export default function TimeTrackingPage() {
 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
-    const [showTeamPanel, setShowTeamPanel] = useState(false);
-    const [projectTeamAssignments, setProjectTeamAssignments] = useState<ProjectTeamAssignment[]>([]);
-
-    const handleProjectSelect = async (projectId: string) => {
-        setSelectedProjectId(projectId);
-        if (projectId) {
-            setShowTeamPanel(true);
-            try {
-                const res = await fetch(`/api/projects/${projectId}/team`, {
-                    credentials: 'include',
-                });
-                const data = await res.json();
-                const list = (data.data ?? data) as Record<string, unknown>[];
-                setProjectTeamAssignments(list.map((a: Record<string, unknown>) => ({
-                    id: a.id as string,
-                    projectId: a.project_id as string,
-                    employeeId: a.employee_id as string,
-                    employeeName: a.employee_name as string,
-                    allocatedHours: a.allocated_hours as number,
-                    assignmentSource: (a.assignment_source ?? 'manual') as 'manual' | 'ai' | 'deal_transfer',
-                    costPerHour: a.cost_per_hour as number | undefined,
-                    monthlySalary: a.monthly_salary as number | undefined,
-                })));
-            } catch {
-                setProjectTeamAssignments([]);
-            }
-        } else {
-            setShowTeamPanel(false);
-            setProjectTeamAssignments([]);
-        }
-    };
 
     const handleSaveTime = async () => {
         const errs: typeof timeErrors = {};
@@ -126,12 +92,12 @@ export default function TimeTrackingPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Time Tracking & Utilization</h1>
-                    <p className="text-slate-500 mt-1">Log hours against active projects to track budget consumption and labor costs.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Time Tracking & Utilization</h1>
+                    <p className="text-[#8a8a8a] mt-1">Log hours against active projects to track budget consumption and labor costs.</p>
                 </div>
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-slate-900 gap-2">
+                        <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
                             <Plus className="h-4 w-4" /> Log Time
                         </Button>
                     </DialogTrigger>
@@ -143,7 +109,7 @@ export default function TimeTrackingPage() {
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
-                            <p className="text-xs text-muted-foreground">Fields marked <span className="text-destructive">*</span> are required.</p>
+                            <p className="text-xs text-[#4a4a4a]">Fields marked <span className="text-destructive">*</span> are required.</p>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium">Employee <span className="text-destructive">*</span></label>
                                 <Select value={selectedEmployeeId} onValueChange={v => { setSelectedEmployeeId(v); if (timeErrors.employee) setTimeErrors(p => ({ ...p, employee: undefined })); }}>
@@ -160,11 +126,7 @@ export default function TimeTrackingPage() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium">Project <span className="text-destructive">*</span></label>
-                                <Select value={selectedProjectId} onValueChange={v => {
-                                    setSelectedProjectId(v);
-                                    if (timeErrors.project) setTimeErrors(p => ({ ...p, project: undefined }));
-                                    handleProjectSelect(v);
-                                }}>
+                                <Select value={selectedProjectId} onValueChange={v => { setSelectedProjectId(v); if (timeErrors.project) setTimeErrors(p => ({ ...p, project: undefined })); }}>
                                     <SelectTrigger aria-invalid={!!timeErrors.project}>
                                         <SelectValue placeholder="Select active project..." />
                                     </SelectTrigger>
@@ -213,11 +175,11 @@ export default function TimeTrackingPage() {
                                     id="billable"
                                     checked={billable}
                                     onChange={e => setBillable(e.target.checked)}
-                                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                    className="h-4 w-4 rounded border-slate-300 text-[#171717] focus:ring-slate-900"
                                 />
                                 <label htmlFor="billable" className="text-sm font-medium text-slate-700">Billable</label>
                             </div>
-                            <Button className="w-full bg-slate-900" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
+                            <Button className="w-full bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSaveTime} disabled={createTimeEntry.isPending}>
                                 {createTimeEntry.isPending ? 'Submitting...' : 'Submit Time Entry'}
                             </Button>
                         </div>
@@ -226,70 +188,61 @@ export default function TimeTrackingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Hours Logged</p>
-                            <Clock className="h-5 w-5 text-blue-500" />
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Hours Logged</p>
+                            <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{totalHoursLogged}h</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{totalHoursLogged}h</span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Active Projects Receiving Time</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Active Projects Receiving Time</p>
                             <Briefcase className="h-5 w-5 text-indigo-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{activeProjectsCount}</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{activeProjectsCount}</span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Available Team Utilization</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Available Team Utilization</p>
                             <Users className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
                                 {utilization}%
                             </span>
-                            <span className="text-sm text-slate-500">average this month</span>
+                            <span className="text-sm text-[#8a8a8a]">average this month</span>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
             {isLoading ? (
-                <Card className="h-64 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+                <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
             ) : isError ? (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="flex h-64 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-slate-600">Could not load time entries.</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load time entries.</p>
                         <Button variant="outline" onClick={retry}>Retry</Button>
                     </CardContent>
                 </Card>
             ) : (
-                <>
-                    {showTeamPanel && selectedProjectId && (
-                        <ProjectTeamPanel
-                            projectId={selectedProjectId}
-                            assignments={projectTeamAssignments}
-                            onAssignmentsChange={setProjectTeamAssignments}
-                        />
-                    )}
-
-                    <Card className="shadow-sm border-slate-100">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Recent Time Entries</CardTitle>
-                        </CardHeader>
+            <Card className="shadow-sm border-[#e6e9ee]">
+                <CardHeader>
+                    <CardTitle className="text-lg">Recent Time Entries</CardTitle>
+                </CardHeader>
                 <CardContent>
                     <Table>
-                        <TableHeader className="bg-slate-50">
+                        <TableHeader className="bg-white">
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Employee</TableHead>
@@ -307,15 +260,15 @@ export default function TimeTrackingPage() {
 
                                 return (
                                     <TableRow key={entry.id}>
-                                        <TableCell className="text-slate-500 whitespace-nowrap">
+                                        <TableCell className="text-[#8a8a8a] whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                <Calendar className="h-4 w-4 text-slate-400" />
+                                                <Calendar className="h-4 w-4 text-[#8a8a8a]" />
                                                 {entry.date}
                                             </div>
                                         </TableCell>
                                         <TableCell className="font-medium">{emp?.name || 'Unknown'}</TableCell>
                                         <TableCell>{prj?.name || 'Unknown Project'}</TableCell>
-                                        <TableCell className="text-slate-600">{entry.task}</TableCell>
+                                        <TableCell className="text-[#4a4a4a]">{entry.task}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={STATUS_VARIANTS[entry.status] ?? 'bg-amber-50 text-amber-700 border-amber-200'}>
                                                 {entry.status}
@@ -368,22 +321,21 @@ export default function TimeTrackingPage() {
                             })}
                             {timeEntries.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-6 text-slate-500">No time recorded yet. Log time to see data here.</TableCell>
+                                    <TableCell colSpan={7} className="text-center py-6 text-[#8a8a8a]">No time recorded yet. Log time to see data here.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </CardContent>
-                </Card>
-                    </>
-                )}
+            </Card>
+            )}
 
             <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete Time Entry</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to delete this time entry? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">

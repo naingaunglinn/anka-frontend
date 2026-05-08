@@ -138,7 +138,7 @@ export default function ProfilePage() {
     if (!user) {
         return (
             <div className="flex items-center justify-center h-96">
-                <p className="text-slate-500">Loading profile...</p>
+                <p className="text-[#8a8a8a]">Loading profile...</p>
             </div>
         );
     }
@@ -147,13 +147,13 @@ export default function ProfilePage() {
         <div className="max-w-2xl mx-auto space-y-6">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">My Profile</h2>
-                <p className="text-muted-foreground mt-1">Update your name and email address.</p>
+                <p className="text-[#4a4a4a] mt-1">Update your name and email address.</p>
             </div>
 
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
-                        <User className="w-5 h-5 text-slate-500" />
+                        <User className="w-5 h-5 text-[#8a8a8a]" />
                         Personal Information
                     </CardTitle>
                     <CardDescription>Changes apply immediately across the platform.</CardDescription>
@@ -176,7 +176,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="lastName">
-                                Last Name <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+                                Last Name <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span>
                             </Label>
                             <Input
                                 id="lastName"
@@ -189,7 +189,7 @@ export default function ProfilePage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="email" className="flex items-center gap-1.5">
-                            <Mail className="w-3.5 h-3.5 text-slate-400" />
+                            <Mail className="w-3.5 h-3.5 text-[#8a8a8a]" />
                             Email Address <span className="text-destructive">*</span>
                         </Label>
                         <Input
@@ -216,7 +216,7 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader>
                     <CardTitle className="text-lg">Account Details</CardTitle>
                     <CardDescription>Read-only information about your account.</CardDescription>
@@ -224,21 +224,21 @@ export default function ProfilePage() {
                 <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <Label className="text-xs text-slate-500 uppercase tracking-wider">Role</Label>
+                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Role</Label>
                             <p className="text-sm font-medium mt-1">{user.appRole}</p>
                         </div>
                         <div>
-                            <Label className="text-xs text-slate-500 uppercase tracking-wider">User ID</Label>
-                            <p className="text-sm font-mono mt-1 text-slate-600">{user.id}</p>
+                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">User ID</Label>
+                            <p className="text-sm font-mono mt-1 text-[#4a4a4a]">{user.id}</p>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
-                        <Lock className="w-5 h-5 text-slate-500" />
+                        <Lock className="w-5 h-5 text-[#8a8a8a]" />
                         Change Password
                     </CardTitle>
                     <CardDescription>Update your password. You will need to log in again after changing it.</CardDescription>
@@ -258,7 +258,7 @@ export default function ProfilePage() {
                             />
                             <button
                                 type="button"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a8a8a] hover:text-[#4a4a4a]"
                                 onClick={() => setShowCurrentPw(!showCurrentPw)}
                             >
                                 {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -283,7 +283,7 @@ export default function ProfilePage() {
                             />
                             <button
                                 type="button"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a8a8a] hover:text-[#4a4a4a]"
                                 onClick={() => setShowNewPw(!showNewPw)}
                             >
                                 {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
     LineChart,
@@ -48,7 +48,7 @@ export const RevenueTrendChart = ({ data }: { data?: any[] }) => {
                     <Line
                         type="monotone"
                         dataKey="revenue"
-                        stroke="#2563eb"
+                        stroke="#00a7f4"
                         strokeWidth={3}
                         dot={{ r: 4, strokeWidth: 2 }}
                         activeDot={{ r: 6 }}
@@ -76,7 +76,7 @@ export const ProfitBreakdownChart = () => {
                     />
                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                     <Bar dataKey="gross" fill="#64748b" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="operating" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="operating" fill="#00a7f4" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="net" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
             </ResponsiveContainer>

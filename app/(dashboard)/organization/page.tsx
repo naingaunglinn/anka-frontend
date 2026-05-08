@@ -9,18 +9,12 @@ import { RolesTable } from '@/components/tables/RolesTable';
 import { RoleForm } from '@/components/forms/RoleForm';
 import { OverheadsTable } from '@/components/tables/OverheadsTable';
 import { OverheadForm } from '@/components/forms/OverheadForm';
-import { CapacityRolesTable } from '@/components/tables/CapacityRolesTable';
-import { CapacityRoleForm } from '@/components/forms/CapacityRoleForm';
-import { SkillsTable } from '@/components/tables/SkillsTable';
-import { SkillForm } from '@/components/forms/SkillForm';
 import {
     type DepartmentFormValues,
     type RoleFormValues,
     type EmployeeFormValues,
     type EmployeeCreateValues,
     type OverheadFormValues,
-    type CapacityRoleFormValues,
-    type SkillFormValues,
 } from '@/lib/schemas/organization.schema';
 import {
     Dialog,
@@ -37,17 +31,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
-import { Employee, Department, Role, GlobalOverhead, CapacityRole, Skill } from '@/types/business';
+import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
-import {
-    insertCapacityRole,
-    updateCapacityRoleDB,
-    deleteCapacityRoleDB,
-    insertSkill,
-    updateSkillDB,
-    deleteSkillDB,
-} from '@/lib/queries/organization';
 export default function EmployeesPage() {
     // Connect to Store
     const store = useBusinessStore();
@@ -102,26 +88,6 @@ export default function EmployeesPage() {
     // Overheads State
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
     const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
-
-    // Capacity Roles State
-    const [isCapacityRoleDialogOpen, setIsCapacityRoleDialogOpen] = useState(false);
-    const [editingCapacityRole, setEditingCapacityRole] = useState<CapacityRole | null>(null);
-    const [capacityRoles, setCapacityRoles] = useState<CapacityRole[]>([]);
-    useEffect(() => {
-        import('@/lib/queries/organization').then(m =>
-            m.fetchCapacityRoles().then(setCapacityRoles).catch(() => {})
-        );
-    }, []);
-
-    // Skills State
-    const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false);
-    const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
-    const [skills, setSkills] = useState<Skill[]>([]);
-    useEffect(() => {
-        import('@/lib/queries/organization').then(m =>
-            m.fetchSkills().then(setSkills).catch(() => {})
-        );
-    }, []);
 
     const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
         taxes: store.companySettings.employerTaxPercentage,
@@ -253,48 +219,6 @@ export default function EmployeesPage() {
         setEditingOverhead(null);
     };
 
-    // --- Capacity Role Handlers ---
-    const handleAddCapacityRole = async (data: CapacityRoleFormValues) => {
-        const newRole: CapacityRole = { id: crypto.randomUUID(), ...data };
-        await insertCapacityRole(newRole);
-        setCapacityRoles(prev => [...prev, newRole]);
-        setIsCapacityRoleDialogOpen(false);
-    };
-
-    const handleEditCapacityRole = async (data: CapacityRoleFormValues) => {
-        if (!editingCapacityRole) return;
-        const updated = { ...editingCapacityRole, ...data };
-        await updateCapacityRoleDB(updated);
-        setCapacityRoles(prev => prev.map(r => r.id === editingCapacityRole.id ? updated : r));
-        setEditingCapacityRole(null);
-    };
-
-    const handleDeleteCapacityRole = async (id: string) => {
-        await deleteCapacityRoleDB(id);
-        setCapacityRoles(prev => prev.filter(r => r.id !== id));
-    };
-
-    // --- Skill Handlers ---
-    const handleAddSkill = async (data: SkillFormValues) => {
-        const newSkill: Skill = { id: crypto.randomUUID(), ...data };
-        await insertSkill(newSkill);
-        setSkills(prev => [...prev, newSkill]);
-        setIsSkillDialogOpen(false);
-    };
-
-    const handleEditSkill = async (data: SkillFormValues) => {
-        if (!editingSkill) return;
-        const updated = { ...editingSkill, ...data };
-        await updateSkillDB(updated);
-        setSkills(prev => prev.map(s => s.id === editingSkill.id ? updated : s));
-        setEditingSkill(null);
-    };
-
-    const handleDeleteSkill = async (id: string) => {
-        await deleteSkillDB(id);
-        setSkills(prev => prev.filter(s => s.id !== id));
-    };
-
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
@@ -308,7 +232,7 @@ export default function EmployeesPage() {
     if (syncing) {
         return (
             <div className="flex items-center justify-center h-64">
-                <p className="text-sm text-muted-foreground animate-pulse">
+                <p className="text-sm text-[#4a4a4a] animate-pulse">
                     Loading organization data...
                 </p>
             </div>
@@ -329,32 +253,30 @@ export default function EmployeesPage() {
         <div className="space-y-6">
             <div>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
-                    <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Organization Settings</h2>
+                    <p className="text-[#4a4a4a] mt-1">Manage your departments, roles, employees, and cost structures.</p>
                 </div>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
-                <TabsList className="grid w-full grid-cols-7 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
+                <TabsList className="grid w-full grid-cols-5 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
                     <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
-                    <TabsTrigger value="capacityRoles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Role Types</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
-                    <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Skills</TabsTrigger>
-                    <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary</TabsTrigger>
-                    <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Overhead</TabsTrigger>
+                    <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
+                    <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
                 </TabsList>
 
                 {/* DEPARTMENTS TAB */}
                 <TabsContent value="departments" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Departments</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organizational departments.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Departments</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organizational departments.</p>
                         </div>
                         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Department
                                 </Button>
                             </DialogTrigger>
@@ -393,14 +315,14 @@ export default function EmployeesPage() {
 
                 {/* ROLES TAB */}
                 <TabsContent value="roles" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Roles & Rates</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define roles and standard billable rates.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Roles & Rates</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define roles and standard billable rates.</p>
                         </div>
                         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Role
                                 </Button>
                             </DialogTrigger>
@@ -437,106 +359,16 @@ export default function EmployeesPage() {
                     </Dialog>
                 </TabsContent>
 
-                {/* CAPACITY ROLES TAB */}
-                <TabsContent value="capacityRoles" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Role Types</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define capacity roles for team allocation (e.g. Frontend Developer, Project Manager).</p>
-                        </div>
-                        <Dialog open={isCapacityRoleDialogOpen} onOpenChange={setIsCapacityRoleDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-                                    <Plus className="w-4 h-4" /> Add Role Type
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
-                                <DialogHeader>
-                                    <DialogTitle>Add Role Type</DialogTitle>
-                                    <DialogDescription>Create a new capacity role for team allocation.</DialogDescription>
-                                </DialogHeader>
-                                <CapacityRoleForm onSubmit={handleAddCapacityRole} onCancel={() => setIsCapacityRoleDialogOpen(false)} />
-                            </DialogContent>
-                        </Dialog>
-                    </div>
-
-                    <CapacityRolesTable
-                        data={capacityRoles}
-                        onEdit={setEditingCapacityRole}
-                        onDelete={handleDeleteCapacityRole}
-                    />
-
-                    <Dialog open={!!editingCapacityRole} onOpenChange={(open) => !open && setEditingCapacityRole(null)}>
-                        <DialogContent className="sm:max-w-[500px]">
-                            <DialogHeader>
-                                <DialogTitle>Edit Role Type</DialogTitle>
-                            </DialogHeader>
-                            {editingCapacityRole && (
-                                <CapacityRoleForm
-                                    initialData={editingCapacityRole}
-                                    onSubmit={handleEditCapacityRole}
-                                    onCancel={() => setEditingCapacityRole(null)}
-                                />
-                            )}
-                        </DialogContent>
-                    </Dialog>
-                </TabsContent>
-
-                {/* SKILLS TAB */}
-                <TabsContent value="skills" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Skills</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define skills for AI team building and employee assignments.</p>
-                        </div>
-                        <Dialog open={isSkillDialogOpen} onOpenChange={setIsSkillDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-                                    <Plus className="w-4 h-4" /> Add Skill
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
-                                <DialogHeader>
-                                    <DialogTitle>Add Skill</DialogTitle>
-                                    <DialogDescription>Create a new skill for your organization.</DialogDescription>
-                                </DialogHeader>
-                                <SkillForm onSubmit={handleAddSkill} onCancel={() => setIsSkillDialogOpen(false)} />
-                            </DialogContent>
-                        </Dialog>
-                    </div>
-
-                    <SkillsTable
-                        data={skills}
-                        onEdit={setEditingSkill}
-                        onDelete={handleDeleteSkill}
-                    />
-
-                    <Dialog open={!!editingSkill} onOpenChange={(open) => !open && setEditingSkill(null)}>
-                        <DialogContent className="sm:max-w-[500px]">
-                            <DialogHeader>
-                                <DialogTitle>Edit Skill</DialogTitle>
-                            </DialogHeader>
-                            {editingSkill && (
-                                <SkillForm
-                                    initialData={editingSkill}
-                                    onSubmit={handleEditSkill}
-                                    onCancel={() => setEditingSkill(null)}
-                                />
-                            )}
-                        </DialogContent>
-                    </Dialog>
-                </TabsContent>
-
                 {/* EMPLOYEES TAB */}
                 <TabsContent value="employees" className="mt-0 space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Employees List</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Employees List</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
@@ -550,10 +382,10 @@ export default function EmployeesPage() {
                         </Dialog>
                     </div>
 
-                    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-[#e6e9ee] bg-white p-4 shadow-sm">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center">
                             <div className="relative md:flex-1">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
                                 <Input
                                     value={empSearchName}
                                     onChange={(e) => setEmpSearchName(e.target.value)}
@@ -589,7 +421,7 @@ export default function EmployeesPage() {
                             </div>
                         </div>
                         {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-[#8a8a8a]">
                                 Showing {filteredEmployees.length} of {store.employees.length} employees.
                                 <button
                                     type="button"
@@ -632,7 +464,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -668,14 +500,14 @@ export default function EmployeesPage() {
 
                 {/* OVERHEAD TAB */}
                 <TabsContent value="overhead" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Global Overhead Categories</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Global Overhead Categories</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
                         </div>
                         <Dialog open={isOverheadDialogOpen} onOpenChange={setIsOverheadDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Overhead
                                 </Button>
                             </DialogTrigger>

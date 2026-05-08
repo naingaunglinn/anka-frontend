@@ -21,8 +21,8 @@ export default function DashboardError({
                 <AlertCircle className="w-6 h-6 text-rose-600" />
             </div>
             <div>
-                <h2 className="text-lg font-semibold text-slate-900">Something went wrong</h2>
-                <p className="text-sm text-slate-500 mt-1 max-w-sm">
+                <h2 className="text-lg font-semibold text-[#171717]">Something went wrong</h2>
+                <p className="text-sm text-[#8a8a8a] mt-1 max-w-sm">
                     {error.message || 'An unexpected error occurred loading this page.'}
                 </p>
             </div>

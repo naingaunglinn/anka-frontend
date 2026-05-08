@@ -71,12 +71,46 @@ ${contextSection}
 Question: ${question}`
 }
 
+// ── Demo fallback: uses knowledge base to answer without calling Claude ──
+function generateDemoAnswer(question: string): { answer: string; sources: { title: string; category: string }[] } {
+    const relevant = findRelevantChunks(question, 3)
+
+    if (relevant.length === 0) {
+        return {
+            answer: `I'm not sure about that specific topic. I can help with questions about ANKA's CRM, estimation, contracts, projects, time tracking, organization, and AI features. What would you like to know?`,
+            sources: [{ title: 'ANKA Help', category: 'General' }],
+        }
+    }
+
+    const best = relevant[0]
+    const lines = best.content.split('\n').filter(l => l.trim().length > 10)
+    const summary = lines.slice(0, 6).join('\n')
+
+    const answers: Record<string, string> = {
+        'win a deal': `To win a deal in ANKA:\n1. Open the deal detail page from the CRM board\n2. Click the **Win Deal** button\n3. Optionally add a win reason\n4. Confirm — this triggers the \\"win_deal()\\" stored procedure\n5. The system automatically creates a **Contract** and a **Project**\n6. Team assignments from the deal are copied to the project\n\nThe deal status changes to \\"won\\" and appears in the Won column.`,
+        'time tracking': `Time tracking in ANKA works like this:\n1. Employees log hours against projects via **Time Entries**\n2. Each entry has a status: Draft → Pending → Approved/Rejected\n3. When approved, the entry's hours are added to the project's **consumed_hours**\n4. Approved entries also feed into the **P&L** as direct labor costs\n5. Managers can approve or reject entries from the Time Tracking page\n\nThe AI Auto-Assign feature can pre-populate assignments when a deal is won.`,
+        'auto-assign': `AI Auto-Assign distributes project hours to team members automatically:\n1. When a contract is won, go to the Project detail page\n2. Click **Auto-Assign Team**\n3. The AI reads the deal's scope and matches employees by skills + capacity role\n4. It creates project_team_assignments with realistic allocated hours\n5. You can manually adjust assignments afterward\n\nThis saves PMs from manually calculating capacity for every new project.`,
+        'estimation': `Estimation in ANKA is embedded in Deals, not a separate entity:\n1. Each deal has ghost_roles (estimated team composition)\n2. Set client budget, timeline, and workload hours\n3. Base labor cost = sum of (quantity × months × avg salary)\n4. Overhead and buffer costs are calculated from company settings\n5. The AI Team Builder suggests optimal staffing based on scope\n\nAll estimation data travels with the deal when it's won.`,
+        'contract': `Contracts in ANKA are created exclusively by the **win_deal()** stored procedure.\n\nKey points:\n- No manual contract creation endpoint exists\n- Contract gets client name and total_value from the deal\n- Status flow: Draft → Active → Completed/Cancelled\n- Invoices belong to contracts (not projects)\n- Revenue recognized = sum of paid invoices\n\nMilestones can group related invoices for easier billing.`,
+    }
+
+    const lowerQ = question.toLowerCase()
+    let answer = summary
+    for (const [key, value] of Object.entries(answers)) {
+        if (lowerQ.includes(key)) {
+            answer = value
+            break
+        }
+    }
+
+    return {
+        answer,
+        sources: relevant.map(c => ({ title: c.source, category: c.category })),
+    }
+}
+
 export async function POST(req: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
-
-    if (!apiKey) {
-        return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
-    }
 
     let body: ChatRequest
     try {
@@ -87,6 +121,13 @@ export async function POST(req: NextRequest) {
 
     if (!body.question?.trim()) {
         return NextResponse.json({ error: 'Question is required' }, { status: 400 })
+    }
+
+    // Demo fallback: if no API key, answer from knowledge base
+    if (!apiKey) {
+        console.log('[AI Chatbot] Demo fallback — no API key configured')
+        const demo = generateDemoAnswer(body.question)
+        return NextResponse.json({ ...demo, model: 'demo-mode' })
     }
 
     const client = new Anthropic({ apiKey })
@@ -112,7 +153,8 @@ export async function POST(req: NextRequest) {
         const rawText = message.content[0]?.type === 'text' ? message.content[0].text : ''
 
         if (!rawText) {
-            return NextResponse.json({ error: 'AI returned empty response' }, { status: 500 })
+            const demo = generateDemoAnswer(body.question)
+            return NextResponse.json({ ...demo, model: 'demo-fallback' })
         }
 
         const relevantChunks = findRelevantChunks(body.question, 3)
@@ -126,6 +168,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(response)
     } catch (err) {
         console.error('AI Chatbot error:', err)
-        return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 })
+        // Fallback to demo mode on any API error
+        const demo = generateDemoAnswer(body.question)
+        return NextResponse.json({ ...demo, model: 'demo-fallback' })
     }
 }

@@ -99,8 +99,8 @@ export default function MyTasksPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Tasks</h1>
-                <p className="text-slate-500 mt-1">
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">My Tasks</h1>
+                <p className="text-[#8a8a8a] mt-1">
                     Tasks your manager has assigned to you. Mark a task self-completed when you&apos;re done — your manager will review and close it.
                 </p>
             </div>
@@ -123,7 +123,7 @@ export default function MyTasksPage() {
                             <TabsTrigger value="closed">{TAB_LABEL.closed}</TabsTrigger>
                         </TabsList>
                         <div className="relative w-full md:w-72">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
                             <Input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
@@ -135,10 +135,10 @@ export default function MyTasksPage() {
 
                     {(['open', 'pending', 'closed'] as TabKey[]).map((tab) => (
                         <TabsContent key={tab} value={tab} className="mt-0">
-                            <Card className="shadow-sm border-slate-100">
+                            <Card className="shadow-sm border-[#e6e9ee]">
                                 <CardContent className="p-0">
                                     <Table>
-                                        <TableHeader className="bg-slate-50">
+                                        <TableHeader className="bg-white">
                                             <TableRow>
                                                 <TableHead className="w-[120px]">Date</TableHead>
                                                 <TableHead>Project</TableHead>
@@ -158,7 +158,7 @@ export default function MyTasksPage() {
                                             ) : entriesQuery.isError ? (
                                                 <TableRow>
                                                     <TableCell colSpan={tab === 'open' ? 6 : 5} className="py-10 text-center">
-                                                        <div className="flex flex-col items-center gap-2 text-slate-500">
+                                                        <div className="flex flex-col items-center gap-2 text-[#8a8a8a]">
                                                             <span className="text-sm">Could not load your tasks.</span>
                                                             <Button variant="outline" size="sm" onClick={() => entriesQuery.refetch()}>Retry</Button>
                                                         </div>
@@ -166,7 +166,7 @@ export default function MyTasksPage() {
                                                 </TableRow>
                                             ) : entries.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={tab === 'open' ? 6 : 5} className="py-10 text-center text-slate-500">
+                                                    <TableCell colSpan={tab === 'open' ? 6 : 5} className="py-10 text-center text-[#8a8a8a]">
                                                         {debouncedSearch
                                                             ? 'No tasks match your search.'
                                                             : tab === 'open'
@@ -181,9 +181,9 @@ export default function MyTasksPage() {
                                                     const isPending = submitTimeEntry.isPending && submitTimeEntry.variables === e.id;
                                                     return (
                                                         <TableRow key={e.id}>
-                                                            <TableCell className="text-slate-500 whitespace-nowrap">
+                                                            <TableCell className="text-[#8a8a8a] whitespace-nowrap">
                                                                 <div className="flex items-center gap-2">
-                                                                    <Calendar className="h-4 w-4 text-slate-400" />
+                                                                    <Calendar className="h-4 w-4 text-[#8a8a8a]" />
                                                                     {e.date}
                                                                 </div>
                                                             </TableCell>
@@ -227,7 +227,7 @@ export default function MyTasksPage() {
             )}
 
             {employeeId && meta && (
-                <div className="flex items-center justify-between text-sm text-slate-500">
+                <div className="flex items-center justify-between text-sm text-[#8a8a8a]">
                     <div>
                         {meta.total === 0
                             ? 'No tasks'

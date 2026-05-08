@@ -11,7 +11,6 @@ import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { formatMoney } from "@/lib/currency";
 import { Deal, GhostRole, RoleType } from "@/types/business";
 import { v4 as uuidv4 } from "uuid";
-import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 
 import {
     Form,
@@ -44,7 +43,6 @@ import {
 } from "@/components/ui/table";
 
 export default function NewDealPage() {
-    useOrganizationSync();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
@@ -236,7 +234,7 @@ export default function NewDealPage() {
         <div className="container mx-auto p-6 max-w-5xl space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Draft New Deal</h1>
-                <p className="text-muted-foreground mt-1">Structure the client context, estimate costs, and prepare deliverables.</p>
+                <p className="text-[#4a4a4a] mt-1">Structure the client context, estimate costs, and prepare deliverables.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -266,7 +264,7 @@ export default function NewDealPage() {
                                 </TabsList>
 
                                         <TabsContent value="context" className="space-y-6">
-                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100 space-y-6">
+                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-[#e6e9ee] space-y-6">
                                                 <FormField
                                                     control={form.control}
                                                     name="name"
@@ -343,7 +341,7 @@ export default function NewDealPage() {
                                                         name="expectedCloseDate"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Expected Start Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                                <FormLabel>Expected Start Date <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="date" className="bg-white" {...field} />
                                                                 </FormControl>
@@ -353,7 +351,7 @@ export default function NewDealPage() {
                                                     />
                                                     <FormItem>
                                                         <FormLabel>Expected End Date</FormLabel>
-                                                        <div className="h-9 flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                                                        <div className="h-9 flex items-center rounded-md border border-[#e6e9ee] bg-white px-3 text-sm text-[#4a4a4a]">
                                                             {expectedCloseDate && timelineMonths
                                                                 ? new Date(new Date(expectedCloseDate).getTime() + Number(timelineMonths) * 30.44 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
                                                                 : '—'}
@@ -366,7 +364,7 @@ export default function NewDealPage() {
                                                     name="leadSource"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                            <FormLabel>Lead Source <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
                                                             <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                                                 <FormControl>
                                                                     <SelectTrigger className="bg-white">
@@ -433,7 +431,7 @@ export default function NewDealPage() {
                                                     name="workloadDescription"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>Project Scope / Workload Description <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                                            <FormLabel>Project Scope / Workload Description <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
                                                             <FormControl>
                                                                 <Textarea
                                                                     placeholder="Describe the project scope, deliverables, tech stack requirements, and any other details that will help AI assemble the right team..."
@@ -448,10 +446,10 @@ export default function NewDealPage() {
 
                                                 <div>
                                                     <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                        Upload Brief (.txt) <span className="text-muted-foreground font-normal">— optional</span>
+                                                        Upload Brief (.txt) <span className="text-[#4a4a4a] font-normal">— optional</span>
                                                     </label>
                                                     <div className="mt-2 flex items-center gap-3">
-                                                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
+                                                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-[#e6e9ee] bg-white text-sm font-medium text-slate-700 hover:bg-white shadow-sm transition-colors">
                                                             <Upload className="h-4 w-4" />
                                                             Choose file
                                                             <input
@@ -462,7 +460,7 @@ export default function NewDealPage() {
                                                             />
                                                         </label>
                                                         {uploadedFileName && (
-                                                            <span className="text-xs text-slate-500">{uploadedFileName}</span>
+                                                            <span className="text-xs text-[#8a8a8a]">{uploadedFileName}</span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -470,11 +468,11 @@ export default function NewDealPage() {
                                         </TabsContent>
 
                                         <TabsContent value="estimation" className="space-y-6">
-                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-[#e6e9ee]">
                                                 <div className="flex items-center justify-between mb-6 pb-4 border-b">
                                                     <div>
-                                                        <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
-                                                        <p className="text-xs text-muted-foreground mt-1">Estimate the shape of the team needed to deliver this deal.</p>
+                                                        <h3 className="text-sm font-semibold text-[#171717]">Ghost Roles Required</h3>
+                                                        <p className="text-xs text-[#4a4a4a] mt-1">Estimate the shape of the team needed to deliver this deal.</p>
                                                     </div>
                                                     <Button
                                                         type="button"
@@ -498,7 +496,7 @@ export default function NewDealPage() {
                                                                 name={`ghostRoles.${index}.roleType`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="flex-1 shrink-0 min-w-[120px]">
-                                                                        <FormLabel className="text-xs text-slate-500">Role</FormLabel>
+                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Role</FormLabel>
                                                                         <Select onValueChange={field.onChange} value={field.value}>
                                                                             <FormControl>
                                                                                 <SelectTrigger>
@@ -522,7 +520,7 @@ export default function NewDealPage() {
                                                                 name={`ghostRoles.${index}.quantity`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="w-20 shrink-0">
-                                                                        <FormLabel className="text-xs text-slate-500">Qty</FormLabel>
+                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Qty</FormLabel>
                                                                         <FormControl>
                                                                             <Input type="number" {...field} />
                                                                         </FormControl>
@@ -535,7 +533,7 @@ export default function NewDealPage() {
                                                                 name={`ghostRoles.${index}.months`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="w-20 shrink-0">
-                                                                        <FormLabel className="text-xs text-slate-500">Alloc %</FormLabel>
+                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Alloc %</FormLabel>
                                                                         <FormControl>
                                                                             <Input type="number" step="10" min="10" max="100" {...field} />
                                                                         </FormControl>
@@ -549,7 +547,7 @@ export default function NewDealPage() {
                                                                      name={`ghostRoles.${index}.minMonthlySalary`}
                                                                      render={({ field }) => (
                                                                          <FormItem className="w-24 shrink-0">
-                                                                             <FormLabel className="text-xs text-slate-500">Min Salary</FormLabel>
+                                                                             <FormLabel className="text-xs text-[#8a8a8a]">Min Salary</FormLabel>
                                                                              <FormControl>
                                                                                  <Input type="number" {...field} />
                                                                              </FormControl>
@@ -562,7 +560,7 @@ export default function NewDealPage() {
                                                                      name={`ghostRoles.${index}.maxMonthlySalary`}
                                                                      render={({ field }) => (
                                                                          <FormItem className="w-24 shrink-0">
-                                                                             <FormLabel className="text-xs text-slate-500">Max Salary</FormLabel>
+                                                                             <FormLabel className="text-xs text-[#8a8a8a]">Max Salary</FormLabel>
                                                                              <FormControl>
                                                                                  <Input type="number" {...field} />
                                                                              </FormControl>
@@ -574,7 +572,7 @@ export default function NewDealPage() {
                                                                      type="button"
                                                                      variant="ghost"
                                                                      size="icon"
-                                                                     className="h-9 w-9 text-slate-400 hover:text-indigo-600 shrink-0"
+                                                                     className="h-9 w-9 text-[#8a8a8a] hover:text-indigo-600 shrink-0"
                                                                      title="Pull salary range from organization"
                                                                      onClick={() => {
                                                                          const gr = form.getValues(`ghostRoles.${index}`);
@@ -590,7 +588,7 @@ export default function NewDealPage() {
                                                                 type="button"
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                className="text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                className="text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
                                                                 onClick={() => remove(index)}
                                                                 disabled={fields.length === 1}
                                                             >
@@ -614,8 +612,8 @@ export default function NewDealPage() {
 
                                         <TabsContent value="staffing" className="space-y-6">
                                             {ghostRoles.length === 0 ? (
-                                                <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center">
-                                                    <p className="text-sm text-slate-500">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
+                                                <div className="bg-white border border-[#e6e9ee] border-dashed rounded-xl p-8 text-center">
+                                                    <p className="text-sm text-[#8a8a8a]">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
                                                 </div>
                                             ) : (
                                                 ghostRoles.map((gr, grIndex) => {
@@ -641,11 +639,11 @@ export default function NewDealPage() {
                                                     const input = staffingInputs[grIndex] || { employeeId: '', hours: 0 };
 
                                                     return (
-                                                        <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
+                                                        <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <div>
-                                                                    <h3 className="text-sm font-semibold text-slate-900">{roleLabel}</h3>
-                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                    <h3 className="text-sm font-semibold text-[#171717]">{roleLabel}</h3>
+                                                                    <p className="text-xs text-[#4a4a4a] mt-1">
                                                                         Assigned {assignedCount} of {gr.quantity} • Salary range: {formatMoney(gr.minMonthlySalary, currency)} – {formatMoney(gr.maxMonthlySalary, currency)}
                                                                     </p>
                                                                 </div>
@@ -698,7 +696,7 @@ export default function NewDealPage() {
                                                                                             type="button"
                                                                                             variant="ghost"
                                                                                             size="icon"
-                                                                                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                                            className="h-8 w-8 text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
                                                                                             onClick={() => removeHardAssignment(assignment.employeeId)}
                                                                                         >
                                                                                             <Trash2 className="h-4 w-4" />
@@ -710,13 +708,13 @@ export default function NewDealPage() {
                                                                     </TableBody>
                                                                 </Table>
                                                             ) : (
-                                                                <p className="text-sm text-slate-400">No staff assigned to this role yet.</p>
+                                                                <p className="text-sm text-[#8a8a8a]">No staff assigned to this role yet.</p>
                                                             )}
 
                                                             {canAddMore && availableEmployees.length > 0 && (
-                                                                <div className="flex gap-3 items-end pt-2 border-t border-slate-100">
+                                                                <div className="flex gap-3 items-end pt-2 border-t border-[#e6e9ee]">
                                                                     <div className="flex-1">
-                                                                        <label className="text-xs text-slate-500 block mb-1">Employee</label>
+                                                                        <label className="text-xs text-[#8a8a8a] block mb-1">Employee</label>
                                                                         <Select
                                                                             value={input.employeeId}
                                                                             onValueChange={(v) => setStaffingInputs(prev => ({ ...prev, [grIndex]: { ...input, employeeId: v } }))}
@@ -734,7 +732,7 @@ export default function NewDealPage() {
                                                                         </Select>
                                                                     </div>
                                                                     <div className="w-32">
-                                                                        <label className="text-xs text-slate-500 block mb-1">Hours</label>
+                                                                        <label className="text-xs text-[#8a8a8a] block mb-1">Hours</label>
                                                                         <Input
                                                                             type="number"
                                                                             className="bg-white"
@@ -763,7 +761,7 @@ export default function NewDealPage() {
                                                             )}
 
                                                             {!canAddMore && (
-                                                                <p className="text-xs text-slate-400 pt-2">
+                                                                <p className="text-xs text-[#8a8a8a] pt-2">
                                                                     Role capacity reached ({gr.quantity} of {gr.quantity} assigned).
                                                                 </p>
                                                             )}
@@ -803,7 +801,7 @@ export default function NewDealPage() {
                                                                     return (
                                                                         <TableRow key={assignment.employeeId}>
                                                                             <TableCell className="font-medium">{emp.name}</TableCell>
-                                                                            <TableCell className="text-slate-500">{emp.roleName || emp.role}</TableCell>
+                                                                            <TableCell className="text-[#8a8a8a]">{emp.roleName || emp.role}</TableCell>
                                                                             <TableCell className="text-right">{assignment.allocatedHours}</TableCell>
                                                                             <TableCell className="text-right">{formatMoney(emp.monthlySalary, currency)}</TableCell>
                                                                             <TableCell>
@@ -811,7 +809,7 @@ export default function NewDealPage() {
                                                                                     type="button"
                                                                                     variant="ghost"
                                                                                     size="icon"
-                                                                                    className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                                                    className="h-8 w-8 text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
                                                                                     onClick={() => removeHardAssignment(assignment.employeeId)}
                                                                                 >
                                                                                     <Trash2 className="h-4 w-4" />
@@ -839,8 +837,8 @@ export default function NewDealPage() {
                                                     return acc;
                                                 }, {} as Record<string, { qty: number; hours: number; cost: number }>);
                                                 return (
-                                                    <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-4">
-                                                        <h3 className="text-sm font-semibold text-slate-900">Team Engineers</h3>
+                                                    <div className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-4">
+                                                        <h3 className="text-sm font-semibold text-[#171717]">Team Engineers</h3>
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
@@ -869,7 +867,7 @@ export default function NewDealPage() {
                                     </Tabs>
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-[#4a4a4a]">
                                             Fields marked <span className="text-destructive">*</span> are required.
                                         </p>
                                         <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={createDeal.isPending}>
@@ -885,33 +883,33 @@ export default function NewDealPage() {
 
                 {/* Live Calculation Output Sidebar */}
                 <div className="space-y-6">
-                    <Card className="sticky top-6 shadow-sm border-slate-100">
-                        <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100 rounded-t-xl">
+                    <Card className="sticky top-6 shadow-sm border-[#e6e9ee]">
+                        <CardHeader className="bg-slate-50/80 pb-4 border-b border-[#e6e9ee] rounded-t-xl">
                             <CardTitle className="text-lg">Live Financials</CardTitle>
                             <CardDescription>Estimated metrics based on inputs</CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-5">
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Base Labor Cost</span>
+                                    <span className="text-[#8a8a8a]">Base Labor Cost</span>
                                     <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Overhead ({companySettings.overheadPercentage}%)</span>
+                                    <span className="text-[#8a8a8a]">Overhead ({companySettings.overheadPercentage}%)</span>
                                     <span className="font-medium text-red-500/80">+{formatMoney(overheadCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Risk Buffer ({companySettings.bufferPercentage}%)</span>
+                                    <span className="text-[#8a8a8a]">Risk Buffer ({companySettings.bufferPercentage}%)</span>
                                     <span className="font-medium text-red-500/80">+{formatMoney(bufferCost, currency)}</span>
                                 </div>
                             </div>
 
-                            <div className="border-t border-slate-100 pt-5">
+                            <div className="border-t border-[#e6e9ee] pt-5">
                                 <div className="flex justify-between font-bold text-slate-800 mb-3">
                                     <span>Total Est. Cost</span>
                                     <span>{formatMoney(totalEstimatedCost, currency)}</span>
                                 </div>
-                                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-[#e6e9ee]">
                                     <span className="font-bold text-slate-800">Gross Profit</span>
                                     <div className="flex flex-col items-end">
                                         <span className={`font-bold text-lg ${getMarginColor(profitMargin)}`}>
