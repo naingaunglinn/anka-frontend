@@ -11,14 +11,15 @@ const clientLogos = [
   "Summit Education",
 ];
 
-// Demo stats matching the seeded database
+// Demo stats matching the seeded Pixel Agency database exactly
 const DEMO_STATS = {
-  pipelineValue: 485000,
-  wonRevenue: 175000,
+  // Active pipeline (lead + inquiry + proposal + contract stages)
+  pipelineValue: 325000,
+  // Won revenue (Apex Manufacturing IoT Platform)
+  wonRevenue: 180000,
   activeProjects: 1,
-  teamSize: 4,
+  teamSize: 5,
   dealsCount: 6,
-  forecastAccuracy: 94,
 };
 
 function formatCurrency(n: number): string {
@@ -55,7 +56,7 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden px-6 pb-20 pt-36 md:px-10 md:pt-44">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(0,166,244,0.15),transparent_34%),radial-gradient(circle_at_88%_15%,rgba(0,166,244,0.12),transparent_30%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(0,167,244,0.15),transparent_34%),radial-gradient(circle_at_88%_15%,rgba(0,167,244,0.12),transparent_30%)]" />
         <div className="mx-auto grid w-full max-w-7xl items-center gap-14 lg:grid-cols-2">
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-[#00a7f4]/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-[#0086c4]">
@@ -79,7 +80,7 @@ export default function Home() {
             <div className="mt-10 grid max-w-xl grid-cols-3 gap-6 border-t border-[#e6e9ee] pt-8">
               <Stat n={formatCurrency(DEMO_STATS.pipelineValue)} label="Active pipeline" />
               <Stat n={`${DEMO_STATS.dealsCount}`} label="Live deals" />
-              <Stat n={`${DEMO_STATS.forecastAccuracy}%`} label="Forecast accuracy" />
+              <Stat n={`${DEMO_STATS.teamSize}`} label="Team members" />
             </div>
           </div>
 
@@ -92,10 +93,9 @@ export default function Home() {
               </div>
               <div className="mb-1 flex items-end gap-3">
                 <p className="text-5xl font-semibold tracking-tight">{formatCurrency(DEMO_STATS.wonRevenue)}</p>
-                <p className="flex items-center gap-1 font-mono text-sm font-semibold text-emerald-600"><TrendingUp className="h-4 w-4" />+12.4%</p>
               </div>
-              <p className="mb-5 text-sm text-[#8a8a8a]">YTD recognized revenue · 1 active project · 4 team members</p>
-              <div className="mb-5 h-24 rounded-xl bg-[linear-gradient(160deg,rgba(0,166,244,0.22),rgba(0,166,244,0.02))]" />
+              <p className="mb-5 text-sm text-[#8a8a8a]">Won revenue · 1 active project · 5 team members</p>
+              <div className="mb-5 h-24 rounded-xl bg-[linear-gradient(160deg,rgba(0,167,244,0.22),rgba(0,167,244,0.02))]" />
               <div className="space-y-2">
                 <PipelineRow name="BluePeak Logistics — Dashboard" stage="Proposal" value="$65,000" prob="75%" />
                 <PipelineRow name="Sunrise Fintech — Mobile MVP" stage="Qualified" value="$95,000" prob="40%" />
@@ -103,10 +103,12 @@ export default function Home() {
               </div>
             </div>
             <div className="absolute bottom-5 right-0 w-56 rounded-2xl border border-[#e6e9ee] bg-white p-4 shadow-[0_20px_60px_-20px_rgba(23,23,23,0.12)]">
-              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8a8a8a]">Team Utilization</p>
-              <p className="text-4xl font-semibold">78%</p>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eef1f5]"><div className="h-full w-[78%] bg-[#00a7f4]" /></div>
-              <p className="mt-2 font-mono text-[11px] text-[#8a8a8a]">Target: 80% · 3 roles at capacity</p>
+              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8a8a8a]">Demo Quick Stats</p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm"><span className="text-[#4a4a4a]">Contracts</span><span className="font-semibold">4</span></div>
+                <div className="flex justify-between text-sm"><span className="text-[#4a4a4a]">Invoices</span><span className="font-semibold">3</span></div>
+                <div className="flex justify-between text-sm"><span className="text-[#4a4a4a]">Time Entries</span><span className="font-semibold">14</span></div>
+              </div>
             </div>
           </div>
         </div>

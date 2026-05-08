@@ -9,12 +9,15 @@ import { RolesTable } from '@/components/tables/RolesTable';
 import { RoleForm } from '@/components/forms/RoleForm';
 import { OverheadsTable } from '@/components/tables/OverheadsTable';
 import { OverheadForm } from '@/components/forms/OverheadForm';
+import { SkillsTable } from '@/components/tables/SkillsTable';
+import { SkillForm } from '@/components/forms/SkillForm';
 import {
     type DepartmentFormValues,
     type RoleFormValues,
     type EmployeeFormValues,
     type EmployeeCreateValues,
     type OverheadFormValues,
+    type SkillFormValues,
 } from '@/lib/schemas/organization.schema';
 import {
     Dialog,
@@ -31,7 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
-import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
+import { Employee, Department, Role, GlobalOverhead, Skill } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 export default function EmployeesPage() {
@@ -88,6 +91,10 @@ export default function EmployeesPage() {
     // Overheads State
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
     const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
+
+    // Skills State
+    const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false);
+    const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
 
     const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
         taxes: store.companySettings.employerTaxPercentage,
@@ -219,6 +226,18 @@ export default function EmployeesPage() {
         setEditingOverhead(null);
     };
 
+    // --- Skill Handlers ---
+    const handleAddSkill = async (data: SkillFormValues) => {
+        await store.addSkill({ id: crypto.randomUUID(), ...data });
+        setIsSkillDialogOpen(false);
+    };
+
+    const handleEditSkill = async (data: SkillFormValues) => {
+        if (!editingSkill) return;
+        await store.updateSkill(editingSkill.id, data);
+        setEditingSkill(null);
+    };
+
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
@@ -259,10 +278,11 @@ export default function EmployeesPage() {
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
+                <TabsList className="grid w-full grid-cols-6 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
                     <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
+                    <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Skills</TabsTrigger>
                     <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
                     <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
                 </TabsList>
@@ -455,6 +475,51 @@ export default function EmployeesPage() {
                                     departments={store.departments}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
+                                />
+                            )}
+                        </DialogContent>
+                    </Dialog>
+                </TabsContent>
+
+                {/* SKILLS TAB */}
+                <TabsContent value="skills" className="space-y-4">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <div>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Skills</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage skills that can be assigned to employees.</p>
+                        </div>
+                        <Dialog open={isSkillDialogOpen} onOpenChange={setIsSkillDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
+                                    <Plus className="w-4 h-4" /> Add Skill
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                    <DialogTitle>Add New Skill</DialogTitle>
+                                    <DialogDescription>Create a skill to assign to employees.</DialogDescription>
+                                </DialogHeader>
+                                <SkillForm onSubmit={handleAddSkill} onCancel={() => setIsSkillDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <SkillsTable
+                        data={store.skills}
+                        onEdit={setEditingSkill}
+                        onDelete={(id) => store.deleteSkill(id)}
+                    />
+
+                    <Dialog open={!!editingSkill} onOpenChange={(open) => !open && setEditingSkill(null)}>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle>Edit Skill</DialogTitle>
+                            </DialogHeader>
+                            {editingSkill && (
+                                <SkillForm
+                                    initialData={editingSkill}
+                                    onSubmit={handleEditSkill}
+                                    onCancel={() => setEditingSkill(null)}
                                 />
                             )}
                         </DialogContent>

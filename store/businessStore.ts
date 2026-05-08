@@ -24,6 +24,7 @@ import {
     insertEmployee, updateEmployeeDB, deleteEmployeeDB,
     insertGlobalOverhead, updateGlobalOverheadDB, deleteGlobalOverheadDB,
     upsertCompanySettings,
+    insertSkill, updateSkillDB, deleteSkillDB,
 } from '@/lib/queries/organization';
 import api from '@/lib/api';
 import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
@@ -101,6 +102,11 @@ export interface BusinessState {
     addGlobalOverhead: (oh: GlobalOverhead) => Promise<void>;
     updateGlobalOverhead: (id: string, oh: Partial<GlobalOverhead>) => Promise<void>;
     deleteGlobalOverhead: (id: string) => Promise<void>;
+
+    // Actions — Skills
+    addSkill: (skill: Skill) => Promise<void>;
+    updateSkill: (id: string, skill: Partial<Skill>) => Promise<void>;
+    deleteSkill: (id: string) => Promise<void>;
 
     // Actions — CRM & Deals (routed through lib/api.ts)
     addDeal: (deal: Deal) => Promise<Deal>;
@@ -317,6 +323,39 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ globalOverheads: snapshot });
                     toast.error(`Failed to delete overhead: ${normalizeError(err).message}`);
+                }
+            },
+
+            addSkill: async (skill) => {
+                const snapshot = get().skills;
+                set(s => ({ skills: [...s.skills, skill] }));
+                try {
+                    await insertSkill(skill);
+                } catch (err) {
+                    set({ skills: snapshot });
+                    toast.error(`Failed to add skill: ${normalizeError(err).message}`);
+                }
+            },
+            updateSkill: async (id, skill) => {
+                const snapshot = get().skills;
+                const existing = snapshot.find(sk => sk.id === id);
+                if (!existing) return;
+                set(s => ({ skills: s.skills.map(sk => sk.id === id ? { ...sk, ...skill } : sk) }));
+                try {
+                    await updateSkillDB({ ...existing, ...skill });
+                } catch (err) {
+                    set({ skills: snapshot });
+                    toast.error(`Failed to update skill: ${normalizeError(err).message}`);
+                }
+            },
+            deleteSkill: async (id) => {
+                const snapshot = get().skills;
+                set(s => ({ skills: s.skills.filter(sk => sk.id !== id) }));
+                try {
+                    await deleteSkillDB(id);
+                } catch (err) {
+                    set({ skills: snapshot });
+                    toast.error(`Failed to delete skill: ${normalizeError(err).message}`);
                 }
             },
 

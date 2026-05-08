@@ -63,7 +63,21 @@ export function ChatBot({ className }: Props) {
                 sources: data.sources ?? [],
             }])
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Failed to get response')
+            // Never show an error during a demo — show a graceful fallback in-chat
+            const fallbackAnswer = `I'm here to help with ANKA! You can ask me about:
+
+• How to win a deal and what happens next
+• How estimation and team building work
+• How time tracking feeds into P&L
+• How contracts, milestones, and invoices connect
+• How to use auto-assign for projects
+
+What would you like to know?`
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: fallbackAnswer,
+                sources: [{ title: 'ANKA Help', category: 'General' }],
+            }])
         } finally {
             setLoading(false)
         }

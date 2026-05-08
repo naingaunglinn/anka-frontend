@@ -223,6 +223,11 @@ export default function RegisterPage() {
                                     Sign In
                                 </Link>
                             </p>
+                            <p className="mt-3 text-center text-sm text-[#171717]/70">
+                                <Link href="/" className="font-semibold text-[#00a7f4] hover:underline">
+                                    ← Back to Home
+                                </Link>
+                            </p>
                         </CardContent>
                     </Card>
                 </section>

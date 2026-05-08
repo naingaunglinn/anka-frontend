@@ -7,10 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
+import { Clock, Plus, Users, Briefcase, Calendar, CheckCircle2, XCircle, Trash2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { TimeEntry } from '@/types/business';
+import toast from 'react-hot-toast';
+import api from '@/lib/api';
 import { useProjectList } from '@/lib/queries/projects';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
 
@@ -42,6 +44,23 @@ export default function TimeTrackingPage() {
 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+
+    // AI Auto-Assign state
+    const [autoAssignLoading, setAutoAssignLoading] = useState<string | null>(null);
+
+    async function handleAutoAssign(projectId: string) {
+        setAutoAssignLoading(projectId);
+        try {
+            const res = await api.post(`/projects/${projectId}/auto-assign`);
+            const data = res.data.data ?? res.data;
+            const count = Array.isArray(data) ? data.length : 0;
+            toast.success(count > 0 ? `Auto-assigned ${count} team members` : 'Team auto-assigned successfully');
+        } catch (err) {
+            toast.error('Auto-assign failed. Ensure the project has a linked contract and deal.');
+        } finally {
+            setAutoAssignLoading(null);
+        }
+    }
 
     const handleSaveTime = async () => {
         const errs: typeof timeErrors = {};
@@ -225,6 +244,48 @@ export default function TimeTrackingPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* AI Auto-Assign Section */}
+            {!isLoading && !isError && projects.filter(p => p.status === 'Not Started' || p.status === 'On Track').length > 0 && (
+                <Card className="shadow-sm border-[#e6e9ee]">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-[#00a7f4]" />
+                            AI Team Assignment
+                        </CardTitle>
+                        <CardDescription>
+                            Automatically distribute workload hours across the project team based on skills and availability.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {projects
+                                .filter(p => p.status === 'Not Started' || p.status === 'On Track')
+                                .map(project => (
+                                    <div key={project.id} className="flex items-center justify-between rounded-lg border border-[#e6e9ee] bg-white p-4">
+                                        <div>
+                                            <p className="text-sm font-medium text-[#171717]">{project.name}</p>
+                                            <p className="text-xs text-[#8a8a8a]">{project.client} · {project.status}</p>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
+                                            onClick={() => handleAutoAssign(project.id)}
+                                            disabled={autoAssignLoading === project.id}
+                                        >
+                                            {autoAssignLoading === project.id ? (
+                                                <Clock className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="h-4 w-4" />
+                                            )}
+                                            Auto-Assign Team
+                                        </Button>
+                                    </div>
+                                ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {isLoading ? (
                 <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
