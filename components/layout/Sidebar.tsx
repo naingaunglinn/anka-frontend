@@ -62,7 +62,7 @@ export const Sidebar = () => {
     useEffect(() => setMounted(true), []);
 
     if (!mounted) {
-        return <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl w-64"></div>;
+        return <div className="space-y-4 py-4 flex flex-col h-full bg-[#171717] text-white shadow-xl w-64"></div>;
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
@@ -70,10 +70,10 @@ export const Sidebar = () => {
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white shadow-xl relative transition-all duration-300 w-full overflow-hidden">
+        <div className="space-y-4 py-4 flex flex-col h-full bg-[#171717] text-white shadow-xl relative transition-all duration-300 w-full overflow-hidden">
             <button
                 onClick={toggleSidebar}
-                className="absolute -right-3 top-6 bg-slate-800 text-white rounded-full p-1 border border-slate-700 hover:bg-slate-700 z-50 transform"
+                className="absolute -right-3 top-6 bg-[#171717] text-white rounded-full p-1 border border-[#2a2a2a] hover:bg-[#2a2a2a] z-50 transform"
                 style={{ right: '-0.75rem' }}
             >
                 {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
