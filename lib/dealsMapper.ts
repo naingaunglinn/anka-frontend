@@ -176,7 +176,7 @@ export function toDeal(row: ApiDeal): Deal {
         winProbability: row.win_probability,
         status: row.status,
         expectedCloseDate: row.expected_close_date,
-        leadSource: row.lead_source as DealLeadSource | undefined,
+        leadSource: row.lead_source ? (row.lead_source as DealLeadSource) : undefined,
         clientBudget: row.client_budget,
         timelineMonths: row.timeline_months,
         workloadHours: row.workload_hours,
@@ -278,7 +278,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.contactEmail !== undefined)  payload.contact_email  = deal.contactEmail || null;
     if (deal.contactPhone !== undefined)  payload.contact_phone  = deal.contactPhone || null;
     if (deal.expectedCloseDate !== undefined) payload.expected_close_date = deal.expectedCloseDate || null;
-    if (deal.leadSource !== undefined)    payload.lead_source    = deal.leadSource || null;
+    if (deal.leadSource)                  payload.lead_source    = deal.leadSource;
     if (deal.winReason !== undefined)     payload.win_reason     = deal.winReason || null;
     if (deal.lossReason !== undefined)    payload.loss_reason    = deal.lossReason || null;
     if (deal.estimatedValue !== undefined) payload.estimated_value = deal.estimatedValue;
