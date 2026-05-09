@@ -461,16 +461,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <History className="h-3 w-3" />
                                     {totalVersions} versions
                                 </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs"
-                                    onClick={() => setCompareWithId(compareWithId ? null : (versions[1]?.id ?? null))}
-                                    disabled={versions.length < 2}
+                                {/* Pick any saved version to compare the live draft against,
+                                    not just v[N-1]. The "__none__" sentinel is the explicit
+                                    Stop-Comparing affordance — used because Radix Select rejects
+                                    SelectItems with empty-string values. */}
+                                <Select
+                                    value={compareWithId ?? '__placeholder__'}
+                                    onValueChange={(val) => setCompareWithId(val === '__none__' ? null : val)}
+                                    disabled={versions.length === 0}
                                 >
-                                    <GitCompare className="h-3 w-3" />
-                                    Compare
-                                </Button>
+                                    <SelectTrigger className="h-7 px-2 gap-1 text-xs w-auto min-w-[110px]">
+                                        <GitCompare className="h-3 w-3" />
+                                        <SelectValue placeholder="Compare to..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {compareWithId && (
+                                            <SelectItem value="__none__">— Stop comparing</SelectItem>
+                                        )}
+                                        {versions.map((v) => (
+                                            <SelectItem key={v.id} value={v.id}>
+                                                v{v.versionNumber}{v.notes ? ` · ${v.notes}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     </CardHeader>
@@ -495,6 +509,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <p className="text-xs text-slate-400 mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {/* Compare draft against THIS row's version, on every row.
+                                            Previously only the latest row had a Compare button and it
+                                            was hardwired to v[N-1] — so you couldn't compare against
+                                            v1 from a list that already had v3 saved. */}
+                                        <Button
+                                            variant={compareWithId === v.id ? 'default' : 'outline'}
+                                            size="sm"
+                                            className="h-7 gap-1 text-xs"
+                                            onClick={() => setCompareWithId(compareWithId === v.id ? null : v.id)}
+                                        >
+                                            <GitCompare className="h-3 w-3" />
+                                            {compareWithId === v.id ? 'Comparing' : 'Compare'}
+                                        </Button>
                                         {idx > 0 && (
                                             <Button
                                                 variant="outline"
@@ -503,16 +530,6 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 onClick={() => handleRestore(v.id, v.versionNumber)}
                                             >
                                                 <RotateCcw className="h-3 w-3" /> Restore
-                                            </Button>
-                                        )}
-                                        {versions[1] && idx === 0 && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 gap-1 text-xs"
-                                                onClick={() => setCompareWithId(versions[1]?.id ?? null)}
-                                            >
-                                                <GitCompare className="h-3 w-3" /> Compare
                                             </Button>
                                         )}
                                     </div>
