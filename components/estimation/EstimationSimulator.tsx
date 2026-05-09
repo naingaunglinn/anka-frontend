@@ -144,6 +144,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const totalVersions = versions.length;
     const nextVersion = (currentVersion?.versionNumber ?? 0) + 1;
 
+    // Pre-fetch the latest saved version's full payload so we can detect
+    // no-op saves locally without an extra round-trip on click. The hook
+    // is no-op when currentVersion is missing (first save on a deal).
+    const latestVersionDetailQuery = useEstimationVersionDetail(currentVersion?.id ?? null);
+    const latestVersionDetail = latestVersionDetailQuery.data;
+
     // Local estimation state before saving
     const [resources, setResources] = useState<EstimationResource[]>([]);
     const [overheads, setOverheads] = useState<ProjectOverhead[]>([]);
@@ -241,6 +247,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
     const handleSave = async () => {
         if (!selectedDealId) return;
+
+        // Belt-and-suspenders for the disabled-button guard below: don't
+        // create a byte-identical version row if something slipped through
+        // (e.g. the button was enabled while the detail query was in flight).
+        if (isUnchangedFromSaved) {
+            toast('No changes to save — current state matches the latest saved version.');
+            return;
+        }
+
         const nextVer = (currentVersion?.versionNumber ?? 0) + 1;
         try {
             await saveVersion.mutateAsync({
@@ -317,6 +332,41 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
     const expectedProfit = suggestedPrice - totalCost;
 
+    // Stable signature of the local edit state for "is this identical to
+    // what's already saved?" checks. Resources and overheads are sorted
+    // before serialising so reordering rows isn't treated as a change.
+    const localSignature = (() => {
+        const r = resources
+            .map(x => `${x.roleId}|${x.featureName}|${x.hours}`)
+            .sort().join(',');
+        const o = overheads
+            .map(x => `${x.name}|${x.cost}`)
+            .sort().join(',');
+        return `${margin[0]}::${r}::${o}`;
+    })();
+
+    const savedSignature = (() => {
+        if (!latestVersionDetail) return null;
+        const r = (latestVersionDetail.resources ?? [])
+            .map(x => `${x.roleId ?? x.role_id ?? ''}|${x.featureName ?? x.feature_name ?? ''}|${x.hours ?? 0}`)
+            .sort().join(',');
+        const o = (latestVersionDetail.overheads ?? [])
+            .map(x => `${x.name ?? ''}|${x.cost ?? 0}`)
+            .sort().join(',');
+        return `${latestVersionDetail.targetMargin}::${r}::${o}`;
+    })();
+
+    // True only when there's a saved version AND the local state matches it
+    // exactly. With no saved version (first save on a deal) we always allow
+    // saving so the user can capture v1.
+    const isUnchangedFromSaved = savedSignature !== null && localSignature === savedSignature;
+
+    // The `dirty` flag flips on any user edit but doesn't reset when the user
+    // reverts back to saved state. Combine with the signature check so the
+    // Draft/Saved indicator and the Save button reflect actual diff, not
+    // just "user touched something".
+    const hasUnsavedChanges = dirty && !isUnchangedFromSaved;
+
     // Reality-check the simulator output against what the client said they'd
     // spend. A 5% tolerance forgives small price/budget gaps that are
     // typical negotiation room. Anything beyond that is flagged inline so
@@ -373,15 +423,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <div className="flex items-center gap-2 text-xs text-slate-500">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span className="font-medium text-slate-700">
-                                        v{currentVersion?.versionNumber ?? 0}{dirty ? '+' : ''}
+                                        v{currentVersion?.versionNumber ?? 0}{hasUnsavedChanges ? '+' : ''}
                                     </span>
                                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
                                         style={{
-                                            background: dirty ? '#fef3c7' : '#d1fae5',
-                                            color: dirty ? '#92400e' : '#065f46',
+                                            background: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
+                                            color: hasUnsavedChanges ? '#92400e' : '#065f46',
                                         }}
                                     >
-                                        {dirty ? 'Draft' : 'Saved'}
+                                        {hasUnsavedChanges ? 'Draft' : 'Saved'}
                                     </span>
                                     {lastSavedAt && (
                                         <span className="text-slate-400">· {lastSavedAt}</span>
@@ -659,8 +709,17 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <Button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2">
-                            <Save className="h-4 w-4" /> Save Estimate v{nextVersion}{dirty ? '+' : ''}
+                        <Button
+                            onClick={handleSave}
+                            disabled={isUnchangedFromSaved || saveVersion.isPending}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
+                        >
+                            <Save className="h-4 w-4" />
+                            {saveVersion.isPending
+                                ? 'Saving...'
+                                : isUnchangedFromSaved
+                                    ? 'No changes to save'
+                                    : `Save Estimate v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
                         </Button>
                     </CardContent>
                 </Card>
