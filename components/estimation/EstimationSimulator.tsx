@@ -397,9 +397,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
                                             <TableCell>{role?.title || 'Unknown Role'}</TableCell>
-                                            <TableCell className="text-right">${costRate}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
-                                            <TableCell className="text-right font-medium">${(res.hours * costRate).toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(res.id)}>
                                                     <Trash2 className="h-4 w-4" />
@@ -426,7 +426,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     </SelectTrigger>
                                     <SelectContent>
                                         {store.roles.map(r => (
-                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: ${r.rate})</SelectItem>
+                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: {formatMoney(r.rate, currency)})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -435,7 +435,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">Hours</label>
                                 <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAdd} className="h-9 bg-slate-900 gap-2">
+                            <Button onClick={handleAdd} className="h-9 bg-[#171717] gap-2">
                                 <Plus className="h-4 w-4" /> Add
                             </Button>
                         </div>
@@ -485,7 +485,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">Cost ({symbol})</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAddOverhead} className="h-9 bg-slate-900 gap-2">
+                            <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] gap-2">
                                 <Plus className="h-4 w-4" /> Add
                             </Button>
                         </div>
@@ -494,19 +494,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             </div>
 
             <div className={`space-y-6 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <Card className="shadow-sm border-slate-100 bg-slate-900 text-white">
+                <Card className="shadow-sm border-slate-100 bg-white">
                     <CardHeader className="pb-4">
-                        <CardTitle className="flex items-center gap-2 text-lg text-white">
-                            <Calculator className="h-5 w-5 text-blue-400" />
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <Calculator className="h-5 w-5 text-blue-500" />
                             Margin Simulator
                         </CardTitle>
-                        <CardDescription className="text-slate-400">Drag to target margin</CardDescription>
+                        <CardDescription className="text-muted-foreground">Drag to target margin</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-300">Target Margin</span>
-                                <span className="text-2xl font-bold text-emerald-400">{margin[0]}%</span>
+                                <span className="text-sm font-medium text-slate-700">Target Margin</span>
+                                <span className="text-2xl font-bold text-emerald-500">{margin[0]}%</span>
                             </div>
                             <Slider
                                 value={margin}
@@ -518,38 +518,38 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <div className="pt-4 border-t border-slate-800 space-y-4">
+                        <div className="pt-4 border-t border-slate-100 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Total Labor Cost</span>
-                                <span className="font-medium">{formatMoney(laborCost, currency)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Total Project Overhead</span>
-                                <span className="font-medium text-rose-400">{formatMoney(totalOverheadCost, currency)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-800 pt-2">
-                                <span className="text-slate-300">Total Project Cost</span>
-                                <span>{formatMoney(totalCost, currency)}</span>
+                                <span className="text-slate-500">Total Labor Cost</span>
+                                <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-400">Expected Profit</span>
-                                <span className="font-medium text-emerald-400">+{formatMoney(expectedProfit, currency)}</span>
+                                <span className="text-slate-500">Total Project Overhead</span>
+                                <span className="font-medium text-rose-500">{formatMoney(totalOverheadCost, currency)}</span>
                             </div>
-                            <div className="pt-2 flex justify-between items-end border-t border-slate-800">
-                                <span className="text-sm font-medium text-slate-300">Suggested Price</span>
-                                    <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                            <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
+                                <span className="text-slate-700">Total Project Cost</span>
+                                <span className="text-slate-800">{formatMoney(totalCost, currency)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-500">Expected Profit</span>
+                                <span className="font-medium text-emerald-500">+{formatMoney(expectedProfit, currency)}</span>
+                            </div>
+                            <div className="pt-2 flex justify-between items-end border-t border-slate-100">
+                                <span className="text-sm font-medium text-slate-700">Suggested Price</span>
+                                    <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-emerald-500">
                                     {formatMoney(suggestedPrice, currency)}
                                 </span>
                             </div>
                         </div>
 
                         <div className="pt-2">
-                            <label className="text-xs font-medium text-slate-400 mb-1 block">Version Notes (optional)</label>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block">Version Notes (optional)</label>
                             <Input
                                 value={versionNotes}
                                 onChange={e => setVersionNotes(e.target.value)}
                                 placeholder="What changed in this version?"
-                                className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-500"
+                                className="h-8 text-xs bg-white border-slate-200 text-slate-800 placeholder:text-slate-400"
                             />
                         </div>
 
