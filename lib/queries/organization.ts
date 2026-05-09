@@ -85,11 +85,17 @@ function toGlobalOverhead(row: Record<string, unknown>): GlobalOverhead {
 
 function toCompanySettings(row: Record<string, unknown>): CompanySettings {
     return {
-        overheadPercentage:     row.overhead_percentage as number,
-        bufferPercentage:       row.buffer_percentage as number,
-        yearlyFixedCost:        row.yearly_fixed_cost as number,
-        employerTaxPercentage:  (row.employer_tax_percentage as number) ?? 0,
-        benefitsPercentage:     (row.benefits_percentage as number) ?? 0,
+        overheadPercentage:           row.overhead_percentage as number,
+        bufferPercentage:             row.buffer_percentage as number,
+        yearlyFixedCost:              row.yearly_fixed_cost as number,
+        employerTaxPercentage:        (row.employer_tax_percentage as number) ?? 0,
+        benefitsPercentage:           (row.benefits_percentage as number) ?? 0,
+        // New estimation defaults — fall back to the same baked-in numbers the
+        // backend migration uses, so older rows that haven't been re-saved
+        // since the migration still produce sensible estimates.
+        costToBillRatio:              (row.cost_to_bill_ratio as number) ?? 0.40,
+        defaultMonthlyCapacityHours:  (row.default_monthly_capacity_hours as number) ?? 160,
+        fallbackHourlyCost:           (row.fallback_hourly_cost as number) ?? 50,
     }
 }
 
@@ -270,11 +276,14 @@ export async function deleteGlobalOverheadDB(id: string): Promise<void> {
 
 export async function upsertCompanySettings(s: CompanySettings): Promise<void> {
     await api.put('/company-settings', {
-        overhead_percentage:     s.overheadPercentage,
-        buffer_percentage:       s.bufferPercentage,
-        yearly_fixed_cost:       s.yearlyFixedCost,
-        employer_tax_percentage: s.employerTaxPercentage,
-        benefits_percentage:     s.benefitsPercentage,
+        overhead_percentage:             s.overheadPercentage,
+        buffer_percentage:               s.bufferPercentage,
+        yearly_fixed_cost:               s.yearlyFixedCost,
+        employer_tax_percentage:         s.employerTaxPercentage,
+        benefits_percentage:             s.benefitsPercentage,
+        cost_to_bill_ratio:              s.costToBillRatio,
+        default_monthly_capacity_hours:  s.defaultMonthlyCapacityHours,
+        fallback_hourly_cost:            s.fallbackHourlyCost,
     })
 }
 
