@@ -317,6 +317,20 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
     const expectedProfit = suggestedPrice - totalCost;
 
+    // Reality-check the simulator output against what the client said they'd
+    // spend. A 5% tolerance forgives small price/budget gaps that are
+    // typical negotiation room. Anything beyond that is flagged inline so
+    // the salesperson sees the problem next to the price they're about to
+    // quote, instead of discovering it later when the client pushes back.
+    const selectedDeal = store.deals.find(d => d.id === selectedDealId);
+    const clientBudget = selectedDeal?.clientBudget ?? 0;
+    const BUDGET_TOLERANCE = 1.05;
+    const exceedsBudget = clientBudget > 0 && suggestedPrice > clientBudget * BUDGET_TOLERANCE;
+    const budgetOverage = exceedsBudget ? suggestedPrice - clientBudget : 0;
+    const budgetOveragePercent = exceedsBudget && clientBudget > 0
+        ? (budgetOverage / clientBudget) * 100
+        : 0;
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
@@ -612,7 +626,28 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     {formatMoney(suggestedPrice, currency)}
                                 </span>
                             </div>
+
+                            {clientBudget > 0 && (
+                                <div className="flex justify-between items-center text-xs pt-1">
+                                    <span className="text-slate-400">vs. Client Budget</span>
+                                    <span className={exceedsBudget ? 'text-rose-600 font-medium' : 'text-slate-500'}>
+                                        {formatMoney(clientBudget, currency)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
+
+                        {exceedsBudget && (
+                            <div className="rounded-md border border-rose-200 bg-rose-50 p-3 space-y-1">
+                                <p className="text-xs font-semibold text-rose-700 uppercase tracking-wider">
+                                    Suggested price exceeds budget
+                                </p>
+                                <p className="text-xs text-rose-700">
+                                    {formatMoney(budgetOverage, currency)} over the client&apos;s {formatMoney(clientBudget, currency)} budget
+                                    {' '}({budgetOveragePercent.toFixed(1)}%). Lower the target margin or reduce scope before quoting.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="pt-2">
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Version Notes (optional)</label>
