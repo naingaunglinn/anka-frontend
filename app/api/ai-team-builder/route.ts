@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/aiTeamBuilder'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
+import { formatMoney } from '@/lib/currencyServer'
 
 const CLAUDE_MODEL = 'claude-3-5-sonnet-latest'
 
@@ -43,7 +44,7 @@ function generateDemoResult(input: AITeamBuilderInput): AITeamBuilderResult {
             monthlySalary: emp.monthlySalary || 0,
             costPerHour: emp.costPerHour || 0,
             totalCost: allocatedHours * (emp.costPerHour || 0),
-            reasoning: `${emp.name} brings ${emp.capacityRole} expertise with ${emp.monthlySalary ? `$${emp.monthlySalary.toLocaleString()}/mo` : 'competitive'} cost rate.`,
+            reasoning: `${emp.name} brings ${emp.capacityRole} expertise with ${emp.monthlySalary ? `${formatMoney(emp.monthlySalary, input.currency ?? 'MMK')}/mo` : 'competitive'} cost rate.`,
             matchedSkills: (emp.skills || []).map((s: { name?: string }) => s.name || '').filter(Boolean),
             skillMatchScore: Math.round(Math.random() * 30 + 70),
         }
@@ -76,8 +77,8 @@ function generateDemoResult(input: AITeamBuilderInput): AITeamBuilderResult {
         isFeasible,
         feasibilityNote: isFeasible
             ? 'Project is within budget'
-            : `Project exceeds budget by $${(totalEstimatedCost - input.clientBudget).toLocaleString()}`,
-        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Total cost is $${totalEstimatedCost.toLocaleString()} against a $${input.clientBudget.toLocaleString()} budget, yielding a ${profitMarginPercent.toFixed(1)}% margin.`,
+            : `Project exceeds budget by ${formatMoney(totalEstimatedCost - input.clientBudget, input.currency ?? 'MMK')}`,
+        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Total cost is ${formatMoney(totalEstimatedCost, input.currency ?? 'MMK')} against a ${formatMoney(input.clientBudget, input.currency ?? 'MMK')} budget, yielding a ${profitMarginPercent.toFixed(1)}% margin.`,
         warnings: profitMarginPercent < 10 ? ['Profit margin is below 10%. Consider negotiating a higher budget or reducing scope.'] : [],
         skillGapAnalysis: {
             coveredSkills,

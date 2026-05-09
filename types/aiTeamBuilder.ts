@@ -1,4 +1,5 @@
 import type { Employee, Engineer, GlobalOverhead, CompanySettings } from './business'
+import type { Currency } from '@/lib/currencyConfig'
 
 export interface AITeamBuilderInput {
     dealId: string
@@ -12,6 +13,7 @@ export interface AITeamBuilderInput {
     engineers: Engineer[]
     globalOverheads: GlobalOverhead[]
     companySettings: CompanySettings
+    currency?: Currency
 }
 
 export interface AITeamMember {

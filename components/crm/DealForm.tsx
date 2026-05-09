@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Deal } from '@/types/business';
+import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 type DealFormErrors = { name?: string; winProbability?: string };
 
@@ -24,6 +25,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const [winProbability, setWinProbability] = useState<number | ''>('');
     const [status, setStatus] = useState<Deal['status']>('inquiry');
     const [errors, setErrors] = useState<DealFormErrors>({});
+    const symbol = useCurrencySymbol();
 
     useEffect(() => {
         if (initialData && isOpen) {
@@ -104,7 +106,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                             <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder="e.g. Acme Corp" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="value" className="text-right">Value ($)</Label>
+                            <Label htmlFor="value" className="text-right">Value ({symbol})</Label>
                             <Input
                                 id="value"
                                 type="number"

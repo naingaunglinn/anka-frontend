@@ -22,6 +22,7 @@ import {
 import { DialogClose } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { globalOverheadSchema, type OverheadFormValues } from '@/lib/schemas/organization.schema';
+import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 const MONTHS = [
     { value: 1,  label: 'January'   },
@@ -48,6 +49,7 @@ interface OverheadFormProps {
 }
 
 export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormProps) {
+    const symbol = useCurrencySymbol();
     const form = useForm<OverheadFormValues>({
         resolver: zodResolver(globalOverheadSchema) as any,
         mode: 'onBlur',
@@ -122,7 +124,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="monthlyCost"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Monthly Cost ($) <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>Monthly Cost ({symbol}) <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                                 <Input type="number" placeholder="e.g. 500" {...field} />
                             </FormControl>

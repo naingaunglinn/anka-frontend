@@ -33,6 +33,8 @@ import {
 
 import type { Employee, Role, TimeEntry } from '@/types/business';
 import { useBusinessStore } from '@/store/businessStore';
+import { formatMoney } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 // "Assigned" against monthly capacity = anything currently consuming the
 // employee's time this month: still-to-do (Draft), submitted-pending-review
@@ -40,23 +42,18 @@ import { useBusinessStore } from '@/store/businessStore';
 // are bounced back, so they no longer represent an obligation.
 const ASSIGNED_STATUSES = new Set(['Draft', 'Pending', 'Approved']);
 
-const USD_FORMATTER = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-});
-
 /**
  * Format a money value as USD, or render an em-dash for missing/invalid input
  * (NaN, null, undefined, negative). Used by Cost/Hr and Monthly Salary —
  * Cost/Hr in particular is a Postgres GENERATED column that is NULL until the
  * DB recomputes it, and parseFloat(undefined) returns NaN → "$NaN".
  */
-function formatMoneyOrDash(raw: unknown): ReactNode {
+function formatMoneyOrDash(raw: unknown, currency: import('@/lib/currencyConfig').Currency): ReactNode {
     const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
     if (!Number.isFinite(n) || n < 0) {
         return <span className="text-[#8a8a8a]">—</span>;
     }
-    return USD_FORMATTER.format(n);
+    return formatMoney(n, currency);
 }
 
 interface EmployeesTableProps {
@@ -75,6 +72,7 @@ interface EmployeesTableProps {
 
 export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp, onEdit, onDelete }: EmployeesTableProps) {
     const [sorting, setSorting] = useState<SortingState>([]);
+    const currency = useTenantCurrency();
     const storeEntries = useBusinessStore((s) => s.timeEntries);
     const timeEntries = timeEntriesProp ?? storeEntries;
 
@@ -151,7 +149,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'))}</div>,
+            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'), currency)}</div>,
         },
         {
             accessorKey: 'costPerHour',
@@ -167,7 +165,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('costPerHour'))}</div>,
+            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('costPerHour'), currency)}</div>,
         },
         {
             accessorKey: 'workableHours',

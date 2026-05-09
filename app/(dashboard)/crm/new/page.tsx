@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { formatMoney } from "@/lib/currency";
+import { CURRENCY_CONFIG } from "@/lib/currencyConfig";
 import { Deal, GhostRole, RoleType } from "@/types/business";
 import { v4 as uuidv4 } from "uuid";
 
@@ -402,7 +403,7 @@ export default function NewDealPage() {
                                                         name="clientBudget"
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Client Budget ($) <span className="text-destructive">*</span></FormLabel>
+                                                                <FormLabel>Client Budget ({CURRENCY_CONFIG[currency].symbol}) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
                                                                     <Input type="number" className="bg-white" {...field} />
                                                                 </FormControl>

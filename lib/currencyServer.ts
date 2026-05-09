@@ -1,4 +1,4 @@
-import { Currency, CURRENCY_CONFIG } from '@/lib/currencyConfig';
+import { Currency, CURRENCY_CONFIG } from './currencyConfig';
 
 const FALLBACK_CFG = CURRENCY_CONFIG['MMK'];
 

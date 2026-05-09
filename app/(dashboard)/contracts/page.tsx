@@ -19,6 +19,7 @@ import { useProjectList } from '@/lib/queries/projects';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney } from '@/lib/currency';
+import { CURRENCY_CONFIG } from '@/lib/currencyConfig';
 import { useRouter } from 'next/navigation';
 
 export default function ContractsPage() {
@@ -237,7 +238,7 @@ export default function ContractsPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                            <label className="text-sm font-medium">Amount ({CURRENCY_CONFIG[currency].symbol}) <span className="text-destructive">*</span></label>
                                     <Input
                                         type="number" min="0" step="0.01"
                                         value={invAmount}
@@ -249,7 +250,7 @@ export default function ContractsPage() {
                                     {invErrors.amount && <p className="text-xs text-destructive">{invErrors.amount}</p>}
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Tax ($) <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
+                                    <label className="text-sm font-medium">Tax ({CURRENCY_CONFIG[currency].symbol}) <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
                                     <Input type="number" min="0" step="0.01" value={invTax} onChange={e => setInvTax(e.target.value)} placeholder="0" />
                                 </div>
                             </div>
@@ -483,7 +484,7 @@ export default function ContractsPage() {
                                             {msErrors.dueDate && <p className="text-xs text-destructive">{msErrors.dueDate}</p>}
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium">Amount ($) <span className="text-destructive">*</span></label>
+                                    <label className="text-sm font-medium">Amount ({CURRENCY_CONFIG[currency].symbol}) <span className="text-destructive">*</span></label>
                                             <Input
                                                 type="number" min="0"
                                                 value={msAmount}
