@@ -27,6 +27,22 @@ const LOADING_STEPS = [
     'Calculating P&L estimate...',
 ]
 
+// Known skills to extract from workload description
+const KNOWN_SKILLS = [
+    'React', 'Vue.js', 'Next.js', 'TypeScript', 'Tailwind CSS',
+    'Laravel', 'Node.js', 'PostgreSQL', 'Redis', 'Docker',
+    'Figma', 'UI/UX Design', 'Scrum', 'Agile',
+    'Manual Testing', 'Automated Testing',
+    'Python', 'Django', 'FastAPI', 'Angular', 'MongoDB', 'AWS',
+    'Kubernetes', 'GraphQL', 'REST API', 'Mobile', 'iOS', 'Android',
+    'Blockchain', 'Machine Learning', 'AI', 'Data Science',
+]
+
+function extractRequiredSkills(text: string): string[] {
+    const lower = text.toLowerCase()
+    return KNOWN_SKILLS.filter(skill => lower.includes(skill.toLowerCase()))
+}
+
 // Client-side fallback for when the API is completely unreachable (network down, server offline)
 function generateClientFallback(input: AITeamBuilderInput): AITeamBuilderResult {
     const activeEmps = input.employees.filter(e => e.status === 'Active')
@@ -119,6 +135,10 @@ export function AITeamBuilder(props: Props) {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
 
+        const requiredSkills = extractRequiredSkills(
+            (props.workloadDescription || '') + ' ' + (props.workloadDocumentText || '')
+        )
+
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
             clientBudget: budget,
@@ -126,6 +146,7 @@ export function AITeamBuilder(props: Props) {
             workloadHours: hours,
             workloadDescription: props.workloadDescription,
             workloadDocumentText: props.workloadDocumentText,
+            requiredSkills: requiredSkills.length > 0 ? requiredSkills : undefined,
             employees,
             engineers,
             globalOverheads,

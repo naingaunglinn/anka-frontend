@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
         const message = await client.messages.create({
             model:      CLAUDE_MODEL,
             max_tokens: 4096,
-            temperature: 0.0,
+            temperature: 0.7,
             system:     SYSTEM_PROMPT,
             messages: [
                 { role: 'user', content: buildUserPrompt(input) },

@@ -1,4 +1,5 @@
 import type { AITeamBuilderInput } from '@/types/aiTeamBuilder'
+import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
 
 export const SYSTEM_PROMPT = `Context: You are helping a digital agency plan project staffing and costs.
 
@@ -63,7 +64,7 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
 
     return `## Client Project Brief
 
-Budget: $${input.clientBudget.toLocaleString()}
+Budget: ${CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol}${input.clientBudget.toLocaleString()}
 Timeline: ${input.timelineMonths} months
 Total Workload: ${input.workloadHours} hours
 
@@ -87,7 +88,7 @@ ${JSON.stringify(activeEmployees, null, 2)}
 
 Overhead Percentage: ${input.companySettings.overheadPercentage}% (use decimal ${overheadDecimal} for calculations)
 Risk Buffer Percentage: ${input.companySettings.bufferPercentage}% (use decimal ${bufferDecimal} for calculations)
-Yearly Fixed Cost: $${input.companySettings.yearlyFixedCost.toLocaleString()}
+Yearly Fixed Cost: ${CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol}${input.companySettings.yearlyFixedCost.toLocaleString()}
 
 ## Monthly Overhead Items
 
