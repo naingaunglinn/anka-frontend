@@ -1,15 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useBusinessStore } from '@/store/businessStore'
 import { useTenantStore } from '@/store/tenantStore'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { AITeamBuilderResultPanel } from './AITeamBuilderResult'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
+import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
 
 interface Props {
     dealId: string
@@ -35,6 +37,24 @@ function extractRequiredSkills(text: string, catalog: string[]): string[] {
     if (!text || catalog.length === 0) return []
     const lower = text.toLowerCase()
     return catalog.filter(skill => lower.includes(skill.toLowerCase()))
+}
+
+// Visual styling for the complexity chip — green for easy projects we
+// shouldn't over-staff, amber for medium, red for hard so users notice.
+function complexityBadgeClass(band: ComplexityBand): string {
+    switch (band) {
+        case 'easy':   return 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+        case 'medium': return 'bg-amber-100 text-amber-800 hover:bg-amber-100'
+        case 'hard':   return 'bg-rose-100 text-rose-800 hover:bg-rose-100'
+    }
+}
+
+function targetTeamSize(band: ComplexityBand): string {
+    switch (band) {
+        case 'easy':   return '~ 2 people'
+        case 'medium': return '~ 3-4 people'
+        case 'hard':   return '~ 5-7 people'
+    }
 }
 
 // Client-side fallback for when the API is completely unreachable (network down, server offline)
@@ -112,6 +132,7 @@ export function AITeamBuilder(props: Props) {
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
     const skills = useBusinessStore(s => s.skills)
+    const deal = useBusinessStore(s => s.deals.find(d => d.id === props.dealId))
     const activeTenantId = useTenantStore(s => s.activeTenantId)
     const currency = useTenantCurrency()
 
@@ -120,6 +141,29 @@ export function AITeamBuilder(props: Props) {
     const hours = Number(props.workloadHours) || 0
 
     const canRun = budget > 0 && months > 0 && hours > 0
+
+    // Recompute requiredSkills + complexity reactively from form state. The
+    // chip below the button reflects the score as the user edits the deal,
+    // and handleBuild reuses these values (no double computation).
+    const requiredSkills = useMemo(
+        () => extractRequiredSkills(
+            (props.workloadDescription || '') + ' ' + (props.workloadDocumentText || ''),
+            skills.map(s => s.name),
+        ),
+        [props.workloadDescription, props.workloadDocumentText, skills],
+    )
+
+    const complexity = useMemo(
+        () => computeDealComplexity({
+            workloadHours: hours,
+            timelineMonths: months,
+            workloadDescription: props.workloadDescription,
+            workloadDocumentText: props.workloadDocumentText,
+            requiredSkills,
+            ghostRoles: deal?.ghostRoles,
+        }),
+        [hours, months, props.workloadDescription, props.workloadDocumentText, requiredSkills, deal?.ghostRoles],
+    )
 
     async function handleBuild() {
         setLoading(true)
@@ -130,11 +174,6 @@ export function AITeamBuilder(props: Props) {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
 
-        const requiredSkills = extractRequiredSkills(
-            (props.workloadDescription || '') + ' ' + (props.workloadDocumentText || ''),
-            skills.map(s => s.name),
-        )
-
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
             clientBudget: budget,
@@ -143,6 +182,7 @@ export function AITeamBuilder(props: Props) {
             workloadDescription: props.workloadDescription,
             workloadDocumentText: props.workloadDocumentText,
             requiredSkills: requiredSkills.length > 0 ? requiredSkills : undefined,
+            complexity,
             employees,
             engineers,
             globalOverheads,
@@ -182,6 +222,18 @@ export function AITeamBuilder(props: Props) {
 
     return (
         <div className="mt-6 space-y-4">
+            {canRun && (
+                <div className="flex items-center justify-center gap-2 text-xs">
+                    <span className="text-[#4a4a4a]">Project complexity:</span>
+                    <Badge className={complexityBadgeClass(complexity.band)}>
+                        {complexity.band} · {complexity.score}/10
+                    </Badge>
+                    <span className="text-[#8a8a8a]">
+                        target team {targetTeamSize(complexity.band)}
+                    </span>
+                </div>
+            )}
+
             <Button
                 type="button"
                 onClick={handleBuild}

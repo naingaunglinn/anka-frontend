@@ -1,5 +1,6 @@
 import type { Employee, Engineer, GlobalOverhead, CompanySettings } from './business'
 import type { Currency } from '@/lib/currencyConfig'
+import type { ComplexityResult } from '@/lib/dealComplexity'
 
 export interface AITeamBuilderInput {
     dealId: string
@@ -9,6 +10,13 @@ export interface AITeamBuilderInput {
     workloadDescription: string
     workloadDocumentText?: string
     requiredSkills?: string[]           // skill names required for this project
+    /**
+     * Pre-computed difficulty band + score. Drives the target team size in
+     * the system prompt (easy → 2 people, medium → 3-4, hard → 5-7).
+     * Computed deterministically by lib/dealComplexity so Claude doesn't
+     * have to infer "is this hard?" from prose.
+     */
+    complexity?: ComplexityResult
     employees: Employee[]
     engineers: Engineer[]
     globalOverheads: GlobalOverhead[]
