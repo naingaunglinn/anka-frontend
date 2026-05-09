@@ -618,6 +618,63 @@ export default function NewDealPage() {
                                                 </div>
                                             </div>
 
+                                            {hardAssignments.length > 0 && (
+                                                <Card className="border-[#e6e9ee] shadow-sm">
+                                                    <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
+                                                        <CardTitle className="text-base">Previously Built Team</CardTitle>
+                                                    </CardHeader>
+                                                    <CardContent className="pt-4 space-y-4">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                            {hardAssignments.map(a => {
+                                                                const emp = employees.find(e => e.id === a.employeeId);
+                                                                if (!emp) return null;
+                                                                const totalCost = (a.allocatedHours || 0) * (emp.costPerHour || 0);
+                                                                return (
+                                                                    <div key={a.employeeId} className="flex flex-col gap-1.5 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
+                                                                                {emp.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                                                                            </div>
+                                                                            <div className="min-w-0">
+                                                                                <p className="text-sm font-semibold text-slate-800 truncate">{emp.name}</p>
+                                                                                <p className="text-xs text-[#8a8a8a]">{emp.capacityRole}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
+                                                                            <span>{a.allocatedHours}h allocated</span>
+                                                                            <span className="font-medium text-slate-700">{formatMoney(totalCost, currency)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="space-y-2 text-sm">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-[#8a8a8a]">Labor Cost</span>
+                                                                <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-[#8a8a8a]">Overhead</span>
+                                                                <span className="font-medium text-red-500/80">+{formatMoney(overheadCost, currency)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-[#8a8a8a]">Risk Buffer</span>
+                                                                <span className="font-medium text-red-500/80">+{formatMoney(bufferCost, currency)}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
+                                                            <div className="flex justify-between font-bold text-slate-800">
+                                                                <span>Total Cost</span>
+                                                                <span>{formatMoney(totalEstimatedCost, currency)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-[#8a8a8a]">Client Budget</span>
+                                                                <span className="font-medium text-slate-700">{formatMoney(clientBudget, currency)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            )}
                                             <AITeamBuilder
                                                 dealId={dealId}
                                                 clientBudget={clientBudget}
