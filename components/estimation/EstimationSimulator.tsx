@@ -11,56 +11,89 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
-import { useEstimationVersions, useEstimationVersionMutations, EstimationVersion } from '@/lib/queries/estimationVersions';
+import {
+    useEstimationVersions,
+    useEstimationVersionDetail,
+    useEstimationVersionMutations,
+} from '@/lib/queries/estimationVersions';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 function CompareBanner({
-    version,
+    versionId,
     currentResources,
     onClose,
 }: {
-    version: EstimationVersion
+    versionId: string
     currentResources: EstimationResource[]
     onClose: () => void
 }) {
-    const saved = (version as unknown as { resources?: EstimationResource[] }).resources ?? []
-    const current = currentResources
-    const savedMap = new Map(saved.map(r => [r.roleId, r.hours]))
-    const currentMap = new Map(current.map(r => [r.roleId, r.hours]))
-
-    const allRoleIds = [...new Set([...savedMap.keys(), ...currentMap.keys()])]
+    // The version-list endpoint returns counts only — not the actual resources
+    // array. Fetch the full version detail here so the diff table reflects
+    // real saved values, not always-empty placeholders.
+    const detailQuery = useEstimationVersionDetail(versionId)
+    const detail = detailQuery.data
     const store = useBusinessStore()
+
+    const headerLabel = detail
+        ? `Comparing with v${detail.versionNumber}${detail.notes ? ` · ${detail.notes}` : ''}`
+        : 'Loading comparison...'
+
+    // Resources from the API may carry either snake_case or camelCase keys
+    // depending on which mapper produced them; normalize before indexing.
+    const saved = (detail?.resources ?? []).map(r => ({
+        roleId: r.roleId ?? r.role_id ?? '',
+        hours:  Number(r.hours ?? 0),
+    }))
+    const savedMap   = new Map(saved.map(r => [r.roleId, r.hours]))
+    const currentMap = new Map(currentResources.map(r => [r.roleId, r.hours]))
+    const allRoleIds = [...new Set([...savedMap.keys(), ...currentMap.keys()])]
 
     return (
         <div className="border-t bg-blue-50 p-4 space-y-2">
             <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
-                    Comparing with v{version.versionNumber} {version.notes ? `· ${version.notes}` : ''}
+                    {headerLabel}
                 </p>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>Close</Button>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-xs">
-                <div className="font-medium text-slate-500">Role</div>
-                <div className="font-medium text-slate-500 text-right">Saved (v{version.versionNumber})</div>
-                <div className="font-medium text-slate-500 text-right">Current</div>
-                {allRoleIds.map(roleId => {
-                    const role = store.roles.find(r => r.id === roleId)
-                    const savedH = savedMap.get(roleId) ?? 0
-                    const currH = currentMap.get(roleId) ?? 0
-                    const diff = currH - savedH
-                    return (
-                        <div key={roleId} className="contents">
-                            <div className="text-slate-700">{role?.title ?? roleId}</div>
-                            <div className="text-right text-slate-500">{savedH}h</div>
-                            <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                                {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+
+            {detailQuery.isLoading && (
+                <p className="text-xs text-slate-500 italic">Loading saved version data...</p>
+            )}
+
+            {detailQuery.isError && (
+                <p className="text-xs text-rose-600">
+                    Could not load that version&apos;s details.
+                    <Button variant="link" size="sm" className="h-auto px-1 text-xs text-rose-600" onClick={() => detailQuery.refetch()}>Retry</Button>
+                </p>
+            )}
+
+            {detail && (
+                <div className="grid grid-cols-3 gap-4 text-xs">
+                    <div className="font-medium text-slate-500">Role</div>
+                    <div className="font-medium text-slate-500 text-right">Saved (v{detail.versionNumber})</div>
+                    <div className="font-medium text-slate-500 text-right">Current</div>
+                    {allRoleIds.length === 0 ? (
+                        <div className="col-span-3 text-slate-500 italic">No resources in either version.</div>
+                    ) : allRoleIds.map(roleId => {
+                        const role = store.roles.find(r => r.id === roleId)
+                        const savedH = savedMap.get(roleId) ?? 0
+                        const currH  = currentMap.get(roleId) ?? 0
+                        const diff   = currH - savedH
+                        return (
+                            <div key={roleId} className="contents">
+                                <div className="text-slate-700">{role?.title ?? roleId}</div>
+                                <div className="text-right text-slate-500">{savedH}h</div>
+                                <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                    {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+                                </div>
                             </div>
-                        </div>
-                    )
-                })}
-            </div>
+                        )
+                    })}
+                </div>
+            )}
         </div>
     )
 }
@@ -369,9 +402,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             ))}
                         </div>
                     )}
-                    {compareWithId && versions.find(v => v.id === compareWithId) && (
+                    {compareWithId && (
                         <CompareBanner
-                            version={versions.find(v => v.id === compareWithId)!}
+                            versionId={compareWithId}
                             currentResources={resources}
                             onClose={() => setCompareWithId(null)}
                         />
