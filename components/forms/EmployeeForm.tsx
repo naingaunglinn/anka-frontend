@@ -1,6 +1,7 @@
 'use client';
 
-import { useForm, type FieldErrors } from 'react-hook-form';
+import { useMemo, useState } from 'react';
+import { useForm, useFieldArray, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,9 +20,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { DialogClose } from '@/components/ui/dialog';
-import { AlertCircle } from 'lucide-react';
-import { Role, Department } from '@/types/business';
+import { AlertCircle, ChevronsUpDown, Search, X } from 'lucide-react';
+import { Role, Department, Skill } from '@/types/business';
 import {
     employeeSchema,
     employeeCreateSchema,
@@ -31,16 +37,18 @@ import {
 import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
+const PROFICIENCY_LEVELS = ['beginner', 'intermediate', 'expert'] as const;
 
 interface EmployeeFormProps {
     initialData?: EmployeeFormValues | null;
     roles: Role[];
     departments?: Department[];
+    skills?: Skill[];
     onSubmit: (data: EmployeeCreateValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function EmployeeForm({ initialData, roles, departments = [], onSubmit, onCancel }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, roles, departments = [], skills = [], onSubmit, onCancel }: EmployeeFormProps) {
     const symbol = useCurrencySymbol();
     const isEdit = !!initialData;
 
@@ -66,10 +74,44 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
             monthlySalary: initialData?.monthlySalary ?? 0,
             workableHours: initialData?.workableHours ?? 160,
             status:        initialData?.status ?? 'Active',
+            skills:        (initialData?.skills ?? []).map(s => ({
+                skillId:     s.skillId,
+                proficiency: s.proficiency ?? 'intermediate',
+            })),
             email:         emailDefault,
             password:      passwordDefault,
         } as EmployeeCreateValues,
     });
+
+    const skillsField = useFieldArray<EmployeeCreateValues, 'skills'>({
+        control: form.control,
+        name: 'skills',
+    });
+    const selectedSkills = form.watch('skills') ?? [];
+    const selectedIds = useMemo(
+        () => new Set(selectedSkills.map(s => s.skillId)),
+        [selectedSkills],
+    );
+    const skillById = useMemo(() => {
+        const map = new Map<string, Skill>();
+        for (const s of skills) map.set(s.id, s);
+        return map;
+    }, [skills]);
+
+    const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+    const [skillSearch, setSkillSearch] = useState('');
+
+    const filteredSkills = useMemo(() => {
+        const needle = skillSearch.trim().toLowerCase();
+        return skills.filter(s => {
+            if (selectedIds.has(s.id)) return false;
+            if (!needle) return true;
+            return (
+                s.name.toLowerCase().includes(needle) ||
+                s.category.toLowerCase().includes(needle)
+            );
+        });
+    }, [skills, selectedIds, skillSearch]);
 
     const handleSubmit = async (data: EmployeeCreateValues) => {
         await onSubmit(data);
@@ -232,6 +274,135 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         </FormItem>
                     )}
                 />
+
+                {/* Skills picker — feeds the AI Team Builder so Claude can match
+                    project requirements against the available pool. Empty list
+                    is allowed; AI will treat the employee as generalist. */}
+                <FormField
+                    control={form.control}
+                    name="skills"
+                    render={() => (
+                        <FormItem>
+                            <FormLabel>
+                                Skills <span className="text-[#4a4a4a] text-xs font-normal">(used by AI team builder)</span>
+                            </FormLabel>
+                            <Popover open={skillPickerOpen} onOpenChange={setSkillPickerOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-between font-normal"
+                                    >
+                                        <span className="text-[#4a4a4a]">
+                                            {selectedSkills.length === 0
+                                                ? 'Search & add skills...'
+                                                : `${selectedSkills.length} skill${selectedSkills.length === 1 ? '' : 's'} selected`}
+                                        </span>
+                                        <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                    <div className="border-b p-2">
+                                        <div className="relative">
+                                            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
+                                            <Input
+                                                value={skillSearch}
+                                                onChange={(e) => setSkillSearch(e.target.value)}
+                                                placeholder="Search by name or category..."
+                                                className="h-8 pl-8"
+                                                autoFocus
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto p-1">
+                                        {skills.length === 0 ? (
+                                            <p className="px-2 py-3 text-center text-xs text-[#8a8a8a]">
+                                                No skills exist yet. Create some on the Skills tab first.
+                                            </p>
+                                        ) : filteredSkills.length === 0 ? (
+                                            <p className="px-2 py-3 text-center text-xs text-[#8a8a8a]">
+                                                {selectedIds.size === skills.length
+                                                    ? 'All skills already added.'
+                                                    : 'No matching skills.'}
+                                            </p>
+                                        ) : (
+                                            filteredSkills.map((skill) => (
+                                                <button
+                                                    key={skill.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        skillsField.append({
+                                                            skillId:     skill.id,
+                                                            proficiency: 'intermediate',
+                                                        });
+                                                        setSkillSearch('');
+                                                    }}
+                                                    className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                                                >
+                                                    <span>{skill.name}</span>
+                                                    <span className="text-xs text-[#8a8a8a]">{skill.category}</span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+
+                            {selectedSkills.length > 0 && (
+                                <div className="mt-2 space-y-2">
+                                    {skillsField.fields.map((row, index) => {
+                                        const skill = skillById.get(row.skillId);
+                                        return (
+                                            <div
+                                                key={row.id}
+                                                className="flex items-center gap-2 rounded-md border border-[#e6e9ee] bg-white px-2 py-1.5"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-[#171717] truncate">
+                                                        {skill?.name ?? 'Unknown skill'}
+                                                    </p>
+                                                    {skill?.category && (
+                                                        <p className="text-xs text-[#8a8a8a] truncate">{skill.category}</p>
+                                                    )}
+                                                </div>
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`skills.${index}.proficiency` as const}
+                                                    render={({ field }) => (
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="h-8 w-36">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {PROFICIENCY_LEVELS.map(p => (
+                                                                    <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0 text-[#8a8a8a] hover:text-destructive"
+                                                    onClick={() => skillsField.remove(index)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                    <span className="sr-only">Remove</span>
+                                                </Button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
                 <div className="rounded-md border border-[#e6e9ee] bg-white p-3 space-y-3">
                     <p className="text-xs font-medium text-slate-700">
                         Login Credentials

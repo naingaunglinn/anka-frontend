@@ -27,20 +27,14 @@ const LOADING_STEPS = [
     'Calculating P&L estimate...',
 ]
 
-// Known skills to extract from workload description
-const KNOWN_SKILLS = [
-    'React', 'Vue.js', 'Next.js', 'TypeScript', 'Tailwind CSS',
-    'Laravel', 'Node.js', 'PostgreSQL', 'Redis', 'Docker',
-    'Figma', 'UI/UX Design', 'Scrum', 'Agile',
-    'Manual Testing', 'Automated Testing',
-    'Python', 'Django', 'FastAPI', 'Angular', 'MongoDB', 'AWS',
-    'Kubernetes', 'GraphQL', 'REST API', 'Mobile', 'iOS', 'Android',
-    'Blockchain', 'Machine Learning', 'AI', 'Data Science',
-]
-
-function extractRequiredSkills(text: string): string[] {
+// Pull skill names out of the project brief by substring-matching against the
+// caller-supplied catalog. Anchored to the tenant's actual skill list so the
+// resulting requiredSkills are always coverable by some employee — a hardcoded
+// catalog drifts and produces gap-skills no employee in the org can ever fill.
+function extractRequiredSkills(text: string, catalog: string[]): string[] {
+    if (!text || catalog.length === 0) return []
     const lower = text.toLowerCase()
-    return KNOWN_SKILLS.filter(skill => lower.includes(skill.toLowerCase()))
+    return catalog.filter(skill => lower.includes(skill.toLowerCase()))
 }
 
 // Client-side fallback for when the API is completely unreachable (network down, server offline)
@@ -117,6 +111,7 @@ export function AITeamBuilder(props: Props) {
     const engineers = useBusinessStore(s => s.engineers)
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
+    const skills = useBusinessStore(s => s.skills)
     const activeTenantId = useTenantStore(s => s.activeTenantId)
     const currency = useTenantCurrency()
 
@@ -136,7 +131,8 @@ export function AITeamBuilder(props: Props) {
         }, 1200)
 
         const requiredSkills = extractRequiredSkills(
-            (props.workloadDescription || '') + ' ' + (props.workloadDocumentText || '')
+            (props.workloadDescription || '') + ' ' + (props.workloadDocumentText || ''),
+            skills.map(s => s.name),
         )
 
         const input: AITeamBuilderInput = {

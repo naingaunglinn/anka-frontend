@@ -31,6 +31,12 @@ export const employeeSchema = z.object({
     monthlySalary: z.coerce.number().min(0, 'Salary must be ≥ 0'),
     workableHours: z.coerce.number().min(1, 'Must be > 0').max(744, 'Max 744 h/month'),
     status:        z.enum(['Active', 'On Leave', 'Terminated']),
+    // Skills the employee has, fed verbatim to the AI Team Builder so Claude
+    // can match required project skills against the available pool.
+    skills: z.array(z.object({
+        skillId:     z.string().uuid('Invalid skill.'),
+        proficiency: z.enum(['beginner', 'intermediate', 'expert']),
+    })).default([]),
     email: z.preprocess(
         blankToUndefined,
         z.string().email('Please enter a valid email').max(255).optional(),

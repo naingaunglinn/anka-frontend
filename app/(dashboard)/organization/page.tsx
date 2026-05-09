@@ -113,9 +113,29 @@ export default function EmployeesPage() {
     ]);
 
     // --- Employee Handlers ---
+    // Build the EmployeeSkillWithName[] the store/API expects from the form
+    // payload by joining each picked skillId against the catalog. Unknown ids
+    // are dropped — the schema validates uuids but a skill could have been
+    // deleted in another tab between picker open and submit.
+    const buildSkills = (
+        picked: EmployeeCreateValues['skills'],
+    ): Employee['skills'] =>
+        picked
+            .map(p => {
+                const skill = store.skills.find(s => s.id === p.skillId);
+                return skill
+                    ? {
+                          skillId:     skill.id,
+                          name:        skill.name,
+                          category:    skill.category,
+                          proficiency: p.proficiency,
+                      }
+                    : null;
+            })
+            .filter((s): s is NonNullable<typeof s> => s !== null);
+
     const handleAddEmployee = async (data: EmployeeCreateValues) => {
         const role = store.roles.find(r => r.id === data.role);
-        const dept = store.departments.find(d => d.id === data.departmentId);
         await store.addEmployee(
             {
                 id: crypto.randomUUID(),
@@ -130,6 +150,7 @@ export default function EmployeesPage() {
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             { email: data.email, password: data.password },
         );
@@ -159,6 +180,7 @@ export default function EmployeesPage() {
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             credentials,
         );
@@ -397,7 +419,7 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm roles={store.roles} departments={store.departments} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm roles={store.roles} departments={store.departments} skills={store.skills} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -473,6 +495,7 @@ export default function EmployeesPage() {
                                     initialData={editingEmployee}
                                     roles={store.roles}
                                     departments={store.departments}
+                                    skills={store.skills}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />
