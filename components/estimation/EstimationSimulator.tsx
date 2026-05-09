@@ -16,6 +16,7 @@ import {
     useEstimationVersionDetail,
     useEstimationVersionMutations,
 } from '@/lib/queries/estimationVersions';
+import { useDealList } from '@/lib/queries/deals';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
@@ -121,6 +122,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const currency = useTenantCurrency();
     const symbol = useCurrencySymbol();
 
+    // Self-fetch the deal list so the Target Deal picker is populated even
+    // when the user lands on /estimation directly. The hook syncs results
+    // into the Zustand store as a side-effect, so store.deals (read below)
+    // ends up populated either way.
+    useDealList();
+
     // UI selections
     const [selectedDealId, setSelectedDealId] = useState<string>(initialDealId);
     const [dirty, setDirty] = useState(false);
@@ -172,7 +179,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             (gr.roleType === 'design' && r.title.toLowerCase().includes('design'))
                         );
                         const roleId = matchingRole?.id ?? gr.roleType;
-                        const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * 160 * (deal.timelineMonths || 1);
+                        const monthlyCapacity = store.companySettings.defaultMonthlyCapacityHours;
+                        const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * monthlyCapacity * (deal.timelineMonths || 1);
                         ghostToResources.push({
                             id: gr.id || crypto.randomUUID(),
                             featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
@@ -280,10 +288,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     //      (not first-match) so the result is deterministic regardless of
     //      employee insertion order, and median (not mean) so a single very-
     //      senior or very-junior outlier doesn't skew the typical rate.
-    //   2. No matching employees but role exists → role.rate × 0.4 (assumes
-    //      a 60% gross margin on billable). TODO: this multiplier is hardcoded
-    //      and should come from companySettings — see fix #3.
-    //   3. Nothing → 50 in tenant currency. Same TODO.
+    //   2. No matching employees but role exists → role.rate × costToBillRatio
+    //      (default 0.40 = "cost is 40% of billable rate" → 60% margin).
+    //   3. Nothing → fallbackHourlyCost (default 50 in tenant currency).
+    // Both fallbacks are tenant-tunable via /organization → Salary Structure.
     const costRateForRole = (roleId: string): number => {
         const rates = store.employees
             .filter(e => e.jobRoleId === roleId && e.status === 'Active')
@@ -292,9 +300,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         if (rates.length > 0) return median(rates);
 
         const role = store.roles.find(r => r.id === roleId);
-        if (role) return role.rate * 0.4;
+        if (role) return role.rate * store.companySettings.costToBillRatio;
 
-        return 50;
+        return store.companySettings.fallbackHourlyCost;
     };
 
     const laborCost = resources.reduce(
