@@ -222,7 +222,7 @@ export default function DealDetailPage() {
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
-                            ${(dealToEdit.clientBudget ?? 0).toLocaleString()}
+                            {formatMoney(dealToEdit.clientBudget ?? 0, currency)}
                         </div>
                     </CardContent>
                 </Card>
@@ -233,7 +233,7 @@ export default function DealDetailPage() {
                             <TrendingUp className="h-4 w-4 text-slate-400" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
-                            ${(dealToEdit.totalEstimatedCost ?? 0).toLocaleString()}
+                            {formatMoney(dealToEdit.totalEstimatedCost ?? 0, currency)}
                         </div>
                     </CardContent>
                 </Card>
@@ -245,7 +245,7 @@ export default function DealDetailPage() {
                         </div>
                         <div className="mt-1 text-2xl font-bold">
                             <span className={marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}>
-                                ${(dealToEdit.estimatedGrossProfit ?? 0).toLocaleString()}
+                                {formatMoney(dealToEdit.estimatedGrossProfit ?? 0, currency)}
                             </span>
                             {marginPct !== undefined && (
                                 <span className={`ml-2 text-sm font-semibold ${getMarginColor(marginPct)}`}>
