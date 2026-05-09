@@ -15,6 +15,8 @@ import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal } from '@/types/business';
 import { useDealMutations } from '@/lib/queries/deals';
+import { formatMoneyShort } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 type ColumnData = {
     id: string;
@@ -40,6 +42,7 @@ export function KanbanBoard({
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
     const { updateDealStage, deleteDeal, winDeal, loseDeal } = useDealMutations();
+    const currency = useTenantCurrency();
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -281,13 +284,13 @@ export function KanbanBoard({
                                                                         <div className="flex flex-col">
                                                                             <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Est. Cost</span>
                                                                             <span className="text-sm font-semibold text-[#4a4a4a]">
-                                                                                ${(estimatedCost / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(estimatedCost, currency)}
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">
                                                                             <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Gross Profit</span>
                                                                             <span className={`text-sm font-bold ${marginColorClass}`}>
-                                                                                ${(grossProfit / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(grossProfit, currency)}
                                                                             </span>
                                                                         </div>
                                                                     </div>
@@ -297,7 +300,7 @@ export function KanbanBoard({
                                                                         <div className="flex flex-col">
                                                                             <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Budget</span>
                                                                             <span className="text-sm font-bold text-slate-800">
-                                                                                ${(budget / 1000).toFixed(0)}k
+                                                                                {formatMoneyShort(budget, currency)}
                                                                             </span>
                                                                         </div>
                                                                         <div className="flex flex-col items-end">

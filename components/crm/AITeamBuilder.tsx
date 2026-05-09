@@ -8,6 +8,8 @@ import { AITeamBuilderResultPanel } from './AITeamBuilderResult'
 import { Button } from '@/components/ui/button'
 import { Loader2, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { formatMoney } from '@/lib/currency'
+import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 
 interface Props {
     dealId: string
@@ -54,7 +56,7 @@ function generateClientFallback(input: AITeamBuilderInput): AITeamBuilderResult 
             monthlySalary: emp.monthlySalary || 0,
             costPerHour: emp.costPerHour || 0,
             totalCost: allocatedHours * (emp.costPerHour || 0),
-            reasoning: `${emp.name} contributes ${emp.capacityRole} expertise with ${emp.monthlySalary ? `$${emp.monthlySalary.toLocaleString()}/mo` : 'competitive'} cost rate.`,
+            reasoning: `${emp.name} contributes ${emp.capacityRole} expertise with ${emp.monthlySalary ? `${formatMoney(emp.monthlySalary, input.currency ?? 'MMK')}/mo` : 'competitive'} cost rate.`,
             matchedSkills: (emp.skills || []).map((s: { name?: string }) => s.name || '').filter(Boolean),
             skillMatchScore: Math.round(70 + Math.random() * 25),
         }
@@ -79,8 +81,8 @@ function generateClientFallback(input: AITeamBuilderInput): AITeamBuilderResult 
         estimatedGrossProfit: Math.round(estimatedGrossProfit),
         profitMarginPercent: Math.round(profitMarginPercent * 100) / 100,
         isFeasible,
-        feasibilityNote: isFeasible ? 'Project is within budget' : `Project exceeds budget by $${(totalEstimatedCost - input.clientBudget).toLocaleString()}`,
-        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Total cost is $${totalEstimatedCost.toLocaleString()} against a $${input.clientBudget.toLocaleString()} budget.`,
+        feasibilityNote: isFeasible ? 'Project is within budget' : `Project exceeds budget by ${formatMoney(totalEstimatedCost - input.clientBudget, input.currency ?? 'MMK')}`,
+        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Total cost is ${formatMoney(totalEstimatedCost, input.currency ?? 'MMK')} against a ${formatMoney(input.clientBudget, input.currency ?? 'MMK')} budget.`,
         warnings: profitMarginPercent < 10 ? ['Profit margin is below 10%. Consider negotiating a higher budget or reducing scope.'] : [],
         skillGapAnalysis: {
             coveredSkills: [],
@@ -100,6 +102,7 @@ export function AITeamBuilder(props: Props) {
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
     const activeTenantId = useTenantStore(s => s.activeTenantId)
+    const currency = useTenantCurrency()
 
     const budget = Number(props.clientBudget) || 0
     const months = Number(props.timelineMonths) || 0
@@ -127,6 +130,7 @@ export function AITeamBuilder(props: Props) {
             engineers,
             globalOverheads,
             companySettings,
+            currency,
         }
 
         try {

@@ -12,6 +12,8 @@ import {
     Bar,
     Legend
 } from 'recharts';
+import { formatMoneyShort, formatMoney } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 const revenueData = [
     { month: 'Jan', revenue: 45000 },
@@ -33,6 +35,7 @@ const profitData = [
 
 export const RevenueTrendChart = ({ data }: { data?: any[] }) => {
     const chartData = data || revenueData;
+    const currency = useTenantCurrency();
 
     return (
         <div className="h-[300px] w-full">
@@ -40,9 +43,9 @@ export const RevenueTrendChart = ({ data }: { data?: any[] }) => {
                 <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${value / 1000}k`} />
+                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatMoneyShort(value, currency)} />
                     <Tooltip
-                        formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
+                        formatter={(value: any) => [formatMoney(Number(value), currency), 'Revenue']}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     />
                     <Line
@@ -60,16 +63,17 @@ export const RevenueTrendChart = ({ data }: { data?: any[] }) => {
 }
 
 export const ProfitBreakdownChart = () => {
+    const currency = useTenantCurrency();
     return (
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={profitData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${value / 1000}k`} />
+                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatMoneyShort(value, currency)} />
                     <Tooltip
                         formatter={(value: any, name: any) => [
-                            `$${value.toLocaleString()}`,
+                            formatMoney(Number(value), currency),
                             String(name).charAt(0).toUpperCase() + String(name).slice(1) + ' Profit'
                         ]}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}

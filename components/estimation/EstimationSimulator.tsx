@@ -13,6 +13,8 @@ import { useBusinessStore } from '@/store/businessStore';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
 import { useEstimationVersions, useEstimationVersionMutations, EstimationVersion } from '@/lib/queries/estimationVersions';
 import toast from 'react-hot-toast';
+import { formatMoney } from '@/lib/currency';
+import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 function CompareBanner({
     version,
@@ -70,6 +72,8 @@ interface EstimationSimulatorProps {
 export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorProps) {
     const router = useRouter();
     const store = useBusinessStore();
+    const currency = useTenantCurrency();
+    const symbol = useCurrencySymbol();
 
     // UI selections
     const [selectedDealId, setSelectedDealId] = useState<string>(initialDealId);
@@ -456,7 +460,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 {overheads.map((ov) => (
                                     <TableRow key={ov.id}>
                                         <TableCell className="font-medium">{ov.name}</TableCell>
-                                        <TableCell className="text-right font-medium text-rose-600">${ov.cost.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-medium text-rose-600">{formatMoney(ov.cost, currency)}</TableCell>
                                         <TableCell>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemoveOverhead(ov.id)}>
                                                 <Trash2 className="h-4 w-4" />
@@ -478,7 +482,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Cost ($)</label>
+                                <label className="text-xs font-medium text-slate-500">Cost ({symbol})</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-slate-900 gap-2">
@@ -517,24 +521,24 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <div className="pt-4 border-t border-slate-800 space-y-4">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-400">Total Labor Cost</span>
-                                <span className="font-medium">${laborCost.toLocaleString()}</span>
+                                <span className="font-medium">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-400">Total Project Overhead</span>
-                                <span className="font-medium text-rose-400">${totalOverheadCost.toLocaleString()}</span>
+                                <span className="font-medium text-rose-400">{formatMoney(totalOverheadCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-800 pt-2">
                                 <span className="text-slate-300">Total Project Cost</span>
-                                <span>${totalCost.toLocaleString()}</span>
+                                <span>{formatMoney(totalCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-400">Expected Profit</span>
-                                <span className="font-medium text-emerald-400">+${expectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className="font-medium text-emerald-400">+{formatMoney(expectedProfit, currency)}</span>
                             </div>
                             <div className="pt-2 flex justify-between items-end border-t border-slate-800">
                                 <span className="text-sm font-medium text-slate-300">Suggested Price</span>
-                                <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-                                    ${suggestedPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                                    {formatMoney(suggestedPrice, currency)}
                                 </span>
                             </div>
                         </div>

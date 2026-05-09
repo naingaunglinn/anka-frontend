@@ -16,6 +16,8 @@ import {
     TrendingUp, Briefcase, Trophy, ChevronRight, Calculator, ExternalLink,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { formatMoney } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -63,6 +65,7 @@ export default function DealDetailPage() {
     const router  = useRouter();
     const dealId  = params.id as string;
     const store   = useBusinessStore();
+    const currency = useTenantCurrency();
 
     const dealQuery      = useDealDetail(dealId);
     const { deleteDeal, winDeal } = useDealMutations();
@@ -342,10 +345,10 @@ export default function DealDetailPage() {
                                                     <TableCell className="text-right">{role.quantity}</TableCell>
                                                     <TableCell className="text-right">{role.months}</TableCell>
                                                     <TableCell className="text-right">
-                                                        ${(role.minMonthlySalary ?? 0).toLocaleString()} – ${(role.maxMonthlySalary ?? 0).toLocaleString()}
+                                                        {formatMoney(role.minMonthlySalary ?? 0, currency)} – {formatMoney(role.maxMonthlySalary ?? 0, currency)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        ${(role.quantity * role.months * avgSalary).toLocaleString()}
+                                                        {formatMoney(role.quantity * role.months * avgSalary, currency)}
                                                     </TableCell>
                                                 </TableRow>
                                             );
@@ -353,7 +356,7 @@ export default function DealDetailPage() {
                                         <TableRow className="bg-slate-50/50 font-bold">
                                             <TableCell>Total Labor Cost</TableCell>
                                             <TableCell /><TableCell /><TableCell />
-                                            <TableCell className="text-right">${baseLaborCost.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(baseLaborCost, currency)}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
@@ -387,7 +390,7 @@ export default function DealDetailPage() {
                                                     {' · '}
                                                     <span className="text-slate-600">{linkedContract.status}</span>
                                                     {' · '}
-                                                    <span className="text-slate-600">${linkedContract.totalValue.toLocaleString()}</span>
+                                                    <span className="text-slate-600">{formatMoney(linkedContract.totalValue, currency)}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -431,31 +434,31 @@ export default function DealDetailPage() {
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Client Budget</span>
-                                    <span className="font-medium text-slate-700">${(dealToEdit.clientBudget ?? 0).toLocaleString()}</span>
+                                    <span className="font-medium text-slate-700">{formatMoney(dealToEdit.clientBudget ?? 0, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Base Labor Cost</span>
-                                    <span className="font-medium text-slate-700">${baseLaborCost.toLocaleString()}</span>
+                                    <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Overhead</span>
-                                    <span className="font-medium text-red-500/80">-${(dealToEdit.overheadCost ?? 0).toLocaleString()}</span>
+                                    <span className="font-medium text-red-500/80">-{formatMoney(dealToEdit.overheadCost ?? 0, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Risk Buffer</span>
-                                    <span className="font-medium text-red-500/80">-${(dealToEdit.bufferCost ?? 0).toLocaleString()}</span>
+                                    <span className="font-medium text-red-500/80">-{formatMoney(dealToEdit.bufferCost ?? 0, currency)}</span>
                                 </div>
                             </div>
                             <div className="border-t border-slate-100 pt-4">
                                 <div className="flex justify-between font-bold text-slate-800 mb-2">
                                     <span>Total Est. Cost</span>
-                                    <span>${(dealToEdit.totalEstimatedCost ?? 0).toLocaleString()}</span>
+                                    <span>{formatMoney(dealToEdit.totalEstimatedCost ?? 0, currency)}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <span className="font-bold text-slate-800">Gross Profit</span>
                                     <div className="flex flex-col items-end">
                                         <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
-                                            ${(dealToEdit.estimatedGrossProfit ?? 0).toLocaleString()}
+                                            {formatMoney(dealToEdit.estimatedGrossProfit ?? 0, currency)}
                                         </span>
                                         {marginPct !== undefined && (
                                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>

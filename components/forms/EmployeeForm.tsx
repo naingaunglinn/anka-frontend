@@ -28,6 +28,7 @@ import {
     type EmployeeFormValues,
     type EmployeeCreateValues,
 } from '@/lib/schemas/organization.schema';
+import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
 
@@ -40,6 +41,7 @@ interface EmployeeFormProps {
 }
 
 export function EmployeeForm({ initialData, roles, departments = [], onSubmit, onCancel }: EmployeeFormProps) {
+    const symbol = useCurrencySymbol();
     const isEdit = !!initialData;
 
     // On CREATE: email/password start blank so the inputs are controlled.
@@ -186,7 +188,7 @@ export function EmployeeForm({ initialData, roles, departments = [], onSubmit, o
                         name="monthlySalary"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Monthly Salary ($) <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>Monthly Salary ({symbol}) <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                     <Input type="number" placeholder="e.g. 3500" {...field} />
                                 </FormControl>
