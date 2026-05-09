@@ -3,6 +3,8 @@
 import type { AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { useBusinessStore } from '@/store/businessStore'
 import { Button } from '@/components/ui/button'
+import { formatMoney } from '@/lib/currency'
+import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     CheckCircle2,
@@ -22,10 +24,6 @@ interface Props {
     onAccept?: (result: AITeamBuilderResult) => void
 }
 
-function fmt(n: number): string {
-    return (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
-}
-
 export function AITeamBuilderResultPanel({
     result,
     dealId,
@@ -33,6 +31,7 @@ export function AITeamBuilderResultPanel({
     onRegenerate,
     onAccept,
 }: Props) {
+    const currency = useTenantCurrency()
     async function handleAccept() {
         if (onAccept) {
             onAccept(result)
@@ -106,7 +105,7 @@ export function AITeamBuilderResultPanel({
                                 <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
                                     <span>{member.allocatedHours}h allocated</span>
                                     <span className="font-medium text-slate-700">
-                                        ${fmt(member.totalCost)}
+                                        {formatMoney(member.totalCost, currency)}
                                     </span>
                                 </div>
                             </div>
@@ -125,19 +124,19 @@ export function AITeamBuilderResultPanel({
                         <div className="flex justify-between">
                             <span className="text-[#8a8a8a]">Labor Cost</span>
                             <span className="font-medium text-slate-700">
-                                ${fmt(result.baseLaborCost)}
+                                {formatMoney(result.baseLaborCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-[#8a8a8a]">Overhead</span>
                             <span className="font-medium text-red-500/80">
-                                +${fmt(result.overheadCost)}
+                                +{formatMoney(result.overheadCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-[#8a8a8a]">Risk Buffer</span>
                             <span className="font-medium text-red-500/80">
-                                +${fmt(result.bufferCost)}
+                                +{formatMoney(result.bufferCost, currency)}
                             </span>
                         </div>
                     </div>
@@ -145,12 +144,12 @@ export function AITeamBuilderResultPanel({
                     <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
                         <div className="flex justify-between font-bold text-slate-800">
                             <span>Total Cost</span>
-                            <span>${fmt(result.totalEstimatedCost)}</span>
+                            <span>{formatMoney(result.totalEstimatedCost, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-[#8a8a8a]">Client Budget</span>
                             <span className="font-medium text-slate-700">
-                                ${fmt(clientBudget)}
+                                {formatMoney(clientBudget, currency)}
                             </span>
                         </div>
                     </div>
@@ -168,7 +167,7 @@ export function AITeamBuilderResultPanel({
                         </div>
                         <div className="flex flex-col items-end">
                             <span className={`font-bold text-lg ${marginColor}`}>
-                                ${fmt(result.estimatedGrossProfit)}
+                                {formatMoney(result.estimatedGrossProfit, currency)}
                             </span>
                             <span
                                 className={`text-xs font-semibold px-2 py-0.5 rounded-full ${marginColor}`}
