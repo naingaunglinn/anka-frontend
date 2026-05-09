@@ -20,6 +20,19 @@ import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
+/**
+ * Median of a numeric array. Returns NaN for an empty input — callers
+ * should check before using the result.
+ */
+function median(values: number[]): number {
+    if (values.length === 0) return NaN;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+}
+
 function CompareBanner({
     versionId,
     currentResources,
@@ -262,14 +275,32 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         }
     };
 
-    // Calculations — use role billable rate × 0.4 as estimated cost rate (40% margin on billable)
-    const laborCost = resources.reduce((sum, res) => {
-        const role = store.roles.find(r => r.id === res.roleId);
-        // Look up an employee with this job role to get actual cost_per_hour if available
-        const emp = store.employees.find(e => e.jobRoleId === res.roleId);
-        const costRate = emp?.costPerHour ?? (role ? (role.rate * 0.4) : 50);
-        return sum + (res.hours * costRate);
-    }, 0);
+    // Cost-rate strategy:
+    //   1. Active employees with this jobRoleId → median(costPerHour). Median
+    //      (not first-match) so the result is deterministic regardless of
+    //      employee insertion order, and median (not mean) so a single very-
+    //      senior or very-junior outlier doesn't skew the typical rate.
+    //   2. No matching employees but role exists → role.rate × 0.4 (assumes
+    //      a 60% gross margin on billable). TODO: this multiplier is hardcoded
+    //      and should come from companySettings — see fix #3.
+    //   3. Nothing → 50 in tenant currency. Same TODO.
+    const costRateForRole = (roleId: string): number => {
+        const rates = store.employees
+            .filter(e => e.jobRoleId === roleId && e.status === 'Active')
+            .map(e => e.costPerHour)
+            .filter((r): r is number => typeof r === 'number' && Number.isFinite(r) && r > 0);
+        if (rates.length > 0) return median(rates);
+
+        const role = store.roles.find(r => r.id === roleId);
+        if (role) return role.rate * 0.4;
+
+        return 50;
+    };
+
+    const laborCost = resources.reduce(
+        (sum, res) => sum + res.hours * costRateForRole(res.roleId),
+        0,
+    );
 
     const totalOverheadCost = overheads.reduce((sum, o) => sum + o.cost, 0);
     const totalCost = laborCost + totalOverheadCost;
@@ -424,8 +455,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <TableBody>
                                 {resources.map((res) => {
                                     const role = store.roles.find(r => r.id === res.roleId);
-                                    const emp = store.employees.find(e => e.jobRoleId === res.roleId);
-                                    const costRate = emp?.costPerHour ?? (role ? (role.rate * 0.4) : 50);
+                                    const costRate = costRateForRole(res.roleId);
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
