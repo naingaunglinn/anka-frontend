@@ -13,12 +13,15 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { formatMoney } from "@/lib/currency";
+import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 
 export default function StaffingPage() {
     useOrganizationSync();
     const params = useParams();
     const router = useRouter();
     const dealId = params.id as string;
+    const currency = useTenantCurrency();
 
     const deals = useBusinessStore((state) => state.deals);
     const engineers = useBusinessStore((state) => state.engineers);
@@ -223,7 +226,7 @@ export default function StaffingPage() {
                             ))}
                             <div className="pt-4 flex justify-between font-medium">
                                 <span>Total Budget</span>
-                                <span>${(deal.clientBudget || 0).toLocaleString()}</span>
+                                <span>{formatMoney(deal.clientBudget || 0, currency)}</span>
                             </div>
                             <Button
                                 className="w-full mt-4"
