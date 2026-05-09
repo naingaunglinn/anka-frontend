@@ -367,6 +367,21 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     // just "user touched something".
     const hasUnsavedChanges = dirty && !isUnchangedFromSaved;
 
+    // Switching deals replaces all local state via the useEffect at the top
+    // of the component — silently dumping any unsaved edits. Intercept the
+    // Select's change handler and confirm before discarding work. Native
+    // confirm matches the existing pattern (handleRestore uses the same).
+    const handleDealChange = (newDealId: string) => {
+        if (newDealId === selectedDealId) return;
+        if (hasUnsavedChanges) {
+            const ok = window.confirm(
+                'You have unsaved changes on this estimation. Switch deals and discard them?',
+            );
+            if (!ok) return;
+        }
+        setSelectedDealId(newDealId);
+    };
+
     // Reality-check the simulator output against what the client said they'd
     // spend. A 5% tolerance forgives small price/budget gaps that are
     // typical negotiation room. Anything beyond that is flagged inline so
@@ -391,7 +406,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-3">
-                            <Select value={selectedDealId} onValueChange={setSelectedDealId}>
+                            <Select value={selectedDealId} onValueChange={handleDealChange}>
                                 <SelectTrigger className="w-full bg-white">
                                     <SelectValue placeholder="Select a deal from CRM to estimate..." />
                                 </SelectTrigger>
