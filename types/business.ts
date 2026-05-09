@@ -142,7 +142,7 @@ export interface Deal {
     contactPhone?: string;
     estimatedValue?: number;
     winProbability?: number;
-    status?: "lead" | "opportunity" | "inquiry" | "proposal" | "contract" | "won" | "lost";
+    status?: "lead" | "qualified" | "proposal" | "negotiation" | "won" | "lost";
     wizardStep?: DealWizardStep;
     expectedCloseDate?: string;   // YYYY-MM-DD
     leadSource?: DealLeadSource;

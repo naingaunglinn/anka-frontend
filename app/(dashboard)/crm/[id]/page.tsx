@@ -21,10 +21,9 @@ import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    inquiry:     { label: 'Inquiry',     color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    opportunity: { label: 'Opportunity', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    qualified:   { label: 'Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
     proposal:    { label: 'Proposal',    color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    contract:    { label: 'Contract',    color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    negotiation: { label: 'Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
     won:         { label: 'Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     lost:        { label: 'Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
 };
@@ -118,8 +117,8 @@ export default function DealDetailPage() {
         );
     }
 
-    const stage     = dealToEdit.status ?? 'inquiry';
-    const stageInfo = STAGE_CONFIG[stage] ?? STAGE_CONFIG.inquiry;
+    const stage     = dealToEdit.status ?? 'lead';
+    const stageInfo = STAGE_CONFIG[stage] ?? STAGE_CONFIG.lead;
     const isWon     = stage === 'won';
     const isLost    = stage === 'lost';
     const isClosed  = isWon || isLost;

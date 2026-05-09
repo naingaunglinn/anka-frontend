@@ -705,10 +705,13 @@ export const useBusinessStore = create<BusinessState>()(
                 });
 
                 state.deals.forEach(deal => {
-                    const status = deal.status || 'inquiry';
+                    const status = deal.status || 'lead';
                     if (status === "lost") return;
 
-                    if (status === "won" || status === "contract") {
+                    // Negotiation = late-stage commitment, treat as hard-booked
+                    // (same semantics as the old `contract` stage). Won always
+                    // is. Earlier stages contribute soft bookings only.
+                    if (status === "won" || status === "negotiation") {
                         (deal.hardAssignments || []).forEach(a => {
                             const eng = state.engineers.find(e => e.id === a.employeeId);
                             if (eng && pool[eng.role]) pool[eng.role].hardBookedHours += a.allocatedHours;

@@ -126,7 +126,7 @@ export default function NewDealPage() {
             clientBudget: 0,
             timelineMonths: 1,
             workloadHours: 0,
-            winProbability: 20,
+            winProbability: 10,
             workloadDescription: "",
             ghostRoles: [(() => {
                 const range = getSuggestedSalaryRange('frontend', useBusinessStore.getState().employees);
@@ -227,7 +227,7 @@ export default function NewDealPage() {
             workloadHours: data.workloadHours,
             winProbability: data.winProbability,
             workloadDescription: data.workloadDescription,
-            status: "inquiry",
+            status: "lead",
             ghostRoles: roles,
             hardAssignments: hardAssignments.length > 0 ? hardAssignments : [],
             baseLaborCost: acceptedAIResult?.baseLaborCost ?? baseLaborCost,

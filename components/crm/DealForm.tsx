@@ -23,7 +23,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const [client, setClient] = useState('');
     const [estimatedValue, setEstimatedValue] = useState<number | ''>('');
     const [winProbability, setWinProbability] = useState<number | ''>('');
-    const [status, setStatus] = useState<Deal['status']>('inquiry');
+    const [status, setStatus] = useState<Deal['status']>('lead');
     const [errors, setErrors] = useState<DealFormErrors>({});
     const symbol = useCurrencySymbol();
 
@@ -33,13 +33,13 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             setClient(initialData.client || '');
             setEstimatedValue(initialData.estimatedValue || 0);
             setWinProbability(initialData.winProbability || 0);
-            setStatus(initialData.status || 'inquiry');
+            setStatus(initialData.status || 'lead');
         } else if (isOpen) {
             setName('');
             setClient('');
             setEstimatedValue('');
             setWinProbability(20);
-            setStatus('inquiry');
+            setStatus('lead');
         }
         setErrors({});
     }, [initialData, isOpen]);
@@ -142,11 +142,10 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="inquiry">Inquiry</SelectItem>
                                         <SelectItem value="lead">Lead</SelectItem>
-                                        <SelectItem value="opportunity">Opportunity</SelectItem>
+                                        <SelectItem value="qualified">Qualified</SelectItem>
                                         <SelectItem value="proposal">Proposal</SelectItem>
-                                        <SelectItem value="contract">Contract</SelectItem>
+                                        <SelectItem value="negotiation">Negotiation</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
