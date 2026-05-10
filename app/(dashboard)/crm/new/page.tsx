@@ -682,6 +682,7 @@ export default function NewDealPage() {
                                                 workloadHours={workloadHours}
                                                 workloadDescription={workloadDescription}
                                                 workloadDocumentText={workloadDocText}
+                                                ghostRoles={ghostRoles}
                                                 onAccept={handleAcceptAIResult}
                                             />
                                         </TabsContent>

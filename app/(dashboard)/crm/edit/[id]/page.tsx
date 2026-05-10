@@ -802,6 +802,7 @@ export default function EditDealPage() {
                                                         workloadHours={workloadHours}
                                                         workloadDescription={workloadDescription}
                                                         workloadDocumentText={workloadDocText}
+                                                        ghostRoles={ghostRoles}
                                                         onAccept={handleAcceptAIResult}
                                                     />
                                                 </>
