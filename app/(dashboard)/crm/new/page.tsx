@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ArrowRight, Upload, UserPlus, AlertCircle, Users } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Upload, UserPlus, AlertCircle, Sparkles, Users } from "lucide-react";
 import { LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { getSuggestedSalaryRange } from "@/lib/salaryRange";
@@ -44,14 +44,14 @@ export default function NewDealPage() {
     const { createDeal } = useDealMutations();
 
     const [dealId] = useState(() => uuidv4());
+    const [activeTab, setActiveTab] = useState('context');
+    const [teamMode, setTeamMode] = useState<'manual' | 'ai'>('manual');
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
     function handleAcceptAIResult(result: AITeamBuilderResult) {
         setAcceptedAIResult(result);
-
-        // Derive ghost roles from AI team composition
         const roleGroups = result.team.reduce((acc, member) => {
             if (!acc[member.role]) {
                 acc[member.role] = { members: [], minSalary: Infinity, maxSalary: -Infinity };
@@ -66,13 +66,11 @@ export default function NewDealPage() {
             id: uuidv4(),
             roleType: roleName as RoleType,
             quantity: group.members.length,
-            months: 100, // percentage allocation — AI result always means 100%
+            months: 100,
             minMonthlySalary: group.minSalary,
             maxMonthlySalary: group.maxSalary,
         }));
-
         form.setValue('ghostRoles', newGhostRoles);
-
     }
 
     const form = useForm<DealFormValues>({
@@ -121,7 +119,6 @@ export default function NewDealPage() {
         }
     }
 
-    // Auto-calculate workload hours from ghost roles
     const computedWorkloadHours = useMemo(() => {
         const months = Number(timelineMonths) || 1;
         return ghostRoles.reduce((total, role) => {
@@ -143,7 +140,6 @@ export default function NewDealPage() {
     const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
     const estimatedGrossProfit = calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
-
     const profitMargin = clientBudget > 0 ? (estimatedGrossProfit / clientBudget) * 100 : 0;
 
     const getMarginColor = (margin: number) => {
@@ -228,13 +224,13 @@ export default function NewDealPage() {
                                             </span>
                                         </div>
                                     )}
-                            <Tabs defaultValue="context" className="w-full">
-                                <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
-                                    <TabsTrigger value="context">Sales Context</TabsTrigger>
-                                    <TabsTrigger value="estimation">Estimation</TabsTrigger>
-                                    <TabsTrigger value="staffing">Team Shape</TabsTrigger>
-                                </TabsList>
+                                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                                        <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-100/50">
+                                            <TabsTrigger value="context">Sales Context</TabsTrigger>
+                                            <TabsTrigger value="staffing">Team Shape</TabsTrigger>
+                                        </TabsList>
 
+                                        {/* ── Sales Context ── */}
                                         <TabsContent value="context" className="space-y-6">
                                             <div className="bg-slate-50/50 p-6 rounded-lg border border-[#e6e9ee] space-y-6">
                                                 <FormField
@@ -407,7 +403,7 @@ export default function NewDealPage() {
                                                             <FormControl>
                                                                 <Textarea
                                                                     placeholder="Describe the project scope, deliverables, tech stack requirements, and any other details that will help AI assemble the right team..."
-                                                                    className="bg-white min-h-[100px]"
+                                                                    className="bg-white min-h-25"
                                                                     {...field}
                                                                 />
                                                             </FormControl>
@@ -424,12 +420,7 @@ export default function NewDealPage() {
                                                         <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-[#e6e9ee] bg-white text-sm font-medium text-slate-700 hover:bg-white shadow-sm transition-colors">
                                                             <Upload className="h-4 w-4" />
                                                             Choose file
-                                                            <input
-                                                                type="file"
-                                                                accept=".txt"
-                                                                className="hidden"
-                                                                onChange={handleFileUpload}
-                                                            />
+                                                            <input type="file" accept=".txt" className="hidden" onChange={handleFileUpload} />
                                                         </label>
                                                         {uploadedFileName && (
                                                             <span className="text-xs text-[#8a8a8a]">{uploadedFileName}</span>
@@ -439,189 +430,13 @@ export default function NewDealPage() {
                                             </div>
                                         </TabsContent>
 
-                                        <TabsContent value="estimation" className="space-y-6">
-                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-[#e6e9ee]">
-                                                <div className="flex items-center justify-between mb-6 pb-4 border-b">
-                                                    <div>
-                                                        <h3 className="text-sm font-semibold text-[#171717]">Ghost Roles Required</h3>
-                                                        <p className="text-xs text-[#4a4a4a] mt-1">Estimate the shape of the team needed to deliver this deal.</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="text-right">
-                                                            <p className="text-xs text-[#8a8a8a]">Computed Workload</p>
-                                                            <p className="text-sm font-semibold text-[#00a7f4]">{Math.round(computedWorkloadHours).toLocaleString()} hrs</p>
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="bg-white shadow-sm"
-                                                            onClick={() => {
-                                                                const range = getSuggestedSalaryRange('frontend', employees);
-                                                                append({ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: range.min, maxMonthlySalary: range.max });
-                                                            }}
-                                                        >
-                                                            <Plus className="h-4 w-4 mr-2" /> Add Role
-                                                        </Button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-4">
-                                                    {fields.map((field, index) => (
-                                                        <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.roleType`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="flex-1 shrink-0 min-w-[120px]">
-                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Role</FormLabel>
-                                                                        <Select onValueChange={field.onChange} value={field.value}>
-                                                                            <FormControl>
-                                                                                <SelectTrigger>
-                                                                                    <SelectValue placeholder="Select Role" />
-                                                                                </SelectTrigger>
-                                                                            </FormControl>
-                                                                            <SelectContent>
-                                                                                {CAPACITY_ROLE_OPTIONS.map((role) => (
-                                                                                    <SelectItem key={role.value} value={role.value}>
-                                                                                        {role.label}
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.quantity`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-20 shrink-0">
-                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Qty</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`ghostRoles.${index}.months`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="w-20 shrink-0">
-                                                                        <FormLabel className="text-xs text-[#8a8a8a]">Alloc %</FormLabel>
-                                                                        <FormControl>
-                                                                            <Input type="number" step="10" min="10" max="100" {...field} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                             <div className="flex items-end gap-1 shrink-0">
-                                                                 <FormField
-                                                                     control={form.control}
-                                                                     name={`ghostRoles.${index}.minMonthlySalary`}
-                                                                     render={({ field }) => (
-                                                                         <FormItem className="w-24 shrink-0">
-                                                                             <FormLabel className="text-xs text-[#8a8a8a]">Min Salary</FormLabel>
-                                                                             <FormControl>
-                                                                                 <Input type="number" {...field} />
-                                                                             </FormControl>
-                                                                             <FormMessage />
-                                                                         </FormItem>
-                                                                     )}
-                                                                 />
-                                                                 <FormField
-                                                                     control={form.control}
-                                                                     name={`ghostRoles.${index}.maxMonthlySalary`}
-                                                                     render={({ field }) => (
-                                                                         <FormItem className="w-24 shrink-0">
-                                                                             <FormLabel className="text-xs text-[#8a8a8a]">Max Salary</FormLabel>
-                                                                             <FormControl>
-                                                                                 <Input type="number" {...field} />
-                                                                             </FormControl>
-                                                                             <FormMessage />
-                                                                         </FormItem>
-                                                                     )}
-                                                                 />
-                                                                 <Button
-                                                                     type="button"
-                                                                     variant="ghost"
-                                                                     size="icon"
-                                                                     className="h-9 w-9 text-[#8a8a8a] hover:text-indigo-600 shrink-0"
-                                                                     title="Pull salary range from organization"
-                                                                     onClick={() => {
-                                                                         const gr = form.getValues(`ghostRoles.${index}`);
-                                                                         const range = getSuggestedSalaryRange(gr.roleType, employees);
-                                                                         form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
-                                                                         form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
-                                                                     }}
-                                                                 >
-                                                                     <UserPlus className="h-4 w-4" />
-                                                                 </Button>
-                                                             </div>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
-                                                                onClick={() => remove(index)}
-                                                                disabled={fields.length === 1}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {acceptedAIResult && (
-                                                <Card className="border-[#e6e9ee] shadow-sm">
-                                                    <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
-                                                        <CardTitle className="text-base">Accepted AI Estimate</CardTitle>
-                                                        <CardDescription>Suggested named people are used only to shape this estimate. Hard booking happens after the deal is saved.</CardDescription>
-                                                    </CardHeader>
-                                                    <CardContent className="pt-4 space-y-4">
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                            {acceptedAIResult.team.map(member => (
-                                                                <div key={member.employeeId} className="flex flex-col gap-1.5 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
-                                                                            {member.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
-                                                                        </div>
-                                                                        <div className="min-w-0">
-                                                                            <p className="text-sm font-semibold text-slate-800 truncate">{member.name}</p>
-                                                                            <p className="text-xs text-[#8a8a8a]">{member.role}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
-                                                                        <span>{member.allocatedHours}h estimate</span>
-                                                                        <span className="font-medium text-slate-700">{formatMoney(member.totalCost, currency)}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
-                                            )}
-                                            <AITeamBuilder
-                                                dealId={dealId}
-                                                clientBudget={clientBudget}
-                                                timelineMonths={timelineMonths}
-                                                workloadHours={workloadHours}
-                                                workloadDescription={workloadDescription}
-                                                workloadDocumentText={workloadDocText}
-                                                onAccept={handleAcceptAIResult}
-                                            />
-                                        </TabsContent>
+                                        {/* ── Team Shape: ghost roles + AI Team Builder ── */}
                                         <TabsContent value="staffing" className="space-y-6">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
                                                 <div>
-                                                    <h3 className="text-sm font-semibold text-[#171717]">Estimated Team Shape</h3>
+                                                    <h3 className="text-sm font-semibold text-[#171717]">Planned Team Shape</h3>
                                                     <p className="text-sm text-[#4a4a4a] mt-1">
-                                                        Review the estimated roles and salary bands before saving. Named employee booking opens after the deal exists.
+                                                        Define the roles needed. Named employee booking opens after the deal is saved.
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-xs font-medium text-sky-700 bg-white border border-sky-100 rounded-md px-3 py-2 shrink-0">
@@ -630,50 +445,194 @@ export default function NewDealPage() {
                                                 </div>
                                             </div>
 
-                                            {ghostRoles.length === 0 ? (
-                                                <div className="bg-white border border-[#e6e9ee] border-dashed rounded-xl p-8 text-center">
-                                                    <p className="text-sm text-[#8a8a8a]">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-1 gap-4">
-                                                    {ghostRoles.map((gr, grIndex) => {
-                                                        const roleLabel = CAPACITY_ROLE_OPTIONS.find(r => r.value === gr.roleType)?.label || gr.roleType;
-                                                        const allocation = (gr.months || 100) / 100;
-                                                        const avgSalary = ((gr.minMonthlySalary || 0) + (gr.maxMonthlySalary || 0)) / 2;
-                                                        const estimatedCost = (gr.quantity || 0) * allocation * avgSalary;
-                                                        const estimatedHours = Math.round((gr.quantity || 0) * allocation * 160 * (timelineMonths || 1));
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant={teamMode === 'manual' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setTeamMode('manual')}
+                                                >
+                                                    Manual
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant={teamMode === 'ai' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setTeamMode('ai')}
+                                                >
+                                                    <Sparkles className="mr-2 h-4 w-4" />
+                                                    AI Team Builder
+                                                </Button>
+                                            </div>
 
-                                                        return (
-                                                            <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-4">
-                                                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                                                                    <div>
-                                                                        <h3 className="text-sm font-semibold text-[#171717]">{roleLabel}</h3>
-                                                                        <p className="text-xs text-[#4a4a4a] mt-1">
-                                                                            {gr.quantity} planned position{gr.quantity === 1 ? '' : 's'} at {gr.months || 100}% allocation
-                                                                        </p>
+                                            {teamMode === 'ai' && (
+                                                <>
+                                                    {acceptedAIResult && (
+                                                        <div className="rounded-xl border border-[#e6e9ee] bg-slate-50/80 p-4 space-y-3">
+                                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Accepted AI Team</p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                {acceptedAIResult.team.map(member => (
+                                                                    <div key={member.employeeId} className="flex items-center gap-2 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm">
+                                                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold shrink-0">
+                                                                            {member.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-sm font-semibold text-slate-800 truncate">{member.name}</p>
+                                                                            <p className="text-xs text-[#8a8a8a]">{member.role}</p>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-left sm:text-right">
-                                                                        <p className="text-xs text-[#8a8a8a]">Estimated role cost</p>
-                                                                        <p className="text-sm font-semibold text-[#171717]">{formatMoney(estimatedCost, currency)}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                                                                    <div className="rounded-lg bg-slate-50 p-3">
-                                                                        <p className="text-xs text-[#8a8a8a]">Salary Band</p>
-                                                                        <p className="font-medium text-slate-800">{formatMoney(gr.minMonthlySalary, currency)} - {formatMoney(gr.maxMonthlySalary, currency)}</p>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-slate-50 p-3">
-                                                                        <p className="text-xs text-[#8a8a8a]">Avg. Monthly Cost</p>
-                                                                        <p className="font-medium text-slate-800">{formatMoney(avgSalary, currency)}</p>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-slate-50 p-3">
-                                                                        <p className="text-xs text-[#8a8a8a]">Estimated Workload</p>
-                                                                        <p className="font-medium text-slate-800">{estimatedHours}h</p>
-                                                                    </div>
-                                                                </div>
+                                                                ))}
                                                             </div>
-                                                        );
-                                                    })}
+                                                        </div>
+                                                    )}
+                                                    <AITeamBuilder
+                                                        dealId={dealId}
+                                                        clientBudget={clientBudget}
+                                                        timelineMonths={timelineMonths}
+                                                        workloadHours={workloadHours}
+                                                        workloadDescription={workloadDescription}
+                                                        workloadDocumentText={workloadDocText}
+                                                        onAccept={handleAcceptAIResult}
+                                                    />
+                                                </>
+                                            )}
+
+                                            {teamMode === 'manual' && (
+                                                <div className="bg-slate-50/50 p-6 rounded-lg border border-[#e6e9ee]">
+                                                    <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                                                        <div>
+                                                            <h3 className="text-sm font-semibold text-[#171717]">Ghost Roles Required</h3>
+                                                            <p className="text-xs text-[#4a4a4a] mt-1">Estimate the shape of the team needed to deliver this deal.</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-xs text-[#8a8a8a]">Computed Workload</p>
+                                                                <p className="text-sm font-semibold text-[#00a7f4]">{Math.round(computedWorkloadHours).toLocaleString()} hrs</p>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="bg-white shadow-sm"
+                                                                onClick={() => {
+                                                                    const range = getSuggestedSalaryRange('frontend', employees);
+                                                                    append({ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: range.min, maxMonthlySalary: range.max });
+                                                                }}
+                                                            >
+                                                                <Plus className="h-4 w-4 mr-2" /> Add Role
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        {fields.map((field, index) => (
+                                                            <div key={field.id} className="flex gap-4 items-end bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.roleType`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="flex-1 shrink-0 min-w-30">
+                                                                            <FormLabel className="text-xs text-[#8a8a8a]">Role</FormLabel>
+                                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                                <FormControl>
+                                                                                    <SelectTrigger>
+                                                                                        <SelectValue placeholder="Select Role" />
+                                                                                    </SelectTrigger>
+                                                                                </FormControl>
+                                                                                <SelectContent>
+                                                                                    {CAPACITY_ROLE_OPTIONS.map((role) => (
+                                                                                        <SelectItem key={role.value} value={role.value}>
+                                                                                            {role.label}
+                                                                                        </SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.quantity`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="w-20 shrink-0">
+                                                                            <FormLabel className="text-xs text-[#8a8a8a]">Qty</FormLabel>
+                                                                            <FormControl>
+                                                                                <Input type="number" {...field} />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`ghostRoles.${index}.months`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="w-20 shrink-0">
+                                                                            <FormLabel className="text-xs text-[#8a8a8a]">Alloc %</FormLabel>
+                                                                            <FormControl>
+                                                                                <Input type="number" step="10" min="10" max="100" {...field} />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <div className="flex items-end gap-1 shrink-0">
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`ghostRoles.${index}.minMonthlySalary`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem className="w-24 shrink-0">
+                                                                                <FormLabel className="text-xs text-[#8a8a8a]">Min Salary</FormLabel>
+                                                                                <FormControl>
+                                                                                    <Input type="number" {...field} />
+                                                                                </FormControl>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`ghostRoles.${index}.maxMonthlySalary`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem className="w-24 shrink-0">
+                                                                                <FormLabel className="text-xs text-[#8a8a8a]">Max Salary</FormLabel>
+                                                                                <FormControl>
+                                                                                    <Input type="number" {...field} />
+                                                                                </FormControl>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-9 w-9 text-[#8a8a8a] hover:text-indigo-600 shrink-0"
+                                                                        title="Pull salary range from organization"
+                                                                        onClick={() => {
+                                                                            const gr = form.getValues(`ghostRoles.${index}`);
+                                                                            const range = getSuggestedSalaryRange(gr.roleType, employees);
+                                                                            form.setValue(`ghostRoles.${index}.minMonthlySalary`, range.min);
+                                                                            form.setValue(`ghostRoles.${index}.maxMonthlySalary`, range.max);
+                                                                        }}
+                                                                    >
+                                                                        <UserPlus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
+                                                                    onClick={() => remove(index)}
+                                                                    disabled={fields.length === 1}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
 
@@ -694,19 +653,19 @@ export default function NewDealPage() {
                                                     </div>
                                                 </div>
                                                 <p className="text-xs text-[#8a8a8a]">
-                                                    Saving this deal creates the estimate only. Use Hard Booking from the CRM card or deal detail after saving.
+                                                    Saving creates the deal estimate. Use Hard Booking from the deal detail after saving.
                                                 </p>
                                             </div>
                                         </TabsContent>
-
                                     </Tabs>
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
                                         <p className="text-xs text-[#4a4a4a]">
-                                            Fields marked <span className="text-destructive">*</span> are required.
+                                            {activeTab === 'context' && "Fill in client details, then move to Team Shape."}
+                                            {activeTab === 'staffing' && "Define the team, then save to create the deal."}
                                         </p>
                                         <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={createDeal.isPending}>
-                                            {createDeal.isPending ? 'Saving...' : 'Next'}
+                                            {createDeal.isPending ? 'Saving...' : 'Save Deal'}
                                             <ArrowRight className="ml-2 h-4 w-4" />
                                         </Button>
                                     </div>
@@ -716,7 +675,7 @@ export default function NewDealPage() {
                     </Card>
                 </div>
 
-                {/* Live Calculation Output Sidebar */}
+                {/* Live Financials sidebar */}
                 <div className="space-y-6">
                     <Card className="sticky top-6 shadow-sm border-[#e6e9ee]">
                         <CardHeader className="bg-slate-50/80 pb-4 border-b border-[#e6e9ee] rounded-t-xl">
