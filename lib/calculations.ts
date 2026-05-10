@@ -10,9 +10,10 @@ export function calculateOverhead(
 
 export function calculateRiskBuffer(
     baseLaborCost: number,
+    overheadCost: number,
     bufferPercentage: number
 ): number {
-    return baseLaborCost * (bufferPercentage / 100);
+    return (baseLaborCost + overheadCost) * (bufferPercentage / 100);
 }
 
 export function calculateSoftBookedHours(

@@ -181,7 +181,7 @@ export default function NewDealPage() {
 
     const baseLaborCost = acceptedAIResult?.baseLaborCost ?? (hardAssignments.length > 0 ? assignmentBaseLaborCost : manualBaseLaborCost);
     const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
-    const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
+    const bufferCost = calculateRiskBuffer(baseLaborCost, overheadCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
     const estimatedGrossProfit = calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
 

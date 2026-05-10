@@ -187,7 +187,7 @@ export default function EditDealPage() {
             workloadDescription: dealToEdit?.workloadDescription || "",
             ghostRoles: dealToEdit?.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
-                : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
         },
     });
 
@@ -208,7 +208,7 @@ export default function EditDealPage() {
                 workloadDescription: dealToEdit.workloadDescription || "",
                 ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                     ? dealToEdit.ghostRoles
-                    : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                    : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
             });
         }
     }, [dealToEdit, form]);
@@ -260,7 +260,7 @@ export default function EditDealPage() {
     // When AI result is fresh, use it; otherwise compute from hardAssignments if present, else ghost roles
     const baseLaborCost = acceptedAIResult?.baseLaborCost ?? (hardAssignments.length > 0 ? assignmentBaseLaborCost : manualBaseLaborCost);
     const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
-    const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
+    const bufferCost = calculateRiskBuffer(baseLaborCost, overheadCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
     const estimatedGrossProfit = calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
 
