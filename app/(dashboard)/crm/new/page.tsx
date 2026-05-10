@@ -225,8 +225,9 @@ export default function NewDealPage() {
                                         </div>
                                     )}
                                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-100/50">
+                                        <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
                                             <TabsTrigger value="context">Sales Context</TabsTrigger>
+                                            <TabsTrigger value="estimation">Estimation</TabsTrigger>
                                             <TabsTrigger value="staffing">Team Shape</TabsTrigger>
                                         </TabsList>
 
@@ -430,21 +431,8 @@ export default function NewDealPage() {
                                             </div>
                                         </TabsContent>
 
-                                        {/* ── Team Shape: ghost roles + AI Team Builder ── */}
-                                        <TabsContent value="staffing" className="space-y-6">
-                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
-                                                <div>
-                                                    <h3 className="text-sm font-semibold text-[#171717]">Planned Team Shape</h3>
-                                                    <p className="text-sm text-[#4a4a4a] mt-1">
-                                                        Define the roles needed. Named employee booking opens after the deal is saved.
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs font-medium text-sky-700 bg-white border border-sky-100 rounded-md px-3 py-2 shrink-0">
-                                                    <Users className="h-4 w-4" />
-                                                    Hard booking after save
-                                                </div>
-                                            </div>
-
+                                        {/* ── Estimation: ghost roles + AI Team Builder ── */}
+                                        <TabsContent value="estimation" className="space-y-6">
                                             <div className="flex gap-2">
                                                 <Button
                                                     type="button"
@@ -635,6 +623,22 @@ export default function NewDealPage() {
                                                     </div>
                                                 </div>
                                             )}
+                                        </TabsContent>
+
+                                        {/* ── Team Shape: booking boundary ── */}
+                                        <TabsContent value="staffing" className="space-y-6">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-[#171717]">Planned Team Shape</h3>
+                                                    <p className="text-sm text-[#4a4a4a] mt-1">
+                                                        Review the estimated team from the Estimation tab. Named employee booking opens after the deal is saved.
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs font-medium text-sky-700 bg-white border border-sky-100 rounded-md px-3 py-2 shrink-0">
+                                                    <Users className="h-4 w-4" />
+                                                    Hard booking after save
+                                                </div>
+                                            </div>
 
                                             <div className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-3">
                                                 <h3 className="text-sm font-semibold text-[#171717]">Booking Boundary</h3>
@@ -661,8 +665,9 @@ export default function NewDealPage() {
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
                                         <p className="text-xs text-[#4a4a4a]">
-                                            {activeTab === 'context' && "Fill in client details, then move to Team Shape."}
-                                            {activeTab === 'staffing' && "Define the team, then save to create the deal."}
+                                            {activeTab === 'context' && "Fill in client details, then move to Estimation."}
+                                            {activeTab === 'estimation' && "Define ghost roles or use AI Builder to estimate costs, then review Team Shape."}
+                                            {activeTab === 'staffing' && "Review the team boundary, then save to create the deal."}
                                         </p>
                                         <Button type="submit" size="lg" className="w-full sm:w-auto shadow-sm" disabled={createDeal.isPending}>
                                             {createDeal.isPending ? 'Saving...' : 'Save Deal'}
