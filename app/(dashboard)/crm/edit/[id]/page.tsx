@@ -62,6 +62,7 @@ export default function EditDealPage() {
     const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
+    const skills = useBusinessStore((state) => state.skills);
 
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -1236,7 +1237,25 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="lg"
                                                         onClick={() => {
-                                                            const { assignments, warnings } = autoStaffFromGhostRoles(ghostRoles, employees, hardAssignments);
+                                                            const descText = `${workloadDescription} ${workloadDocText ?? ''}`.toLowerCase();
+                                                            const matched = skills
+                                                                .filter(s => {
+                                                                    const escaped = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                                                    return new RegExp(`\\b${escaped}\\b`, 'i').test(descText);
+                                                                })
+                                                                .map(s => s.name);
+                                                            const { assignments, warnings } = autoStaffFromGhostRoles(
+                                                                ghostRoles,
+                                                                employees,
+                                                                hardAssignments,
+                                                                {
+                                                                    timelineMonths: Number(timelineMonths) || 1,
+                                                                    deals,
+                                                                    currentDealId: dealId,
+                                                                    requiredSkills: matched,
+                                                                    currency,
+                                                                },
+                                                            );
                                                             setHardAssignments(assignments);
                                                             setAutoStaffWarnings(warnings);
                                                             if (warnings.length === 0) {
