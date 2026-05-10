@@ -193,7 +193,7 @@ export default function DealDetailPage() {
                     <Button
                         variant="outline"
                         className="gap-2"
-                        onClick={() => router.push(`/crm/edit/${dealId}?tab=estimation`)}
+                        onClick={() => router.push(`/estimation?dealId=${dealId}`)}
                     >
                         <Calculator className="h-4 w-4" /> Estimation
                     </Button>
@@ -201,7 +201,7 @@ export default function DealDetailPage() {
                         <Edit3 className="h-4 w-4" /> Edit Deal
                     </Button>
                     <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
-                        <Users className="h-4 w-4" /> Hard Booking
+                        <Users className="h-4 w-4" /> AI Staffing
                     </Button>
                     <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                         Delete
@@ -320,8 +320,8 @@ export default function DealDetailPage() {
                     {/* Ghost Roles */}
                     <Card className="shadow-sm border-slate-100">
                         <CardHeader className="border-b bg-slate-50/50">
-                            <CardTitle className="text-lg">Estimated Team Shape</CardTitle>
-                            <CardDescription>Role counts and salary bands used for deal estimation</CardDescription>
+                            <CardTitle className="text-lg">Ghost Roles and Staffing</CardTitle>
+                            <CardDescription>Estimated team composition for delivery</CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">
                             {dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0 ? (
@@ -330,7 +330,7 @@ export default function DealDetailPage() {
                                         <TableRow>
                                             <TableHead>Role</TableHead>
                                             <TableHead className="text-right">Quantity</TableHead>
-                                            <TableHead className="text-right">Allocation</TableHead>
+                                            <TableHead className="text-right">Months</TableHead>
                                             <TableHead className="text-right">Monthly Salary</TableHead>
                                             <TableHead className="text-right">Subtotal</TableHead>
                                         </TableRow>
@@ -342,12 +342,12 @@ export default function DealDetailPage() {
                                                 <TableRow key={role.id ?? i}>
                                                     <TableCell className="font-medium capitalize">{role.roleType}</TableCell>
                                                     <TableCell className="text-right">{role.quantity}</TableCell>
-                                                    <TableCell className="text-right">{role.months || 100}%</TableCell>
+                                                    <TableCell className="text-right">{role.months}</TableCell>
                                                     <TableCell className="text-right">
                                                         {formatMoney(role.minMonthlySalary ?? 0, currency)} – {formatMoney(role.maxMonthlySalary ?? 0, currency)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {formatMoney(role.quantity * ((role.months || 100) / 100) * avgSalary, currency)}
+                                                        {formatMoney(role.quantity * role.months * avgSalary, currency)}
                                                     </TableCell>
                                                 </TableRow>
                                             );
@@ -361,7 +361,7 @@ export default function DealDetailPage() {
                                 </Table>
                             ) : (
                                 <div className="p-8 text-center text-sm text-slate-500">
-                                    No estimated team shape defined. Edit the deal to add role estimates.
+                                    No ghost roles defined. Edit the deal to add staffing estimates.
                                 </div>
                             )}
                         </CardContent>

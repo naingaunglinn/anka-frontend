@@ -267,7 +267,7 @@ export function KanbanBoard({
                                                                                 </DropdownMenuItem>
                                                                                 <DropdownMenuItem onClick={() => router.push(`/crm/${deal.id}/staffing`)}>
                                                                                     <Users className="mr-2 h-4 w-4" />
-                                                                                    Hard Booking
+                                                                                    Staffing
                                                                                 </DropdownMenuItem>
                                                                                 {!isWon && deal.status !== 'lost' && (
                                                                                     <>
