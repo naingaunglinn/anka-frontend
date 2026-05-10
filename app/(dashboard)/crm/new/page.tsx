@@ -272,7 +272,7 @@ export default function NewDealPage() {
                             <Tabs defaultValue="context" className="w-full">
                                 <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
                                     <TabsTrigger value="context">Sales Context</TabsTrigger>
-                                    <TabsTrigger value="estimation">Estimation</TabsTrigger>
+                                    <TabsTrigger value="estimation">Cost Estimate</TabsTrigger>
                                     <TabsTrigger value="staffing">Staffing</TabsTrigger>
                                 </TabsList>
 
@@ -689,7 +689,7 @@ export default function NewDealPage() {
                                         <TabsContent value="staffing" className="space-y-6">
                                             {ghostRoles.length === 0 ? (
                                                 <div className="bg-white border border-[#e6e9ee] border-dashed rounded-xl p-8 text-center">
-                                                    <p className="text-sm text-[#8a8a8a]">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
+                                                    <p className="text-sm text-[#8a8a8a]">No roles defined in Cost Estimate yet. Add roles in the Cost Estimate tab first.</p>
                                                 </div>
                                             ) : (
                                                 ghostRoles.map((gr, grIndex) => {
@@ -858,7 +858,7 @@ export default function NewDealPage() {
                                                     <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
                                                         <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
                                                         <p className="text-xs text-amber-700">
-                                                            These employees&apos; roles don&apos;t match any role in Estimation. Update Estimation to include them.
+                                                            These employees&apos; roles don&apos;t match any role in Cost Estimate. Update Cost Estimate to include them.
                                                         </p>
                                                         <Table>
                                                             <TableHeader>
