@@ -429,12 +429,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                 <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
-                        <div className="flex justify-between items-center">
-                            <div>
+                        <div className="flex flex-wrap items-start gap-3">
+                            <div className="flex-1 min-w-0">
                                 <CardTitle className="text-lg">Project Scope & Labor</CardTitle>
                                 <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
                                 <div className="flex items-center gap-2 text-xs text-slate-500">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span className="font-medium text-slate-700">
@@ -563,7 +563,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
-                                            <TableCell>{role?.title || 'Unknown Role'}</TableCell>
+                                            <TableCell>{role?.title ?? res.roleId}</TableCell>
                                             <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
