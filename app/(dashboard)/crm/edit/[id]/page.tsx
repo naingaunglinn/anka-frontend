@@ -27,9 +27,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ArrowRight, ArrowLeft, UserPlus, AlertCircle, FileText, CheckCircle2, Users } from "lucide-react";
+import { Plus, Trash2, ArrowRight, ArrowLeft, Upload, UserPlus, AlertCircle, FileText, CheckCircle2, Sparkles, Users } from "lucide-react";
 import { getSuggestedSalaryRange } from "@/lib/salaryRange";
 import { EstimationSimulator } from "@/components/estimation/EstimationSimulator";
+import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
+import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useLinkedContract } from "@/lib/queries/contracts";
@@ -50,6 +52,39 @@ function EditDealContent() {
     const { updateDeal } = useDealMutations();
     const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const employees = useBusinessStore((state) => state.employees);
+
+    const [teamMode, setTeamMode] = useState<'manual' | 'ai'>('manual');
+    const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
+    const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
+    const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+
+    async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.type === 'text/plain') {
+            const text = await file.text();
+            setWorkloadDocText(text);
+            setUploadedFileName(file.name);
+        }
+    }
+
+    function handleAcceptAIResult(result: AITeamBuilderResult) {
+        setAcceptedAIResult(result);
+        const roleGroups = result.team.reduce((acc, member) => {
+            if (!acc[member.role]) acc[member.role] = [];
+            acc[member.role].push(member);
+            return acc;
+        }, {} as Record<string, typeof result.team>);
+        const newGhostRoles = Object.entries(roleGroups).map(([roleName, members]) => ({
+            id: uuidv4(),
+            roleType: roleName as import("@/types/business").RoleType,
+            quantity: members.length,
+            months: 100,
+            minMonthlySalary: Math.min(...members.map(m => m.monthlySalary)),
+            maxMonthlySalary: Math.max(...members.map(m => m.monthlySalary)),
+        }));
+        form.setValue('ghostRoles', newGhostRoles);
+    }
 
     // Wizard state — prefer ?tab URL param, then deal's saved wizardStep
     const [activeTab, setActiveTab] = useState<string>(() => {
@@ -434,7 +469,7 @@ function EditDealContent() {
                                             <EstimationSimulator initialDealId={dealId} />
                                         </TabsContent>
 
-                                        {/* ── Team Shape tab: ghost roles + hard booking link ── */}
+                                        {/* ── Team Shape tab: ghost roles + AI builder + hard booking link ── */}
                                         <TabsContent value="staffing" className="space-y-6">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
                                                 <div>
@@ -449,7 +484,72 @@ function EditDealContent() {
                                                 </Button>
                                             </div>
 
-                                            <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant={teamMode === 'manual' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setTeamMode('manual')}
+                                                >
+                                                    Manual
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant={teamMode === 'ai' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setTeamMode('ai')}
+                                                >
+                                                    <Sparkles className="mr-2 h-4 w-4" />
+                                                    AI Team Builder
+                                                </Button>
+                                            </div>
+
+                                            {teamMode === 'ai' && (
+                                                <>
+                                                    <div>
+                                                        <label className="text-sm font-medium leading-none">
+                                                            Upload Brief (.txt) <span className="text-muted-foreground font-normal">— optional</span>
+                                                        </label>
+                                                        <div className="mt-2 flex items-center gap-3">
+                                                            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
+                                                                <Upload className="h-4 w-4" />
+                                                                Choose file
+                                                                <input type="file" accept=".txt" className="hidden" onChange={handleFileUpload} />
+                                                            </label>
+                                                            {uploadedFileName && <span className="text-xs text-slate-500">{uploadedFileName}</span>}
+                                                        </div>
+                                                    </div>
+                                                    {acceptedAIResult && (
+                                                        <div className="rounded-xl border border-[#e6e9ee] bg-slate-50/80 p-4 space-y-3">
+                                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Accepted AI Team</p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                {acceptedAIResult.team.map(member => (
+                                                                    <div key={member.employeeId} className="flex items-center gap-2 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm">
+                                                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold shrink-0">
+                                                                            {member.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-sm font-semibold text-slate-800 truncate">{member.name}</p>
+                                                                            <p className="text-xs text-[#8a8a8a]">{member.role}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <AITeamBuilder
+                                                        dealId={dealId}
+                                                        clientBudget={form.watch('clientBudget') ?? 0}
+                                                        timelineMonths={form.watch('timelineMonths') ?? 1}
+                                                        workloadHours={form.watch('workloadHours') ?? 0}
+                                                        workloadDescription={form.watch('workloadDescription') || ''}
+                                                        workloadDocumentText={workloadDocText}
+                                                        onAccept={handleAcceptAIResult}
+                                                    />
+                                                </>
+                                            )}
+
+                                            {teamMode === 'manual' && <div className="bg-slate-50/50 p-6 rounded-lg border border-slate-100">
                                                 <div className="flex items-center justify-between mb-6 pb-4 border-b">
                                                     <div>
                                                         <h3 className="text-sm font-semibold text-slate-900">Ghost Roles Required</h3>
@@ -584,7 +684,7 @@ function EditDealContent() {
                                                         </div>
                                                     ))}
                                                 </div>
-                                            </div>
+                                            </div>}
 
                                             <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm space-y-3">
                                                 <h3 className="text-sm font-semibold text-slate-900">Booking Boundary</h3>
