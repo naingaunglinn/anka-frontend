@@ -91,6 +91,12 @@ export interface CompanySettings {
     yearlyFixedCost: number;
     employerTaxPercentage: number; // employer payroll tax % on top of salary
     benefitsPercentage: number;    // benefits/insurance % on top of salary
+    // Estimation defaults — used to drive cost calculations on /estimation
+    // when the deal/role doesn't yet have a concrete signal. See the
+    // company_settings migration for context.
+    costToBillRatio: number;             // 0-1; cost as a fraction of role.rate (e.g. 0.40 = 60% margin assumed)
+    defaultMonthlyCapacityHours: number; // hours/month/person assumption (e.g. 160)
+    fallbackHourlyCost: number;          // tenant-currency floor when neither employee nor role data is available
 }
 
 // --- CRM & Estimation ---
@@ -142,7 +148,7 @@ export interface Deal {
     contactPhone?: string;
     estimatedValue?: number;
     winProbability?: number;
-    status?: "lead" | "opportunity" | "inquiry" | "proposal" | "contract" | "won" | "lost";
+    status?: "lead" | "qualified" | "proposal" | "negotiation" | "won" | "lost";
     wizardStep?: DealWizardStep;
     expectedCloseDate?: string;   // YYYY-MM-DD
     leadSource?: DealLeadSource;

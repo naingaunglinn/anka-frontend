@@ -102,6 +102,16 @@ export default function EmployeesPage() {
     }));
     const [isSavingSalary, setIsSavingSalary] = useState(false);
 
+    // Estimation defaults — drive cost calculations on /estimation when no
+    // concrete signal is available. Editable here so each tenant can set
+    // their own assumptions instead of inheriting hardcoded literals.
+    const [estimationDefaults, setEstimationDefaults] = useState(() => ({
+        costToBillRatio:             store.companySettings.costToBillRatio,
+        defaultMonthlyCapacityHours: store.companySettings.defaultMonthlyCapacityHours,
+        fallbackHourlyCost:          store.companySettings.fallbackHourlyCost,
+    }));
+    const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+
     useEffect(() => {
         setSalaryMultiplier({
             taxes: store.companySettings.employerTaxPercentage,
@@ -112,10 +122,42 @@ export default function EmployeesPage() {
         store.companySettings.benefitsPercentage,
     ]);
 
+    useEffect(() => {
+        setEstimationDefaults({
+            costToBillRatio:             store.companySettings.costToBillRatio,
+            defaultMonthlyCapacityHours: store.companySettings.defaultMonthlyCapacityHours,
+            fallbackHourlyCost:          store.companySettings.fallbackHourlyCost,
+        });
+    }, [
+        store.companySettings.costToBillRatio,
+        store.companySettings.defaultMonthlyCapacityHours,
+        store.companySettings.fallbackHourlyCost,
+    ]);
+
     // --- Employee Handlers ---
+    // Build the EmployeeSkillWithName[] the store/API expects from the form
+    // payload by joining each picked skillId against the catalog. Unknown ids
+    // are dropped — the schema validates uuids but a skill could have been
+    // deleted in another tab between picker open and submit.
+    const buildSkills = (
+        picked: EmployeeCreateValues['skills'],
+    ): Employee['skills'] =>
+        picked
+            .map(p => {
+                const skill = store.skills.find(s => s.id === p.skillId);
+                return skill
+                    ? {
+                          skillId:     skill.id,
+                          name:        skill.name,
+                          category:    skill.category,
+                          proficiency: p.proficiency,
+                      }
+                    : null;
+            })
+            .filter((s): s is NonNullable<typeof s> => s !== null);
+
     const handleAddEmployee = async (data: EmployeeCreateValues) => {
         const role = store.roles.find(r => r.id === data.role);
-        const dept = store.departments.find(d => d.id === data.departmentId);
         await store.addEmployee(
             {
                 id: crypto.randomUUID(),
@@ -130,6 +172,7 @@ export default function EmployeesPage() {
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             { email: data.email, password: data.password },
         );
@@ -159,6 +202,7 @@ export default function EmployeesPage() {
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             credentials,
         );
@@ -246,6 +290,16 @@ export default function EmployeesPage() {
             benefitsPercentage: salaryMultiplier.benefits,
         });
         setIsSavingSalary(false);
+    };
+
+    const handleSaveEstimationDefaults = async () => {
+        setIsSavingDefaults(true);
+        await store.updateCompanySettings({
+            costToBillRatio:             estimationDefaults.costToBillRatio,
+            defaultMonthlyCapacityHours: estimationDefaults.defaultMonthlyCapacityHours,
+            fallbackHourlyCost:          estimationDefaults.fallbackHourlyCost,
+        });
+        setIsSavingDefaults(false);
     };
 
     if (syncing) {
@@ -397,7 +451,7 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm roles={store.roles} departments={store.departments} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm roles={store.roles} departments={store.departments} skills={store.skills} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -473,6 +527,7 @@ export default function EmployeesPage() {
                                     initialData={editingEmployee}
                                     roles={store.roles}
                                     departments={store.departments}
+                                    skills={store.skills}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />
@@ -557,6 +612,63 @@ export default function EmployeesPage() {
                                     disabled={isSavingSalary}
                                 >
                                     {isSavingSalary ? "Saving..." : "Save Multipliers"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border-[#e6e9ee]">
+                            <CardHeader>
+                                <CardTitle>Estimation Defaults</CardTitle>
+                                <CardDescription>
+                                    Fallback assumptions used by the Estimation Engine when a deal or role doesn&apos;t supply concrete data.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Cost-to-Bill Ratio
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(0–1; e.g. 0.40 = cost is 40% of billable rate)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        value={estimationDefaults.costToBillRatio}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, costToBillRatio: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Default Monthly Capacity (hours)
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(per employee; typical 160)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max="744"
+                                        value={estimationDefaults.defaultMonthlyCapacityHours}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, defaultMonthlyCapacityHours: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Fallback Hourly Cost
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(used when no employee or role rate is available)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={estimationDefaults.fallbackHourlyCost}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, fallbackHourlyCost: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <Button
+                                    className="w-full mt-2"
+                                    onClick={handleSaveEstimationDefaults}
+                                    disabled={isSavingDefaults}
+                                >
+                                    {isSavingDefaults ? "Saving..." : "Save Defaults"}
                                 </Button>
                             </CardContent>
                         </Card>

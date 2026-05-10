@@ -155,11 +155,14 @@ export const useBusinessStore = create<BusinessState>()(
             globalOverheads: [],
             skills: [],
             companySettings: {
-                overheadPercentage: 20,
-                bufferPercentage: 10,
-                yearlyFixedCost: 0,
-                employerTaxPercentage: 8,
-                benefitsPercentage: 12,
+                overheadPercentage:           20,
+                bufferPercentage:             10,
+                yearlyFixedCost:              0,
+                employerTaxPercentage:        8,
+                benefitsPercentage:           12,
+                costToBillRatio:              0.40,
+                defaultMonthlyCapacityHours:  160,
+                fallbackHourlyCost:           50,
             },
             deals: [],
             contracts: [],
@@ -705,10 +708,13 @@ export const useBusinessStore = create<BusinessState>()(
                 });
 
                 state.deals.forEach(deal => {
-                    const status = deal.status || 'inquiry';
+                    const status = deal.status || 'lead';
                     if (status === "lost") return;
 
-                    if (status === "won" || status === "contract") {
+                    // Negotiation = late-stage commitment, treat as hard-booked
+                    // (same semantics as the old `contract` stage). Won always
+                    // is. Earlier stages contribute soft bookings only.
+                    if (status === "won" || status === "negotiation") {
                         (deal.hardAssignments || []).forEach(a => {
                             const eng = state.engineers.find(e => e.id === a.employeeId);
                             if (eng && pool[eng.role]) pool[eng.role].hardBookedHours += a.allocatedHours;

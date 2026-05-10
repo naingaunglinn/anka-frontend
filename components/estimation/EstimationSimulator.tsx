@@ -11,56 +11,103 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { EstimationResource, ProjectOverhead } from '@/types/business';
-import { useEstimationVersions, useEstimationVersionMutations, EstimationVersion } from '@/lib/queries/estimationVersions';
+import {
+    useEstimationVersions,
+    useEstimationVersionDetail,
+    useEstimationVersionMutations,
+} from '@/lib/queries/estimationVersions';
+import { useDealList } from '@/lib/queries/deals';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
+/**
+ * Median of a numeric array. Returns NaN for an empty input — callers
+ * should check before using the result.
+ */
+function median(values: number[]): number {
+    if (values.length === 0) return NaN;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+}
+
 function CompareBanner({
-    version,
+    versionId,
     currentResources,
     onClose,
 }: {
-    version: EstimationVersion
+    versionId: string
     currentResources: EstimationResource[]
     onClose: () => void
 }) {
-    const saved = (version as unknown as { resources?: EstimationResource[] }).resources ?? []
-    const current = currentResources
-    const savedMap = new Map(saved.map(r => [r.roleId, r.hours]))
-    const currentMap = new Map(current.map(r => [r.roleId, r.hours]))
-
-    const allRoleIds = [...new Set([...savedMap.keys(), ...currentMap.keys()])]
+    // The version-list endpoint returns counts only — not the actual resources
+    // array. Fetch the full version detail here so the diff table reflects
+    // real saved values, not always-empty placeholders.
+    const detailQuery = useEstimationVersionDetail(versionId)
+    const detail = detailQuery.data
     const store = useBusinessStore()
+
+    const headerLabel = detail
+        ? `Comparing with v${detail.versionNumber}${detail.notes ? ` · ${detail.notes}` : ''}`
+        : 'Loading comparison...'
+
+    // Resources from the API may carry either snake_case or camelCase keys
+    // depending on which mapper produced them; normalize before indexing.
+    const saved = (detail?.resources ?? []).map(r => ({
+        roleId: r.roleId ?? r.role_id ?? '',
+        hours:  Number(r.hours ?? 0),
+    }))
+    const savedMap   = new Map(saved.map(r => [r.roleId, r.hours]))
+    const currentMap = new Map(currentResources.map(r => [r.roleId, r.hours]))
+    const allRoleIds = [...new Set([...savedMap.keys(), ...currentMap.keys()])]
 
     return (
         <div className="border-t bg-blue-50 p-4 space-y-2">
             <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
-                    Comparing with v{version.versionNumber} {version.notes ? `· ${version.notes}` : ''}
+                    {headerLabel}
                 </p>
                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>Close</Button>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-xs">
-                <div className="font-medium text-slate-500">Role</div>
-                <div className="font-medium text-slate-500 text-right">Saved (v{version.versionNumber})</div>
-                <div className="font-medium text-slate-500 text-right">Current</div>
-                {allRoleIds.map(roleId => {
-                    const role = store.roles.find(r => r.id === roleId)
-                    const savedH = savedMap.get(roleId) ?? 0
-                    const currH = currentMap.get(roleId) ?? 0
-                    const diff = currH - savedH
-                    return (
-                        <div key={roleId} className="contents">
-                            <div className="text-slate-700">{role?.title ?? roleId}</div>
-                            <div className="text-right text-slate-500">{savedH}h</div>
-                            <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                                {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+
+            {detailQuery.isLoading && (
+                <p className="text-xs text-slate-500 italic">Loading saved version data...</p>
+            )}
+
+            {detailQuery.isError && (
+                <p className="text-xs text-rose-600">
+                    Could not load that version&apos;s details.
+                    <Button variant="link" size="sm" className="h-auto px-1 text-xs text-rose-600" onClick={() => detailQuery.refetch()}>Retry</Button>
+                </p>
+            )}
+
+            {detail && (
+                <div className="grid grid-cols-3 gap-4 text-xs">
+                    <div className="font-medium text-slate-500">Role</div>
+                    <div className="font-medium text-slate-500 text-right">Saved (v{detail.versionNumber})</div>
+                    <div className="font-medium text-slate-500 text-right">Current</div>
+                    {allRoleIds.length === 0 ? (
+                        <div className="col-span-3 text-slate-500 italic">No resources in either version.</div>
+                    ) : allRoleIds.map(roleId => {
+                        const role = store.roles.find(r => r.id === roleId)
+                        const savedH = savedMap.get(roleId) ?? 0
+                        const currH  = currentMap.get(roleId) ?? 0
+                        const diff   = currH - savedH
+                        return (
+                            <div key={roleId} className="contents">
+                                <div className="text-slate-700">{role?.title ?? roleId}</div>
+                                <div className="text-right text-slate-500">{savedH}h</div>
+                                <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                    {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+                                </div>
                             </div>
-                        </div>
-                    )
-                })}
-            </div>
+                        )
+                    })}
+                </div>
+            )}
         </div>
     )
 }
@@ -74,6 +121,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const store = useBusinessStore();
     const currency = useTenantCurrency();
     const symbol = useCurrencySymbol();
+
+    // Self-fetch the deal list so the Target Deal picker is populated even
+    // when the user lands on /estimation directly. The hook syncs results
+    // into the Zustand store as a side-effect, so store.deals (read below)
+    // ends up populated either way.
+    useDealList();
 
     // UI selections
     const [selectedDealId, setSelectedDealId] = useState<string>(initialDealId);
@@ -90,6 +143,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const currentVersion = versions[0]; // latest (sorted desc)
     const totalVersions = versions.length;
     const nextVersion = (currentVersion?.versionNumber ?? 0) + 1;
+
+    // Pre-fetch the latest saved version's full payload so we can detect
+    // no-op saves locally without an extra round-trip on click. The hook
+    // is no-op when currentVersion is missing (first save on a deal).
+    const latestVersionDetailQuery = useEstimationVersionDetail(currentVersion?.id ?? null);
+    const latestVersionDetail = latestVersionDetailQuery.data;
 
     // Local estimation state before saving
     const [resources, setResources] = useState<EstimationResource[]>([]);
@@ -126,7 +185,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             (gr.roleType === 'design' && r.title.toLowerCase().includes('design'))
                         );
                         const roleId = matchingRole?.id ?? gr.roleType;
-                        const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * 160 * (deal.timelineMonths || 1);
+                        const monthlyCapacity = store.companySettings.defaultMonthlyCapacityHours;
+                        const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * monthlyCapacity * (deal.timelineMonths || 1);
                         ghostToResources.push({
                             id: gr.id || crypto.randomUUID(),
                             featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
@@ -187,6 +247,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
     const handleSave = async () => {
         if (!selectedDealId) return;
+
+        // Belt-and-suspenders for the disabled-button guard below: don't
+        // create a byte-identical version row if something slipped through
+        // (e.g. the button was enabled while the detail query was in flight).
+        if (isUnchangedFromSaved) {
+            toast('No changes to save — current state matches the latest saved version.');
+            return;
+        }
+
         const nextVer = (currentVersion?.versionNumber ?? 0) + 1;
         try {
             await saveVersion.mutateAsync({
@@ -229,14 +298,32 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         }
     };
 
-    // Calculations — use role billable rate × 0.4 as estimated cost rate (40% margin on billable)
-    const laborCost = resources.reduce((sum, res) => {
-        const role = store.roles.find(r => r.id === res.roleId);
-        // Look up an employee with this job role to get actual cost_per_hour if available
-        const emp = store.employees.find(e => e.jobRoleId === res.roleId);
-        const costRate = emp?.costPerHour ?? (role ? (role.rate * 0.4) : 50);
-        return sum + (res.hours * costRate);
-    }, 0);
+    // Cost-rate strategy:
+    //   1. Active employees with this jobRoleId → median(costPerHour). Median
+    //      (not first-match) so the result is deterministic regardless of
+    //      employee insertion order, and median (not mean) so a single very-
+    //      senior or very-junior outlier doesn't skew the typical rate.
+    //   2. No matching employees but role exists → role.rate × costToBillRatio
+    //      (default 0.40 = "cost is 40% of billable rate" → 60% margin).
+    //   3. Nothing → fallbackHourlyCost (default 50 in tenant currency).
+    // Both fallbacks are tenant-tunable via /organization → Salary Structure.
+    const costRateForRole = (roleId: string): number => {
+        const rates = store.employees
+            .filter(e => e.jobRoleId === roleId && e.status === 'Active')
+            .map(e => e.costPerHour)
+            .filter((r): r is number => typeof r === 'number' && Number.isFinite(r) && r > 0);
+        if (rates.length > 0) return median(rates);
+
+        const role = store.roles.find(r => r.id === roleId);
+        if (role) return role.rate * store.companySettings.costToBillRatio;
+
+        return store.companySettings.fallbackHourlyCost;
+    };
+
+    const laborCost = resources.reduce(
+        (sum, res) => sum + res.hours * costRateForRole(res.roleId),
+        0,
+    );
 
     const totalOverheadCost = overheads.reduce((sum, o) => sum + o.cost, 0);
     const totalCost = laborCost + totalOverheadCost;
@@ -244,6 +331,70 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const targetMarginDecimal = margin[0] / 100;
     const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
     const expectedProfit = suggestedPrice - totalCost;
+
+    // Stable signature of the local edit state for "is this identical to
+    // what's already saved?" checks. Resources and overheads are sorted
+    // before serialising so reordering rows isn't treated as a change.
+    const localSignature = (() => {
+        const r = resources
+            .map(x => `${x.roleId}|${x.featureName}|${x.hours}`)
+            .sort().join(',');
+        const o = overheads
+            .map(x => `${x.name}|${x.cost}`)
+            .sort().join(',');
+        return `${margin[0]}::${r}::${o}`;
+    })();
+
+    const savedSignature = (() => {
+        if (!latestVersionDetail) return null;
+        const r = (latestVersionDetail.resources ?? [])
+            .map(x => `${x.roleId ?? x.role_id ?? ''}|${x.featureName ?? x.feature_name ?? ''}|${x.hours ?? 0}`)
+            .sort().join(',');
+        const o = (latestVersionDetail.overheads ?? [])
+            .map(x => `${x.name ?? ''}|${x.cost ?? 0}`)
+            .sort().join(',');
+        return `${latestVersionDetail.targetMargin}::${r}::${o}`;
+    })();
+
+    // True only when there's a saved version AND the local state matches it
+    // exactly. With no saved version (first save on a deal) we always allow
+    // saving so the user can capture v1.
+    const isUnchangedFromSaved = savedSignature !== null && localSignature === savedSignature;
+
+    // The `dirty` flag flips on any user edit but doesn't reset when the user
+    // reverts back to saved state. Combine with the signature check so the
+    // Draft/Saved indicator and the Save button reflect actual diff, not
+    // just "user touched something".
+    const hasUnsavedChanges = dirty && !isUnchangedFromSaved;
+
+    // Switching deals replaces all local state via the useEffect at the top
+    // of the component — silently dumping any unsaved edits. Intercept the
+    // Select's change handler and confirm before discarding work. Native
+    // confirm matches the existing pattern (handleRestore uses the same).
+    const handleDealChange = (newDealId: string) => {
+        if (newDealId === selectedDealId) return;
+        if (hasUnsavedChanges) {
+            const ok = window.confirm(
+                'You have unsaved changes on this estimation. Switch deals and discard them?',
+            );
+            if (!ok) return;
+        }
+        setSelectedDealId(newDealId);
+    };
+
+    // Reality-check the simulator output against what the client said they'd
+    // spend. A 5% tolerance forgives small price/budget gaps that are
+    // typical negotiation room. Anything beyond that is flagged inline so
+    // the salesperson sees the problem next to the price they're about to
+    // quote, instead of discovering it later when the client pushes back.
+    const selectedDeal = store.deals.find(d => d.id === selectedDealId);
+    const clientBudget = selectedDeal?.clientBudget ?? 0;
+    const BUDGET_TOLERANCE = 1.05;
+    const exceedsBudget = clientBudget > 0 && suggestedPrice > clientBudget * BUDGET_TOLERANCE;
+    const budgetOverage = exceedsBudget ? suggestedPrice - clientBudget : 0;
+    const budgetOveragePercent = exceedsBudget && clientBudget > 0
+        ? (budgetOverage / clientBudget) * 100
+        : 0;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -255,7 +406,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-3">
-                            <Select value={selectedDealId} onValueChange={setSelectedDealId}>
+                            <Select value={selectedDealId} onValueChange={handleDealChange}>
                                 <SelectTrigger className="w-full bg-white">
                                     <SelectValue placeholder="Select a deal from CRM to estimate..." />
                                 </SelectTrigger>
@@ -287,15 +438,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <div className="flex items-center gap-2 text-xs text-slate-500">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span className="font-medium text-slate-700">
-                                        v{currentVersion?.versionNumber ?? 0}{dirty ? '+' : ''}
+                                        v{currentVersion?.versionNumber ?? 0}{hasUnsavedChanges ? '+' : ''}
                                     </span>
                                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
                                         style={{
-                                            background: dirty ? '#fef3c7' : '#d1fae5',
-                                            color: dirty ? '#92400e' : '#065f46',
+                                            background: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
+                                            color: hasUnsavedChanges ? '#92400e' : '#065f46',
                                         }}
                                     >
-                                        {dirty ? 'Draft' : 'Saved'}
+                                        {hasUnsavedChanges ? 'Draft' : 'Saved'}
                                     </span>
                                     {lastSavedAt && (
                                         <span className="text-slate-400">· {lastSavedAt}</span>
@@ -310,16 +461,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <History className="h-3 w-3" />
                                     {totalVersions} versions
                                 </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs"
-                                    onClick={() => setCompareWithId(compareWithId ? null : (versions[1]?.id ?? null))}
-                                    disabled={versions.length < 2}
+                                {/* Pick any saved version to compare the live draft against,
+                                    not just v[N-1]. The "__none__" sentinel is the explicit
+                                    Stop-Comparing affordance — used because Radix Select rejects
+                                    SelectItems with empty-string values. */}
+                                <Select
+                                    value={compareWithId ?? '__placeholder__'}
+                                    onValueChange={(val) => setCompareWithId(val === '__none__' ? null : val)}
+                                    disabled={versions.length === 0}
                                 >
-                                    <GitCompare className="h-3 w-3" />
-                                    Compare
-                                </Button>
+                                    <SelectTrigger className="h-7 px-2 gap-1 text-xs w-auto min-w-[110px]">
+                                        <GitCompare className="h-3 w-3" />
+                                        <SelectValue placeholder="Compare to..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {compareWithId && (
+                                            <SelectItem value="__none__">— Stop comparing</SelectItem>
+                                        )}
+                                        {versions.map((v) => (
+                                            <SelectItem key={v.id} value={v.id}>
+                                                v{v.versionNumber}{v.notes ? ` · ${v.notes}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     </CardHeader>
@@ -344,6 +509,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <p className="text-xs text-slate-400 mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {/* Compare draft against THIS row's version, on every row.
+                                            Previously only the latest row had a Compare button and it
+                                            was hardwired to v[N-1] — so you couldn't compare against
+                                            v1 from a list that already had v3 saved. */}
+                                        <Button
+                                            variant={compareWithId === v.id ? 'default' : 'outline'}
+                                            size="sm"
+                                            className="h-7 gap-1 text-xs"
+                                            onClick={() => setCompareWithId(compareWithId === v.id ? null : v.id)}
+                                        >
+                                            <GitCompare className="h-3 w-3" />
+                                            {compareWithId === v.id ? 'Comparing' : 'Compare'}
+                                        </Button>
                                         {idx > 0 && (
                                             <Button
                                                 variant="outline"
@@ -354,24 +532,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 <RotateCcw className="h-3 w-3" /> Restore
                                             </Button>
                                         )}
-                                        {versions[1] && idx === 0 && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 gap-1 text-xs"
-                                                onClick={() => setCompareWithId(versions[1]?.id ?? null)}
-                                            >
-                                                <GitCompare className="h-3 w-3" /> Compare
-                                            </Button>
-                                        )}
                                     </div>
                                 </div>
                             ))}
                         </div>
                     )}
-                    {compareWithId && versions.find(v => v.id === compareWithId) && (
+                    {compareWithId && (
                         <CompareBanner
-                            version={versions.find(v => v.id === compareWithId)!}
+                            versionId={compareWithId}
                             currentResources={resources}
                             onClose={() => setCompareWithId(null)}
                         />
@@ -391,8 +559,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <TableBody>
                                 {resources.map((res) => {
                                     const role = store.roles.find(r => r.id === res.roleId);
-                                    const emp = store.employees.find(e => e.jobRoleId === res.roleId);
-                                    const costRate = emp?.costPerHour ?? (role ? (role.rate * 0.4) : 50);
+                                    const costRate = costRateForRole(res.roleId);
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
@@ -541,7 +708,28 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     {formatMoney(suggestedPrice, currency)}
                                 </span>
                             </div>
+
+                            {clientBudget > 0 && (
+                                <div className="flex justify-between items-center text-xs pt-1">
+                                    <span className="text-slate-400">vs. Client Budget</span>
+                                    <span className={exceedsBudget ? 'text-rose-600 font-medium' : 'text-slate-500'}>
+                                        {formatMoney(clientBudget, currency)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
+
+                        {exceedsBudget && (
+                            <div className="rounded-md border border-rose-200 bg-rose-50 p-3 space-y-1">
+                                <p className="text-xs font-semibold text-rose-700 uppercase tracking-wider">
+                                    Suggested price exceeds budget
+                                </p>
+                                <p className="text-xs text-rose-700">
+                                    {formatMoney(budgetOverage, currency)} over the client&apos;s {formatMoney(clientBudget, currency)} budget
+                                    {' '}({budgetOveragePercent.toFixed(1)}%). Lower the target margin or reduce scope before quoting.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="pt-2">
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Version Notes (optional)</label>
@@ -553,8 +741,17 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <Button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2">
-                            <Save className="h-4 w-4" /> Save Estimate v{nextVersion}{dirty ? '+' : ''}
+                        <Button
+                            onClick={handleSave}
+                            disabled={isUnchangedFromSaved || saveVersion.isPending}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
+                        >
+                            <Save className="h-4 w-4" />
+                            {saveVersion.isPending
+                                ? 'Saving...'
+                                : isUnchangedFromSaved
+                                    ? 'No changes to save'
+                                    : `Save Estimate v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
                         </Button>
                     </CardContent>
                 </Card>

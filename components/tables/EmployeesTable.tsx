@@ -224,6 +224,41 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             },
         },
         {
+            id: 'skills',
+            header: 'Skills',
+            cell: ({ row }) => {
+                const list = row.original.skills ?? [];
+                if (list.length === 0) {
+                    return <span className="text-[#8a8a8a]">—</span>;
+                }
+                const visible = list.slice(0, 2);
+                const overflow = list.length - visible.length;
+                return (
+                    <div className="flex flex-wrap items-center gap-1">
+                        {visible.map(s => (
+                            <Badge
+                                key={s.skillId}
+                                variant="outline"
+                                className="font-normal"
+                                title={s.proficiency ? `${s.name} • ${s.proficiency}` : s.name}
+                            >
+                                {s.name}
+                            </Badge>
+                        ))}
+                        {overflow > 0 && (
+                            <Badge
+                                variant="secondary"
+                                className="font-normal"
+                                title={list.slice(2).map(s => s.name).join(', ')}
+                            >
+                                +{overflow}
+                            </Badge>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             accessorKey: 'status',
             header: 'Status',
             cell: ({ row }) => {

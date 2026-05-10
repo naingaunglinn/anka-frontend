@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/aiTeamBuilder'
+import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage } from '@/lib/aiTeamBuilder'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { formatMoney } from '@/lib/currencyServer'
 
@@ -12,6 +12,33 @@ const OUTPUT_COST_PER_TOKEN = 15.00 / 1_000_000
 
 function estimateCost(inputTokens: number, outputTokens: number): number {
     return (inputTokens * INPUT_COST_PER_TOKEN) + (outputTokens * OUTPUT_COST_PER_TOKEN)
+}
+
+/**
+ * Pull the first complete JSON object out of a string that may have prose
+ * before or after it. Walks brace depth while respecting string literals so
+ * `{ "note": "}{" }` doesn't confuse it. Returns null if no balanced object
+ * is found — caller falls back to JSON.parse on the original text.
+ */
+function extractFirstJsonObject(text: string): string | null {
+    const start = text.indexOf('{')
+    if (start === -1) return null
+    let depth = 0
+    let inString = false
+    let escape = false
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i]
+        if (escape) { escape = false; continue }
+        if (ch === '\\') { escape = true; continue }
+        if (ch === '"') { inString = !inString; continue }
+        if (inString) continue
+        if (ch === '{') depth++
+        else if (ch === '}') {
+            depth--
+            if (depth === 0) return text.slice(start, i + 1)
+        }
+    }
+    return null
 }
 
 // ── Demo fallback: generates a realistic team recommendation without calling Claude ──
@@ -126,11 +153,25 @@ export async function POST(req: NextRequest) {
         }
     }
 
+    // Single concise log so we can tell from the dev server whether Claude
+    // was actually called and what skills the route saw as "required". Without
+    // this, debugging "why didn't Min Hein get picked" requires guesswork.
+    const poolSkilledCount = (input.employees ?? []).filter(
+        e => e.status === 'Active' && (e.skills ?? []).length > 0,
+    ).length
+    console.log(
+        `[AI Team Builder] dealId=${input.dealId} requiredSkills=${JSON.stringify(input.requiredSkills ?? [])} pool=${(input.employees ?? []).length} active+skilled=${poolSkilledCount}`,
+    )
+
     // Demo fallback: if no API key OR demo mode is implied, return a realistic mock
     if (!apiKey) {
         console.log('[AI Team Builder] Demo fallback — no API key configured')
         logUsage('ai_team_builder', 'demo-fallback', 0, 0, 0)
-        return NextResponse.json(generateDemoResult(input))
+        const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
+        if (demoResult.addedNames.length > 0) {
+            console.warn(`[AI Team Builder] Demo path: force-added skill carrier(s): ${demoResult.addedNames.join(', ')}`)
+        }
+        return NextResponse.json(demoResult.result)
     }
 
     const client = new Anthropic({ apiKey, baseURL })
@@ -139,7 +180,7 @@ export async function POST(req: NextRequest) {
         const message = await client.messages.create({
             model:      CLAUDE_MODEL,
             max_tokens: 4096,
-            temperature: 0.0,
+            temperature: 0.7,
             system:     SYSTEM_PROMPT,
             messages: [
                 { role: 'user', content: buildUserPrompt(input) },
@@ -157,41 +198,60 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // Prefilled with '{' so Claude continues from there — prepend it back
-        let clean = ('{' + rawText).trim()
-
-        // Strip accidental markdown fences
-        clean = clean
-            .replace(/^```json\s*/i, '')
-            .replace(/```\s*$/i, '')
-            .trim()
-
-        // If still not pure JSON, try to extract the JSON object
-        if (!clean.startsWith('{')) {
-            const firstBrace = clean.indexOf('{')
-            const lastBrace  = clean.lastIndexOf('}')
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                clean = clean.slice(firstBrace, lastBrace + 1)
-            }
+        // Pull the JSON object out of the raw response. Claude does any of:
+        //   (a) emit its own clean JSON object, ignoring the assistant prefill
+        //   (b) wrap the JSON in ```json ... ``` markdown fences
+        //   (c) continue from the prefilled '{' so the response is just the
+        //       inside of the object onwards — only valid when prepended
+        // Try the raw text first (covers a + b via the depth-walking
+        // extractor) — that's the common case. Only fall back to prepending
+        // the prefilled '{' if no balanced object is found in raw.
+        let clean = extractFirstJsonObject(rawText)
+        if (!clean) {
+            clean = extractFirstJsonObject('{' + rawText)
         }
+        clean = clean ?? rawText
 
         let result: AITeamBuilderResult
         try {
             result = JSON.parse(clean) as AITeamBuilderResult
-        } catch {
-            // Claude refused or returned non-JSON — fall back to demo mode
-            console.error('AI Team Builder: non-JSON response, falling back to demo mode')
+        } catch (parseErr) {
+            // Log the raw output so we can see what Claude actually produced.
+            // Truncate to keep the dev log readable.
+            const preview = rawText.length > 800 ? rawText.slice(0, 800) + '…[truncated]' : rawText
+            console.error(
+                'AI Team Builder: non-JSON response, falling back to demo mode\n' +
+                '  parse error: ' + (parseErr instanceof Error ? parseErr.message : String(parseErr)) + '\n' +
+                '  raw response from Claude (the prefilled "{" we sent is NOT included):\n' + preview,
+            )
             logUsage('ai_team_builder', CLAUDE_MODEL, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
-            return NextResponse.json(generateDemoResult(input))
+            const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
+            return NextResponse.json(demoResult.result)
         }
 
         // Fire-and-forget usage log — never blocks the AI response
         logUsage('ai_team_builder', message.model, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
 
-        return NextResponse.json(result)
+        // Belt-and-suspenders: even with the prompt's selection rules, Claude
+        // sometimes leaves out a uniquely-skilled employee. enforceSkillCoverage
+        // is budget-aware — only force-adds when the carrier fits the budget.
+        const enforced = enforceSkillCoverage(result, input)
+        if (enforced.addedNames.length > 0) {
+            console.warn(
+                `[AI Team Builder] Force-added ${enforced.addedNames.length} skill carrier(s) Claude omitted: ${enforced.addedNames.join(', ')}`,
+            )
+        }
+        if (enforced.skippedForBudget.length > 0) {
+            console.warn(
+                `[AI Team Builder] Skipped ${enforced.skippedForBudget.length} skill carrier(s) — adding them would exceed clientBudget: ${enforced.skippedForBudget.join(', ')}`,
+            )
+        }
+
+        return NextResponse.json(enforced.result)
     } catch (err) {
         console.error('AI Team Builder error:', err)
         // Fallback to demo mode on any API error
-        return NextResponse.json(generateDemoResult(input))
+        const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
+        return NextResponse.json(demoResult.result)
     }
 }

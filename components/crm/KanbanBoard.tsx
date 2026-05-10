@@ -60,14 +60,17 @@ export function KanbanBoard({
         setIsMounted(true);
     }, []);
 
+    // Column order is the visual flow left-to-right. `lost` lives at the
+    // far right as a terminal state — visible so deals don't silently
+    // disappear from the pipeline view.
     const columns = useMemo(() => {
         const cols: Record<string, ColumnData> = {
-            inquiry: { id: 'inquiry', title: 'Inquiry', deals: [] },
-            lead: { id: 'lead', title: 'Lead', deals: [] },
-            opportunity: { id: 'opportunity', title: 'Opportunity', deals: [] },
-            proposal: { id: 'proposal', title: 'Proposal', deals: [] },
-            contract: { id: 'contract', title: 'Contract', deals: [] },
-            won: { id: 'won', title: 'Won', deals: [] },
+            lead:        { id: 'lead',        title: 'Lead',        deals: [] },
+            qualified:   { id: 'qualified',   title: 'Qualified',   deals: [] },
+            proposal:    { id: 'proposal',    title: 'Proposal',    deals: [] },
+            negotiation: { id: 'negotiation', title: 'Negotiation', deals: [] },
+            won:         { id: 'won',         title: 'Won',         deals: [] },
+            lost:        { id: 'lost',        title: 'Lost',        deals: [] },
         };
 
         deals.forEach(deal => {
@@ -96,35 +99,59 @@ export function KanbanBoard({
         onMetricsUpdate(totalValue, weightedRevenue);
     }, [columns, onMetricsUpdate]);
 
+    // Stage probability defaults — tuned for an agency where most leads don't
+    // convert. Override per-deal via the form input; the smart-merge logic
+    // below preserves manual overrides across stage drags.
+    const stageProbability: Record<string, number> = {
+        lead:        10,
+        qualified:   30,
+        proposal:    50,
+        negotiation: 75,
+        won:         100,
+        lost:        0,
+    };
+
+    // ±5pp tolerance around the source-stage's default counts as "auto-managed",
+    // i.e. the user never deliberately diverged. Beyond that, treat the value
+    // as a deliberate override and preserve it across stage drags.
+    const PROB_TOLERANCE = 5;
+
     const onDragEnd = (result: DropResult) => {
         if (!result.destination) return;
         const { source, destination, draggableId } = result;
 
         if (source.droppableId === destination.droppableId) return;
 
-        // Prevent moving from terminal statuses (won / lost)
+        // Prevent moving from terminal statuses (won / lost). Reverting a
+        // closed deal would orphan the linked Contract/Project.
         if (source.droppableId === 'won' || source.droppableId === 'lost') {
             return;
         }
 
+        const draggedDeal = columns[source.droppableId]?.deals.find(d => d.id === draggableId);
+
         // Dragging to Won opens the confirmation dialog and triggers win_deal()
         if (destination.droppableId === 'won') {
-            const deal = columns[source.droppableId]?.deals.find(d => d.id === draggableId);
-            if (deal) {
-                openWinDeal(draggableId, deal.name);
-            }
+            if (draggedDeal) openWinDeal(draggableId, draggedDeal.name);
             return;
         }
 
-        const stageProbability: Record<string, number> = {
-            inquiry: 20,
-            lead: 20,
-            opportunity: 40,
-            proposal: 60,
-            contract: 80,
-            won: 100,
-        };
-        const newProb = stageProbability[destination.droppableId] ?? 50;
+        // Dragging to Lost opens the loss-reason dialog (which requires a
+        // reason) so deals never get marked lost without context.
+        if (destination.droppableId === 'lost') {
+            if (draggedDeal) openLoseDeal(draggableId, draggedDeal.name);
+            return;
+        }
+
+        // Smart-merge: only overwrite winProbability if the user hasn't
+        // manually diverged from the source stage's default. A deliberate
+        // override (e.g. 32% in a "lead" stage with default 10%) survives
+        // stage drags so the salesperson's judgment isn't silently clobbered.
+        const oldDefault = stageProbability[source.droppableId] ?? 50;
+        const newDefault = stageProbability[destination.droppableId] ?? 50;
+        const currentProb = draggedDeal?.winProbability ?? oldDefault;
+        const isAutoManaged = Math.abs(currentProb - oldDefault) <= PROB_TOLERANCE;
+        const newProb = isAutoManaged ? newDefault : currentProb;
 
         updateDealStage.mutate({
             id: draggableId,
@@ -203,7 +230,8 @@ export function KanbanBoard({
                                             const rolesNeededCount = (deal.ghostRoles || []).reduce((sum, r) => sum + r.quantity, 0);
                                             const hardBookedCount = (deal.hardAssignments || []).length;
                                             const isFullyStaffed = rolesNeededCount > 0 && hardBookedCount >= rolesNeededCount;
-                                            const isWon = deal.status === 'won';
+                                            const isWon  = deal.status === 'won';
+                                            const isLost = deal.status === 'lost';
 
                                             return (
                                                 <Draggable key={deal.id} draggableId={deal.id} index={index}>
@@ -317,11 +345,16 @@ export function KanbanBoard({
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Soft/Hard Booked badge (ported from deals/page.tsx) */}
+                                                                    {/* Booking-state badge — Won = hard committed,
+                                                                        Lost = no longer booked, otherwise soft-booked. */}
                                                                     <div className="flex justify-end pt-1">
                                                                         {isWon ? (
                                                                             <Badge variant="default" className="bg-[#171717] hover:bg-[#00a7f4] text-[10px]">
                                                                                 Hard Booked
+                                                                            </Badge>
+                                                                        ) : isLost ? (
+                                                                            <Badge variant="secondary" className="bg-slate-200 text-slate-600 hover:bg-slate-200 text-[10px]">
+                                                                                Released
                                                                             </Badge>
                                                                         ) : (
                                                                             <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 text-[10px]">
