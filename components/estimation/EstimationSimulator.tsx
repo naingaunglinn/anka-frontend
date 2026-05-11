@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
-import { EstimationResource, ProjectOverhead } from '@/types/business';
+import { Deal, EstimationResource, ProjectOverhead } from '@/types/business';
+import type { Currency } from '@/lib/currencyConfig';
 import {
     useEstimationVersions,
     useEstimationVersionDetail,
     useEstimationVersionMutations,
 } from '@/lib/queries/estimationVersions';
 import { useDealList } from '@/lib/queries/deals';
+import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
@@ -37,10 +40,16 @@ function median(values: number[]): number {
 function CompareBanner({
     versionId,
     currentResources,
+    currentOverheads,
+    currentMargin,
+    currency,
     onClose,
 }: {
     versionId: string
     currentResources: EstimationResource[]
+    currentOverheads: ProjectOverhead[]
+    currentMargin: number
+    currency: Currency
     onClose: () => void
 }) {
     // The version-list endpoint returns counts only — not the actual resources
@@ -64,6 +73,23 @@ function CompareBanner({
     const currentMap = new Map(currentResources.map(r => [r.roleId, r.hours]))
     const allRoleIds = [...new Set([...savedMap.keys(), ...currentMap.keys()])]
 
+    const savedOverheads = (detail?.overheads ?? []).map(o => ({
+        name: o.name ?? '',
+        cost: Number(o.cost ?? 0),
+    }))
+    const savedOverheadMap   = new Map(savedOverheads.map(o => [o.name, o.cost]))
+    const currentOverheadMap = new Map(currentOverheads.map(o => [o.name, o.cost]))
+    const allOverheadNames = [...new Set([...savedOverheadMap.keys(), ...currentOverheadMap.keys()])]
+
+    const savedMargin  = detail?.targetMargin ?? 0
+    const marginDiff   = currentMargin - savedMargin
+
+    function diffClass(d: number) {
+        if (d > 0) return 'text-rose-600'
+        if (d < 0) return 'text-emerald-600'
+        return 'text-slate-700'
+    }
+
     return (
         <div className="border-t bg-blue-50 p-4 space-y-2">
             <div className="flex items-center justify-between mb-2">
@@ -85,27 +111,59 @@ function CompareBanner({
             )}
 
             {detail && (
-                <div className="grid grid-cols-3 gap-4 text-xs">
-                    <div className="font-medium text-slate-500">Role</div>
-                    <div className="font-medium text-slate-500 text-right">Saved (v{detail.versionNumber})</div>
-                    <div className="font-medium text-slate-500 text-right">Current</div>
-                    {allRoleIds.length === 0 ? (
-                        <div className="col-span-3 text-slate-500 italic">No resources in either version.</div>
-                    ) : allRoleIds.map(roleId => {
-                        const role = store.roles.find(r => r.id === roleId)
-                        const savedH = savedMap.get(roleId) ?? 0
-                        const currH  = currentMap.get(roleId) ?? 0
-                        const diff   = currH - savedH
-                        return (
-                            <div key={roleId} className="contents">
-                                <div className="text-slate-700">{role?.title ?? roleId}</div>
-                                <div className="text-right text-slate-500">{savedH}h</div>
-                                <div className={`text-right font-medium ${diff > 0 ? 'text-rose-600' : diff < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                                    {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+                <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4 text-xs">
+                        <div className="font-medium text-slate-500">Role</div>
+                        <div className="font-medium text-slate-500 text-right">Saved (v{detail.versionNumber})</div>
+                        <div className="font-medium text-slate-500 text-right">Current</div>
+                        {allRoleIds.length === 0 ? (
+                            <div className="col-span-3 text-slate-500 italic">No resources in either version.</div>
+                        ) : allRoleIds.map(roleId => {
+                            const role = store.roles.find(r => r.id === roleId)
+                            const savedH = savedMap.get(roleId) ?? 0
+                            const currH  = currentMap.get(roleId) ?? 0
+                            const diff   = currH - savedH
+                            return (
+                                <div key={roleId} className="contents">
+                                    <div className="text-slate-700">{role?.title ?? roleId}</div>
+                                    <div className="text-right text-slate-500">{savedH}h</div>
+                                    <div className={`text-right font-medium ${diffClass(diff)}`}>
+                                        {currH}h {diff !== 0 ? `(${diff > 0 ? '+' : ''}${diff})` : ''}
+                                    </div>
                                 </div>
-                            </div>
-                        )
-                    })}
+                            )
+                        })}
+                    </div>
+
+                    {allOverheadNames.length > 0 && (
+                        <div className="grid grid-cols-3 gap-4 text-xs pt-2 border-t border-blue-100">
+                            <div className="font-medium text-slate-500">Overhead</div>
+                            <div className="font-medium text-slate-500 text-right">Saved</div>
+                            <div className="font-medium text-slate-500 text-right">Current</div>
+                            {allOverheadNames.map(name => {
+                                const savedC = savedOverheadMap.get(name) ?? 0
+                                const currC  = currentOverheadMap.get(name) ?? 0
+                                const diff   = currC - savedC
+                                return (
+                                    <div key={name} className="contents">
+                                        <div className="text-slate-700">{name}</div>
+                                        <div className="text-right text-slate-500">{formatMoney(savedC, currency)}</div>
+                                        <div className={`text-right font-medium ${diffClass(diff)}`}>
+                                            {formatMoney(currC, currency)} {diff !== 0 ? `(${diff > 0 ? '+' : ''}${formatMoney(diff, currency)})` : ''}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-4 text-xs pt-2 border-t border-blue-100">
+                        <div className="text-slate-700">Target Margin</div>
+                        <div className="text-right text-slate-500">{savedMargin}%</div>
+                        <div className={`text-right font-medium ${diffClass(marginDiff)}`}>
+                            {currentMargin}% {marginDiff !== 0 ? `(${marginDiff > 0 ? '+' : ''}${marginDiff})` : ''}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -119,6 +177,7 @@ interface EstimationSimulatorProps {
 export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorProps) {
     const router = useRouter();
     const store = useBusinessStore();
+    const qc = useQueryClient();
     const currency = useTenantCurrency();
     const symbol = useCurrencySymbol();
 
@@ -162,52 +221,81 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [newOverheadName, setNewOverheadName] = useState('');
     const [newOverheadCost, setNewOverheadCost] = useState('');
 
-    useEffect(() => {
-        // Load data if deal selected
-        if (selectedDealId) {
-            const deal = store.deals.find(d => d.id === selectedDealId);
-            if (deal) {
-                const existingResources = deal.estimationResources || [];
-                if (existingResources.length > 0) {
-                    setResources(existingResources);
-                } else if (deal.ghostRoles && deal.ghostRoles.length > 0) {
-                    // Convert ghost roles to estimation resources for display
-                    const roles = store.roles;
-                    const ghostToResources: EstimationResource[] = [];
-                    for (const gr of deal.ghostRoles) {
-                        // Find a matching role from the org roles table
-                        const matchingRole = roles.find(r =>
-                            r.title.toLowerCase().includes(gr.roleType) ||
-                            (gr.roleType === 'frontend' && r.title.toLowerCase().includes('frontend')) ||
-                            (gr.roleType === 'backend' && r.title.toLowerCase().includes('backend')) ||
-                            (gr.roleType === 'pm' && r.title.toLowerCase().includes('project manager')) ||
-                            (gr.roleType === 'qa' && r.title.toLowerCase().includes('qa')) ||
-                            (gr.roleType === 'design' && r.title.toLowerCase().includes('design'))
-                        );
-                        const roleId = matchingRole?.id ?? gr.roleType;
-                        const monthlyCapacity = store.companySettings.defaultMonthlyCapacityHours;
-                        const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * monthlyCapacity * (deal.timelineMonths || 1);
-                        ghostToResources.push({
-                            id: gr.id || crypto.randomUUID(),
-                            featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
-                            roleId,
-                            hours: Math.round(hours),
-                        });
-                    }
-                    setResources(ghostToResources);
-                } else {
-                    setResources([]);
-                }
-                setOverheads(deal.projectOverheads || []);
-                setMargin([deal.targetMargin || 30]);
+    // Tracks which deal we've populated local state from so the load-effect
+    // doesn't clobber in-progress edits when store.deals updates in place
+    // (e.g. background refetches from useDealList). loadFromDeal is called
+    // again explicitly after a Restore to refresh the form.
+    const loadedDealIdRef = useRef<string | null>(null);
+
+    const loadFromDeal = (deal: Deal) => {
+        const existingResources = deal.estimationResources || [];
+        if (existingResources.length > 0) {
+            setResources(existingResources);
+        } else if (deal.ghostRoles && deal.ghostRoles.length > 0) {
+            // Convert ghost roles to estimation resource seeds. The role lookup
+            // is best-effort: fuzzy-match on org role titles by roleType, with
+            // a 'pm' special-case ('pm' won't match 'Project Manager' via
+            // includes). If nothing matches, fall back to the first org role
+            // — never to a non-UUID type string, which would 422 on save.
+            const roles = store.roles;
+            const ghostToResources: EstimationResource[] = [];
+            // 160 mirrors the documented default — guards the first render
+            // before companySettings has hydrated, which would otherwise
+            // produce NaN hours in the table.
+            const monthlyCapacity = store.companySettings.defaultMonthlyCapacityHours || 160;
+            for (const gr of deal.ghostRoles) {
+                const matchingRole = roles.find(r => {
+                    const title = r.title.toLowerCase();
+                    if (gr.roleType === 'pm') return title.includes('project manager') || title.includes('pm');
+                    return title.includes(gr.roleType);
+                });
+                // Skip the seed if there's no usable role — saving with an
+                // invalid UUID would fail backend validation, and silently
+                // dropping is better than producing a row the user can't fix.
+                if (!matchingRole && roles.length === 0) continue;
+                const roleId = matchingRole?.id ?? roles[0].id;
+                const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * monthlyCapacity * (deal.timelineMonths || 1);
+                ghostToResources.push({
+                    // Stable id derived from the ghost role so re-loading the
+                    // same deal doesn't re-mint ids (which made the dirty/diff
+                    // signature unstable across refetches).
+                    id: `ghost-${gr.id || gr.roleType}`,
+                    featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
+                    roleId,
+                    hours: Math.round(hours),
+                });
             }
+            setResources(ghostToResources);
         } else {
+            setResources([]);
+        }
+        setOverheads(deal.projectOverheads || []);
+        setMargin([deal.targetMargin || 30]);
+        setDirty(false);
+        setLastSavedAt(null);
+    };
+
+    useEffect(() => {
+        // Clear state when no deal is selected.
+        if (!selectedDealId) {
             setResources([]);
             setOverheads([]);
             setMargin([30]);
+            setDirty(false);
+            setLastSavedAt(null);
+            loadedDealIdRef.current = null;
+            return;
         }
-        setDirty(false);
-        setLastSavedAt(null);
+        // Skip if this deal's state is already loaded — prevents background
+        // store.deals refetches from clobbering unsaved local edits.
+        if (loadedDealIdRef.current === selectedDealId) return;
+        const deal = store.deals.find(d => d.id === selectedDealId);
+        if (!deal) return; // wait for store to populate
+        loadedDealIdRef.current = selectedDealId;
+        loadFromDeal(deal);
+        // loadFromDeal is intentionally referenced via closure; including it
+        // in deps would defeat the once-per-deal guard above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDealId, store.deals, store.roles]);
 
     const handleAdd = () => {
@@ -283,15 +371,20 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         setShowHistory(false);
         try {
             await restoreVersion.mutateAsync(versionId);
-            // Reload deal data
-            const deal = store.deals.find(d => d.id === selectedDealId);
+            // The mutation onSuccess invalidates ['deals'] and the versions
+            // list, but invalidation alone doesn't wait for the refetch — we
+            // need fresh deal data in the store before reading it. Force the
+            // refetch (and the versions list too, in case the backend created
+            // an audit row).
+            await qc.refetchQueries({ queryKey: ['deals'] });
+            await qc.refetchQueries({ queryKey: ['estimation-versions'] });
+            // Use the latest store snapshot AFTER the refetch resolves.
+            const deal = useBusinessStore.getState().deals.find(d => d.id === selectedDealId);
             if (deal) {
-                setResources(deal.estimationResources || []);
-                setOverheads(deal.projectOverheads || []);
-                setMargin([deal.targetMargin || 30]);
+                // Bypass the once-per-deal guard since the deal data itself changed.
+                loadedDealIdRef.current = selectedDealId;
+                loadFromDeal(deal);
             }
-            setDirty(false);
-            versionsQuery.refetch();
             toast.success(`Restored to v${versionNumber}`);
         } catch {
             toast.error('Failed to restore version');
@@ -303,8 +396,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     //      (not first-match) so the result is deterministic regardless of
     //      employee insertion order, and median (not mean) so a single very-
     //      senior or very-junior outlier doesn't skew the typical rate.
-    //   2. No matching employees but role exists → role.rate × costToBillRatio
-    //      (default 0.40 = "cost is 40% of billable rate" → 60% margin).
+    //   2. No matching employees but role exists with a positive rate →
+    //      role.rate × costToBillRatio (default 0.40 = "cost is 40% of
+    //      billable rate" → 60% margin). A zero/negative role.rate is
+    //      treated as "no rate signal" and falls through.
     //   3. Nothing → fallbackHourlyCost (default 50 in tenant currency).
     // Both fallbacks are tenant-tunable via /organization → Salary Structure.
     const costRateForRole = (roleId: string): number => {
@@ -315,7 +410,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         if (rates.length > 0) return median(rates);
 
         const role = store.roles.find(r => r.id === roleId);
-        if (role) return role.rate * store.companySettings.costToBillRatio;
+        if (role && role.rate > 0) return role.rate * store.companySettings.costToBillRatio;
 
         return store.companySettings.fallbackHourlyCost;
     };
@@ -325,11 +420,27 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         0,
     );
 
-    const totalOverheadCost = overheads.reduce((sum, o) => sum + o.cost, 0);
-    const totalCost = laborCost + totalOverheadCost;
+    // Cost model aligned with the rest of the system (CRM ghost-role estimate,
+    // AI Team Builder). Three overhead components stack:
+    //   - companyOverheadCost  = labor × overheadPct   (settings %, on labor)
+    //   - projectOverheadTotal = Σ absolute project overheads
+    //   - bufferCost           = (labor + companyOverhead + projectOverhead) × bufferPct
+    // Buffer is applied to labor + both overheads via calculateRiskBuffer so a
+    // change in any input flows through deterministically.
+    const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
+    const companyOverheadCost = calculateOverhead(laborCost, store.companySettings.overheadPercentage || 0);
+    const bufferCost = calculateRiskBuffer(
+        laborCost,
+        companyOverheadCost + projectOverheadTotal,
+        store.companySettings.bufferPercentage || 0,
+    );
+    const totalCost = laborCost + companyOverheadCost + projectOverheadTotal + bufferCost;
 
-    const targetMarginDecimal = margin[0] / 100;
-    const suggestedPrice = targetMarginDecimal < 1 ? totalCost / (1 - targetMarginDecimal) : 0;
+    // Slider is capped at 80% so margin/100 stays well below 1, but clamp
+    // explicitly here so a future cap change can't silently produce price=0.
+    const clampedMarginPct = Math.min(95, Math.max(0, margin[0]));
+    const targetMarginDecimal = clampedMarginPct / 100;
+    const suggestedPrice = totalCost / (1 - targetMarginDecimal);
     const expectedProfit = suggestedPrice - totalCost;
 
     // Stable signature of the local edit state for "is this identical to
@@ -379,6 +490,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             );
             if (!ok) return;
         }
+        // Reset comparison / history panels — they're tied to the previous
+        // deal's versions and would otherwise display stale data after the
+        // switch.
+        setCompareWithId(null);
+        setShowHistory(false);
         setSelectedDealId(newDealId);
     };
 
@@ -541,6 +657,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <CompareBanner
                             versionId={compareWithId}
                             currentResources={resources}
+                            currentOverheads={overheads}
+                            currentMargin={margin[0]}
+                            currency={currency}
                             onClose={() => setCompareWithId(null)}
                         />
                     )}
@@ -691,8 +810,20 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Total Project Overhead</span>
-                                <span className="font-medium text-rose-500">{formatMoney(totalOverheadCost, currency)}</span>
+                                <span className="text-slate-500">
+                                    Company Overhead ({store.companySettings.overheadPercentage || 0}%)
+                                </span>
+                                <span className="font-medium text-slate-700">{formatMoney(companyOverheadCost, currency)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-500">Project Overhead</span>
+                                <span className="font-medium text-rose-500">{formatMoney(projectOverheadTotal, currency)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-500">
+                                    Risk Buffer ({store.companySettings.bufferPercentage || 0}%)
+                                </span>
+                                <span className="font-medium text-amber-600">{formatMoney(bufferCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
                                 <span className="text-slate-700">Total Project Cost</span>

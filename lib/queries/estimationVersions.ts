@@ -100,6 +100,10 @@ export function useEstimationVersionMutations() {
         },
         onSuccess: (_, vars) => {
             qc.invalidateQueries({ queryKey: versionKeys.list(vars.dealId) })
+            // The backend recomputes the parent deal's cost fields when a
+            // version is saved, so refresh the deal list / store too —
+            // otherwise CRM Kanban cards and deal detail show pre-save numbers.
+            qc.invalidateQueries({ queryKey: ['deals'] })
         },
     })
 
@@ -110,6 +114,10 @@ export function useEstimationVersionMutations() {
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['deals'] })
+            // Backend may create a new audit row (vN+1) when restoring, so
+            // refresh the versions list too. Prefix match catches every
+            // ['estimation-versions', dealId] entry without needing the id here.
+            qc.invalidateQueries({ queryKey: ['estimation-versions'] })
         },
     })
 
