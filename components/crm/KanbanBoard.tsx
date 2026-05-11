@@ -194,12 +194,20 @@ export function KanbanBoard({
         setWinOpen(true);
     };
 
-    const handleWinDeal = () => {
+    const handleWinDeal = async () => {
         if (!winningDeal) return;
-        winDeal.mutate({ dealId: winningDeal.id, winReason: winReason || undefined });
+        // Close the modal optimistically so the user isn't staring at it during the SP call.
         setWinOpen(false);
         setWinningDeal(null);
         setWinReason('');
+        try {
+            const result = await winDeal.mutateAsync({ dealId: winningDeal.id, winReason: winReason || undefined });
+            // Land the user on the new contract so they can immediately set payment
+            // terms, billing email, and milestones — the post-win setup checklist.
+            if (result?.contractId) router.push(`/contracts/${result.contractId}`);
+        } catch {
+            // businessStore.winDeal already surfaces a toast; swallow here.
+        }
     };
 
     const openLoseDeal = (dealId: string, dealName: string) => {

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle2, Clock, AlertCircle, MoreVertical } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, MoreVertical, Users, Calendar, FileWarning } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -92,11 +92,12 @@ export default function ProjectsPage() {
                             <TableHead>Project</TableHead>
                             <TableHead>Client</TableHead>
                             <TableHead>Contract</TableHead>
-                            <TableHead>Source Deal</TableHead>
+                            <TableHead>Kickoff</TableHead>
+                            <TableHead>Team</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Budget Hours</TableHead>
                             <TableHead className="text-right">Consumed</TableHead>
-                            <TableHead className="w-[200px]">Burn Rate</TableHead>
+                            <TableHead className="w-[180px]">Burn Rate</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -118,9 +119,25 @@ export default function ProjectsPage() {
                             return (
                                 <TableRow key={project.id}>
                                     <TableCell>
-                                        <div className="font-medium text-[#171717]">{project.name}</div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                className="font-medium text-[#171717] hover:text-[#00a7f4] hover:underline text-left"
+                                                onClick={() => router.push(`/projects/${project.id}`)}
+                                            >
+                                                {project.name}
+                                            </button>
+                                            {linkedContract && linkedContract.status === 'Draft' && (
+                                                <FileWarning
+                                                    className="h-3.5 w-3.5 text-amber-600 flex-shrink-0"
+                                                    aria-label="Contract not yet signed — time logged here may not be invoiceable"
+                                                >
+                                                    <title>Contract not yet signed — time logged here may not be invoiceable</title>
+                                                </FileWarning>
+                                            )}
+                                        </div>
                                         <div className="text-xs text-[#8a8a8a]">
                                             {project.projectNumber ?? project.id.slice(0, 8)}
+                                            {project.projectManagerName && <> · PM: {project.projectManagerName}</>}
                                         </div>
                                     </TableCell>
                                     <TableCell>{project.client}</TableCell>
@@ -128,7 +145,7 @@ export default function ProjectsPage() {
                                         {linkedContract ? (
                                             <button
                                                 className="text-sm text-[#00a7f4] hover:underline text-left"
-                                                onClick={() => router.push('/contracts')}
+                                                onClick={() => router.push(`/contracts/${linkedContract.id}`)}
                                             >
                                                 {linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)}
                                             </button>
@@ -137,16 +154,23 @@ export default function ProjectsPage() {
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        {sourceDeal ? (
-                                            <button
-                                                className="text-sm text-emerald-600 hover:underline text-left"
-                                                onClick={() => router.push(`/crm/${sourceDeal.id}`)}
-                                            >
-                                                {sourceDeal.name}
-                                            </button>
+                                        {project.kickoffDate ? (
+                                            <span className="text-sm text-[#171717] inline-flex items-center gap-1">
+                                                <Calendar className="h-3.5 w-3.5 text-[#8a8a8a]" />
+                                                {project.kickoffDate}
+                                            </span>
                                         ) : (
-                                            <span className="text-[#8a8a8a] text-sm">—</span>
+                                            <span className="text-xs text-amber-600 inline-flex items-center gap-1">
+                                                <Calendar className="h-3.5 w-3.5" />
+                                                Not scheduled
+                                            </span>
                                         )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className={`text-sm inline-flex items-center gap-1 ${(project.teamSize ?? 0) === 0 ? 'text-rose-600' : 'text-[#171717]'}`}>
+                                            <Users className="h-3.5 w-3.5" />
+                                            {(project.teamSize ?? 0) === 0 ? 'Unstaffed' : `${project.teamSize} ${project.teamSize === 1 ? 'member' : 'members'}`}
+                                        </span>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className={
@@ -183,7 +207,7 @@ export default function ProjectsPage() {
                                                     </DropdownMenuItem>
                                                 )}
                                                 {linkedContract && (
-                                                    <DropdownMenuItem onClick={() => router.push('/contracts')}>
+                                                    <DropdownMenuItem onClick={() => router.push(`/contracts/${linkedContract.id}`)}>
                                                         View Contract
                                                     </DropdownMenuItem>
                                                 )}
@@ -203,7 +227,7 @@ export default function ProjectsPage() {
                         })}
                         {projects.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center py-6 text-[#8a8a8a]">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
+                                <TableCell colSpan={10} className="text-center py-6 text-[#8a8a8a]">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

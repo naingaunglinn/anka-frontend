@@ -176,9 +176,15 @@ export default function DealDetailPage() {
     ];
 
     const handleWinDeal = async () => {
-        await winDeal.mutateAsync({ dealId, winReason: winReason.trim() || undefined });
-        setWinOpen(false);
-        setWinReason('');
+        try {
+            const result = await winDeal.mutateAsync({ dealId, winReason: winReason.trim() || undefined });
+            setWinOpen(false);
+            setWinReason('');
+            // Redirect to the new contract for terms / milestones / sign-off setup.
+            if (result?.contractId) router.push(`/contracts/${result.contractId}`);
+        } catch {
+            // toast already shown in businessStore.winDeal
+        }
     };
 
     return (

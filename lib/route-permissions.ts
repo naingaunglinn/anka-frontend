@@ -34,6 +34,7 @@ export const ROUTE_PERMISSIONS: Record<string, Role[] | 'public'> = {
     '/time-tracking': ['Executive'],
     '/financial':     ['Executive'],
     '/forecast':      ['Executive'],
+    '/tenant':        ['Executive'],
 };
 
 /**

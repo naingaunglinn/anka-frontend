@@ -9,7 +9,9 @@ const ORG_PREFIXES = [
 ];
 
 // Routes only super admins can access.
-const SUPER_ADMIN_PREFIXES = ['/tenant', '/admin'];
+// /tenant is shared: the page renders OrgTenantSettings vs SuperAdminTenantManagement
+// based on isSuperAdmin, so it is not listed here.
+const SUPER_ADMIN_PREFIXES = ['/admin'];
 
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;

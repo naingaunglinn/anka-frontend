@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Download, TrendingUp, TrendingDown, DollarSign, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
@@ -18,6 +18,7 @@ export default function FinancialPage() {
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const taxRate = currentTenant?.taxRate ?? 0.20;
 
     // Load invoices, time entries, and org data so P&L is always populated
     useInvoiceList();
@@ -183,6 +184,58 @@ export default function FinancialPage() {
                 </Card>
             </div>
 
+            <Card className="shadow-sm border-[#00a7f4]/20 bg-[#00a7f4]/[0.03]">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2 text-[#171717]">
+                        <Info className="h-4 w-4 text-[#00a7f4]" />
+                        How These Numbers Are Calculated
+                    </CardTitle>
+                    <CardDescription className="text-[#8a8a8a]">
+                        Every line below is computed live from your operational data — no manual journal entries.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                        <div>
+                            <span className="font-semibold text-[#171717]">Recognized Revenue <span className="text-xs font-normal text-[#8a8a8a]">(cash basis)</span></span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Sum of <span className="font-medium">Paid</span> invoices (amount + tax), grouped by their <span className="font-medium">paid date</span>. This P&L view uses <span className="font-medium">cash basis</span> — revenue counts when payment is received. For accrual revenue (earned when a milestone is Accepted), see the per-contract detail page.
+                            </p>
+                        </div>
+                        <div>
+                            <span className="font-semibold text-[#171717]">Direct Labor</span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Full monthly payroll of every <span className="font-medium">Active</span> and <span className="font-medium">On Leave</span> employee, applied uniformly to each month with activity. Hours logged do not change the cost — all staff are salaried.
+                            </p>
+                        </div>
+                        <div>
+                            <span className="font-semibold text-[#171717]">Global Overhead</span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Sum of overheads from <span className="font-medium">Organization → Overheads</span> whose effective period matches the month, plus always-on overheads (those with no effective date).
+                            </p>
+                        </div>
+                        <div>
+                            <span className="font-semibold text-[#171717]">Gross Profit</span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Revenue − Direct Labor. The margin left after paying the people who delivered the work, before overhead and tax.
+                            </p>
+                        </div>
+                        <div>
+                            <span className="font-semibold text-[#171717]">Operating Profit (EBITDA)</span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Gross Profit − Overhead. Earnings before interest, tax, depreciation, and amortization.
+                            </p>
+                        </div>
+                        <div>
+                            <span className="font-semibold text-[#171717]">Net Margin %</span>
+                            <p className="text-[#8a8a8a] text-xs mt-0.5">
+                                Net Profit ÷ Revenue. Net Profit applies your tenant&apos;s income tax rate (currently <span className="font-medium">{(taxRate * 100).toFixed(0)}%</span>, configurable in <span className="font-medium">Tenant Settings</span>) to Operating Profit.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">Monthly Profit & Loss Statement</CardTitle>
@@ -193,7 +246,7 @@ export default function FinancialPage() {
                         <TableHeader className="bg-white">
                             <TableRow>
                                 <TableHead className="py-4">Month</TableHead>
-                                <TableHead className="text-right py-4">Revenue (Invoices)</TableHead>
+                                <TableHead className="text-right py-4">Recognized Revenue (Paid Invoices)</TableHead>
                                 <TableHead className="text-right py-4">Direct Labor (Timesheets)</TableHead>
                                 <TableHead className="text-right py-4">Gross Profit</TableHead>
                                 <TableHead className="text-right py-4">Global Overhead</TableHead>

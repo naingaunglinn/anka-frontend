@@ -28,6 +28,7 @@ import {
 } from '@/lib/queries/organization';
 import api from '@/lib/api';
 import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
+import { useTenantStore } from '@/store/tenantStore';
 import { normalizeError } from '@/lib/errorHandler';
 import toast from 'react-hot-toast';
 
@@ -63,11 +64,13 @@ function contractToApiPayload(c: Partial<Contract>): Record<string, unknown> {
 
 function projectToApiPayload(u: Partial<Project>): Record<string, unknown> {
     const p: Record<string, unknown> = {};
-    if (u.status !== undefined)      p.status       = u.status;
-    if (u.name !== undefined)        p.name         = u.name;
-    if (u.budgetHours !== undefined) p.budget_hours = u.budgetHours;
-    if (u.endDate !== undefined)     p.end_date     = u.endDate;
-    if (u.consumedHours !== undefined) p.consumed_hours = u.consumedHours;
+    if (u.status !== undefined)             p.status             = u.status;
+    if (u.name !== undefined)               p.name               = u.name;
+    if (u.budgetHours !== undefined)        p.budget_hours       = u.budgetHours;
+    if (u.endDate !== undefined)            p.end_date           = u.endDate;
+    if (u.consumedHours !== undefined)      p.consumed_hours     = u.consumedHours;
+    if (u.kickoffDate !== undefined)        p.kickoff_date       = u.kickoffDate || null;
+    if (u.projectManagerId !== undefined)   p.project_manager_id = u.projectManagerId || null;
     return p;
 }
 
@@ -116,7 +119,7 @@ export interface BusinessState {
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
     // Actions — Cross-module trigger
-    winDeal: (dealId: string, winReason?: string) => Promise<void>;
+    winDeal: (dealId: string, winReason?: string) => Promise<{ contractId: string | null }>;
     loseDeal: (dealId: string, lossReason: string) => Promise<void>;
 
     // Actions — Contracts (routed through lib/api.ts; created only via winDeal)
@@ -134,7 +137,8 @@ export interface BusinessState {
 
     // Actions — Contracts / Billing (routed through lib/api.ts)
     addInvoice: (invoice: Invoice) => Promise<void>;
-    payInvoice: (id: string) => Promise<void>;
+    updateInvoice: (id: string, updates: Partial<Invoice>) => Promise<void>;
+    payInvoice: (id: string, amount?: number) => Promise<void>;
     deleteInvoice: (id: string) => Promise<void>;
 
     // Getters
@@ -479,6 +483,7 @@ export const useBusinessStore = create<BusinessState>()(
                             { icon: '⚠️', duration: 6000 },
                         );
                     }
+                    return { contractId: serverContract?.id ?? null };
                 } catch (err) {
                     set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
                     const { message } = normalizeError(err);
@@ -608,6 +613,12 @@ export const useBusinessStore = create<BusinessState>()(
                     set(s => ({
                         timeEntries: s.timeEntries.map(t => t.id === id ? approved : t),
                     }));
+                    // Surface the soft-gate warning the API attaches when the linked
+                    // contract isn't yet Signed/Active. We don't block approval — the
+                    // approver just sees a warning toast next to the success.
+                    if (data?.warning) {
+                        toast(data.warning, { icon: '⚠️', duration: 6000 });
+                    }
                 } catch (err) {
                     set({ timeEntries: snapshot });
                     // 423 = another request holds the pessimistic lock — normalizeError
@@ -634,6 +645,10 @@ export const useBusinessStore = create<BusinessState>()(
                 const tempId = `temp-${Date.now()}`;
                 set(s => ({ invoices: [...s.invoices, { ...invoice, id: tempId }] }));
                 try {
+                    // Only Draft/Pending are valid on creation (other statuses
+                    // are reached via /pay or /send). Default to Pending so the
+                    // modal's intent is honoured — issuing an invoice for AR.
+                    const statusOnCreate = invoice.status === 'Draft' ? 'Draft' : 'Pending';
                     const { data } = await api.post('/invoices', {
                         contract_id:  invoice.contractId,
                         milestone_id: invoice.milestoneId ?? null,
@@ -641,6 +656,7 @@ export const useBusinessStore = create<BusinessState>()(
                         due_date:     invoice.dueDate ?? null,
                         amount:       invoice.amount,
                         tax:          invoice.tax,
+                        status:       statusOnCreate,
                         notes:        invoice.notes ?? null,
                         // total is GENERATED ALWAYS by DB — never send it
                     });
@@ -649,34 +665,57 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ invoices: snapshot });
                     toast.error(`Failed to create invoice: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
-            payInvoice: async (id) => {
+            updateInvoice: async (id, updates) => {
+                const snapshot = get().invoices;
+                set(s => ({ invoices: s.invoices.map(i => i.id === id ? { ...i, ...updates } : i) }));
+                try {
+                    const { data } = await api.patch(`/invoices/${id}`, {
+                        milestone_id: updates.milestoneId ?? null,
+                        issue_date:   updates.issueDate,
+                        due_date:     updates.dueDate ?? null,
+                        amount:       updates.amount,
+                        tax:          updates.tax,
+                        notes:        updates.notes,
+                    });
+                    const updated = toInvoice(data.data ?? data);
+                    set(s => ({ invoices: s.invoices.map(i => i.id === id ? updated : i) }));
+                } catch (err) {
+                    set({ invoices: snapshot });
+                    toast.error(`Failed to update invoice: ${normalizeError(err).message}`);
+                    throw err;
+                }
+            },
+
+            payInvoice: async (id, amount) => {
                 const snapshotInvoices  = get().invoices;
                 const snapshotContracts = get().contracts;
-                // Optimistic: mark as Paid immediately
-                set(s => ({
-                    invoices: s.invoices.map(i =>
-                        i.id === id ? { ...i, status: 'Paid' as const } : i
-                    ),
-                }));
+                // No optimistic status flip — partial payments produce 'Partially Paid'
+                // which depends on running totals. Let the server be the source of truth
+                // and just paint the result when it arrives.
                 try {
-                    const { data } = await api.patch(`/invoices/${id}/pay`);
+                    const body = amount !== undefined ? { amount } : {};
+                    const { data } = await api.patch(`/invoices/${id}/pay`, body);
                     const paid = toInvoice(data.data ?? data);
+                    const prevPaid = snapshotInvoices.find(i => i.id === id)?.paidAmount ?? 0;
+                    const delta    = (paid.paidAmount ?? 0) - prevPaid;
                     set(s => ({
                         invoices: s.invoices.map(i => i.id === id ? paid : i),
-                        // Reflect the new revenue_recognized total on the parent contract
+                        // Accrual shift: payments now increment cash_collected, not
+                        // revenue_recognized (which is driven by milestone Accept).
                         contracts: s.contracts.map(c =>
                             c.id === paid.contractId
-                                ? { ...c, revenueRecognized: c.revenueRecognized + (paid.amount + paid.tax) }
+                                ? { ...c, cashCollected: (c.cashCollected ?? 0) + delta }
                                 : c
                         ),
                     }));
                 } catch (err) {
                     set({ invoices: snapshotInvoices, contracts: snapshotContracts });
-                    // 409 = invoice already paid; normalizeError surfaces the server message
-                    toast.error(`Failed to pay invoice: ${normalizeError(err).message}`);
+                    toast.error(`Failed to record payment: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
@@ -775,19 +814,28 @@ export const useBusinessStore = create<BusinessState>()(
                 state.invoices
                     .filter(inv => inv.status === 'Paid')
                     .forEach(inv => {
-                        const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                        const recognizedDate = inv.paidAt ?? inv.issueDate;
+                        const month = new Date(recognizedDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
                         if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                        monthly[month].revenue += inv.amount;
+                        monthly[month].revenue += inv.total ?? (inv.amount + inv.tax);
                     });
 
-                state.timeEntries
-                    .filter(e => e.status === 'Approved')
-                    .forEach(entry => {
-                        const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-                        if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                        const emp = state.employees.find(e => e.id === entry.employeeId);
-                        monthly[month].directLabor += entry.hours * (emp?.costPerHour ?? 0);
-                    });
+                state.timeEntries.forEach(entry => {
+                    const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                    if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                });
+
+                // Salaried direct labor: every month carries the full payroll of currently
+                // Active + On Leave staff. Schema has no contractor flag, so all employees
+                // are salaried. Historical months reflect today's headcount — hire/termination
+                // history is not yet tracked.
+                const monthlyPayroll = state.employees
+                    .filter(e => e.status === 'Active' || e.status === 'On Leave')
+                    .reduce((sum, e) => sum + e.monthlySalary, 0);
+
+                Object.keys(monthly).forEach(m => {
+                    monthly[m].directLabor = monthlyPayroll;
+                });
 
                 // For each P&L month, sum overheads that either have no period (always-on)
                 // or explicitly match that month/year.
@@ -808,11 +856,13 @@ export const useBusinessStore = create<BusinessState>()(
                     return da - db;
                 });
 
+                const taxRate = useTenantStore.getState().currentTenant?.taxRate ?? 0.20;
+
                 return sortedMonths.map(month => {
                     const { revenue, directLabor, overhead } = monthly[month];
                     const grossProfit    = revenue - directLabor;
                     const operatingProfit = grossProfit - overhead;
-                    const netProfit      = operatingProfit * 0.8;
+                    const netProfit      = operatingProfit * (1 - taxRate);
                     return { month, revenue, directLabor, overhead, grossProfit, operatingProfit, netProfit };
                 });
             },

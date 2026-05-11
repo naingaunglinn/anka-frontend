@@ -10,6 +10,9 @@ export interface Tenant {
     name: string;
     slug: string;
     currency?: Currency;
+    taxRate?: number;
+    deliveryLagMonths?: number;
+    paymentDaysLate?: number;
 }
 
 interface TenantState {

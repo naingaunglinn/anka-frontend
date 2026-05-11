@@ -22,19 +22,40 @@ function OrgTenantSettings() {
     const tenantQuery = useTenantSettings();
     const { updateTenant } = useTenantMutations();
 
-    const [name, setName] = useState('');
-    const [slug, setSlug] = useState('');
+    const [taxRatePct, setTaxRatePct] = useState('');
+    const [deliveryLag, setDeliveryLag] = useState('');
+    const [paymentDays, setPaymentDays] = useState('');
 
     useEffect(() => {
         if (tenantQuery.data) {
-            setName(tenantQuery.data.name);
-            setSlug(tenantQuery.data.slug);
+            setTaxRatePct((tenantQuery.data.taxRate * 100).toFixed(2));
+            setDeliveryLag(String(tenantQuery.data.deliveryLagMonths));
+            setPaymentDays(String(tenantQuery.data.paymentDaysLate));
         }
     }, [tenantQuery.data]);
 
     const handleSave = async () => {
+        const tax = parseFloat(taxRatePct);
+        if (isNaN(tax) || tax < 0 || tax > 100) {
+            toast.error('Tax rate must be a number between 0 and 100.');
+            return;
+        }
+        const lag = parseInt(deliveryLag, 10);
+        if (isNaN(lag) || lag < 0 || lag > 24) {
+            toast.error('Delivery lag must be 0–24 months.');
+            return;
+        }
+        const days = parseInt(paymentDays, 10);
+        if (isNaN(days) || days < 0 || days > 365) {
+            toast.error('Payment delay must be 0–365 days.');
+            return;
+        }
         try {
-            await updateTenant.mutateAsync({ name, slug });
+            await updateTenant.mutateAsync({
+                tax_rate: tax / 100,
+                avg_delivery_lag_months: lag,
+                avg_payment_days_late: days,
+            });
             toast.success('Tenant settings saved.');
         } catch {
             toast.error('Failed to save settings.');
@@ -72,24 +93,67 @@ function OrgTenantSettings() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="orgName">Organization Name</Label>
-                                    <Input id="orgName" value={name} onChange={e => setName(e.target.value)} />
+                                    <Label>Organization Name</Label>
+                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.name}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="subdomain">Tenant Slug</Label>
-                                    <div className="flex items-center">
-                                        <Input
-                                            id="subdomain"
-                                            value={slug}
-                                            onChange={e => setSlug(e.target.value)}
-                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                                        />
-                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">.anka.app</div>
-                                    </div>
+                                    <Label>Tenant Slug</Label>
+                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.slug}.anka.app</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Plan</Label>
                                     <p className="text-sm font-medium text-slate-700">{tenantQuery.data.plan ?? 'Free'}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="taxRate">Income Tax Rate (%)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="taxRate"
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step="0.01"
+                                            value={taxRatePct}
+                                            onChange={e => setTaxRatePct(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">%</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Applied to operating profit on the Financials page to compute net profit.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="deliveryLag">Delivery Lag (months)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="deliveryLag"
+                                            type="number"
+                                            min={0}
+                                            max={24}
+                                            step="1"
+                                            value={deliveryLag}
+                                            onChange={e => setDeliveryLag(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">mo</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Forecast: months between a deal closing and revenue landing.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="paymentDays">Payment Delay Default (days)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="paymentDays"
+                                            type="number"
+                                            min={0}
+                                            max={365}
+                                            step="1"
+                                            value={paymentDays}
+                                            onChange={e => setPaymentDays(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">days</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Fallback when a client has no paid-invoice history. Per-client averages override this.</p>
                                 </div>
                                 <Button className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSave} disabled={updateTenant.isPending}>
                                     <Save className="w-4 h-4" />

@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toInvoice } from '@/lib/dealsMapper';
+import { normalizeError } from '@/lib/errorHandler';
 import type { Invoice } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
 
@@ -85,20 +87,36 @@ export function useInvoiceMutations() {
     });
 
     /**
-     * Calls `PATCH /invoices/:id/pay`.
+     * Calls `PATCH /invoices/:id`. Use to correct a typoed amount, swap the
+     * linked milestone, fix the due date, etc. The backend rejects structural
+     * edits once an invoice is Paid or Cancelled — only `notes` is editable
+     * after that.
+     */
+    const updateInvoice = useMutation({
+        mutationFn: (input: { id: string; updates: Partial<Invoice> }) =>
+            useBusinessStore.getState().updateInvoice(input.id, input.updates),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: invoiceKeys.all }),
+    });
+
+    /**
+     * Calls `PATCH /invoices/:id/pay` with an optional partial amount.
      *
-     * Optimistically marks the invoice as `Paid` in the store. If the server
-     * returns 409 (already paid) the optimistic update is rolled back and the
-     * conflict message is toasted.
+     * If `amount` is omitted, the backend treats this as full payment of the
+     * remaining balance (legacy "Mark as Paid" behavior). If `amount` is
+     * supplied, it is applied as a partial payment and the invoice transitions
+     * to `Partially Paid` until cumulative payments reach the total.
      *
-     * Also invalidates contracts because `revenue_recognized` changes server-side.
+     * Server-side runs in a `DB::transaction` and increments
+     * `contracts.revenue_recognized` by the applied amount only.
      */
     const payInvoice = useMutation({
-        mutationFn: (id: string) =>
-            useBusinessStore.getState().payInvoice(id),
+        mutationFn: (input: string | { id: string; amount?: number }) => {
+            const id     = typeof input === 'string' ? input : input.id;
+            const amount = typeof input === 'string' ? undefined : input.amount;
+            return useBusinessStore.getState().payInvoice(id, amount);
+        },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-            // revenue_recognized on the parent contract changes when an invoice is paid
             queryClient.invalidateQueries({ queryKey: ['contracts'] });
         },
     });
@@ -110,5 +128,28 @@ export function useInvoiceMutations() {
             queryClient.invalidateQueries({ queryKey: invoiceKeys.all }),
     });
 
-    return { createInvoice, payInvoice, deleteInvoice };
+    /**
+     * Email the invoice to the client. Default recipient is the contract's
+     * billing_email; pass `to` to override (e.g. when chasing a CC). First
+     * call sets `issued_at` and promotes Draft → Pending; subsequent calls
+     * increment `reminder_sent_count`.
+     */
+    const sendInvoice = useMutation({
+        mutationFn: async ({ id, to }: { id: string; to?: string }) => {
+            const { data } = await api.post(`/invoices/${id}/send`, to ? { to } : {});
+            return toInvoice(data.data ?? data);
+        },
+        onSuccess: (inv) => {
+            const isReminder = (inv.reminderSentCount ?? 0) > 0;
+            toast.success(isReminder
+                ? `Reminder sent to ${inv.sentToEmail}.`
+                : `Invoice ${inv.invoiceNumber ?? ''} sent to ${inv.sentToEmail}.`);
+        },
+        onError: (err) => {
+            toast.error(`Failed to send invoice: ${normalizeError(err).message}`);
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: invoiceKeys.all }),
+    });
+
+    return { createInvoice, updateInvoice, payInvoice, deleteInvoice, sendInvoice };
 }

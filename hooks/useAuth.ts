@@ -27,6 +27,17 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
                 name: (tenant.name as string) ?? '',
                 slug: (tenant.slug as string) ?? '',
                 currency: (tenant.currency as string) ?? 'MMK',
+                taxRate: typeof tenant.tax_rate === 'number'
+                    ? (tenant.tax_rate as number)
+                    : tenant.tax_rate != null
+                        ? Number(tenant.tax_rate)
+                        : 0.20,
+                deliveryLagMonths: tenant.avg_delivery_lag_months != null
+                    ? Number(tenant.avg_delivery_lag_months)
+                    : 1,
+                paymentDaysLate: tenant.avg_payment_days_late != null
+                    ? Number(tenant.avg_payment_days_late)
+                    : 0,
             }
             : null,
     };
