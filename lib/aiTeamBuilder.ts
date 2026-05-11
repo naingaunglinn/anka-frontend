@@ -90,23 +90,26 @@ Output format (JSON):
 export function buildUserPrompt(input: AITeamBuilderInput): string {
     const activeEmployees = input.employees
         .filter(e => e.status === 'Active')
-        .map(e => ({
-            id: e.id,
-            name: e.name,
-            capacityRole: e.capacityRole ?? 'unknown',
-            // Billing role title carries the seniority signal — "Senior Backend
-            // Engineer", "Junior Frontend Engineer", "Scrum Master", etc. Pass
-            // it through so Claude can read leadership/junior off the title.
-            roleTitle: e.roleName ?? null,
-            costPerHour: e.costPerHour,
-            monthlySalary: e.monthlySalary,
-            monthlyCapacityHours: e.workableHours,
-            maxProjectHours: e.workableHours * input.timelineMonths,
-            skills: (e.skills ?? []).map((s: { name?: string; skillId?: string; proficiency?: string }) => ({
-                name: s.name ?? s.skillId ?? 'unknown',
-                proficiency: s.proficiency ?? 'intermediate',
-            })),
-        }))
+        .map(e => {
+            // Use real available hours (after other deals) when provided, else fall back to static capacity.
+            const availableMonthly = input.employeeAvailability?.[e.id] ?? e.workableHours
+            return {
+                id: e.id,
+                name: e.name,
+                capacityRole: e.capacityRole ?? 'unknown',
+                roleTitle: e.roleName ?? null,
+                costPerHour: e.costPerHour,
+                monthlySalary: e.monthlySalary,
+                monthlyCapacityHours: availableMonthly,
+                maxProjectHours: availableMonthly * input.timelineMonths,
+                skills: (e.skills ?? []).map((s: { name?: string; skillId?: string; proficiency?: string }) => ({
+                    name: s.name ?? s.skillId ?? 'unknown',
+                    proficiency: s.proficiency ?? 'intermediate',
+                })),
+            }
+        })
+        // Exclude employees with no available capacity — they can't contribute and waste Claude's context.
+        .filter(e => e.maxProjectHours > 0)
 
     const overheadDecimal = input.companySettings.overheadPercentage / 100
     const bufferDecimal = input.companySettings.bufferPercentage / 100
@@ -127,6 +130,41 @@ Apply the target team shape from the system prompt for the ${input.complexity.ba
 `
         : ''
 
+    const sym = CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol
+
+    let ghostRolesSection = ''
+    if (input.ghostRoles && input.ghostRoles.length > 0) {
+        const lines = input.ghostRoles.map(gr => `- ${gr.quantity}× ${gr.roleType} (salary range: ${sym}${gr.minMonthlySalary.toLocaleString()} – ${sym}${gr.maxMonthlySalary.toLocaleString()})`).join('\n')
+        ghostRolesSection = `## Pre-defined Team Shape (soft constraint)
+
+The user already sketched this composition in Cost Estimate. Respect it unless budget or skill coverage forces a deviation — explain any deviations in warnings.
+
+${lines}
+
+`
+    }
+
+    let previousResultSection = ''
+    if (input.previousResult) {
+        const feedbackNote = input.regenerateFeedback
+            ? ` Their feedback: "${input.regenerateFeedback}"`
+            : ''
+        const regenerateInstruction = input.regenerateFeedback
+            ? "Address the user's specific feedback."
+            : 'Try a different composition, seniority mix, or allocation strategy.'
+        const prevTeam = input.previousResult.team.map(m => `${m.name} (${m.role}, ${m.allocatedHours}h)`).join(', ')
+        previousResultSection = `## Previous AI Recommendation (regeneration context)
+
+The user wants a different result.${feedbackNote}
+
+Previous team: ${prevTeam}
+Previous total cost: ${sym}${input.previousResult.totalEstimatedCost.toLocaleString()} | margin: ${input.previousResult.profitMarginPercent.toFixed(1)}%
+
+Produce a meaningfully different recommendation. ${regenerateInstruction}
+
+`
+    }
+
     return `## Client Project Brief
 
 Budget: ${CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol}${input.clientBudget.toLocaleString()}
@@ -139,7 +177,7 @@ ${input.workloadDocumentText
             ? `\nAdditional Document:\n${input.workloadDocumentText.slice(0, 3000)}`
             : ''}
 
-${complexitySection}
+${ghostRolesSection}${previousResultSection}${complexitySection}
 ## Required Skills
 ${input.requiredSkills && input.requiredSkills.length > 0
     ? input.requiredSkills.map(s => `- ${s}`).join('\n')

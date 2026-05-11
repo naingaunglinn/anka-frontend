@@ -39,8 +39,29 @@ import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 const CAPACITY_ROLES = ['frontend', 'backend', 'pm', 'qa', 'design'] as const;
 const PROFICIENCY_LEVELS = ['beginner', 'intermediate', 'expert'] as const;
 
+/**
+ * Loose shape callers (org page passing an `Employee`, edit dialogs passing a
+ * partial form value) can satisfy. Mirrors the fields the form actually
+ * reads in `defaultValues`, with each field optional and the skill
+ * `proficiency` allowing the API's undefined (we coerce to 'intermediate'
+ * inside the form). Avoids forcing every caller to massage an `Employee`
+ * into a strict `EmployeeFormValues` first.
+ */
+interface EmployeeFormInitialData {
+    name?: string;
+    role?: string;
+    departmentId?: string;
+    capacityRole?: string;
+    monthlySalary?: number;
+    workableHours?: number;
+    status?: 'Active' | 'On Leave' | 'Terminated';
+    skills?: { skillId: string; proficiency?: 'beginner' | 'intermediate' | 'expert' }[];
+    email?: string;
+    password?: string;
+}
+
 interface EmployeeFormProps {
-    initialData?: EmployeeFormValues | null;
+    initialData?: EmployeeFormInitialData | null;
     roles: Role[];
     departments?: Department[];
     skills?: Skill[];

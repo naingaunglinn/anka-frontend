@@ -14,7 +14,7 @@ export function getSalaryRange(roleType: string, employees: Employee[]): SalaryR
     }
 }
 
-/** Suggested salary range (±20 % of the midpoint of actual employee salaries). */
+/** Suggested salary range (±30 % of the midpoint of actual employee salaries). */
 export function getSuggestedSalaryRange(roleType: string, employees: Employee[]): SalaryRange {
     const actual = getSalaryRange(roleType, employees)
     if (!actual) return { min: 0, max: 0 }

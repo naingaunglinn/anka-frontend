@@ -297,6 +297,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.estimatedGrossProfit !== undefined) payload.estimated_gross_profit = deal.estimatedGrossProfit;
     if (deal.ghostRoles !== undefined) {
         payload.ghost_roles = deal.ghostRoles.map((role) => ({
+            ...(role.id ? { id: role.id } : {}),
             role_type: role.roleType,
             quantity: role.quantity,
             months: role.months,

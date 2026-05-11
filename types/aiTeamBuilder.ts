@@ -9,19 +9,21 @@ export interface AITeamBuilderInput {
     workloadHours: number
     workloadDescription: string
     workloadDocumentText?: string
-    requiredSkills?: string[]           // skill names required for this project
-    /**
-     * Pre-computed difficulty band + score. Drives the target team size in
-     * the system prompt (easy → 2 people, medium → 3-4, hard → 5-7).
-     * Computed deterministically by lib/dealComplexity so Claude doesn't
-     * have to infer "is this hard?" from prose.
-     */
+    requiredSkills?: string[]
     complexity?: ComplexityResult
     employees: Employee[]
     engineers: Engineer[]
     globalOverheads: GlobalOverhead[]
     companySettings: CompanySettings
     currency?: Currency
+    /** employeeId → available monthly hours after subtracting load from other open deals */
+    employeeAvailability?: Record<string, number>
+    /** Ghost roles the user pre-defined in Cost Estimate — used as a soft team-shape constraint */
+    ghostRoles?: Array<{ roleType: string; quantity: number; minMonthlySalary: number; maxMonthlySalary: number }>
+    /** Last AI result — passed on regeneration so Claude can produce a meaningfully different suggestion */
+    previousResult?: AITeamBuilderResult
+    /** Optional user note explaining why they're regenerating */
+    regenerateFeedback?: string
 }
 
 export interface AITeamMember {

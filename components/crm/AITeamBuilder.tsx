@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
+import { extractRequiredSkills } from '@/lib/skillMatching'
 
 interface Props {
     dealId: string
@@ -20,7 +21,12 @@ interface Props {
     workloadHours: number | string
     workloadDescription: string
     workloadDocumentText?: string
-    onAccept?: (result: AITeamBuilderResult) => void
+    ghostRoles?: Array<{ roleType: string; quantity: number; minMonthlySalary: number; maxMonthlySalary: number }>
+    // Required. AITeamBuilderResultPanel now requires onAccept too — the
+    // previous fallback that wrote hardAssignments directly was removed
+    // because hard booking belongs to /crm/[id]/staffing as the single
+    // canonical writer.
+    onAccept: (result: AITeamBuilderResult) => void
 }
 
 const LOADING_STEPS = [
@@ -28,16 +34,6 @@ const LOADING_STEPS = [
     'Selecting optimal team...',
     'Calculating P&L estimate...',
 ]
-
-// Pull skill names out of the project brief by substring-matching against the
-// caller-supplied catalog. Anchored to the tenant's actual skill list so the
-// resulting requiredSkills are always coverable by some employee — a hardcoded
-// catalog drifts and produces gap-skills no employee in the org can ever fill.
-function extractRequiredSkills(text: string, catalog: string[]): string[] {
-    if (!text || catalog.length === 0) return []
-    const lower = text.toLowerCase()
-    return catalog.filter(skill => lower.includes(skill.toLowerCase()))
-}
 
 // Visual styling for the complexity chip — green for easy projects we
 // shouldn't over-staff, amber for medium, red for hard so users notice.
@@ -126,8 +122,11 @@ export function AITeamBuilder(props: Props) {
     const [result, setResult] = useState<AITeamBuilderResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingStep, setLoadingStep] = useState(0)
+    const [showFeedback, setShowFeedback] = useState(false)
+    const [regenerateFeedback, setRegenerateFeedback] = useState('')
 
     const employees = useBusinessStore(s => s.employees)
+    const deals = useBusinessStore(s => s.deals)
     const engineers = useBusinessStore(s => s.engineers)
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
@@ -135,6 +134,21 @@ export function AITeamBuilder(props: Props) {
     const deal = useBusinessStore(s => s.deals.find(d => d.id === props.dealId))
     const activeTenantId = useTenantStore(s => s.activeTenantId)
     const currency = useTenantCurrency()
+
+    // Real available monthly hours per employee after subtracting load from other open deals.
+    const employeeAvailability = useMemo(() => {
+        const map: Record<string, number> = {}
+        for (const emp of employees) {
+            let otherMonthly = 0
+            for (const d of deals) {
+                if (d.id === props.dealId || d.status === 'lost') continue
+                const a = d.hardAssignments?.find(x => x.employeeId === emp.id)
+                if (a) otherMonthly += a.allocatedHours / Math.max(1, d.timelineMonths || 1)
+            }
+            map[emp.id] = Math.max(0, (emp.workableHours ?? 0) - otherMonthly)
+        }
+        return map
+    }, [employees, deals, props.dealId])
 
     const budget = Number(props.clientBudget) || 0
     const months = Number(props.timelineMonths) || 0
@@ -165,10 +179,11 @@ export function AITeamBuilder(props: Props) {
         [hours, months, props.workloadDescription, props.workloadDocumentText, requiredSkills, deal?.ghostRoles],
     )
 
-    async function handleBuild() {
+    async function handleBuild(feedback?: string) {
         setLoading(true)
         setLoadingStep(0)
-        setResult(null)
+        setShowFeedback(false)
+        setRegenerateFeedback('')
 
         const stepInterval = setInterval(() => {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
@@ -188,6 +203,10 @@ export function AITeamBuilder(props: Props) {
             globalOverheads,
             companySettings,
             currency,
+            employeeAvailability,
+            ghostRoles: props.ghostRoles,
+            previousResult: result ?? undefined,
+            regenerateFeedback: feedback,
         }
 
         try {
@@ -208,6 +227,7 @@ export function AITeamBuilder(props: Props) {
             const data: AITeamBuilderResult = await res.json()
             setResult(data)
             toast.success('AI team recommendation ready!')
+
         } catch (err: unknown) {
             // Presentation bulletproof: if API is unreachable, generate fallback locally
             console.error('AI Team Builder network error, using client fallback:', err)
@@ -236,7 +256,11 @@ export function AITeamBuilder(props: Props) {
 
             <Button
                 type="button"
-                onClick={handleBuild}
+                // Wrap in an arrow so React's MouseEvent doesn't get passed as
+                // the `feedback` argument. handleBuild is also called from the
+                // regenerate UI with feedback text — different call site, same
+                // function — so the wrapper here keeps the no-feedback call path.
+                onClick={() => handleBuild()}
                 disabled={!canRun || loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
                 size="lg"
@@ -262,13 +286,45 @@ export function AITeamBuilder(props: Props) {
             )}
 
             {result && (
-                <AITeamBuilderResultPanel
-                    result={result}
-                    dealId={props.dealId}
-                    clientBudget={budget}
-                    onRegenerate={handleBuild}
-                    onAccept={props.onAccept}
-                />
+                <>
+                    <AITeamBuilderResultPanel
+                        result={result}
+                        dealId={props.dealId}
+                        clientBudget={budget}
+                        onRegenerate={() => setShowFeedback(true)}
+                        onAccept={props.onAccept}
+                    />
+                    {showFeedback && (
+                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+                            <p className="text-sm font-medium text-indigo-800">What should be different? <span className="font-normal text-indigo-600">(optional)</span></p>
+                            <textarea
+                                className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                                rows={2}
+                                placeholder="e.g. fewer seniors, stronger backend coverage, stay under budget…"
+                                value={regenerateFeedback}
+                                onChange={e => setRegenerateFeedback(e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => handleBuild(regenerateFeedback || undefined)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                >
+                                    Regenerate
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setShowFeedback(false)}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     )

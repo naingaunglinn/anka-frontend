@@ -1,26 +1,89 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Target, TrendingUp, Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DollarSign, Search, Target, TrendingUp, Plus, X } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
 import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
+import { PermissionGuard } from '@/components/PermissionGuard';
+import { OrgSyncErrorBanner } from '@/components/OrgSyncErrorBanner';
+import type { Deal } from '@/types/business';
+
+const ALL_STATUSES = '__all__'; // Radix Select rejects '' as a SelectItem value; sentinel for "no filter".
 
 export default function CRMPage() {
+    // Pull employees, roles, skills, company settings into the store. /crm
+    // computes capacity metrics from employees and Kanban cards read
+    // employee data via getDealEstimation — without this sync, a direct
+    // visit to /crm (without coming from another page that already
+    // hydrated organization data) renders zero capacity bookings and
+    // empty soft/hard-booked totals.
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
+
     const currency = useTenantCurrency();
     const [pipelineTotal, setPipelineTotal] = useState(0);
     const [weightedTotal, setWeightedTotal] = useState(0);
-    const dealsQuery = useDealList();
+
+    // Filter inputs. `searchInput` updates on every keystroke; `debouncedSearch`
+    // lags by 300ms so we don't fire a network request per character. Status
+    // filter is server-side via the index endpoint's `status` query param.
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES);
+
+    // Page size disclosure. Default 100 matches the backend's default, max
+    // is 500 (also enforced server-side in DealController::index). Tenants
+    // with >100 deals previously had the rest silently hidden from the
+    // Kanban; now we show a count + "Load all" affordance.
+    const DEFAULT_PER_PAGE = 100;
+    const MAX_PER_PAGE     = 500;
+    const [perPage, setPerPage] = useState<number>(DEFAULT_PER_PAGE);
+
+    useEffect(() => {
+        const handle = setTimeout(() => setDebouncedSearch(searchInput), 300);
+        return () => clearTimeout(handle);
+    }, [searchInput]);
+
+    const dealsQuery = useDealList({
+        // Only pass params when meaningful so the cache key doesn't fragment
+        // unnecessarily and the network call stays slim for the no-filter case.
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+        ...(statusFilter !== ALL_STATUSES ? { status: statusFilter as Deal['status'] } : {}),
+        per_page: perPage,
+    });
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
+    const totalDeals      = dealsQuery.data?.meta?.total ?? deals.length;
+    const hasMore         = totalDeals > deals.length;
+
+    const hasActiveFilters = statusFilter !== ALL_STATUSES || debouncedSearch.trim().length > 0;
+    const clearFilters = () => {
+        setSearchInput('');
+        setStatusFilter(ALL_STATUSES);
+        setPerPage(DEFAULT_PER_PAGE);
+    };
 
     const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
-    const capacityPool = getCapacityPool();
+    // Subscribe to the inputs of getCapacityPool so React re-renders when they
+    // change, but memoise the call itself — the returned array is a fresh
+    // reference on every render otherwise, defeating any downstream memo.
+    const dealsForPool      = useBusinessStore(state => state.deals);
+    const employeesForPool  = useBusinessStore(state => state.employees);
+    const capacityPool = useMemo(
+        () => getCapacityPool(),
+        // dependencies intentionally include the slices the pool reads from.
+        // getCapacityPool is a stable function ref (Zustand) so it's safe to omit.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [dealsForPool, employeesForPool],
+    );
 
     const handleMetricsUpdate = useCallback((total: number, weighted: number) => {
         setPipelineTotal(total);
@@ -37,12 +100,21 @@ export default function CRMPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-[#171717]">CRM & Sales Pipeline</h2>
                     <p className="text-[#4a4a4a] mt-1">Manage leads, track opportunities, and forecast revenue.</p>
                 </div>
-                <Link href="/crm/new">
-                    <Button>
-                        <Plus className="mr-2 h-4 w-4" /> New Deal
-                    </Button>
-                </Link>
+                <PermissionGuard permission="manage_crm">
+                    <Link href="/crm/new">
+                        <Button>
+                            <Plus className="mr-2 h-4 w-4" /> New Deal
+                        </Button>
+                    </Link>
+                </PermissionGuard>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Capacity bookings will read zero until organization data loads."
+            />
 
             <div className="grid gap-4 md:grid-cols-4">
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">
@@ -108,6 +180,73 @@ export default function CRMPage() {
                 </Card>
             </div>
 
+            {/* Filter bar — server-side search + status filter. The backend's
+                /deals index already supports `search` (name/client ilike) and
+                `status` query params; previously the frontend just called
+                useDealList() with no filters and rendered every deal in memory. */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <Input
+                        type="search"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Search by deal name or client..."
+                        className="pl-9 bg-white"
+                    />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px] bg-white">
+                        <SelectValue placeholder="All stages" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value={ALL_STATUSES}>All stages</SelectItem>
+                        <SelectItem value="lead">Lead</SelectItem>
+                        <SelectItem value="qualified">Qualified</SelectItem>
+                        <SelectItem value="proposal">Proposal</SelectItem>
+                        <SelectItem value="negotiation">Negotiation</SelectItem>
+                        <SelectItem value="won">Won</SelectItem>
+                        <SelectItem value="lost">Lost</SelectItem>
+                    </SelectContent>
+                </Select>
+                {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
+                        <X className="h-3.5 w-3.5" />
+                        Clear filters
+                    </Button>
+                )}
+            </div>
+
+            {/* Pagination disclosure — the backend caps `per_page` at 500, so
+                tenants approaching that ceiling will see a one-time bump UX
+                rather than a silent truncation. Real infinite-scroll on a
+                Kanban is awkward (cards have to sit in fixed columns), so
+                explicit "Load all" is the pragmatic middle ground. */}
+            {deals.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#4a4a4a]">
+                    <span>
+                        Showing <span className="font-semibold text-[#171717]">{deals.length}</span>
+                        {totalDeals !== deals.length && (
+                            <> of <span className="font-semibold text-[#171717]">{totalDeals}</span></>
+                        )} deal{totalDeals === 1 ? '' : 's'}
+                        {perPage !== DEFAULT_PER_PAGE && (
+                            <span className="text-[#8a8a8a]"> (page size {perPage})</span>
+                        )}
+                    </span>
+                    {hasMore && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPerPage(MAX_PER_PAGE)}
+                            disabled={perPage >= MAX_PER_PAGE}
+                            className="h-7"
+                        >
+                            Load all (max {MAX_PER_PAGE})
+                        </Button>
+                    )}
+                </div>
+            )}
+
             <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                 {dealsQuery.isLoading ? (
                     <div className="h-96 w-full animate-pulse rounded-lg bg-slate-100" />
@@ -118,12 +257,23 @@ export default function CRMPage() {
                     </div>
                 ) : deals.length === 0 ? (
                     <div className="flex h-96 flex-col items-center justify-center gap-3 text-center">
-                        <p className="text-sm text-[#8a8a8a]">No deals yet. Create your first deal to start the pipeline.</p>
-                        <Link href="/crm/new">
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> New Deal
-                            </Button>
-                        </Link>
+                        {hasActiveFilters ? (
+                            <>
+                                <p className="text-sm text-[#8a8a8a]">No deals match the current filters.</p>
+                                <Button variant="outline" onClick={clearFilters}>Clear filters</Button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm text-[#8a8a8a]">No deals yet. Create your first deal to start the pipeline.</p>
+                                <PermissionGuard permission="manage_crm">
+                                    <Link href="/crm/new">
+                                        <Button>
+                                            <Plus className="mr-2 h-4 w-4" /> New Deal
+                                        </Button>
+                                    </Link>
+                                </PermissionGuard>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <KanbanBoard deals={deals} onMetricsUpdate={handleMetricsUpdate} />
