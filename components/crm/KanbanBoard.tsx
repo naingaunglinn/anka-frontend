@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useIsClient } from '@/hooks/useIsClient';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +48,10 @@ export function KanbanBoard({
     const currency = useTenantCurrency();
     const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
-    const [isMounted, setIsMounted] = useState(false);
+    // `@hello-pangea/dnd` requires DOM APIs and can't render server-side.
+    // useIsClient replaces the setState-in-effect hydration guard with a
+    // useSyncExternalStore-based flag (no setState, no extra render cycle).
+    const isMounted = useIsClient();
 
     // -- Confirm dialog states -------------------------------------------------
     const [deleteOpen, setDeleteOpen] = useState(false);
@@ -58,10 +62,6 @@ export function KanbanBoard({
     const [lostOpen, setLostOpen] = useState(false);
     const [losingDeal, setLosingDeal] = useState<{ id: string; name: string } | null>(null);
     const [lossReason, setLossReason] = useState('');
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
 
     // Column order is the visual flow left-to-right. `lost` lives at the
     // far right as a terminal state — visible so deals don't silently

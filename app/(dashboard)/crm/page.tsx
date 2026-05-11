@@ -13,12 +13,21 @@ import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
 import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import type { Deal } from '@/types/business';
 
 const ALL_STATUSES = '__all__'; // Radix Select rejects '' as a SelectItem value; sentinel for "no filter".
 
 export default function CRMPage() {
+    // Pull employees, roles, skills, company settings into the store. /crm
+    // computes capacity metrics from employees and Kanban cards read
+    // employee data via getDealEstimation — without this sync, a direct
+    // visit to /crm (without coming from another page that already
+    // hydrated organization data) renders zero capacity bookings and
+    // empty soft/hard-booked totals.
+    useOrganizationSync();
+
     const currency = useTenantCurrency();
     const [pipelineTotal, setPipelineTotal] = useState(0);
     const [weightedTotal, setWeightedTotal] = useState(0);
@@ -30,6 +39,14 @@ export default function CRMPage() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES);
 
+    // Page size disclosure. Default 100 matches the backend's default, max
+    // is 500 (also enforced server-side in DealController::index). Tenants
+    // with >100 deals previously had the rest silently hidden from the
+    // Kanban; now we show a count + "Load all" affordance.
+    const DEFAULT_PER_PAGE = 100;
+    const MAX_PER_PAGE     = 500;
+    const [perPage, setPerPage] = useState<number>(DEFAULT_PER_PAGE);
+
     useEffect(() => {
         const handle = setTimeout(() => setDebouncedSearch(searchInput), 300);
         return () => clearTimeout(handle);
@@ -40,13 +57,17 @@ export default function CRMPage() {
         // unnecessarily and the network call stays slim for the no-filter case.
         ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
         ...(statusFilter !== ALL_STATUSES ? { status: statusFilter as Deal['status'] } : {}),
+        per_page: perPage,
     });
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
+    const totalDeals      = dealsQuery.data?.meta?.total ?? deals.length;
+    const hasMore         = totalDeals > deals.length;
 
     const hasActiveFilters = statusFilter !== ALL_STATUSES || debouncedSearch.trim().length > 0;
     const clearFilters = () => {
         setSearchInput('');
         setStatusFilter(ALL_STATUSES);
+        setPerPage(DEFAULT_PER_PAGE);
     };
 
     const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
@@ -187,6 +208,36 @@ export default function CRMPage() {
                     </Button>
                 )}
             </div>
+
+            {/* Pagination disclosure — the backend caps `per_page` at 500, so
+                tenants approaching that ceiling will see a one-time bump UX
+                rather than a silent truncation. Real infinite-scroll on a
+                Kanban is awkward (cards have to sit in fixed columns), so
+                explicit "Load all" is the pragmatic middle ground. */}
+            {deals.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#4a4a4a]">
+                    <span>
+                        Showing <span className="font-semibold text-[#171717]">{deals.length}</span>
+                        {totalDeals !== deals.length && (
+                            <> of <span className="font-semibold text-[#171717]">{totalDeals}</span></>
+                        )} deal{totalDeals === 1 ? '' : 's'}
+                        {perPage !== DEFAULT_PER_PAGE && (
+                            <span className="text-[#8a8a8a]"> (page size {perPage})</span>
+                        )}
+                    </span>
+                    {hasMore && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPerPage(MAX_PER_PAGE)}
+                            disabled={perPage >= MAX_PER_PAGE}
+                            className="h-7"
+                        >
+                            Load all (max {MAX_PER_PAGE})
+                        </Button>
+                    )}
+                </div>
+            )}
 
             <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                 {dealsQuery.isLoading ? (

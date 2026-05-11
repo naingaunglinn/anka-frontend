@@ -220,9 +220,11 @@ export default function DealDetailPage() {
                             <Edit3 className="h-4 w-4" /> Edit Deal
                         </Button>
                     </PermissionGuard>
-                    <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
-                        <Users className="h-4 w-4" /> Hard Booking
-                    </Button>
+                    <PermissionGuard permission="manage_crm">
+                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
+                            <Users className="h-4 w-4" /> Hard Booking
+                        </Button>
+                    </PermissionGuard>
                     <PermissionGuard permission="manage_crm">
                         <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                             Delete

@@ -118,6 +118,20 @@ function generateDemoResult(input: AITeamBuilderInput): AITeamBuilderResult {
 }
 
 export async function POST(req: NextRequest) {
+    // Authn gate: the route forwards to Anthropic which consumes paid budget,
+    // so unauthenticated callers must be turned away. Previously __session
+    // was read only for optional usage logging; that meant a missing cookie
+    // would still hit Anthropic. Tenant id is also required so the AI call
+    // can't leak across tenants on logging side.
+    const sessionToken = req.cookies.get('__session')?.value
+    const tenantId     = req.headers.get('x-tenant-id')
+    if (!sessionToken) {
+        return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    }
+    if (!tenantId) {
+        return NextResponse.json({ error: 'Missing X-Tenant-ID header' }, { status: 400 })
+    }
+
     const apiKey  = process.env.ANTHROPIC_API_KEY
     const baseURL = process.env.ANTHROPIC_BASE_URL
 

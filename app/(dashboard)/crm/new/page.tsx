@@ -35,10 +35,18 @@ import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 // Table imports removed alongside the Staffing tab — it owned the only Table
 // usage in this file. Hard-booking lives at /crm/[id]/staffing now.
 
 export default function NewDealPage() {
+    // Hydrate employees / roles / skills / settings into the store. Salary
+    // range suggestions, the AI Team Builder employee pool, and computed
+    // workload hours all depend on these. Without this sync, a direct
+    // visit (e.g. a deep link) shows zero-range salary suggestions and
+    // an empty AI candidate pool.
+    useOrganizationSync();
+
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';

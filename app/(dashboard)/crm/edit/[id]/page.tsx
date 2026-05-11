@@ -33,8 +33,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ArrowRight, ArrowLeft, Upload, UserPlus, AlertCircle, FileText, CheckCircle2, Sparkles } from "lucide-react";
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { getSuggestedSalaryRange } from "@/lib/salaryRange";
-// autoStaffFromGhostRoles and extractRequiredSkills are no longer used here —
-// the Auto-Staff button and Staffing tab moved to /crm/[id]/staffing.
+// Auto-staffing helpers moved out — named-employee booking now lives at
+// /crm/[id]/staffing as the sole canonical writer of hardAssignments.
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
@@ -63,24 +63,24 @@ export default function EditDealPage() {
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
-    // Wizard state — initialised from deal wizardStep to avoid a setState-in-effect.
-    // Legacy `staffing` step maps to `estimation` since the Staffing tab was
-    // removed (hard-booking now lives at /crm/[id]/staffing).
-    const [activeTab, setActiveTab] = useState<string>(() => {
+    // Wizard tab selection. We derive the effective tab from the deal's saved
+    // wizardStep when the user hasn't explicitly clicked one; user clicks win
+    // after that. Previously this was a useState + useEffect sync, which
+    // tripped react-hooks/set-state-in-effect AND created a race where a
+    // background refetch of wizardStep could clobber the user's in-flight tab
+    // click. Pure derivation removes both problems.
+    //
+    // Legacy `staffing` wizardStep maps to `estimation` — the Staffing tab
+    // was removed (hard-booking now lives at /crm/[id]/staffing).
+    const [userActiveTab, setUserActiveTab] = useState<string | null>(null);
+    const activeTab = useMemo(() => {
+        if (userActiveTab) return userActiveTab;
         const step = dealToEdit?.wizardStep;
         if (step === 'estimation' || step === 'staffing') return 'estimation';
         return 'context';
-    });
+    }, [userActiveTab, dealToEdit?.wizardStep]);
+    const setActiveTab = setUserActiveTab;
     const [estimationMode, setEstimationMode] = useState<'ai' | 'manual'>('manual');
-
-    // Resume at the saved wizard step once the deal is loaded
-    useEffect(() => {
-        if (dealToEdit?.wizardStep) {
-            const step = dealToEdit.wizardStep;
-            if (step === 'context') setActiveTab('context');
-            else if (step === 'estimation' || step === 'staffing') setActiveTab('estimation');
-        }
-    }, [dealToEdit?.wizardStep]);
 
     async function handleAcceptAIResult(result: AITeamBuilderResult) {
         setAcceptedAIResult(result);

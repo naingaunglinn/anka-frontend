@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { formatMoney } from "@/lib/currency";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 import { extractRequiredSkills } from "@/lib/skillMatching";
 import { usePermission } from "@/hooks/usePermission";
+import { useIsClient } from "@/hooks/useIsClient";
 import type { Employee, GhostRole } from "@/types/business";
 
 // Pretty-printed labels for the small set of capacity_role buckets.
@@ -41,19 +42,34 @@ export default function StaffingPage() {
     const { updateDeal } = useDealMutations();
     const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
-    const [allocations, setAllocations] = useState<Record<string, number>>({});
-    const [isMounted, setIsMounted] = useState(false);
-
+    const isMounted = useIsClient();
     const deal = dealQuery.data ?? deals.find((d) => d.id === dealId);
 
-    useEffect(() => {
-        setIsMounted(true);
-        if (deal) {
-            const initial: Record<string, number> = {};
-            deal.hardAssignments?.forEach((a) => { initial[a.employeeId] = a.allocatedHours; });
-            setAllocations(initial);
+    // Local edits live in an "overrides" map keyed by employeeId — undefined
+    // means "no edit, fall back to the server value". The effective
+    // `allocations` map is derived in render from the deal + overrides, so
+    // we don't need a setState-in-effect to seed local state when the deal
+    // first loads. The Cancel button clears all overrides; saving consumes
+    // the effective map.
+    const [overrides, setOverrides] = useState<Record<string, number | undefined>>({});
+
+    const serverAllocations = useMemo(() => {
+        const m: Record<string, number> = {};
+        (deal?.hardAssignments ?? []).forEach((a) => { m[a.employeeId] = a.allocatedHours; });
+        return m;
+    }, [deal?.hardAssignments]);
+
+    const allocations: Record<string, number> = useMemo(() => {
+        const merged: Record<string, number> = { ...serverAllocations };
+        for (const [k, v] of Object.entries(overrides)) {
+            if (v === undefined) {
+                delete merged[k];
+            } else {
+                merged[k] = v;
+            }
         }
-    }, [deal]);
+        return merged;
+    }, [serverAllocations, overrides]);
 
     // ── Derived state (HOOKS — must run on every render before early returns) ──
     // React's Rules of Hooks: useMemo/useEffect/etc. must always be called in
@@ -195,7 +211,7 @@ export default function StaffingPage() {
 
     const handleAllocationChange = (employeeId: string, value: string) => {
         const hours = parseInt(value, 10);
-        setAllocations((prev) => ({ ...prev, [employeeId]: isNaN(hours) ? 0 : hours }));
+        setOverrides((prev) => ({ ...prev, [employeeId]: isNaN(hours) ? 0 : hours }));
     };
 
     const isAssigned = (employeeId: string) => (allocations[employeeId] ?? 0) > 0;
@@ -233,13 +249,10 @@ export default function StaffingPage() {
     };
 
     const handleCancel = () => {
-        // Reset local allocations to whatever's on the persisted deal so the
-        // user sees the round-trip is a no-op, then navigate back. We could
-        // skip the reset, but doing it here makes the cancel path explicit
-        // and prevents a flash of "modified" state on the way out.
-        const reset: Record<string, number> = {};
-        deal.hardAssignments?.forEach((a) => { reset[a.employeeId] = a.allocatedHours; });
-        setAllocations(reset);
+        // Drop all overrides — `allocations` will then equal `serverAllocations`
+        // and the form visibly resets before we navigate away. Explicit so the
+        // user sees a no-op round-trip rather than a flash of "modified" state.
+        setOverrides({});
         router.push(`/crm/${deal.id}`);
     };
 
