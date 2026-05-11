@@ -1,0 +1,51 @@
+schema: spec-driven
+
+context: |
+  Project: Anka — agency management SaaS frontend (Next.js).
+  Modules: Organization, CRM & Pipeline, Estimation, Contracts, Projects, Time Tracking, Financials, Forecasting, Multi-tenancy.
+
+  Stack: Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · Zustand 5 ·
+  TanStack Query 5 · shadcn/ui (new-york, neutral) · React Hook Form + Zod ·
+  Recharts · @hello-pangea/dnd · lucide-react · react-hot-toast.
+
+  Backend is a separate Laravel API (anka-api). The frontend NEVER talks to
+  Supabase directly — every business call goes through `lib/api.ts` to the
+  Laravel backend. `X-Tenant-ID` and Sanctum bearer token are attached
+  automatically.
+
+  Multi-tenant: every business-data request carries `X-Tenant-ID` from
+  `store/tenantStore.ts`. Login is global by email; tenant context comes
+  from `/auth/me` after authentication.
+
+  Auth: Sanctum bearer in an httpOnly `__session` cookie. Re-hydrated into
+  `store/authStore.ts` on mount by `components/providers/AuthInitializer.tsx`.
+  Two role dimensions: `isSuperAdmin` (system-level, `/tenant` admin routes)
+  and `appRole` (Admin / Executive / Sales / Delivery / HR — RBAC in
+  `lib/rbac.ts`). Use `<PermissionGuard permission="...">` for buttons and
+  `usePermission()` for route-level gates. Never hide guarded controls;
+  disable + tooltip the reason.
+
+  State: Zustand stores in `store/`. `businessStore.ts` is the primary one
+  (org data, CRM, contracts, projects, time, P&L computations). Mutations
+  follow snapshot → optimistic set → API → on-error rollback + toast +
+  rethrow (so React Query treats the mutation as failed).
+
+  Conventions:
+    - Path alias `@/` → repo root.
+    - All snake_case ↔ camelCase mapping lives in `lib/dealsMapper.ts`.
+    - All Zod schemas live in `lib/schemas/`.
+    - All TanStack Query hooks live in `lib/queries/<module>.ts`.
+    - Errors normalised via `lib/errorHandler.ts::normalizeError`.
+    - UI primitives from `components/ui/` only.
+    - Use the Bash and PowerShell tools — Windows dev machine.
+
+  Out-of-scope without explicit ask: editing the Laravel API,
+  CLAUDE.md docs, or migrations.
+
+# Per-artifact rules (optional)
+# rules:
+#   proposal:
+#     - Keep proposals under 500 words
+#     - Always include a "Non-goals" section
+#   tasks:
+#     - Break tasks into chunks of max 2 hours
