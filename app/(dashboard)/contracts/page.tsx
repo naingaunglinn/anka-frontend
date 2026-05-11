@@ -55,6 +55,23 @@ export default function ContractsPage() {
 
     const totalContractValue = contracts.reduce((sum, c) => sum + c.totalValue, 0);
     const totalRecognized = contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
+
+    // Per-contract invoice rollup: powers the Invoiced / Outstanding / Overdue columns
+    // without an extra round-trip — uses the invoices already loaded for the Invoices tab.
+    const invoiceStatsByContract = useMemo(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const stats = new Map<string, { invoiced: number; outstanding: number; overdue: number }>();
+        invoices.forEach(inv => {
+            const total = inv.total ?? (inv.amount + (inv.tax ?? 0));
+            const s = stats.get(inv.contractId) ?? { invoiced: 0, outstanding: 0, overdue: 0 };
+            if (inv.status !== 'Cancelled') s.invoiced += total;
+            if (inv.status === 'Pending' || inv.status === 'Overdue') s.outstanding += total;
+            const isOverdue = inv.status === 'Overdue' || (inv.status === 'Pending' && inv.dueDate && inv.dueDate < today);
+            if (isOverdue) s.overdue += total;
+            stats.set(inv.contractId, s);
+        });
+        return stats;
+    }, [invoices]);
     const isLoading = contractsQuery.isLoading || invoicesQuery.isLoading;
     const isError = contractsQuery.isError || invoicesQuery.isError;
     const retry = () => {
@@ -80,16 +97,22 @@ export default function ContractsPage() {
         else if (Number(invAmount) <= 0) errs.amount = 'Amount must be greater than zero.';
         setInvErrors(errs);
         if (Object.keys(errs).length > 0) return;
-        await createInvoice.mutateAsync({
-            contractId: invContractId,
-            milestoneId: invMilestoneId || undefined,
-            issueDate: invIssueDate,
-            dueDate: invDueDate || undefined,
-            amount: Number(invAmount),
-            tax: Number(invTax) || 0,
-            notes: invNotes || undefined,
-            status: 'Pending' as const,
-        } as Parameters<typeof createInvoice.mutateAsync>[0]);
+        try {
+            await createInvoice.mutateAsync({
+                contractId: invContractId,
+                milestoneId: invMilestoneId || undefined,
+                issueDate: invIssueDate,
+                dueDate: invDueDate || undefined,
+                amount: Number(invAmount),
+                tax: Number(invTax) || 0,
+                notes: invNotes || undefined,
+                status: 'Pending' as const,
+            } as Parameters<typeof createInvoice.mutateAsync>[0]);
+        } catch {
+            // toast already shown by businessStore.addInvoice — keep modal open
+            // so the user can fix the inputs and retry.
+            return;
+        }
         setIsInvoiceOpen(false);
         setInvContractId('');
         setInvMilestoneId('');
@@ -144,7 +167,7 @@ export default function ContractsPage() {
 
     const handleUpdateContract = async () => {
         if (!editContract) return;
-        await updateContract.mutateAsync({ id: editContract.id, updates: { status: editContract.status as 'Active' | 'Completed' | 'Draft' | 'Cancelled', notes: editContract.notes } });
+        await updateContract.mutateAsync({ id: editContract.id, updates: { status: editContract.status as 'Draft' | 'Signed' | 'Active' | 'Completed' | 'Cancelled', notes: editContract.notes } });
         setEditContract(null);
     };
 
@@ -342,6 +365,9 @@ export default function ContractsPage() {
                                     <TableHead>Linked Project</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Total Value</TableHead>
+                                    <TableHead className="text-right">Invoiced</TableHead>
+                                    <TableHead className="text-right">Outstanding</TableHead>
+                                    <TableHead className="text-right">Overdue</TableHead>
                                     <TableHead className="text-right">Recognized</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
@@ -350,9 +376,17 @@ export default function ContractsPage() {
                                 {contracts.map((contract) => {
                                     const sourceDeal     = deals.find(d => d.id === contract.dealId);
                                     const linkedProject  = projects.find(p => p.contractId === contract.id);
+                                    const stats          = invoiceStatsByContract.get(contract.id) ?? { invoiced: 0, outstanding: 0, overdue: 0 };
                                     return (
                                         <TableRow key={contract.id}>
-                                            <TableCell className="font-medium">{contract.contractNumber ?? contract.id}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <button
+                                                    className="text-[#00a7f4] hover:underline text-left"
+                                                    onClick={() => router.push(`/contracts/${contract.id}`)}
+                                                >
+                                                    {contract.contractNumber ?? contract.id}
+                                                </button>
+                                            </TableCell>
                                             <TableCell>{contract.client}</TableCell>
                                             <TableCell>
                                                 {sourceDeal ? (
@@ -370,7 +404,7 @@ export default function ContractsPage() {
                                                 {linkedProject ? (
                                                     <button
                                                         className="text-sm text-purple-600 hover:underline text-left"
-                                                        onClick={() => router.push('/projects')}
+                                                        onClick={() => router.push(`/projects/${linkedProject.id}`)}
                                                     >
                                                         {linkedProject.projectNumber ?? linkedProject.name}
                                                     </button>
@@ -381,13 +415,22 @@ export default function ContractsPage() {
                                             <TableCell>
                                                 <Badge variant="outline" className={
                                                     contract.status === 'Active' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
+                                                    contract.status === 'Signed' ? 'bg-violet-50 text-violet-700 border-violet-200' :
                                                     contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    contract.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
                                                     {contract.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(contract.totalValue, currency)}</TableCell>
+                                            <TableCell className="text-right text-[#4a4a4a]">{formatMoney(stats.invoiced, currency)}</TableCell>
+                                            <TableCell className={`text-right ${stats.outstanding > 0 ? 'text-amber-700 font-medium' : 'text-[#8a8a8a]'}`}>
+                                                {stats.outstanding > 0 ? formatMoney(stats.outstanding, currency) : '—'}
+                                            </TableCell>
+                                            <TableCell className={`text-right ${stats.overdue > 0 ? 'text-rose-700 font-semibold' : 'text-[#8a8a8a]'}`}>
+                                                {stats.overdue > 0 ? formatMoney(stats.overdue, currency) : '—'}
+                                            </TableCell>
                                             <TableCell className="text-right text-[#4a4a4a]">{formatMoney(contract.revenueRecognized, currency)}</TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
@@ -397,18 +440,21 @@ export default function ContractsPage() {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => router.push(`/contracts/${contract.id}`)}>
+                                                            Open Contract
+                                                        </DropdownMenuItem>
                                                         {sourceDeal && (
                                                             <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
                                                                 View Source Deal
                                                             </DropdownMenuItem>
                                                         )}
                                                         {linkedProject && (
-                                                            <DropdownMenuItem onClick={() => router.push('/projects')}>
+                                                            <DropdownMenuItem onClick={() => router.push(`/projects/${linkedProject.id}`)}>
                                                                 View Linked Project
                                                             </DropdownMenuItem>
                                                         )}
                                                         <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
-                                                            Edit Contract
+                                                            Edit Status / Notes
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             className="text-rose-600"
@@ -424,7 +470,7 @@ export default function ContractsPage() {
                                 })}
                                 {contracts.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={8} className="text-center py-6 text-[#8a8a8a]">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
+                                        <TableCell colSpan={11} className="text-center py-6 text-[#8a8a8a]">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -588,14 +634,20 @@ export default function ContractsPage() {
                                             <TableCell>
                                                 <Badge variant="outline" className={
                                                     invoice.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                        invoice.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                            invoice.status === 'Overdue' ? 'bg-red-50 text-red-700 border-red-200' :
-                                                                'bg-slate-100 text-slate-700 border-slate-200'
+                                                        invoice.status === 'Partially Paid' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                                                            invoice.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                invoice.status === 'Overdue' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                                    'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
                                                     {invoice.status}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium">{formatMoney(invoice.amount, currency)}</TableCell>
+                                            <TableCell className="text-right font-medium">
+                                                {formatMoney(invoice.amount, currency)}
+                                                {(invoice.paidAmount ?? 0) > 0 && invoice.status !== 'Paid' && (
+                                                    <div className="text-xs text-[#8a8a8a] font-normal">paid {formatMoney(invoice.paidAmount ?? 0, currency)}</div>
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -604,12 +656,15 @@ export default function ContractsPage() {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => router.push(`/contracts/${invoice.contractId}`)}>
+                                                            Open contract
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuItem><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
-                                                        {invoice.status === 'Pending' || invoice.status === 'Overdue' ? (
+                                                        {invoice.status !== 'Paid' && invoice.status !== 'Cancelled' && (
                                                             <DropdownMenuItem onClick={() => payInvoice.mutate(invoice.id)}>
-                                                                <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Paid
+                                                                <CheckCircle2 className="h-4 w-4 mr-2" /> Mark fully paid
                                                             </DropdownMenuItem>
-                                                        ) : null}
+                                                        )}
                                                         <DropdownMenuItem
                                                             className="text-rose-600"
                                                             onClick={() => openDeleteInvoice(invoice.id)}
@@ -648,9 +703,10 @@ export default function ContractsPage() {
                                 <Select value={editContract.status} onValueChange={v => setEditContract({ ...editContract, status: v })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="Draft">Draft</SelectItem>
+                                        <SelectItem value="Signed">Signed</SelectItem>
                                         <SelectItem value="Active">Active</SelectItem>
                                         <SelectItem value="Completed">Completed</SelectItem>
-                                        <SelectItem value="Draft">Draft</SelectItem>
                                         <SelectItem value="Cancelled">Cancelled</SelectItem>
                                     </SelectContent>
                                 </Select>

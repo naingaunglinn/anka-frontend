@@ -92,10 +92,19 @@ interface ApiContract {
     client: string;
     total_value?: number;
     revenue_recognized?: number;
+    cash_collected?: number;
     status: Contract['status'];
     start_date?: string;
     end_date?: string;
+    signed_at?: string | null;
+    payment_terms_days?: number;
+    po_number?: string | null;
+    billing_contact_name?: string | null;
+    billing_email?: string | null;
+    currency?: string | null;
+    tax_jurisdiction?: string | null;
     notes?: string;
+    created_at?: string | null;
 }
 
 interface ApiProject {
@@ -109,6 +118,10 @@ interface ApiProject {
     status: Project['status'];
     start_date?: string;
     end_date?: string;
+    kickoff_date?: string | null;
+    project_manager_id?: string | null;
+    project_manager_name?: string | null;
+    team_size?: number;
 }
 
 interface ApiInvoice {
@@ -120,9 +133,13 @@ interface ApiInvoice {
     due_date?: string | null;
     amount?: number | string;
     tax?: number | string;
+    paid_amount?: number | string;
     total?: number | string | null;
     status: Invoice['status'];
     paid_at?: string | null;
+    issued_at?: string | null;
+    sent_to_email?: string | null;
+    reminder_sent_count?: number;
     notes?: string | null;
 }
 
@@ -207,10 +224,19 @@ export function toContract(row: ApiContract): Contract {
         client: row.client,
         totalValue: row.total_value ?? 0,
         revenueRecognized: row.revenue_recognized ?? 0,
+        cashCollected: row.cash_collected ?? 0,
         status: row.status,
         startDate: row.start_date,
         endDate: row.end_date,
+        signedAt: row.signed_at ?? undefined,
+        paymentTermsDays: row.payment_terms_days ?? 30,
+        poNumber: row.po_number ?? undefined,
+        billingContactName: row.billing_contact_name ?? undefined,
+        billingEmail: row.billing_email ?? undefined,
+        currency: row.currency ?? undefined,
+        taxJurisdiction: row.tax_jurisdiction ?? undefined,
         notes: row.notes,
+        createdAt: row.created_at ?? undefined,
     };
 }
 
@@ -226,11 +252,17 @@ export function toProject(row: ApiProject): Project {
         status: row.status,
         startDate: row.start_date,
         endDate: row.end_date,
+        kickoffDate: row.kickoff_date ?? undefined,
+        projectManagerId: row.project_manager_id ?? undefined,
+        projectManagerName: row.project_manager_name ?? undefined,
+        teamSize: row.team_size ?? 0,
     };
 }
 
 export function toInvoice(row: ApiInvoice): Invoice {
-    // Compute overdue client-side: pending invoices whose due_date has passed
+    // Compute overdue client-side: pending or partially-paid invoices whose due_date has passed.
+    // Don't override Partially Paid → Overdue: partial payment is the more informative label,
+    // and the row will still be flagged as overdue separately by the UI's date check.
     const isOverdue =
         row.status === 'Pending' &&
         row.due_date &&
@@ -245,9 +277,13 @@ export function toInvoice(row: ApiInvoice): Invoice {
         dueDate: row.due_date ?? undefined,
         amount: Number(row.amount ?? 0),
         tax: Number(row.tax ?? 0),
+        paidAmount: row.paid_amount != null ? Number(row.paid_amount) : 0,
         total: row.total != null ? Number(row.total) : undefined,
         status: isOverdue ? 'Overdue' : row.status,
         paidAt: row.paid_at ?? undefined,
+        issuedAt: row.issued_at ?? undefined,
+        sentToEmail: row.sent_to_email ?? undefined,
+        reminderSentCount: row.reminder_sent_count ?? 0,
         notes: row.notes ?? undefined,
     };
 }

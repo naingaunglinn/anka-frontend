@@ -197,9 +197,9 @@ export default function FinancialPage() {
                 <CardContent className="pt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
                         <div>
-                            <span className="font-semibold text-[#171717]">Recognized Revenue</span>
+                            <span className="font-semibold text-[#171717]">Recognized Revenue <span className="text-xs font-normal text-[#8a8a8a]">(cash basis)</span></span>
                             <p className="text-[#8a8a8a] text-xs mt-0.5">
-                                Sum of <span className="font-medium">Paid</span> invoices (amount + tax), grouped by their <span className="font-medium">paid date</span>. Pending, overdue, and cancelled invoices are excluded — revenue is recognized only on cash receipt.
+                                Sum of <span className="font-medium">Paid</span> invoices (amount + tax), grouped by their <span className="font-medium">paid date</span>. This P&L view uses <span className="font-medium">cash basis</span> — revenue counts when payment is received. For accrual revenue (earned when a milestone is Accepted), see the per-contract detail page.
                             </p>
                         </div>
                         <div>

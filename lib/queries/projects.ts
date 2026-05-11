@@ -1,9 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toProject } from '@/lib/dealsMapper';
+import { normalizeError } from '@/lib/errorHandler';
 import type { Project, ProjectTeamAssignment } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
+
+function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
+    return {
+        id:               row.id as string,
+        projectId:        row.project_id as string,
+        employeeId:       row.employee_id as string,
+        employeeName:     (row.employee_name as string | null) ?? undefined,
+        allocatedHours:   Number(row.allocated_hours ?? 0),
+        assignmentSource: (row.assignment_source as ProjectTeamAssignment['assignmentSource']) ?? 'manual',
+        costPerHour:      row.cost_per_hour != null ? Number(row.cost_per_hour) : undefined,
+        monthlySalary:    row.monthly_salary != null ? Number(row.monthly_salary) : undefined,
+    };
+}
 
 // ── Query key factory ────────────────────────────────────────────────────────
 
@@ -72,12 +87,66 @@ export function useProjectTeam(id: string) {
         queryKey: projectKeys.team(id),
         queryFn: async () => {
             const { data: body } = await api.get(`/projects/${id}/team`);
-            const assignments = (body.data ?? body ?? []) as ProjectTeamAssignment[];
-            return assignments;
+            const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
+            return rows.map(toTeamAssignment);
         },
         enabled: !!id,
         staleTime: 10_000,
     });
+}
+
+/**
+ * Team-editing mutations: add member, remove member, run AI auto-assign.
+ *
+ * All three invalidate both the project's team query (so the roster refetches)
+ * and the project list query (so the `team_size` rollup column updates).
+ */
+export function useProjectTeamMutations(projectId: string) {
+    const queryClient = useQueryClient();
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: projectKeys.team(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    };
+
+    const assignMember = useMutation({
+        mutationFn: async ({ employeeId, allocatedHours }: { employeeId: string; allocatedHours: number }) => {
+            const { data } = await api.post(`/projects/${projectId}/team`, {
+                employee_id: employeeId,
+                allocated_hours: allocatedHours,
+            });
+            return toTeamAssignment(data.data ?? data);
+        },
+        onSuccess: () => toast.success('Team member added.'),
+        onError: (err) => toast.error(`Failed to add member: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    const removeMember = useMutation({
+        mutationFn: (assignmentId: string) =>
+            api.delete(`/projects/${projectId}/team/${assignmentId}`),
+        onSuccess: () => toast.success('Team member removed.'),
+        onError: (err) => toast.error(`Failed to remove member: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    /**
+     * Re-runs AI staffing for the project. Destructive: the backend wipes the
+     * existing roster and rebuilds it. The UI confirms before calling.
+     */
+    const autoAssignTeam = useMutation({
+        mutationFn: async () => {
+            const { data } = await api.post(`/projects/${projectId}/auto-assign`);
+            const rows = (data.data ?? data ?? []) as Record<string, unknown>[];
+            return rows.map(toTeamAssignment);
+        },
+        onSuccess: (rows) => toast.success(`Team rebuilt — ${rows.length} ${rows.length === 1 ? 'member' : 'members'} assigned.`),
+        onError: (err) => toast.error(`AI auto-assign failed: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    return { assignMember, removeMember, autoAssignTeam };
 }
 
 // ── Mutation hooks ───────────────────────────────────────────────────────────
