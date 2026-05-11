@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
@@ -37,18 +38,29 @@ export interface DealListParams {
  * @param params Optional pagination and filter params forwarded as query string.
  */
 export function useDealList(params: DealListParams = {}) {
-    return useQuery<PaginatedResponse<Deal>>({
+    const query = useQuery<PaginatedResponse<Deal>>({
         queryKey: dealKeys.list(params),
         queryFn: async () => {
             const { data: body } = await api.get('/deals', { params });
             const deals = (body.data ?? []).map(toDeal);
-            // Sync into Zustand so optimistic mutations (Kanban drag-drop, etc.)
-            // have the latest server state as their snapshot base.
-            useBusinessStore.setState({ deals });
             return { ...body, data: deals } as PaginatedResponse<Deal>;
         },
         staleTime: 30_000,
     });
+
+    // Sync the fetched list into Zustand so components that read
+    // `useBusinessStore((s) => s.deals)` stay in sync — but only when the
+    // server snapshot actually changes. Doing this in an effect (instead of
+    // inside `queryFn`) avoids the race where a background refetch's
+    // `setState({ deals })` clobbers an in-flight optimistic mutation, and
+    // keeps the merge surface small (only the latest deals, not aux state).
+    useEffect(() => {
+        if (query.data?.data) {
+            useBusinessStore.setState({ deals: query.data.data });
+        }
+    }, [query.data]);
+
+    return query;
 }
 
 /**

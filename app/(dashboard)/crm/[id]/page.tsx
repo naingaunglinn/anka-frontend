@@ -18,6 +18,7 @@ import {
 import { useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { PermissionGuard } from '@/components/PermissionGuard';
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -94,9 +95,14 @@ export default function DealDetailPage() {
 
     const baseLaborCost = useMemo(() => {
         if (!dealToEdit?.ghostRoles) return 0;
+        // `GhostRole.months` is the allocation PERCENTAGE (1–100), not a month count —
+        // legacy naming. Convert to a fraction and multiply by the deal's actual
+        // timelineMonths to get the lifetime labor cost (not just one month's worth).
+        const months = dealToEdit.timelineMonths || 1;
         return dealToEdit.ghostRoles.reduce((sum, r) => {
-            const avgSalary = ((r.minMonthlySalary || 0) + (r.maxMonthlySalary || 0)) / 2;
-            return sum + (r.quantity || 0) * (r.months || 0) * avgSalary;
+            const avgSalary  = ((r.minMonthlySalary || 0) + (r.maxMonthlySalary || 0)) / 2;
+            const allocFrac  = (r.months || 100) / 100;
+            return sum + (r.quantity || 0) * allocFrac * months * avgSalary;
         }, 0);
     }, [dealToEdit]);
 
@@ -133,7 +139,13 @@ export default function DealDetailPage() {
         return 'text-green-500';
     };
 
-    // Workflow steps
+    // Workflow steps — lost deals never produce a contract or project, so
+    // "Pending" is misleading. Show "N/A" instead so the row reads as terminal.
+    const downstreamLabel = (current: string | undefined) => {
+        if (isLost) return 'N/A — Deal Lost';
+        if (current) return current;
+        return isWon ? 'Created' : 'Pending';
+    };
     const workflowSteps: WorkflowStep[] = [
         {
             label: 'Deal',
@@ -143,17 +155,21 @@ export default function DealDetailPage() {
         },
         {
             label: 'Contract',
-            detail: linkedContract
-                ? `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`
-                : isWon ? 'Created' : 'Pending',
+            detail: downstreamLabel(
+                linkedContract
+                    ? `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`
+                    : undefined,
+            ),
             done:   !!linkedContract,
             active: isWon && !linkedContract,
         },
         {
             label: 'Project',
-            detail: linkedProject
-                ? `${linkedProject.projectNumber ?? linkedProject.id.slice(0, 8)} · ${linkedProject.status}`
-                : isWon ? 'Created' : 'Pending',
+            detail: downstreamLabel(
+                linkedProject
+                    ? `${linkedProject.projectNumber ?? linkedProject.id.slice(0, 8)} · ${linkedProject.status}`
+                    : undefined,
+            ),
             done:   !!linkedProject,
             active: !!linkedContract && !linkedProject,
         },
@@ -183,12 +199,14 @@ export default function DealDetailPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                     {!isClosed && (
-                        <Button
-                            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={() => setWinOpen(true)}
-                        >
-                            <Trophy className="h-4 w-4" /> Win Deal
-                        </Button>
+                        <PermissionGuard permission="manage_crm">
+                            <Button
+                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => setWinOpen(true)}
+                            >
+                                <Trophy className="h-4 w-4" /> Win Deal
+                            </Button>
+                        </PermissionGuard>
                     )}
                     <Button
                         variant="outline"
@@ -197,15 +215,21 @@ export default function DealDetailPage() {
                     >
                         <Calculator className="h-4 w-4" /> Estimation
                     </Button>
-                    <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/edit/${dealId}`)}>
-                        <Edit3 className="h-4 w-4" /> Edit Deal
-                    </Button>
-                    <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
-                        <Users className="h-4 w-4" /> AI Staffing
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-                        Delete
-                    </Button>
+                    <PermissionGuard permission="manage_crm">
+                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/edit/${dealId}`)}>
+                            <Edit3 className="h-4 w-4" /> Edit Deal
+                        </Button>
+                    </PermissionGuard>
+                    <PermissionGuard permission="manage_crm">
+                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
+                            <Users className="h-4 w-4" /> Hard Booking
+                        </Button>
+                    </PermissionGuard>
+                    <PermissionGuard permission="manage_crm">
+                        <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+                            Delete
+                        </Button>
+                    </PermissionGuard>
                 </div>
             </div>
 
@@ -330,7 +354,7 @@ export default function DealDetailPage() {
                                         <TableRow>
                                             <TableHead>Role</TableHead>
                                             <TableHead className="text-right">Quantity</TableHead>
-                                            <TableHead className="text-right">Months</TableHead>
+                                            <TableHead className="text-right">Alloc %</TableHead>
                                             <TableHead className="text-right">Monthly Salary</TableHead>
                                             <TableHead className="text-right">Subtotal</TableHead>
                                         </TableRow>
@@ -338,16 +362,18 @@ export default function DealDetailPage() {
                                     <TableBody>
                                         {dealToEdit.ghostRoles.map((role, i) => {
                                             const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
+                                            const allocFrac = (role.months || 100) / 100;
+                                            const tlMonths  = dealToEdit.timelineMonths || 1;
                                             return (
                                                 <TableRow key={role.id ?? i}>
                                                     <TableCell className="font-medium capitalize">{role.roleType}</TableCell>
                                                     <TableCell className="text-right">{role.quantity}</TableCell>
-                                                    <TableCell className="text-right">{role.months}</TableCell>
+                                                    <TableCell className="text-right">{role.months}%</TableCell>
                                                     <TableCell className="text-right">
                                                         {formatMoney(role.minMonthlySalary ?? 0, currency)} – {formatMoney(role.maxMonthlySalary ?? 0, currency)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {formatMoney(role.quantity * role.months * avgSalary, currency)}
+                                                        {formatMoney(role.quantity * allocFrac * tlMonths * avgSalary, currency)}
                                                     </TableCell>
                                                 </TableRow>
                                             );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBusinessStore } from "@/store/businessStore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import toast from "react-hot-toast";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { OrgSyncErrorBanner } from "@/components/OrgSyncErrorBanner";
 import { formatMoney } from "@/lib/currency";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
+import { extractRequiredSkills } from "@/lib/skillMatching";
+import { usePermission } from "@/hooks/usePermission";
+import { useIsClient } from "@/hooks/useIsClient";
 import type { Employee, GhostRole } from "@/types/business";
 
 // Pretty-printed labels for the small set of capacity_role buckets.
@@ -26,7 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function StaffingPage() {
-    useOrganizationSync();
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
     const params = useParams();
     const router = useRouter();
     const dealId = params.id as string;
@@ -37,20 +41,36 @@ export default function StaffingPage() {
     const skills     = useBusinessStore((state) => state.skills);
     const dealQuery  = useDealDetail(dealId);
     const { updateDeal } = useDealMutations();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
-    const [allocations, setAllocations] = useState<Record<string, number>>({});
-    const [isMounted, setIsMounted] = useState(false);
-
+    const isMounted = useIsClient();
     const deal = dealQuery.data ?? deals.find((d) => d.id === dealId);
 
-    useEffect(() => {
-        setIsMounted(true);
-        if (deal) {
-            const initial: Record<string, number> = {};
-            deal.hardAssignments?.forEach((a) => { initial[a.employeeId] = a.allocatedHours; });
-            setAllocations(initial);
+    // Local edits live in an "overrides" map keyed by employeeId — undefined
+    // means "no edit, fall back to the server value". The effective
+    // `allocations` map is derived in render from the deal + overrides, so
+    // we don't need a setState-in-effect to seed local state when the deal
+    // first loads. The Cancel button clears all overrides; saving consumes
+    // the effective map.
+    const [overrides, setOverrides] = useState<Record<string, number | undefined>>({});
+
+    const serverAllocations = useMemo(() => {
+        const m: Record<string, number> = {};
+        (deal?.hardAssignments ?? []).forEach((a) => { m[a.employeeId] = a.allocatedHours; });
+        return m;
+    }, [deal?.hardAssignments]);
+
+    const allocations: Record<string, number> = useMemo(() => {
+        const merged: Record<string, number> = { ...serverAllocations };
+        for (const [k, v] of Object.entries(overrides)) {
+            if (v === undefined) {
+                delete merged[k];
+            } else {
+                merged[k] = v;
+            }
         }
-    }, [deal]);
+        return merged;
+    }, [serverAllocations, overrides]);
 
     // ── Derived state (HOOKS — must run on every render before early returns) ──
     // React's Rules of Hooks: useMemo/useEffect/etc. must always be called in
@@ -59,12 +79,14 @@ export default function StaffingPage() {
     // render, which trips the "change in the order of Hooks" detector. Each
     // memo is defensive against `deal` being undefined for that brief window.
 
-    // Required skills extracted from the deal brief by substring-matching
-    // against the tenant's skill catalog. Same approach as AI Team Builder.
+    // Required skills extracted from the deal brief via whole-word matching
+    // against the tenant's skill catalog (shared with AI Team Builder and the
+    // Auto-Staff button so "covered"/"gap" labels stay consistent across views).
+    // Substring matching used to produce false positives like "Java" matching
+    // "JavaScript" — `extractRequiredSkills` uses `\bskill\b`.
     const requiredSkills = useMemo(() => {
-        const text = (deal?.workloadDescription ?? "").toLowerCase();
-        if (!text || skills.length === 0) return [] as string[];
-        return skills.filter((s) => text.includes(s.name.toLowerCase())).map((s) => s.name);
+        const text = deal?.workloadDescription ?? "";
+        return extractRequiredSkills(text, skills.map(s => s.name));
     }, [deal?.workloadDescription, skills]);
 
     // Only Active employees with a capacityRole can be staffed. Terminated /
@@ -122,6 +144,21 @@ export default function StaffingPage() {
 
     if (!isMounted) return null;
 
+    // Route-level RBAC. Placed AFTER every hook in this component so the
+    // order of hooks stays stable across renders (Rules of Hooks). Users
+    // without manage_crm (Delivery, HR) get an explicit denial — the page
+    // is reachable via the Kanban menu and the Hard Booking button on the
+    // deal detail page, so a guard here is the only chokepoint.
+    if (!canManageCrm) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <p className="text-sm text-muted-foreground">{rbacReason}</p>
+                <Button variant="outline" onClick={() => router.push('/crm')}>Back to pipeline</Button>
+            </div>
+        );
+    }
+
     if (dealQuery.isLoading) {
         return <div className="p-8 text-sm text-muted-foreground">Loading staffing plan...</div>;
     }
@@ -175,7 +212,7 @@ export default function StaffingPage() {
 
     const handleAllocationChange = (employeeId: string, value: string) => {
         const hours = parseInt(value, 10);
-        setAllocations((prev) => ({ ...prev, [employeeId]: isNaN(hours) ? 0 : hours }));
+        setOverrides((prev) => ({ ...prev, [employeeId]: isNaN(hours) ? 0 : hours }));
     };
 
     const isAssigned = (employeeId: string) => (allocations[employeeId] ?? 0) > 0;
@@ -213,13 +250,10 @@ export default function StaffingPage() {
     };
 
     const handleCancel = () => {
-        // Reset local allocations to whatever's on the persisted deal so the
-        // user sees the round-trip is a no-op, then navigate back. We could
-        // skip the reset, but doing it here makes the cancel path explicit
-        // and prevents a flash of "modified" state on the way out.
-        const reset: Record<string, number> = {};
-        deal.hardAssignments?.forEach((a) => { reset[a.employeeId] = a.allocatedHours; });
-        setAllocations(reset);
+        // Drop all overrides — `allocations` will then equal `serverAllocations`
+        // and the form visibly resets before we navigate away. Explicit so the
+        // user sees a no-op round-trip rather than a flash of "modified" state.
+        setOverrides({});
         router.push(`/crm/${deal.id}`);
     };
 
@@ -255,6 +289,13 @@ export default function StaffingPage() {
                     </Button>
                 </div>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Candidate employees, skill-coverage data, and the capacity check all depend on organization data."
+            />
 
             {hasConflicts && (
                 <Alert variant="destructive" className="bg-red-50/50 border-red-200">

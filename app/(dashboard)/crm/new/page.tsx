@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
@@ -34,56 +34,40 @@ import { getSuggestedSalaryRange } from "@/lib/salaryRange";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { usePermission } from "@/hooks/usePermission";
+import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { OrgSyncErrorBanner } from "@/components/OrgSyncErrorBanner";
+// Table imports removed alongside the Staffing tab — it owned the only Table
+// usage in this file. Hard-booking lives at /crm/[id]/staffing now.
 
 export default function NewDealPage() {
+    // Hydrate employees / roles / skills / settings into the store. Salary
+    // range suggestions, the AI Team Builder employee pool, and computed
+    // workload hours all depend on these. Without this sync, a direct
+    // visit (e.g. a deep link) shows zero-range salary suggestions and
+    // an empty AI candidate pool.
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
+
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
     const { createDeal } = useDealMutations();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
     const [dealId] = useState(() => uuidv4());
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
     const [acceptedAIResult, setAcceptedAIResult] = useState<AITeamBuilderResult | null>(null);
 
-    const [hardAssignments, setHardAssignments] = useState<{ employeeId: string; allocatedHours: number }[]>([]);
-    // Per-ghost-role input state for staffing add rows (key = ghost role index)
-    const [staffingInputs, setStaffingInputs] = useState<Record<number, { employeeId: string; hours: number }>>({});
-
-    function addHardAssignmentForRole(grIndex: number) {
-        const input = staffingInputs[grIndex];
-        if (!input?.employeeId || (input.hours || 0) <= 0) return;
-        const already = hardAssignments.find(a => a.employeeId === input.employeeId);
-        if (already) {
-            setHardAssignments(prev => prev.map(a => a.employeeId === input.employeeId ? { ...a, allocatedHours: input.hours } : a));
-        } else {
-            setHardAssignments(prev => [...prev, { employeeId: input.employeeId, allocatedHours: input.hours }]);
-        }
-        setStaffingInputs(prev => ({ ...prev, [grIndex]: { employeeId: '', hours: 0 } }));
-    }
-
-    function removeHardAssignment(employeeId: string) {
-        setHardAssignments(prev => prev.filter(a => a.employeeId !== employeeId));
-    }
-
-    function updateAssignmentHours(employeeId: string, hours: number) {
-        setHardAssignments(prev => prev.map(a => a.employeeId === employeeId ? { ...a, allocatedHours: hours } : a));
-    }
-
     function handleAcceptAIResult(result: AITeamBuilderResult) {
         setAcceptedAIResult(result);
 
-        // Derive ghost roles from AI team composition
+        // Derive ghost roles from the AI team composition. The wizard writes
+        // estimated team SHAPE (ghost roles) only — specific employees
+        // (hardAssignments) are assigned later on /crm/[id]/staffing, so the
+        // suggested members aren't materialised as hard bookings here.
         const roleGroups = result.team.reduce((acc, member) => {
             if (!acc[member.role]) {
                 acc[member.role] = { members: [], minSalary: Infinity, maxSalary: -Infinity };
@@ -104,11 +88,6 @@ export default function NewDealPage() {
         }));
 
         form.setValue('ghostRoles', newGhostRoles);
-
-        setHardAssignments(result.team.map(m => ({
-            employeeId: m.employeeId,
-            allocatedHours: m.allocatedHours,
-        })));
     }
 
     const form = useForm<DealFormValues>({
@@ -140,6 +119,32 @@ export default function NewDealPage() {
         name: "ghostRoles",
     });
 
+    // The default ghost role gets seeded from `useBusinessStore.getState().employees`
+    // at useState time. On a direct visit to /crm/new (cold cache) employees
+    // may not be hydrated yet, so the default role ends up with min=max=0.
+    // Once useOrganizationSync populates employees, patch the salary range on
+    // the default role ONCE — but only while the user hasn't typed a number
+    // into either salary field (signalled by both being 0). `form.setValue`
+    // here is not a React setState so it doesn't trip set-state-in-effect.
+    const defaultSalaryPatchedRef = useRef(false);
+    useEffect(() => {
+        if (defaultSalaryPatchedRef.current) return;
+        if (!employees.length) return;
+        const currentRoles = form.getValues('ghostRoles');
+        if (!currentRoles?.length) return;
+        const role = currentRoles[0];
+        // Only patch if the user hasn't touched the salary fields.
+        if ((role.minMonthlySalary ?? 0) !== 0 || (role.maxMonthlySalary ?? 0) !== 0) {
+            defaultSalaryPatchedRef.current = true;
+            return;
+        }
+        const range = getSuggestedSalaryRange(role.roleType, employees);
+        if (range.min === 0 && range.max === 0) return; // nothing to suggest
+        form.setValue('ghostRoles.0.minMonthlySalary', range.min, { shouldDirty: false });
+        form.setValue('ghostRoles.0.maxMonthlySalary', range.max, { shouldDirty: false });
+        defaultSalaryPatchedRef.current = true;
+    }, [employees, form]);
+
     const ghostRoles = form.watch("ghostRoles");
     const clientBudget = form.watch("clientBudget");
     const timelineMonths = form.watch("timelineMonths");
@@ -157,29 +162,34 @@ export default function NewDealPage() {
         }
     }
 
-    // Auto-calculate workload hours from ghost roles
+    // Auto-calculate workload hours from ghost roles. `monthlyCapacity` falls
+    // back to 160 when company settings haven't hydrated, matching the
+    // historical default.
+    const monthlyCapacity = companySettings.defaultMonthlyCapacityHours || 160;
     const computedWorkloadHours = useMemo(() => {
         const months = Number(timelineMonths) || 1;
         return ghostRoles.reduce((total, role) => {
-            return total + (role.quantity || 0) * 160 * months * ((role.months || 100) / 100);
+            return total + (role.quantity || 0) * monthlyCapacity * months * ((role.months || 100) / 100);
         }, 0);
-    }, [ghostRoles, timelineMonths]);
+    }, [ghostRoles, timelineMonths, monthlyCapacity]);
 
     useEffect(() => {
         form.setValue('workloadHours', Math.round(computedWorkloadHours), { shouldValidate: true });
     }, [computedWorkloadHours, form]);
 
+    // Base labor cost = qty × allocationFraction × timelineMonths × avgSalary.
+    // Previously this skipped × timelineMonths, undercounting by N× for an
+    // N-month deal. `role.months` is an allocation percentage, not a month count.
+    const tlMonths = Number(timelineMonths) || 1;
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
-        return total + (role.quantity || 0) * (role.months || 100) / 100 * avgSalary;
+        return total + (role.quantity || 0) * ((role.months || 100) / 100) * tlMonths * avgSalary;
     }, 0);
 
-    const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
-        const emp = employees.find(e => e.id === a.employeeId);
-        return total + (a.allocatedHours || 0) * (emp?.costPerHour || 0);
-    }, 0);
-
-    const baseLaborCost = acceptedAIResult?.baseLaborCost ?? (hardAssignments.length > 0 ? assignmentBaseLaborCost : manualBaseLaborCost);
+    // Base labor cost: prefer the fresh AI result, else derive from the
+    // ghost-roles manual estimate. The wizard no longer manages
+    // hardAssignments, so there's no assignment-based fallback to consider.
+    const baseLaborCost = acceptedAIResult?.baseLaborCost ?? manualBaseLaborCost;
     const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
     const bufferCost = calculateRiskBuffer(baseLaborCost, overheadCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
@@ -229,7 +239,8 @@ export default function NewDealPage() {
             workloadDescription: data.workloadDescription,
             status: "lead",
             ghostRoles: roles,
-            hardAssignments: hardAssignments.length > 0 ? hardAssignments : [],
+            // hardAssignments are owned by /crm/[id]/staffing — leave empty here.
+            hardAssignments: [],
             baseLaborCost: acceptedAIResult?.baseLaborCost ?? baseLaborCost,
             overheadCost: acceptedAIResult?.overheadCost ?? overheadCost,
             bufferCost: acceptedAIResult?.bufferCost ?? bufferCost,
@@ -243,12 +254,33 @@ export default function NewDealPage() {
         router.push(`/crm/edit/${created.id}`);
     }
 
+    // Route-level RBAC. Placed AFTER every hook in this component so the order
+    // of hooks stays stable across renders (Rules of Hooks). Roles without
+    // `manage_crm` (e.g. Delivery, HR) get an explicit denial — defence in
+    // depth alongside the sidebar/button guards on /crm.
+    if (!canManageCrm) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <p className="text-sm text-muted-foreground">{rbacReason}</p>
+                <Button variant="outline" onClick={() => router.push('/crm')}>Back to pipeline</Button>
+            </div>
+        );
+    }
+
     return (
         <div className="container mx-auto p-6 max-w-5xl space-y-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Draft New Deal</h1>
                 <p className="text-[#4a4a4a] mt-1">Structure the client context, estimate costs, and prepare deliverables.</p>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Salary-range suggestions and the AI candidate pool will be empty until organization data loads."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
@@ -270,10 +302,14 @@ export default function NewDealPage() {
                                         </div>
                                     )}
                             <Tabs defaultValue="context" className="w-full">
-                                <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-100/50">
+                                {/* Staffing tab removed: ghost-role planning lives in
+                                    Cost Estimate; named-employee hard booking lives at
+                                    /crm/[id]/staffing as the single canonical writer of
+                                    `hardAssignments`. New deals redirect to /crm/edit/[id]
+                                    on save and the user assigns staff from there. */}
+                                <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-100/50">
                                     <TabsTrigger value="context">Sales Context</TabsTrigger>
                                     <TabsTrigger value="estimation">Cost Estimate</TabsTrigger>
-                                    <TabsTrigger value="staffing">Staffing</TabsTrigger>
                                 </TabsList>
 
                                         <TabsContent value="context" className="space-y-6">
@@ -618,63 +654,10 @@ export default function NewDealPage() {
                                                 </div>
                                             </div>
 
-                                            {hardAssignments.length > 0 && (
-                                                <Card className="border-[#e6e9ee] shadow-sm">
-                                                    <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
-                                                        <CardTitle className="text-base">Previously Built Team</CardTitle>
-                                                    </CardHeader>
-                                                    <CardContent className="pt-4 space-y-4">
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                            {hardAssignments.map(a => {
-                                                                const emp = employees.find(e => e.id === a.employeeId);
-                                                                if (!emp) return null;
-                                                                const totalCost = (a.allocatedHours || 0) * (emp.costPerHour || 0);
-                                                                return (
-                                                                    <div key={a.employeeId} className="flex flex-col gap-1.5 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
-                                                                                {emp.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
-                                                                            </div>
-                                                                            <div className="min-w-0">
-                                                                                <p className="text-sm font-semibold text-slate-800 truncate">{emp.name}</p>
-                                                                                <p className="text-xs text-[#8a8a8a]">{emp.capacityRole}</p>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
-                                                                            <span>{a.allocatedHours}h allocated</span>
-                                                                            <span className="font-medium text-slate-700">{formatMoney(totalCost, currency)}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        <div className="space-y-2 text-sm">
-                                                            <div className="flex justify-between">
-                                                                <span className="text-[#8a8a8a]">Labor Cost</span>
-                                                                <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between">
-                                                                <span className="text-[#8a8a8a]">Overhead</span>
-                                                                <span className="font-medium text-red-500/80">+{formatMoney(overheadCost, currency)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between">
-                                                                <span className="text-[#8a8a8a]">Risk Buffer</span>
-                                                                <span className="font-medium text-red-500/80">+{formatMoney(bufferCost, currency)}</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
-                                                            <div className="flex justify-between font-bold text-slate-800">
-                                                                <span>Total Cost</span>
-                                                                <span>{formatMoney(totalEstimatedCost, currency)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-sm">
-                                                                <span className="text-[#8a8a8a]">Client Budget</span>
-                                                                <span className="font-medium text-slate-700">{formatMoney(clientBudget, currency)}</span>
-                                                            </div>
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
-                                            )}
+                                            {/* "Previously Built Team" card removed: on /crm/new there's
+                                                no existing deal yet, so hardAssignments are always empty.
+                                                The Live Financials sidebar already shows labor/overhead/buffer
+                                                summary. */}
                                             <AITeamBuilder
                                                 dealId={dealId}
                                                 clientBudget={clientBudget}
@@ -687,259 +670,6 @@ export default function NewDealPage() {
                                             />
                                         </TabsContent>
 
-                                        <TabsContent value="staffing" className="space-y-6">
-                                            {ghostRoles.length === 0 ? (
-                                                <div className="bg-white border border-[#e6e9ee] border-dashed rounded-xl p-8 text-center">
-                                                    <p className="text-sm text-[#8a8a8a]">No roles defined in Cost Estimate yet. Add roles in the Cost Estimate tab first.</p>
-                                                </div>
-                                            ) : (
-                                                ghostRoles.map((gr, grIndex) => {
-                                                    const roleLabel = CAPACITY_ROLE_OPTIONS.find(r => r.value === gr.roleType)?.label || gr.roleType;
-
-                                                    const assigned = hardAssignments.filter(a => {
-                                                        const emp = employees.find(e => e.id === a.employeeId);
-                                                        if (!emp) return false;
-                                                        return emp.capacityRole === gr.roleType;
-                                                    });
-
-                                                    const assignedCount = assigned.length;
-                                                    const canAddMore = assignedCount < gr.quantity;
-
-                                                    const availableEmployees = employees.filter(e =>
-                                                        e.status === 'Active' &&
-                                                        e.capacityRole === gr.roleType &&
-                                                        e.monthlySalary >= gr.minMonthlySalary &&
-                                                        e.monthlySalary <= gr.maxMonthlySalary &&
-                                                        !hardAssignments.some(a => a.employeeId === e.id)
-                                                    );
-
-                                                    const input = staffingInputs[grIndex] || { employeeId: '', hours: 0 };
-
-                                                    return (
-                                                        <div key={gr.id || grIndex} className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <div>
-                                                                    <h3 className="text-sm font-semibold text-[#171717]">{roleLabel}</h3>
-                                                                    <p className="text-xs text-[#4a4a4a] mt-1">
-                                                                        Assigned {assignedCount} of {gr.quantity} • Salary range: {formatMoney(gr.minMonthlySalary, currency)} – {formatMoney(gr.maxMonthlySalary, currency)}
-                                                                    </p>
-                                                                </div>
-                                                                {assignedCount > gr.quantity && (
-                                                                    <span className="text-xs text-red-600 font-medium">
-                                                                        ⚠️ Over-assigned ({assignedCount - gr.quantity} extra)
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            {assigned.length > 0 ? (
-                                                                <Table>
-                                                                    <TableHeader>
-                                                                        <TableRow>
-                                                                            <TableHead>Name</TableHead>
-                                                                            <TableHead className="text-right">Available Hrs</TableHead>
-                                                                            <TableHead className="text-right">Hours in Deal</TableHead>
-                                                                            <TableHead className="text-right">Mo. Salary</TableHead>
-                                                                            <TableHead className="text-right">Total Cost</TableHead>
-                                                                            <TableHead className="w-10"></TableHead>
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {assigned.map((assignment) => {
-                                                                            const emp = employees.find(e => e.id === assignment.employeeId);
-                                                                            if (!emp) return null;
-                                                                            const totalCost = assignment.allocatedHours * emp.costPerHour;
-                                                                            const inRange = emp.monthlySalary >= gr.minMonthlySalary && emp.monthlySalary <= gr.maxMonthlySalary;
-                                                                            return (
-                                                                                <TableRow key={assignment.employeeId}>
-                                                                                    <TableCell className="font-medium">
-                                                                                        {emp.name}
-                                                                                        {!inRange && (
-                                                                                            <span className="ml-2 text-xs text-amber-600">(outside range)</span>
-                                                                                        )}
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-right">{emp.workableHours}</TableCell>
-                                                                                    <TableCell className="text-right">
-                                                                                        <Input
-                                                                                            type="number"
-                                                                                            className="w-20 ml-auto h-8 text-right"
-                                                                                            value={assignment.allocatedHours}
-                                                                                            onChange={(e) => updateAssignmentHours(assignment.employeeId, Number(e.target.value))}
-                                                                                        />
-                                                                                    </TableCell>
-                                                                                    <TableCell className="text-right">{formatMoney(emp.monthlySalary, currency)}</TableCell>
-                                                                                    <TableCell className="text-right font-medium">{formatMoney(totalCost, currency)}</TableCell>
-                                                                                    <TableCell>
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="h-8 w-8 text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
-                                                                                            onClick={() => removeHardAssignment(assignment.employeeId)}
-                                                                                        >
-                                                                                            <Trash2 className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                    </TableCell>
-                                                                                </TableRow>
-                                                                            );
-                                                                        })}
-                                                                    </TableBody>
-                                                                </Table>
-                                                            ) : (
-                                                                <p className="text-sm text-[#8a8a8a]">No staff assigned to this role yet.</p>
-                                                            )}
-
-                                                            {canAddMore && availableEmployees.length > 0 && (
-                                                                <div className="flex gap-3 items-end pt-2 border-t border-[#e6e9ee]">
-                                                                    <div className="flex-1">
-                                                                        <label className="text-xs text-[#8a8a8a] block mb-1">Employee</label>
-                                                                        <Select
-                                                                            value={input.employeeId}
-                                                                            onValueChange={(v) => setStaffingInputs(prev => ({ ...prev, [grIndex]: { ...input, employeeId: v } }))}
-                                                                        >
-                                                                            <SelectTrigger className="bg-white">
-                                                                                <SelectValue placeholder="Select employee" />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                {availableEmployees.map(e => (
-                                                                                    <SelectItem key={e.id} value={e.id}>
-                                                                                        {e.name} — {formatMoney(e.monthlySalary, currency)}
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-                                                                    <div className="w-32">
-                                                                        <label className="text-xs text-[#8a8a8a] block mb-1">Hours</label>
-                                                                        <Input
-                                                                            type="number"
-                                                                            className="bg-white"
-                                                                            value={input.hours || ""}
-                                                                            onChange={(e) => setStaffingInputs(prev => ({ ...prev, [grIndex]: { ...input, hours: Number(e.target.value) } }))}
-                                                                            placeholder="e.g. 160"
-                                                                        />
-                                                                    </div>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="bg-white shadow-sm mb-0.5"
-                                                                        onClick={() => addHardAssignmentForRole(grIndex)}
-                                                                        disabled={!input.employeeId || (input.hours || 0) <= 0}
-                                                                    >
-                                                                        <UserPlus className="h-4 w-4 mr-2" /> Add
-                                                                    </Button>
-                                                                </div>
-                                                            )}
-
-                                                            {canAddMore && availableEmployees.length === 0 && (
-                                                                <p className="text-xs text-amber-600 pt-2">
-                                                                    No available employees match this role and salary range.
-                                                                </p>
-                                                            )}
-
-                                                            {!canAddMore && (
-                                                                <p className="text-xs text-[#8a8a8a] pt-2">
-                                                                    Role capacity reached ({gr.quantity} of {gr.quantity} assigned).
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
-
-                                            {/* ── Unassigned employees warning ── */}
-                                            {(() => {
-                                                const unassigned = hardAssignments.filter(a => {
-                                                    const emp = employees.find(e => e.id === a.employeeId);
-                                                    if (!emp) return false;
-                                                    return !ghostRoles.some(gr => emp.capacityRole === gr.roleType);
-                                                });
-                                                if (unassigned.length === 0) return null;
-                                                return (
-                                                    <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
-                                                        <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
-                                                        <p className="text-xs text-amber-700">
-                                                            These employees&apos; roles don&apos;t match any role in Cost Estimate. Update Cost Estimate to include them.
-                                                        </p>
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead>Name</TableHead>
-                                                                    <TableHead>Role</TableHead>
-                                                                    <TableHead className="text-right">Hours</TableHead>
-                                                                    <TableHead className="text-right">Mo. Salary</TableHead>
-                                                                    <TableHead className="w-10"></TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {unassigned.map((assignment) => {
-                                                                    const emp = employees.find(e => e.id === assignment.employeeId);
-                                                                    if (!emp) return null;
-                                                                    return (
-                                                                        <TableRow key={assignment.employeeId}>
-                                                                            <TableCell className="font-medium">{emp.name}</TableCell>
-                                                                            <TableCell className="text-[#8a8a8a]">{emp.roleName || emp.role}</TableCell>
-                                                                            <TableCell className="text-right">{assignment.allocatedHours}</TableCell>
-                                                                            <TableCell className="text-right">{formatMoney(emp.monthlySalary, currency)}</TableCell>
-                                                                            <TableCell>
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="ghost"
-                                                                                    size="icon"
-                                                                                    className="h-8 w-8 text-[#8a8a8a] hover:text-red-600 hover:bg-red-50"
-                                                                                    onClick={() => removeHardAssignment(assignment.employeeId)}
-                                                                                >
-                                                                                    <Trash2 className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    );
-                                                                })}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* ── Team Engineers Summary ── */}
-                                            {hardAssignments.length > 0 && (() => {
-                                                const grouped = hardAssignments.reduce((acc, assignment) => {
-                                                    const emp = employees.find(e => e.id === assignment.employeeId);
-                                                    if (!emp) return acc;
-                                                    const role = emp.roleName || emp.role;
-                                                    if (!acc[role]) acc[role] = { qty: 0, hours: 0, cost: 0 };
-                                                    acc[role].qty += 1;
-                                                    acc[role].hours += assignment.allocatedHours;
-                                                    acc[role].cost += assignment.allocatedHours * emp.costPerHour;
-                                                    return acc;
-                                                }, {} as Record<string, { qty: number; hours: number; cost: number }>);
-                                                return (
-                                                    <div className="bg-white p-6 rounded-lg border border-[#e6e9ee] shadow-sm space-y-4">
-                                                        <h3 className="text-sm font-semibold text-[#171717]">Team Engineers</h3>
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead>Role</TableHead>
-                                                                    <TableHead className="text-right">Qty</TableHead>
-                                                                    <TableHead className="text-right">Hours in Deal</TableHead>
-                                                                    <TableHead className="text-right">Total Cost</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {Object.entries(grouped).map(([role, data]) => (
-                                                                    <TableRow key={role}>
-                                                                        <TableCell className="font-medium">{role}</TableCell>
-                                                                        <TableCell className="text-right">{data.qty}</TableCell>
-                                                                        <TableCell className="text-right">{data.hours}</TableCell>
-                                                                        <TableCell className="text-right font-medium">{formatMoney(data.cost, currency)}</TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </TabsContent>
 
                                     </Tabs>
 

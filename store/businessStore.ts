@@ -366,7 +366,13 @@ export const useBusinessStore = create<BusinessState>()(
 
             addDeal: async (deal) => {
                 const snapshot = get().deals;
-                const tempId = `temp-${Date.now()}`;
+                // Trust a pre-minted client UUID from /crm/new (it generates one
+                // in useState so the same id round-trips); only mint a temp id
+                // when the caller hasn't supplied one. Using crypto.randomUUID
+                // (not Date.now) so two near-simultaneous adds can't collide.
+                const tempId = deal.id && !deal.id.startsWith('temp-')
+                    ? deal.id
+                    : `temp-${crypto.randomUUID()}`;
                 set(s => ({ deals: [...s.deals, { ...deal, id: tempId }] }));
                 try {
                     const { data } = await api.post('/deals', dealToApiPayload(deal));
@@ -387,6 +393,10 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to update deal: ${normalizeError(err).message}`);
+                    // Re-throw so React Query treats the mutation as failed.
+                    // Otherwise callers using `mutateAsync` proceed (e.g. router.push)
+                    // after a rolled-back update, making a failed save look successful.
+                    throw err;
                 }
             },
             deleteDeal: async (id) => {
@@ -397,6 +407,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to delete deal: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
             updateDealStage: async (id, status, probability) => {
@@ -413,6 +424,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to update deal stage: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
@@ -459,8 +471,13 @@ export const useBusinessStore = create<BusinessState>()(
                     if (serverContract) {
                         toast.success(`Deal won! Contract ${serverContract.contractNumber ?? serverContract.id.slice(0, 8)} created.`);
                     } else {
-                        toast.success('Deal won!');
-                        toast.error('Contract was not created — check server logs for the win_deal() stored procedure.');
+                        // Don't double-toast (success + error simultaneously). Surface
+                        // the partial outcome as a single warning toast so the user
+                        // sees one clear message instead of two contradictory ones.
+                        toast(
+                            'Deal marked as won, but the win_deal() stored procedure did not return a contract. Check server logs.',
+                            { icon: '⚠️', duration: 6000 },
+                        );
                     }
                 } catch (err) {
                     set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
@@ -468,6 +485,7 @@ export const useBusinessStore = create<BusinessState>()(
                     // The stored proc raises a constraint violation on duplicate wins or
                     // missing required data — surface the server's message directly
                     toast.error(`Failed to win deal: ${message}`);
+                    throw err;
                 }
             },
 
@@ -488,6 +506,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to mark deal as lost: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
@@ -703,8 +722,17 @@ export const useBusinessStore = create<BusinessState>()(
                     design:   { role: "design",    totalMonthlyHours: 0, softBookedHours: 0, hardBookedHours: 0 },
                 };
 
-                state.engineers.forEach(eng => {
-                    if (pool[eng.role]) pool[eng.role].totalMonthlyHours += eng.monthlyCapacityHours;
+                // Capacity pool reads from `employees` (the live org headcount),
+                // not the largely-unused `engineers` slice. Each active employee
+                // contributes their workableHours to the bucket that matches
+                // their capacityRole. This keeps Total / Hard / Soft all
+                // computed off the same source so they reconcile.
+                const monthlyCapacity = state.companySettings.defaultMonthlyCapacityHours || 160;
+                state.employees.forEach(emp => {
+                    if (emp.status !== 'Active') return;
+                    const bucket = emp.capacityRole;
+                    if (!bucket || !pool[bucket]) return;
+                    pool[bucket].totalMonthlyHours += emp.workableHours ?? monthlyCapacity;
                 });
 
                 state.deals.forEach(deal => {
@@ -716,13 +744,22 @@ export const useBusinessStore = create<BusinessState>()(
                     // is. Earlier stages contribute soft bookings only.
                     if (status === "won" || status === "negotiation") {
                         (deal.hardAssignments || []).forEach(a => {
-                            const eng = state.engineers.find(e => e.id === a.employeeId);
-                            if (eng && pool[eng.role]) pool[eng.role].hardBookedHours += a.allocatedHours;
+                            const emp = state.employees.find(e => e.id === a.employeeId);
+                            const bucket = emp?.capacityRole;
+                            if (bucket && pool[bucket]) pool[bucket].hardBookedHours += a.allocatedHours;
                         });
                     } else {
+                        // Soft-booked hours = qty × monthlyCapacity × allocationFraction
+                        // × timelineMonths × winProbability%. The previous formula
+                        // skipped allocationFraction AND timelineMonths, so a
+                        // half-time 6-month role and a full-time 1-month role
+                        // produced identical numbers.
+                        const prob   = deal.winProbability || 0;
+                        const months = deal.timelineMonths || 1;
                         (deal.ghostRoles || []).forEach(gr => {
-                            const prob = deal.winProbability || 0;
-                            const softBooked = calculateSoftBookedHours(gr.quantity * 160, prob);
+                            const allocFrac  = (gr.months || 100) / 100;
+                            const totalHours = gr.quantity * monthlyCapacity * allocFrac * months;
+                            const softBooked = calculateSoftBookedHours(totalHours, prob);
                             if (pool[gr.roleType]) pool[gr.roleType].softBookedHours += softBooked;
                         });
                     }
@@ -786,12 +823,23 @@ export const useBusinessStore = create<BusinessState>()(
                 if (!deal) return { laborCost: 0, overheadCost: 0, suggestedPrice: 0, expectedProfit: 0, totalCost: 0 };
 
                 if (deal.totalEstimatedCost !== undefined) {
+                    // suggestedPrice derived from total cost + target margin
+                    // (same margin-on-cost formula the EstimationSimulator
+                    // uses). Previously this returned `deal.clientBudget`,
+                    // which is what the *client* offered — not what we'd
+                    // *suggest* charging. Fall back to clientBudget when no
+                    // targetMargin is set.
+                    const totalCost = deal.totalEstimatedCost || 0;
+                    const marginDec = Math.min(0.95, Math.max(0, (deal.targetMargin || 0) / 100));
+                    const suggestedPrice = deal.targetMargin && marginDec < 1
+                        ? totalCost / (1 - marginDec)
+                        : (deal.clientBudget || 0);
                     return {
                         laborCost:      deal.baseLaborCost || 0,
                         overheadCost:   (deal.overheadCost || 0) + (deal.bufferCost || 0),
-                        suggestedPrice: deal.clientBudget || 0,
+                        suggestedPrice,
                         expectedProfit: deal.estimatedGrossProfit || 0,
-                        totalCost:      deal.totalEstimatedCost || 0,
+                        totalCost,
                     };
                 }
 

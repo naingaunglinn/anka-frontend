@@ -1,7 +1,6 @@
 'use client'
 
 import type { AITeamBuilderResult } from '@/types/aiTeamBuilder'
-import { useBusinessStore } from '@/store/businessStore'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
@@ -18,42 +17,34 @@ import toast from 'react-hot-toast'
 
 interface Props {
     result: AITeamBuilderResult
+    /**
+     * Passed by the parent for legacy reasons (deal context). Not consumed
+     * here since the fallback path that wrote directly to the deal was
+     * removed in favour of the required `onAccept` callback below.
+     */
     dealId: string
     clientBudget: number
     onRegenerate: () => void
-    onAccept?: (result: AITeamBuilderResult) => void
+    /**
+     * Required. The caller is responsible for translating the AI result into
+     * a deal mutation. The wizard pages map this to ghostRoles + cost fields
+     * only — hard booking lives at /crm/[id]/staffing. Previously a fallback
+     * path here would write `hardAssignments` directly, which conflicted
+     * with that contract.
+     */
+    onAccept: (result: AITeamBuilderResult) => void
 }
 
 export function AITeamBuilderResultPanel({
     result,
-    dealId,
     clientBudget,
     onRegenerate,
     onAccept,
 }: Props) {
     const currency = useTenantCurrency()
-    async function handleAccept() {
-        if (onAccept) {
-            onAccept(result)
-            toast.success('AI team recommendation accepted!')
-            return
-        }
-
-        const store = useBusinessStore.getState()
-
-        await store.updateDeal(dealId, {
-            baseLaborCost: result.baseLaborCost,
-            overheadCost: result.overheadCost,
-            bufferCost: result.bufferCost,
-            totalEstimatedCost: result.totalEstimatedCost,
-            estimatedGrossProfit: result.estimatedGrossProfit,
-            hardAssignments: result.team.map(m => ({
-                employeeId: m.employeeId,
-                allocatedHours: m.allocatedHours,
-            })),
-        })
-
-        toast.success('Team & estimate saved to deal!')
+    function handleAccept() {
+        onAccept(result)
+        toast.success('AI team recommendation accepted!')
     }
 
     const marginColor =

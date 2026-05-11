@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
+import { extractRequiredSkills } from '@/lib/skillMatching'
 
 interface Props {
     dealId: string
@@ -21,7 +22,11 @@ interface Props {
     workloadDescription: string
     workloadDocumentText?: string
     ghostRoles?: Array<{ roleType: string; quantity: number; minMonthlySalary: number; maxMonthlySalary: number }>
-    onAccept?: (result: AITeamBuilderResult) => void
+    // Required. AITeamBuilderResultPanel now requires onAccept too — the
+    // previous fallback that wrote hardAssignments directly was removed
+    // because hard booking belongs to /crm/[id]/staffing as the single
+    // canonical writer.
+    onAccept: (result: AITeamBuilderResult) => void
 }
 
 const LOADING_STEPS = [
@@ -29,16 +34,6 @@ const LOADING_STEPS = [
     'Selecting optimal team...',
     'Calculating P&L estimate...',
 ]
-
-// Extract required skills by whole-word matching to avoid false positives
-// like "Java" matching "JavaScript" or "Python" matching "Pythonista".
-function extractRequiredSkills(text: string, catalog: string[]): string[] {
-    if (!text || catalog.length === 0) return []
-    return catalog.filter(skill => {
-        const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        return new RegExp(`\\b${escaped}\\b`, 'i').test(text)
-    })
-}
 
 // Visual styling for the complexity chip — green for easy projects we
 // shouldn't over-staff, amber for medium, red for hard so users notice.
@@ -261,7 +256,11 @@ export function AITeamBuilder(props: Props) {
 
             <Button
                 type="button"
-                onClick={handleBuild}
+                // Wrap in an arrow so React's MouseEvent doesn't get passed as
+                // the `feedback` argument. handleBuild is also called from the
+                // regenerate UI with feedback text — different call site, same
+                // function — so the wrapper here keeps the no-feedback call path.
+                onClick={() => handleBuild()}
                 disabled={!canRun || loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
                 size="lg"
