@@ -14,6 +14,7 @@ import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 import { formatMoney } from "@/lib/currency";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
+import { extractRequiredSkills } from "@/lib/skillMatching";
 import type { Employee, GhostRole } from "@/types/business";
 
 // Pretty-printed labels for the small set of capacity_role buckets.
@@ -59,12 +60,14 @@ export default function StaffingPage() {
     // render, which trips the "change in the order of Hooks" detector. Each
     // memo is defensive against `deal` being undefined for that brief window.
 
-    // Required skills extracted from the deal brief by substring-matching
-    // against the tenant's skill catalog. Same approach as AI Team Builder.
+    // Required skills extracted from the deal brief via whole-word matching
+    // against the tenant's skill catalog (shared with AI Team Builder and the
+    // Auto-Staff button so "covered"/"gap" labels stay consistent across views).
+    // Substring matching used to produce false positives like "Java" matching
+    // "JavaScript" — `extractRequiredSkills` uses `\bskill\b`.
     const requiredSkills = useMemo(() => {
-        const text = (deal?.workloadDescription ?? "").toLowerCase();
-        if (!text || skills.length === 0) return [] as string[];
-        return skills.filter((s) => text.includes(s.name.toLowerCase())).map((s) => s.name);
+        const text = deal?.workloadDescription ?? "";
+        return extractRequiredSkills(text, skills.map(s => s.name));
     }, [deal?.workloadDescription, skills]);
 
     // Only Active employees with a capacityRole can be staffed. Terminated /

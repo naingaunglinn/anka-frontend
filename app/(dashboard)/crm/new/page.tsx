@@ -34,6 +34,7 @@ import { getSuggestedSalaryRange } from "@/lib/salaryRange";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
+import { usePermission } from "@/hooks/usePermission";
 import {
     Table,
     TableBody,
@@ -50,6 +51,7 @@ export default function NewDealPage() {
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
     const { createDeal } = useDealMutations();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
     const [dealId] = useState(() => uuidv4());
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
@@ -157,21 +159,28 @@ export default function NewDealPage() {
         }
     }
 
-    // Auto-calculate workload hours from ghost roles
+    // Auto-calculate workload hours from ghost roles. `monthlyCapacity` falls
+    // back to 160 when company settings haven't hydrated, matching the
+    // historical default.
+    const monthlyCapacity = companySettings.defaultMonthlyCapacityHours || 160;
     const computedWorkloadHours = useMemo(() => {
         const months = Number(timelineMonths) || 1;
         return ghostRoles.reduce((total, role) => {
-            return total + (role.quantity || 0) * 160 * months * ((role.months || 100) / 100);
+            return total + (role.quantity || 0) * monthlyCapacity * months * ((role.months || 100) / 100);
         }, 0);
-    }, [ghostRoles, timelineMonths]);
+    }, [ghostRoles, timelineMonths, monthlyCapacity]);
 
     useEffect(() => {
         form.setValue('workloadHours', Math.round(computedWorkloadHours), { shouldValidate: true });
     }, [computedWorkloadHours, form]);
 
+    // Base labor cost = qty × allocationFraction × timelineMonths × avgSalary.
+    // Previously this skipped × timelineMonths, undercounting by N× for an
+    // N-month deal. `role.months` is an allocation percentage, not a month count.
+    const tlMonths = Number(timelineMonths) || 1;
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
-        return total + (role.quantity || 0) * (role.months || 100) / 100 * avgSalary;
+        return total + (role.quantity || 0) * ((role.months || 100) / 100) * tlMonths * avgSalary;
     }, 0);
 
     const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
@@ -241,6 +250,20 @@ export default function NewDealPage() {
 
         const created = await createDeal.mutateAsync(newDeal);
         router.push(`/crm/edit/${created.id}`);
+    }
+
+    // Route-level RBAC. Placed AFTER every hook in this component so the order
+    // of hooks stays stable across renders (Rules of Hooks). Roles without
+    // `manage_crm` (e.g. Delivery, HR) get an explicit denial — defence in
+    // depth alongside the sidebar/button guards on /crm.
+    if (!canManageCrm) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <p className="text-sm text-muted-foreground">{rbacReason}</p>
+                <Button variant="outline" onClick={() => router.push('/crm')}>Back to pipeline</Button>
+            </div>
+        );
     }
 
     return (

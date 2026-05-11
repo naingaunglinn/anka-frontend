@@ -11,6 +11,7 @@ import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
 import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { PermissionGuard } from '@/components/PermissionGuard';
 
 export default function CRMPage() {
     const currency = useTenantCurrency();
@@ -20,7 +21,18 @@ export default function CRMPage() {
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
 
     const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
-    const capacityPool = getCapacityPool();
+    // Subscribe to the inputs of getCapacityPool so React re-renders when they
+    // change, but memoise the call itself — the returned array is a fresh
+    // reference on every render otherwise, defeating any downstream memo.
+    const dealsForPool      = useBusinessStore(state => state.deals);
+    const employeesForPool  = useBusinessStore(state => state.employees);
+    const capacityPool = useMemo(
+        () => getCapacityPool(),
+        // dependencies intentionally include the slices the pool reads from.
+        // getCapacityPool is a stable function ref (Zustand) so it's safe to omit.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [dealsForPool, employeesForPool],
+    );
 
     const handleMetricsUpdate = useCallback((total: number, weighted: number) => {
         setPipelineTotal(total);
@@ -37,11 +49,13 @@ export default function CRMPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-[#171717]">CRM & Sales Pipeline</h2>
                     <p className="text-[#4a4a4a] mt-1">Manage leads, track opportunities, and forecast revenue.</p>
                 </div>
-                <Link href="/crm/new">
-                    <Button>
-                        <Plus className="mr-2 h-4 w-4" /> New Deal
-                    </Button>
-                </Link>
+                <PermissionGuard permission="manage_crm">
+                    <Link href="/crm/new">
+                        <Button>
+                            <Plus className="mr-2 h-4 w-4" /> New Deal
+                        </Button>
+                    </Link>
+                </PermissionGuard>
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
@@ -119,11 +133,13 @@ export default function CRMPage() {
                 ) : deals.length === 0 ? (
                     <div className="flex h-96 flex-col items-center justify-center gap-3 text-center">
                         <p className="text-sm text-[#8a8a8a]">No deals yet. Create your first deal to start the pipeline.</p>
-                        <Link href="/crm/new">
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> New Deal
-                            </Button>
-                        </Link>
+                        <PermissionGuard permission="manage_crm">
+                            <Link href="/crm/new">
+                                <Button>
+                                    <Plus className="mr-2 h-4 w-4" /> New Deal
+                                </Button>
+                            </Link>
+                        </PermissionGuard>
                     </div>
                 ) : (
                     <KanbanBoard deals={deals} onMetricsUpdate={handleMetricsUpdate} />

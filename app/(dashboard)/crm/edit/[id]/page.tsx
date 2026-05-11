@@ -41,10 +41,12 @@ import { Plus, Trash2, ArrowRight, ArrowLeft, Upload, UserPlus, AlertCircle, Fil
 import { calculateOverhead, calculateRiskBuffer, calculateTotalEstimatedCost, calculateEstimatedGrossProfit } from "@/lib/calculations";
 import { getSuggestedSalaryRange } from "@/lib/salaryRange";
 import { autoStaffFromGhostRoles } from "@/lib/autoStaffing";
+import { extractRequiredSkills } from "@/lib/skillMatching";
 import { AITeamBuilder } from "@/components/crm/AITeamBuilder";
 import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPTIONS } from "@/lib/schemas/deal.schema";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useLinkedContract } from "@/lib/queries/contracts";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function EditDealPage() {
     useOrganizationSync();
@@ -59,6 +61,7 @@ export default function EditDealPage() {
     const dealQuery = useDealDetail(dealId);
     const linkedContractQuery = useLinkedContract(dealId);
     const { updateDeal } = useDealMutations();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
     const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
@@ -235,21 +238,28 @@ export default function EditDealPage() {
         }
     }
 
-    // Auto-calculate workload hours from ghost roles
+    // Auto-calculate workload hours from ghost roles. `monthlyCapacity` falls
+    // back to 160 when company settings haven't hydrated, matching the
+    // historical default.
+    const monthlyCapacity = companySettings.defaultMonthlyCapacityHours || 160;
     const computedWorkloadHours = useMemo(() => {
         const months = Number(timelineMonths) || 1;
         return ghostRoles.reduce((total, role) => {
-            return total + (role.quantity || 0) * 160 * months * ((role.months || 100) / 100);
+            return total + (role.quantity || 0) * monthlyCapacity * months * ((role.months || 100) / 100);
         }, 0);
-    }, [ghostRoles, timelineMonths]);
+    }, [ghostRoles, timelineMonths, monthlyCapacity]);
 
     useEffect(() => {
         form.setValue('workloadHours', Math.round(computedWorkloadHours), { shouldValidate: true });
     }, [computedWorkloadHours, form]);
 
+    // Base labor cost = qty × allocationFraction × timelineMonths × avgSalary.
+    // Previously this skipped × timelineMonths, undercounting by N× for an
+    // N-month deal. `role.months` is an allocation percentage, not a month count.
+    const tlMonths = Number(timelineMonths) || 1;
     const manualBaseLaborCost = ghostRoles.reduce((total, role) => {
         const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
-        return total + (role.quantity || 0) * (role.months || 100) / 100 * avgSalary;
+        return total + (role.quantity || 0) * ((role.months || 100) / 100) * tlMonths * avgSalary;
     }, 0);
 
     const assignmentBaseLaborCost = hardAssignments.reduce((total, a) => {
@@ -320,6 +330,20 @@ export default function EditDealPage() {
         });
 
         router.push("/crm");
+    }
+
+    // Route-level RBAC. Placed AFTER all hooks have run so the order of hooks
+    // stays stable across renders (Rules of Hooks); placed BEFORE the
+    // loading/not-found early returns so users who lack permission get a
+    // consistent denial regardless of fetch state.
+    if (!canManageCrm) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <p className="text-sm text-muted-foreground">{rbacReason}</p>
+                <Button variant="outline" onClick={() => router.push('/crm')}>Back to pipeline</Button>
+            </div>
+        );
     }
 
     if (dealQuery.isLoading) {
@@ -1211,9 +1235,24 @@ export default function EditDealPage() {
                                                             minMonthlySalary: gr.minMonthlySalary,
                                                             maxMonthlySalary: gr.maxMonthlySalary,
                                                         }));
+                                                        // Include Context-tab fields too — otherwise edits made
+                                                        // on Sales Context but never explicitly "Next"-ed are
+                                                        // lost when the user jumps tabs and saves here.
                                                         await updateDeal.mutateAsync({
                                                             id: dealId,
                                                             updates: {
+                                                                name: data.name,
+                                                                client: data.client,
+                                                                contactName: data.contactName,
+                                                                contactEmail: data.contactEmail,
+                                                                contactPhone: data.contactPhone,
+                                                                expectedCloseDate: data.expectedCloseDate || undefined,
+                                                                leadSource: data.leadSource,
+                                                                clientBudget: data.clientBudget,
+                                                                timelineMonths: data.timelineMonths,
+                                                                workloadHours: data.workloadHours,
+                                                                workloadDescription: data.workloadDescription,
+                                                                winProbability: data.winProbability,
                                                                 ghostRoles: roles,
                                                                 baseLaborCost,
                                                                 overheadCost,
@@ -1237,13 +1276,8 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="lg"
                                                         onClick={() => {
-                                                            const descText = `${workloadDescription} ${workloadDocText ?? ''}`.toLowerCase();
-                                                            const matched = skills
-                                                                .filter(s => {
-                                                                    const escaped = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                                                    return new RegExp(`\\b${escaped}\\b`, 'i').test(descText);
-                                                                })
-                                                                .map(s => s.name);
+                                                            const descText = `${workloadDescription} ${workloadDocText ?? ''}`;
+                                                            const matched = extractRequiredSkills(descText, skills.map(s => s.name));
                                                             const { assignments, warnings } = autoStaffFromGhostRoles(
                                                                 ghostRoles,
                                                                 employees,
@@ -1271,6 +1305,19 @@ export default function EditDealPage() {
                                                         size="lg"
                                                         disabled={updateDeal.isPending}
                                                         onClick={async () => {
+                                                            // Validate the full form before persisting — previously
+                                                            // this path bypassed validation and would save invalid
+                                                            // emails / blank required fields silently.
+                                                            const valid = await form.trigger();
+                                                            if (!valid) {
+                                                                // Jump back to the tab containing the first error so
+                                                                // the highlight is actually visible.
+                                                                const firstKey = Object.keys(form.formState.errors)[0];
+                                                                if (firstKey === 'ghostRoles') setActiveTab('estimation');
+                                                                else if (firstKey) setActiveTab('context');
+                                                                onFormError();
+                                                                return;
+                                                            }
                                                             const data = form.getValues();
                                                             const roles: GhostRole[] = data.ghostRoles.map((gr) => ({
                                                                 id: gr.id || uuidv4(),

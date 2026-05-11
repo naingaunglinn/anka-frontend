@@ -17,6 +17,8 @@ import { Deal } from '@/types/business';
 import { useDealMutations } from '@/lib/queries/deals';
 import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { usePermission } from '@/hooks/usePermission';
+import toast from 'react-hot-toast';
 
 type ColumnData = {
     id: string;
@@ -43,6 +45,7 @@ export function KanbanBoard({
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
     const { updateDealStage, deleteDeal, winDeal, loseDeal } = useDealMutations();
     const currency = useTenantCurrency();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -84,10 +87,15 @@ export function KanbanBoard({
     }, [deals]);
 
     useEffect(() => {
+        // Pipeline value reflects ACTIVE opportunities only. Closed columns
+        // (`won` already booked as revenue, `lost` no longer in play) would
+        // inflate the KPIs — e.g. a $1M lost deal still counting in "Total
+        // Pipeline Value" misleads the salesperson.
         let totalValue = 0;
         let weightedRevenue = 0;
 
-        Object.values(columns).forEach(col => {
+        Object.entries(columns).forEach(([columnId, col]) => {
+            if (columnId === 'won' || columnId === 'lost') return;
             col.deals.forEach(deal => {
                 const budget = deal.clientBudget || deal.estimatedValue || 0;
                 const winProb = deal.winProbability || 0;
@@ -121,6 +129,14 @@ export function KanbanBoard({
         const { source, destination, draggableId } = result;
 
         if (source.droppableId === destination.droppableId) return;
+
+        // RBAC: roles without `manage_crm` (Delivery, HR) can view the board
+        // but cannot rearrange stages. Block silently with a toast to explain
+        // why the drag bounced back.
+        if (!canManageCrm) {
+            toast.error(rbacReason || 'You do not have permission to change deal stages.');
+            return;
+        }
 
         // Prevent moving from terminal statuses (won / lost). Reverting a
         // closed deal would orphan the linked Contract/Project.
@@ -261,7 +277,11 @@ export function KanbanBoard({
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
                                                                             <DropdownMenuContent align="end" className="w-[180px]">
-                                                                                <DropdownMenuItem onClick={() => router.push(`/crm/edit/${deal.id}`)}>
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => router.push(`/crm/edit/${deal.id}`)}
+                                                                                    disabled={!canManageCrm}
+                                                                                    title={!canManageCrm ? rbacReason : undefined}
+                                                                                >
                                                                                     <Edit2 className="mr-2 h-4 w-4" />
                                                                                     Edit Details
                                                                                 </DropdownMenuItem>
@@ -273,7 +293,8 @@ export function KanbanBoard({
                                                                                     <>
                                                                                         <DropdownMenuItem
                                                                                             onClick={() => openWinDeal(deal.id, deal.name)}
-                                                                                            disabled={winDeal.isPending}
+                                                                                            disabled={winDeal.isPending || !canManageCrm}
+                                                                                            title={!canManageCrm ? rbacReason : undefined}
                                                                                             className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
                                                                                         >
                                                                                             <Trophy className="mr-2 h-4 w-4" />
@@ -281,7 +302,8 @@ export function KanbanBoard({
                                                                                         </DropdownMenuItem>
                                                                                         <DropdownMenuItem
                                                                                             onClick={() => openLoseDeal(deal.id, deal.name)}
-                                                                                            disabled={loseDeal.isPending}
+                                                                                            disabled={loseDeal.isPending || !canManageCrm}
+                                                                                            title={!canManageCrm ? rbacReason : undefined}
                                                                                             className="text-orange-600 focus:text-orange-700 focus:bg-orange-50"
                                                                                         >
                                                                                             <XCircle className="mr-2 h-4 w-4" />
@@ -289,7 +311,12 @@ export function KanbanBoard({
                                                                                         </DropdownMenuItem>
                                                                                     </>
                                                                                 )}
-                                                                                <DropdownMenuItem onClick={() => openDeleteDeal(deal.id)} className="text-red-600 focus:text-red-700 focus:bg-red-50">
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => openDeleteDeal(deal.id)}
+                                                                                    disabled={!canManageCrm}
+                                                                                    title={!canManageCrm ? rbacReason : undefined}
+                                                                                    className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                                                                >
                                                                                     <Trash2 className="mr-2 h-4 w-4" />
                                                                                     Delete
                                                                                 </DropdownMenuItem>

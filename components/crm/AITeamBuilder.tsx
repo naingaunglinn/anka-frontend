@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
+import { extractRequiredSkills } from '@/lib/skillMatching'
 
 interface Props {
     dealId: string
@@ -29,16 +30,6 @@ const LOADING_STEPS = [
     'Selecting optimal team...',
     'Calculating P&L estimate...',
 ]
-
-// Extract required skills by whole-word matching to avoid false positives
-// like "Java" matching "JavaScript" or "Python" matching "Pythonista".
-function extractRequiredSkills(text: string, catalog: string[]): string[] {
-    if (!text || catalog.length === 0) return []
-    return catalog.filter(skill => {
-        const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        return new RegExp(`\\b${escaped}\\b`, 'i').test(text)
-    })
-}
 
 // Visual styling for the complexity chip — green for easy projects we
 // shouldn't over-staff, amber for medium, red for hard so users notice.
