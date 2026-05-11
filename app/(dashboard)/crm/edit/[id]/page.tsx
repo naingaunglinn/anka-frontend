@@ -62,6 +62,7 @@ export default function EditDealPage() {
     const dealToEdit = dealQuery.data ?? deals.find((d) => d.id === dealId);
     const companySettings = useBusinessStore((state) => state.companySettings);
     const employees = useBusinessStore((state) => state.employees);
+    const skills = useBusinessStore((state) => state.skills);
 
     const [workloadDocText, setWorkloadDocText] = useState<string | undefined>(undefined);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -186,7 +187,7 @@ export default function EditDealPage() {
             workloadDescription: dealToEdit?.workloadDescription || "",
             ghostRoles: dealToEdit?.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
-                : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
         },
     });
 
@@ -207,7 +208,7 @@ export default function EditDealPage() {
                 workloadDescription: dealToEdit.workloadDescription || "",
                 ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                     ? dealToEdit.ghostRoles
-                    : [{ roleType: 'frontend', quantity: 1, months: 1, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+                    : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
             });
         }
     }, [dealToEdit, form]);
@@ -259,7 +260,7 @@ export default function EditDealPage() {
     // When AI result is fresh, use it; otherwise compute from hardAssignments if present, else ghost roles
     const baseLaborCost = acceptedAIResult?.baseLaborCost ?? (hardAssignments.length > 0 ? assignmentBaseLaborCost : manualBaseLaborCost);
     const overheadCost = calculateOverhead(baseLaborCost, companySettings.overheadPercentage);
-    const bufferCost = calculateRiskBuffer(baseLaborCost, companySettings.bufferPercentage);
+    const bufferCost = calculateRiskBuffer(baseLaborCost, overheadCost, companySettings.bufferPercentage);
     const totalEstimatedCost = calculateTotalEstimatedCost(baseLaborCost, overheadCost, bufferCost);
     const estimatedGrossProfit = calculateEstimatedGrossProfit(clientBudget, totalEstimatedCost);
 
@@ -367,7 +368,7 @@ export default function EditDealPage() {
                                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                                         <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100/50">
                                             <TabsTrigger value="context">Sales Context</TabsTrigger>
-                                            <TabsTrigger value="estimation">Estimation</TabsTrigger>
+                                            <TabsTrigger value="estimation">Cost Estimate</TabsTrigger>
                                             <TabsTrigger value="staffing">Staffing</TabsTrigger>
                                             <TabsTrigger value="contracts">Contracts</TabsTrigger>
                                         </TabsList>
@@ -802,6 +803,7 @@ export default function EditDealPage() {
                                                         workloadHours={workloadHours}
                                                         workloadDescription={workloadDescription}
                                                         workloadDocumentText={workloadDocText}
+                                                        ghostRoles={ghostRoles}
                                                         onAccept={handleAcceptAIResult}
                                                     />
                                                 </>
@@ -820,7 +822,7 @@ export default function EditDealPage() {
 
                                             {ghostRoles.length === 0 ? (
                                                 <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-8 text-center">
-                                                    <p className="text-sm text-slate-500">No roles defined in Estimation yet. Add roles in the Estimation tab first.</p>
+                                                    <p className="text-sm text-slate-500">No roles defined in Cost Estimate yet. Add roles in the Cost Estimate tab first.</p>
                                                 </div>
                                             ) : (
                                                 ghostRoles.map((gr, grIndex) => {
@@ -989,7 +991,7 @@ export default function EditDealPage() {
                                                     <div className="bg-amber-50 p-6 rounded-lg border border-amber-200 shadow-sm space-y-4">
                                                         <h3 className="text-sm font-semibold text-amber-900">Unassigned Employees</h3>
                                                         <p className="text-xs text-amber-700">
-                                                            These employees&apos; roles don&apos;t match any role in Estimation. Update Estimation to include them.
+                                                            These employees&apos; roles don&apos;t match any role in Cost Estimate. Update Cost Estimate to include them.
                                                         </p>
                                                         <Table>
                                                             <TableHeader>
@@ -1132,7 +1134,7 @@ export default function EditDealPage() {
 
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t mt-6">
                                         <p className="text-xs text-muted-foreground">
-                                            {activeTab === 'context' && "Fill in the client details and click Next to move to Estimation."}
+                                            {activeTab === 'context' && "Fill in the client details and click Next to move to Cost Estimate."}
                                             {activeTab === 'estimation' && "Define the team structure and click Save & Next to move to Staffing."}
                                             {activeTab === 'staffing' && "Assign employees to roles. Use Auto-Staff to fill automatically."}
                                             {activeTab === 'contracts' && "Contract details are managed after the deal is won."}
@@ -1235,7 +1237,25 @@ export default function EditDealPage() {
                                                         variant="outline"
                                                         size="lg"
                                                         onClick={() => {
-                                                            const { assignments, warnings } = autoStaffFromGhostRoles(ghostRoles, employees, hardAssignments);
+                                                            const descText = `${workloadDescription} ${workloadDocText ?? ''}`.toLowerCase();
+                                                            const matched = skills
+                                                                .filter(s => {
+                                                                    const escaped = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                                                    return new RegExp(`\\b${escaped}\\b`, 'i').test(descText);
+                                                                })
+                                                                .map(s => s.name);
+                                                            const { assignments, warnings } = autoStaffFromGhostRoles(
+                                                                ghostRoles,
+                                                                employees,
+                                                                hardAssignments,
+                                                                {
+                                                                    timelineMonths: Number(timelineMonths) || 1,
+                                                                    deals,
+                                                                    currentDealId: dealId,
+                                                                    requiredSkills: matched,
+                                                                    currency,
+                                                                },
+                                                            );
                                                             setHardAssignments(assignments);
                                                             setAutoStaffWarnings(warnings);
                                                             if (warnings.length === 0) {
