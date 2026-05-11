@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import toast from "react-hot-toast";
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { OrgSyncErrorBanner } from "@/components/OrgSyncErrorBanner";
 import { formatMoney } from "@/lib/currency";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 import { extractRequiredSkills } from "@/lib/skillMatching";
@@ -29,7 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function StaffingPage() {
-    useOrganizationSync();
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
     const params = useParams();
     const router = useRouter();
     const dealId = params.id as string;
@@ -288,6 +289,13 @@ export default function StaffingPage() {
                     </Button>
                 </div>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Candidate employees, skill-coverage data, and the capacity check all depend on organization data."
+            />
 
             {hasConflicts && (
                 <Alert variant="destructive" className="bg-red-50/50 border-red-200">

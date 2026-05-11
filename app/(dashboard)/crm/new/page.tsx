@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
@@ -36,6 +36,7 @@ import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { OrgSyncErrorBanner } from "@/components/OrgSyncErrorBanner";
 // Table imports removed alongside the Staffing tab — it owned the only Table
 // usage in this file. Hard-booking lives at /crm/[id]/staffing now.
 
@@ -45,7 +46,7 @@ export default function NewDealPage() {
     // workload hours all depend on these. Without this sync, a direct
     // visit (e.g. a deep link) shows zero-range salary suggestions and
     // an empty AI candidate pool.
-    useOrganizationSync();
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
 
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
@@ -117,6 +118,32 @@ export default function NewDealPage() {
         control: form.control,
         name: "ghostRoles",
     });
+
+    // The default ghost role gets seeded from `useBusinessStore.getState().employees`
+    // at useState time. On a direct visit to /crm/new (cold cache) employees
+    // may not be hydrated yet, so the default role ends up with min=max=0.
+    // Once useOrganizationSync populates employees, patch the salary range on
+    // the default role ONCE — but only while the user hasn't typed a number
+    // into either salary field (signalled by both being 0). `form.setValue`
+    // here is not a React setState so it doesn't trip set-state-in-effect.
+    const defaultSalaryPatchedRef = useRef(false);
+    useEffect(() => {
+        if (defaultSalaryPatchedRef.current) return;
+        if (!employees.length) return;
+        const currentRoles = form.getValues('ghostRoles');
+        if (!currentRoles?.length) return;
+        const role = currentRoles[0];
+        // Only patch if the user hasn't touched the salary fields.
+        if ((role.minMonthlySalary ?? 0) !== 0 || (role.maxMonthlySalary ?? 0) !== 0) {
+            defaultSalaryPatchedRef.current = true;
+            return;
+        }
+        const range = getSuggestedSalaryRange(role.roleType, employees);
+        if (range.min === 0 && range.max === 0) return; // nothing to suggest
+        form.setValue('ghostRoles.0.minMonthlySalary', range.min, { shouldDirty: false });
+        form.setValue('ghostRoles.0.maxMonthlySalary', range.max, { shouldDirty: false });
+        defaultSalaryPatchedRef.current = true;
+    }, [employees, form]);
 
     const ghostRoles = form.watch("ghostRoles");
     const clientBudget = form.watch("clientBudget");
@@ -247,6 +274,13 @@ export default function NewDealPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Draft New Deal</h1>
                 <p className="text-[#4a4a4a] mt-1">Structure the client context, estimate costs, and prepare deliverables.</p>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Salary-range suggestions and the AI candidate pool will be empty until organization data loads."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">

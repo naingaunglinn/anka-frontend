@@ -22,7 +22,11 @@ interface Props {
     workloadDescription: string
     workloadDocumentText?: string
     ghostRoles?: Array<{ roleType: string; quantity: number; minMonthlySalary: number; maxMonthlySalary: number }>
-    onAccept?: (result: AITeamBuilderResult) => void
+    // Required. AITeamBuilderResultPanel now requires onAccept too — the
+    // previous fallback that wrote hardAssignments directly was removed
+    // because hard booking belongs to /crm/[id]/staffing as the single
+    // canonical writer.
+    onAccept: (result: AITeamBuilderResult) => void
 }
 
 const LOADING_STEPS = [

@@ -15,6 +15,7 @@ import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { PermissionGuard } from '@/components/PermissionGuard';
+import { OrgSyncErrorBanner } from '@/components/OrgSyncErrorBanner';
 import type { Deal } from '@/types/business';
 
 const ALL_STATUSES = '__all__'; // Radix Select rejects '' as a SelectItem value; sentinel for "no filter".
@@ -26,7 +27,7 @@ export default function CRMPage() {
     // visit to /crm (without coming from another page that already
     // hydrated organization data) renders zero capacity bookings and
     // empty soft/hard-booked totals.
-    useOrganizationSync();
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
 
     const currency = useTenantCurrency();
     const [pipelineTotal, setPipelineTotal] = useState(0);
@@ -107,6 +108,13 @@ export default function CRMPage() {
                     </Link>
                 </PermissionGuard>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Capacity bookings will read zero until organization data loads."
+            />
 
             <div className="grid gap-4 md:grid-cols-4">
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">

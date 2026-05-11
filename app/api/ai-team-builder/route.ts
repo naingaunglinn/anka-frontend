@@ -132,6 +132,42 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Missing X-Tenant-ID header' }, { status: 400 })
     }
 
+    // Authz gate: only roles that can actually use the CRM should be allowed
+    // to burn AI budget. Without this, a Delivery / HR user with a valid
+    // session could POST here directly. Mirrors the manage_crm permission
+    // enforced on backend deal write routes (see lib/rbac.ts).
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
+    try {
+        const meRes = await fetch(`${apiUrl}/auth/me`, {
+            headers: {
+                Authorization: `Bearer ${sessionToken}`,
+                'X-Tenant-ID':  tenantId,
+                Accept:         'application/json',
+            },
+            // Don't let Next cache the auth check.
+            cache: 'no-store',
+        })
+        if (!meRes.ok) {
+            return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+        }
+        const meBody = await meRes.json()
+        // The Laravel resource may wrap in `data`, or auth controller may
+        // return the user shape flat — defensive on both. Super admins
+        // bypass app-role checks (consistent with backend TenantScope).
+        const user = meBody?.data ?? meBody?.user ?? meBody
+        const appRole: string | undefined = user?.app_role ?? user?.appRole
+        const isSuperAdmin = !!(user?.is_super_admin ?? user?.isSuperAdmin)
+        const ALLOWED_ROLES = ['Admin', 'Sales']
+        if (!isSuperAdmin && (!appRole || !ALLOWED_ROLES.includes(appRole))) {
+            return NextResponse.json({
+                error: `Your role (${appRole ?? 'unknown'}) does not have permission to use AI Team Builder.`,
+            }, { status: 403 })
+        }
+    } catch {
+        // Auth check itself failed — fail closed (don't call Anthropic).
+        return NextResponse.json({ error: 'Authorization check failed' }, { status: 503 })
+    }
+
     const apiKey  = process.env.ANTHROPIC_API_KEY
     const baseURL = process.env.ANTHROPIC_BASE_URL
 

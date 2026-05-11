@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,7 @@ import { GhostRole, RoleType } from "@/types/business";
 import type { AITeamBuilderResult } from "@/types/aiTeamBuilder";
 import { v4 as uuidv4 } from "uuid";
 import { useOrganizationSync } from "@/hooks/useOrganizationSync";
+import { OrgSyncErrorBanner } from "@/components/OrgSyncErrorBanner";
 
 import {
     Form,
@@ -42,7 +43,7 @@ import { useLinkedContract } from "@/lib/queries/contracts";
 import { usePermission } from "@/hooks/usePermission";
 
 export default function EditDealPage() {
-    useOrganizationSync();
+    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
@@ -145,26 +146,34 @@ export default function EditDealPage() {
         },
     });
 
+    // Reset the form from server data only ONCE per deal id. Previously this
+    // effect re-ran on every `dealToEdit` reference change (e.g. background
+    // refetches by TanStack Query), which clobbered the user's in-flight
+    // edits while they were typing. The ref pins reset to the initial load
+    // for each deal id; switching deals (navigating /crm/edit/A → .../B)
+    // crosses the boundary and re-initialises correctly.
+    const formInitializedFor = useRef<string | null>(null);
     useEffect(() => {
-        if (dealToEdit) {
-            form.reset({
-                name: dealToEdit.name || "",
-                client: dealToEdit.client || "",
-                contactName: dealToEdit.contactName || "",
-                contactEmail: dealToEdit.contactEmail || "",
-                contactPhone: dealToEdit.contactPhone || "",
-                expectedCloseDate: dealToEdit.expectedCloseDate || "",
-                leadSource: dealToEdit.leadSource,
-                clientBudget: dealToEdit.clientBudget || 0,
-                timelineMonths: dealToEdit.timelineMonths || 1,
-                workloadHours: dealToEdit.workloadHours || 0,
-                winProbability: dealToEdit.winProbability ?? 20,
-                workloadDescription: dealToEdit.workloadDescription || "",
-                ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
-                    ? dealToEdit.ghostRoles
-                    : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
-            });
-        }
+        if (!dealToEdit) return;
+        if (formInitializedFor.current === dealToEdit.id) return;
+        formInitializedFor.current = dealToEdit.id;
+        form.reset({
+            name: dealToEdit.name || "",
+            client: dealToEdit.client || "",
+            contactName: dealToEdit.contactName || "",
+            contactEmail: dealToEdit.contactEmail || "",
+            contactPhone: dealToEdit.contactPhone || "",
+            expectedCloseDate: dealToEdit.expectedCloseDate || "",
+            leadSource: dealToEdit.leadSource,
+            clientBudget: dealToEdit.clientBudget || 0,
+            timelineMonths: dealToEdit.timelineMonths || 1,
+            workloadHours: dealToEdit.workloadHours || 0,
+            winProbability: dealToEdit.winProbability ?? 20,
+            workloadDescription: dealToEdit.workloadDescription || "",
+            ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
+                ? dealToEdit.ghostRoles
+                : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
+        });
     }, [dealToEdit, form]);
 
     const { fields, append, remove } = useFieldArray({
@@ -320,6 +329,13 @@ export default function EditDealPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Edit Deal Profile</h1>
                 <p className="text-muted-foreground mt-1">Refine the client context, update cost estimates, and check deliverables.</p>
             </div>
+
+            <OrgSyncErrorBanner
+                error={orgSyncError}
+                onRetry={retryOrgSync}
+                retrying={orgSyncing}
+                context="Salary-range suggestions and the AI Team Builder pool will be empty until organization data loads."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
