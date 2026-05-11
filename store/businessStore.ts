@@ -28,6 +28,7 @@ import {
 } from '@/lib/queries/organization';
 import api from '@/lib/api';
 import { toDeal, dealToApiPayload, toContract, toProject, toInvoice, toTimeEntry } from '@/lib/dealsMapper';
+import { useTenantStore } from '@/store/tenantStore';
 import { normalizeError } from '@/lib/errorHandler';
 import toast from 'react-hot-toast';
 
@@ -650,7 +651,7 @@ export const useBusinessStore = create<BusinessState>()(
                         // Reflect the new revenue_recognized total on the parent contract
                         contracts: s.contracts.map(c =>
                             c.id === paid.contractId
-                                ? { ...c, revenueRecognized: c.revenueRecognized + (paid.amount + paid.tax) }
+                                ? { ...c, revenueRecognized: c.revenueRecognized + (paid.total ?? (paid.amount + paid.tax)) }
                                 : c
                         ),
                     }));
@@ -738,19 +739,28 @@ export const useBusinessStore = create<BusinessState>()(
                 state.invoices
                     .filter(inv => inv.status === 'Paid')
                     .forEach(inv => {
-                        const month = new Date(inv.issueDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                        const recognizedDate = inv.paidAt ?? inv.issueDate;
+                        const month = new Date(recognizedDate).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
                         if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                        monthly[month].revenue += inv.amount;
+                        monthly[month].revenue += inv.total ?? (inv.amount + inv.tax);
                     });
 
-                state.timeEntries
-                    .filter(e => e.status === 'Approved')
-                    .forEach(entry => {
-                        const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-                        if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
-                        const emp = state.employees.find(e => e.id === entry.employeeId);
-                        monthly[month].directLabor += entry.hours * (emp?.costPerHour ?? 0);
-                    });
+                state.timeEntries.forEach(entry => {
+                    const month = new Date(entry.date).toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                    if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
+                });
+
+                // Salaried direct labor: every month carries the full payroll of currently
+                // Active + On Leave staff. Schema has no contractor flag, so all employees
+                // are salaried. Historical months reflect today's headcount — hire/termination
+                // history is not yet tracked.
+                const monthlyPayroll = state.employees
+                    .filter(e => e.status === 'Active' || e.status === 'On Leave')
+                    .reduce((sum, e) => sum + e.monthlySalary, 0);
+
+                Object.keys(monthly).forEach(m => {
+                    monthly[m].directLabor = monthlyPayroll;
+                });
 
                 // For each P&L month, sum overheads that either have no period (always-on)
                 // or explicitly match that month/year.
@@ -771,11 +781,13 @@ export const useBusinessStore = create<BusinessState>()(
                     return da - db;
                 });
 
+                const taxRate = useTenantStore.getState().currentTenant?.taxRate ?? 0.20;
+
                 return sortedMonths.map(month => {
                     const { revenue, directLabor, overhead } = monthly[month];
                     const grossProfit    = revenue - directLabor;
                     const operatingProfit = grossProfit - overhead;
-                    const netProfit      = operatingProfit * 0.8;
+                    const netProfit      = operatingProfit * (1 - taxRate);
                     return { month, revenue, directLabor, overhead, grossProfit, operatingProfit, netProfit };
                 });
             },

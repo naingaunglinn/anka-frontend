@@ -6,16 +6,25 @@ export interface TenantSettings {
     name: string;
     slug: string;
     plan: string | null;
+    taxRate: number;
+    deliveryLagMonths: number;
+    paymentDaysLate: number;
     isActive: boolean;
 }
 
 function toTenant(row: Record<string, unknown>): TenantSettings {
+    const rawTax = row.tax_rate;
+    const rawLag = row.avg_delivery_lag_months;
+    const rawDays = row.avg_payment_days_late;
     return {
-        id:       row.id as string,
-        name:     row.name as string,
-        slug:     row.slug as string,
-        plan:     row.plan as string | null,
-        isActive: row.is_active as boolean,
+        id:                row.id as string,
+        name:              row.name as string,
+        slug:              row.slug as string,
+        plan:              row.plan as string | null,
+        taxRate:           typeof rawTax === 'number' ? rawTax : rawTax != null ? Number(rawTax) : 0.20,
+        deliveryLagMonths: typeof rawLag === 'number' ? rawLag : rawLag != null ? Number(rawLag) : 1,
+        paymentDaysLate:   typeof rawDays === 'number' ? rawDays : rawDays != null ? Number(rawDays) : 0,
+        isActive:          row.is_active as boolean,
     };
 }
 
@@ -39,7 +48,13 @@ export function useTenantMutations() {
     const queryClient = useQueryClient();
 
     const updateTenant = useMutation({
-        mutationFn: async (updates: { name?: string; slug?: string }) => {
+        mutationFn: async (updates: {
+            name?: string;
+            slug?: string;
+            tax_rate?: number;
+            avg_delivery_lag_months?: number;
+            avg_payment_days_late?: number;
+        }) => {
             const { data: body } = await api.put('/tenant', updates);
             return toTenant(body.data ?? body);
         },

@@ -38,6 +38,7 @@ const orgRoutes = [
     { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-[#00a7f4]' },
     { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-[#0086c4]' },
     { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
+    { label: 'Tenant Settings',   icon: Building2,       href: '/tenant',        color: 'text-violet-500' },
 ];
 
 const demoRoutes = [
