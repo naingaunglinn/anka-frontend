@@ -1,12 +1,12 @@
 import type { Employee, GhostRole, HardAssignment, Deal } from '@/types/business';
-import { CURRENCY_CONFIG } from '@/lib/currencyConfig';
+import { CURRENCY_CONFIG, type Currency } from '@/lib/currencyConfig';
 
 export interface AutoStaffOptions {
     timelineMonths: number
     deals: Deal[]
     currentDealId: string
     requiredSkills?: string[]
-    currency?: string
+    currency?: Currency
 }
 
 function getEmployeeMonthlyLoad(employeeId: string, deals: Deal[], excludeDealId: string): number {

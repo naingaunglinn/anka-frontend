@@ -285,7 +285,11 @@ export function KanbanBoard({
                                                                                     <Edit2 className="mr-2 h-4 w-4" />
                                                                                     Edit Details
                                                                                 </DropdownMenuItem>
-                                                                                <DropdownMenuItem onClick={() => router.push(`/crm/${deal.id}/staffing`)}>
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => router.push(`/crm/${deal.id}/staffing`)}
+                                                                                    disabled={!canManageCrm}
+                                                                                    title={!canManageCrm ? rbacReason : undefined}
+                                                                                >
                                                                                     <Users className="mr-2 h-4 w-4" />
                                                                                     Staffing
                                                                                 </DropdownMenuItem>

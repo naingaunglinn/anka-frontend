@@ -252,7 +252,11 @@ export function AITeamBuilder(props: Props) {
 
             <Button
                 type="button"
-                onClick={handleBuild}
+                // Wrap in an arrow so React's MouseEvent doesn't get passed as
+                // the `feedback` argument. handleBuild is also called from the
+                // regenerate UI with feedback text — different call site, same
+                // function — so the wrapper here keeps the no-feedback call path.
+                onClick={() => handleBuild()}
                 disabled={!canRun || loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
                 size="lg"

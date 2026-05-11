@@ -15,6 +15,7 @@ import { useOrganizationSync } from "@/hooks/useOrganizationSync";
 import { formatMoney } from "@/lib/currency";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 import { extractRequiredSkills } from "@/lib/skillMatching";
+import { usePermission } from "@/hooks/usePermission";
 import type { Employee, GhostRole } from "@/types/business";
 
 // Pretty-printed labels for the small set of capacity_role buckets.
@@ -38,6 +39,7 @@ export default function StaffingPage() {
     const skills     = useBusinessStore((state) => state.skills);
     const dealQuery  = useDealDetail(dealId);
     const { updateDeal } = useDealMutations();
+    const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
     const [allocations, setAllocations] = useState<Record<string, number>>({});
     const [isMounted, setIsMounted] = useState(false);
@@ -124,6 +126,21 @@ export default function StaffingPage() {
     // ── Early returns (after all hooks have run) ──────────────────────────────
 
     if (!isMounted) return null;
+
+    // Route-level RBAC. Placed AFTER every hook in this component so the
+    // order of hooks stays stable across renders (Rules of Hooks). Users
+    // without manage_crm (Delivery, HR) get an explicit denial — the page
+    // is reachable via the Kanban menu and the Hard Booking button on the
+    // deal detail page, so a guard here is the only chokepoint.
+    if (!canManageCrm) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <p className="text-sm text-muted-foreground">{rbacReason}</p>
+                <Button variant="outline" onClick={() => router.push('/crm')}>Back to pipeline</Button>
+            </div>
+        );
+    }
 
     if (dealQuery.isLoading) {
         return <div className="p-8 text-sm text-muted-foreground">Loading staffing plan...</div>;

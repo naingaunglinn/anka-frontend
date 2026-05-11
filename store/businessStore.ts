@@ -393,6 +393,10 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to update deal: ${normalizeError(err).message}`);
+                    // Re-throw so React Query treats the mutation as failed.
+                    // Otherwise callers using `mutateAsync` proceed (e.g. router.push)
+                    // after a rolled-back update, making a failed save look successful.
+                    throw err;
                 }
             },
             deleteDeal: async (id) => {
@@ -403,6 +407,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to delete deal: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
             updateDealStage: async (id, status, probability) => {
@@ -419,6 +424,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to update deal stage: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
@@ -479,6 +485,7 @@ export const useBusinessStore = create<BusinessState>()(
                     // The stored proc raises a constraint violation on duplicate wins or
                     // missing required data — surface the server's message directly
                     toast.error(`Failed to win deal: ${message}`);
+                    throw err;
                 }
             },
 
@@ -499,6 +506,7 @@ export const useBusinessStore = create<BusinessState>()(
                 } catch (err) {
                     set({ deals: snapshot });
                     toast.error(`Failed to mark deal as lost: ${normalizeError(err).message}`);
+                    throw err;
                 }
             },
 
