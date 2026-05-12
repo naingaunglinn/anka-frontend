@@ -10,7 +10,7 @@ export interface ContractDocument {
     uploaded_by: string | null;
     original_filename: string;
     mime_type: string;
-    extension: 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'txt';
+    extension: 'pdf' | 'docx' | 'txt';
     size_bytes: number;
     analysis_status: 'pending' | 'analyzing' | 'approved' | 'rejected' | 'failed';
     analysis_result: ContractDocumentAnalysis | null;
