@@ -1,0 +1,73 @@
+id: chg-008-crm-rank-stages-and-contract-upload
+name: 5-rank CRM pipeline + customer contract upload UI
+status: implemented
+created: 2026-05-12
+owners: [claude.max@brycenmyanmar.com.mm]
+
+why: |
+  Mirrors anka-api chg-005. The CRM Kanban exposed 6 stages and let users mark
+  a deal Won without any signed artefact. The pipeline now uses ranks (C / B /
+  A / S / D), Qualified absorbs the old Proposal stage, and the only way to
+  reach S/Won is uploading a contract document that the backend's Claude-
+  powered analyser approves.
+
+what:
+  - types/business.ts — Deal.status union dropped 'proposal'.
+  - lib/dealRanks.ts (new) — single source of truth for stage order,
+    titles, descriptions, rank letters (C/B/A/S/D), and probability defaults
+    (mirrors backend DealController::stageProbabilities).
+  - components/crm/KanbanBoard.tsx
+    - Collapsed to 5 columns sourced from STAGE_ORDER.
+    - Column headers show a rank chip + title + short description.
+    - Drag to S/won is blocked unless source = negotiation; toast + deep-link
+      to the contract uploader.
+    - Dropdown "Win Deal" replaced by "Upload Contract → Win" that scrolls to
+      the uploader.
+    - Removed the now-unreachable manual Win Deal dialog and its state.
+  - components/crm/ContractDocumentUploader.tsx (new)
+    - Drag-drop / click-to-browse; accepts pdf/docx/xlsx/pptx/txt up to 25 MB.
+    - Lists uploaded docs with status badge + Claude reasoning + missing fields.
+    - On `auto_won=true` response, routes to the new /contracts/{id}.
+  - lib/queries/contractDocuments.ts (new)
+    - useContractDocuments + useContractDocumentMutations hooks (TanStack Query).
+  - app/(dashboard)/crm/page.tsx — stage filter dropdown updated to ranked labels.
+  - app/(dashboard)/crm/[id]/page.tsx
+    - STAGE_CONFIG rewritten with rank labels; 'proposal' entry removed.
+    - Manual "Win Deal" header button + dialog removed; replaced by an
+      "Upload Contract → Win" button visible only in the negotiation stage.
+    - Mounts the new ContractDocumentUploader under the workflow bar.
+  - components/crm/DealForm.tsx — quick-edit stage select dropped Proposal,
+    relabeled with ranks.
+  - openspec/specs/components.yaml — KanbanBoard description rewritten;
+    added ContractDocumentUploader entry.
+
+placeholders:
+  - The backend uses a placeholder required-fields checklist for the Claude
+    prompt. Replace with the agency's real list once finalised.
+
+risk: |
+  - Existing deals in the (now removed) Proposal stage will appear in
+    Qualified after the backend migration. No data lost.
+  - winDeal mutation hook in lib/queries/deals.ts is retained for backwards
+    compatibility but is no longer called from the Kanban or deal-detail pages.
+    Safe to leave in place; callers in other future flows can still use it.
+
+manual_steps:
+  - (backend) composer update && php artisan migrate
+  - npm run dev / npm run build — picks up the new components and lib files
+
+fixups:
+  - id: fb1f735
+    summary: |
+      KanbanBoard build broke on Vercel under strict TypeScript. The refactor
+      introduced Record<DealStage, …> maps (columns + stage-probability),
+      but @hello-pangea/dnd types DropResult.droppableId as plain string,
+      so indexing the records inside onDragEnd raised TS7053. Fix: cast
+      `source.droppableId` / `destination.droppableId` to DealStage once
+      at the top of onDragEnd (their runtime values come from STAGE_ORDER)
+      and annotate the `.find` callback's parameter to drop the implicit
+      any. Verified with `npx tsc --noEmit`.
+    follow_up:
+      - Run `npx tsc --noEmit` (or full `npm run build`) before pushing
+        non-trivial frontend changes — the existing lint step does not
+        type-check.
