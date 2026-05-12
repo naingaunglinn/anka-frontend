@@ -8,9 +8,8 @@ import { useProjectList } from '@/lib/queries/projects';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     ArrowLeft, Edit3, Users, FileText, DollarSign, Target, Calendar, Clock,
     TrendingUp, Briefcase, Trophy, ChevronRight, Calculator, ExternalLink,
@@ -19,14 +18,18 @@ import { useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { PermissionGuard } from '@/components/PermissionGuard';
+import { ContractDocumentUploader } from '@/components/crm/ContractDocumentUploader';
+import { usePermission } from '@/hooks/usePermission';
 
+// Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
+// The old "Proposal" stage was merged into Qualified — see
+// 2026_05_12_000001_collapse_proposal_into_qualified.php.
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-    lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    qualified:   { label: 'Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    proposal:    { label: 'Proposal',    color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    negotiation: { label: 'Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    won:         { label: 'Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    lost:        { label: 'Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
+    lead:        { label: 'C — Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
+    qualified:   { label: 'B — Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    negotiation: { label: 'A — Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    won:         { label: 'S — Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    lost:        { label: 'D — Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
 };
 
 // ── Workflow status bar ───────────────────────────────────────────────────────
@@ -68,7 +71,9 @@ export default function DealDetailPage() {
     const currency = useTenantCurrency();
 
     const dealQuery      = useDealDetail(dealId);
-    const { deleteDeal, winDeal } = useDealMutations();
+    // winDeal is no longer triggered from this page — the only path to S/won
+    // is uploading an AI-approved contract document (ContractDocumentUploader).
+    const { deleteDeal } = useDealMutations();
     const contractsQuery = useContractList();
     const projectsQuery  = useProjectList();
 
@@ -77,8 +82,7 @@ export default function DealDetailPage() {
     const projects   = useMemo(() => projectsQuery.data?.data  ?? [], [projectsQuery.data]);
 
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [winOpen,    setWinOpen]    = useState(false);
-    const [winReason,  setWinReason]  = useState('');
+    const { allowed: canManageCrm } = usePermission('manage_crm');
 
     // ── Use proper foreign-key matching ───────────────────────────────────────
     const linkedContract = useMemo(
@@ -175,18 +179,6 @@ export default function DealDetailPage() {
         },
     ];
 
-    const handleWinDeal = async () => {
-        try {
-            const result = await winDeal.mutateAsync({ dealId, winReason: winReason.trim() || undefined });
-            setWinOpen(false);
-            setWinReason('');
-            // Redirect to the new contract for terms / milestones / sign-off setup.
-            if (result?.contractId) router.push(`/contracts/${result.contractId}`);
-        } catch {
-            // toast already shown in businessStore.winDeal
-        }
-    };
-
     return (
         <div className="container mx-auto p-6 max-w-6xl space-y-6">
             {/* Header */}
@@ -204,13 +196,20 @@ export default function DealDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {!isClosed && (
+                    {/* Manual "Win Deal" was replaced by the contract-document upload
+                        flow — the deal auto-transitions to Won (S) once Claude
+                        approves the uploaded contract. The button below only shows
+                        in the Negotiation (A) stage and scrolls to the uploader. */}
+                    {stage === 'negotiation' && (
                         <PermissionGuard permission="manage_crm">
                             <Button
                                 className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => setWinOpen(true)}
+                                onClick={() => {
+                                    const el = document.getElementById('contract-document');
+                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
                             >
-                                <Trophy className="h-4 w-4" /> Win Deal
+                                <Trophy className="h-4 w-4" /> Upload Contract → Win
                             </Button>
                         </PermissionGuard>
                     )}
@@ -241,6 +240,18 @@ export default function DealDetailPage() {
 
             {/* Workflow status bar */}
             <WorkflowBar steps={workflowSteps} />
+
+            {/* Contract document uploader — visible in Negotiation (A) stage.
+                Approved uploads auto-fire win_deal() server-side. The id is the
+                scroll target for the "Upload Contract → Win" header button and
+                the Kanban dropdown's deep link. */}
+            <div id="contract-document">
+                <ContractDocumentUploader
+                    dealId={dealToEdit.id}
+                    canManage={canManageCrm}
+                    enabled={stage === 'negotiation'}
+                />
+            </div>
 
             {/* KPI cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -503,40 +514,6 @@ export default function DealDetailPage() {
                     </Card>
                 </div>
             </div>
-
-            {/* Win Deal Dialog */}
-            <Dialog open={winOpen} onOpenChange={open => { setWinOpen(open); if (!open) setWinReason(''); }}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Win Deal</DialogTitle>
-                        <DialogDescription>
-                            This will create a Contract and Project automatically. This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-2">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-700">Win Reason <span className="text-slate-400 text-xs font-normal">(optional)</span></label>
-                            <Input
-                                value={winReason}
-                                onChange={e => setWinReason(e.target.value)}
-                                placeholder="e.g. Best price and team fit"
-                                maxLength={500}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            <Button variant="outline" onClick={() => setWinOpen(false)}>Cancel</Button>
-                            <Button
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                                onClick={handleWinDeal}
-                                disabled={winDeal.isPending}
-                            >
-                                <Trophy className="h-4 w-4" />
-                                {winDeal.isPending ? 'Processing...' : 'Confirm Win'}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             {/* Delete Dialog */}
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

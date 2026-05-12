@@ -142,10 +142,9 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="lead">Lead</SelectItem>
-                                        <SelectItem value="qualified">Qualified</SelectItem>
-                                        <SelectItem value="proposal">Proposal</SelectItem>
-                                        <SelectItem value="negotiation">Negotiation</SelectItem>
+                                        <SelectItem value="lead">C — Lead</SelectItem>
+                                        <SelectItem value="qualified">B — Qualified</SelectItem>
+                                        <SelectItem value="negotiation">A — Negotiation</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

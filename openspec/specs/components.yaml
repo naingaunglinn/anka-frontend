@@ -15,12 +15,25 @@ component_groups:
         file: components/crm/KanbanBoard.tsx
         purpose: Drag-and-drop sales pipeline
         features:
-          - "Columns: Lead → Qualified → Proposal → Negotiation → Won → Lost"
+          - "5 columns with rank labels: C — Lead → B — Qualified → A — Negotiation → S — Won → D — Lost"
+          - "Qualified merges the old Proposal stage (migration 2026_05_12_000001)"
+          - "Manual A → S drag is blocked; users must upload an AI-approved contract document to win"
           - "@hello-pangea/dnd for drag-and-drop"
           - "Smart probability merge: preserves manual overrides within ±5pp on stage drag"
+          - "Stage rank / titles / probabilities sourced from lib/dealRanks.ts (single source of truth, mirrors backend DealController)"
           - "RBAC-gated via usePermission('manage_crm')"
           - "Card info: client name, staffing badge, est. cost, gross profit, budget, win probability bar, booking state"
-          - "Actions: Edit, Staffing, Win Deal, Mark as Lost, Delete"
+          - "Actions: Edit, Staffing, Upload Contract → Win, Mark as Lost, Delete"
+
+      - name: ContractDocumentUploader
+        file: components/crm/ContractDocumentUploader.tsx
+        purpose: Upload + Claude-analyse the customer-signed contract that gates A → S
+        features:
+          - "Visible on the deal detail page only while stage = 'negotiation'"
+          - "Drag/drop or click-to-browse; accepts pdf, docx, xlsx, pptx, txt up to 25 MB"
+          - "Shows analysis verdict per document (approved / rejected / failed) with reasoning + missing fields"
+          - "On approved, backend auto-fires win_deal(); component routes to /contracts/{id}"
+          - "Uses lib/queries/contractDocuments.ts (TanStack Query hooks)"
 
       - name: DealForm
         file: components/crm/DealForm.tsx

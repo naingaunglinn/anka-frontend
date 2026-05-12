@@ -154,7 +154,11 @@ export interface Deal {
     contactPhone?: string;
     estimatedValue?: number;
     winProbability?: number;
-    status?: "lead" | "qualified" | "proposal" | "negotiation" | "won" | "lost";
+    // 5-stage pipeline. UI rank labels (in lib/dealRanks.ts):
+    //   lead → C, qualified → B, negotiation → A, won → S, lost → D.
+    // The old "proposal" stage was merged into "qualified" in migration
+    // 2026_05_12_000001_collapse_proposal_into_qualified.php.
+    status?: "lead" | "qualified" | "negotiation" | "won" | "lost";
     wizardStep?: DealWizardStep;
     expectedCloseDate?: string;   // YYYY-MM-DD
     leadSource?: DealLeadSource;

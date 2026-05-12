@@ -9,7 +9,6 @@ import { MoreVertical, Edit2, Trash2, Users, Trophy, XCircle } from 'lucide-reac
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
@@ -20,6 +19,14 @@ import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import toast from 'react-hot-toast';
+import {
+    STAGE_ORDER,
+    STAGE_PROBABILITY,
+    STAGE_RANK,
+    STAGE_TITLE,
+    STAGE_DESCRIPTION,
+    type DealStage,
+} from '@/lib/dealRanks';
 
 type ColumnData = {
     id: string;
@@ -44,7 +51,10 @@ export function KanbanBoard({
 }) {
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
-    const { updateDealStage, deleteDeal, winDeal, loseDeal } = useDealMutations();
+    // winDeal is no longer triggered directly from this view — the only path
+    // to S/won is uploading an AI-approved contract document on the deal
+    // detail page (see ContractDocumentUploader).
+    const { updateDealStage, deleteDeal, loseDeal } = useDealMutations();
     const currency = useTenantCurrency();
     const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
@@ -56,28 +66,21 @@ export function KanbanBoard({
     // -- Confirm dialog states -------------------------------------------------
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
-    const [winOpen, setWinOpen] = useState(false);
-    const [winningDeal, setWinningDeal] = useState<{ id: string; name: string } | null>(null);
-    const [winReason, setWinReason] = useState('');
     const [lostOpen, setLostOpen] = useState(false);
     const [losingDeal, setLosingDeal] = useState<{ id: string; name: string } | null>(null);
     const [lossReason, setLossReason] = useState('');
 
     // Column order is the visual flow left-to-right. `lost` lives at the
     // far right as a terminal state — visible so deals don't silently
-    // disappear from the pipeline view.
+    // disappear from the pipeline view. 5 columns total (4 active + lost).
     const columns = useMemo(() => {
-        const cols: Record<string, ColumnData> = {
-            lead:        { id: 'lead',        title: 'Lead',        deals: [] },
-            qualified:   { id: 'qualified',   title: 'Qualified',   deals: [] },
-            proposal:    { id: 'proposal',    title: 'Proposal',    deals: [] },
-            negotiation: { id: 'negotiation', title: 'Negotiation', deals: [] },
-            won:         { id: 'won',         title: 'Won',         deals: [] },
-            lost:        { id: 'lost',        title: 'Lost',        deals: [] },
-        };
+        const cols: Record<DealStage, ColumnData> = {} as Record<DealStage, ColumnData>;
+        STAGE_ORDER.forEach((stage) => {
+            cols[stage] = { id: stage, title: STAGE_TITLE[stage], deals: [] };
+        });
 
         deals.forEach(deal => {
-            const status = deal.status || 'lead';
+            const status = (deal.status ?? 'lead') as DealStage;
             if (cols[status]) {
                 cols[status].deals.push(deal);
             }
@@ -107,17 +110,10 @@ export function KanbanBoard({
         onMetricsUpdate(totalValue, weightedRevenue);
     }, [columns, onMetricsUpdate]);
 
-    // Stage probability defaults — tuned for an agency where most leads don't
-    // convert. Override per-deal via the form input; the smart-merge logic
-    // below preserves manual overrides across stage drags.
-    const stageProbability: Record<string, number> = {
-        lead:        10,
-        qualified:   30,
-        proposal:    50,
-        negotiation: 75,
-        won:         100,
-        lost:        0,
-    };
+    // Stage probability defaults — kept in lib/dealRanks.ts so the
+    // backend stage-probability map and the frontend smart-merge logic
+    // stay aligned through a single source of truth.
+    const stageProbability = STAGE_PROBABILITY;
 
     // ±5pp tolerance around the source-stage's default counts as "auto-managed",
     // i.e. the user never deliberately diverged. Beyond that, treat the value
@@ -146,9 +142,17 @@ export function KanbanBoard({
 
         const draggedDeal = columns[source.droppableId]?.deals.find(d => d.id === draggableId);
 
-        // Dragging to Won opens the confirmation dialog and triggers win_deal()
+        // Dragging to Won is only allowed from Negotiation (A) AND only via
+        // the contract-document upload + AI-analysis flow. Block manual drags
+        // so the contract gate can't be skipped. Open the deal detail page
+        // where the uploader lives.
         if (destination.droppableId === 'won') {
-            if (draggedDeal) openWinDeal(draggableId, draggedDeal.name);
+            if (source.droppableId === 'negotiation') {
+                toast.error('Upload an approved contract document to move this deal to Won.');
+                if (draggedDeal) router.push(`/crm/${draggableId}#contract-document`);
+            } else {
+                toast.error('Deals must pass through Negotiation (A) before they can be Won.');
+            }
             return;
         }
 
@@ -188,28 +192,6 @@ export function KanbanBoard({
         setDeletingDealId(null);
     };
 
-    const openWinDeal = (dealId: string, dealName: string) => {
-        setWinningDeal({ id: dealId, name: dealName });
-        setWinReason('');
-        setWinOpen(true);
-    };
-
-    const handleWinDeal = async () => {
-        if (!winningDeal) return;
-        // Close the modal optimistically so the user isn't staring at it during the SP call.
-        setWinOpen(false);
-        setWinningDeal(null);
-        setWinReason('');
-        try {
-            const result = await winDeal.mutateAsync({ dealId: winningDeal.id, winReason: winReason || undefined });
-            // Land the user on the new contract so they can immediately set payment
-            // terms, billing email, and milestones — the post-win setup checklist.
-            if (result?.contractId) router.push(`/contracts/${result.contractId}`);
-        } catch {
-            // businessStore.winDeal already surfaces a toast; swallow here.
-        }
-    };
-
     const openLoseDeal = (dealId: string, dealName: string) => {
         setLosingDeal({ id: dealId, name: dealName });
         setLossReason('');
@@ -230,11 +212,22 @@ export function KanbanBoard({
         <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex gap-6 overflow-x-auto pb-4">
                 {Object.entries(columns).map(([columnId, column]) => {
+                    const stage = columnId as DealStage;
+                    const rank = STAGE_RANK[stage];
+                    const description = STAGE_DESCRIPTION[stage];
                     return (
                         <div key={columnId} className="flex flex-col min-w-[280px] w-[280px] bg-slate-100 rounded-xl shrink-0">
-                            <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-[#e6e9ee] flex justify-between items-center">
-                                <h3 className="font-semibold text-slate-700">{column.title}</h3>
-                                <Badge variant="secondary" className="bg-white">{column.deals.length}</Badge>
+                            <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-[#e6e9ee] flex justify-between items-start gap-2">
+                                <div className="min-w-0">
+                                    <h3 className="font-semibold text-slate-700 flex items-center gap-2">
+                                        <span className="inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded bg-slate-700 text-white text-xs font-bold">
+                                            {rank}
+                                        </span>
+                                        <span className="truncate">{column.title}</span>
+                                    </h3>
+                                    <p className="text-[10px] text-[#8a8a8a] mt-0.5 uppercase tracking-wide">{description}</p>
+                                </div>
+                                <Badge variant="secondary" className="bg-white shrink-0">{column.deals.length}</Badge>
                             </div>
 
                             <Droppable droppableId={columnId}>
@@ -303,14 +296,19 @@ export function KanbanBoard({
                                                                                 </DropdownMenuItem>
                                                                                 {!isWon && deal.status !== 'lost' && (
                                                                                     <>
+                                                                                        {/* "Win Deal" now requires an approved contract document
+                                                                                            (uploaded on the deal detail page) — manual win is
+                                                                                            disabled with a tooltip explaining the new flow. */}
                                                                                         <DropdownMenuItem
-                                                                                            onClick={() => openWinDeal(deal.id, deal.name)}
-                                                                                            disabled={winDeal.isPending || !canManageCrm}
-                                                                                            title={!canManageCrm ? rbacReason : undefined}
+                                                                                            onClick={() => router.push(`/crm/${deal.id}#contract-document`)}
+                                                                                            disabled={!canManageCrm}
+                                                                                            title={!canManageCrm
+                                                                                                ? rbacReason
+                                                                                                : 'Upload an approved contract document to move the deal to Won.'}
                                                                                             className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
                                                                                         >
                                                                                             <Trophy className="mr-2 h-4 w-4" />
-                                                                                            Win Deal
+                                                                                            Upload Contract → Win
                                                                                         </DropdownMenuItem>
                                                                                         <DropdownMenuItem
                                                                                             onClick={() => openLoseDeal(deal.id, deal.name)}
@@ -432,37 +430,6 @@ export function KanbanBoard({
                         <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
                         <Button variant="destructive" onClick={handleDeleteDeal} disabled={deleteDeal.isPending}>
                             {deleteDeal.isPending ? 'Deleting...' : 'Delete'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* -- Win Deal Confirm Dialog ---------------------------------------- */}
-            <Dialog open={winOpen} onOpenChange={(open) => { setWinOpen(open); if (!open) setWinReason(''); }}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Win Deal</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-[#4a4a4a]">
-                        Mark <strong>{winningDeal?.name}</strong> as Won?<br />
-                        This will atomically create a Contract and Project. This action cannot be undone.
-                    </p>
-                    <div className="mt-3 space-y-1">
-                        <Label htmlFor="win-reason" className="text-sm text-[#4a4a4a]">
-                            Win reason <span className="text-[#8a8a8a] font-normal">(optional)</span>
-                        </Label>
-                        <Input
-                            id="win-reason"
-                            placeholder="e.g. Best price, strong relationship, unique capability"
-                            value={winReason}
-                            onChange={(e) => setWinReason(e.target.value)}
-                            maxLength={500}
-                        />
-                    </div>
-                    <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setWinOpen(false)}>Cancel</Button>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleWinDeal} disabled={winDeal.isPending}>
-                            {winDeal.isPending ? 'Processing...' : 'Win Deal'}
                         </Button>
                     </div>
                 </DialogContent>
