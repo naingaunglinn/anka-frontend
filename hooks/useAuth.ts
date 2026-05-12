@@ -38,6 +38,7 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
                 paymentDaysLate: tenant.avg_payment_days_late != null
                     ? Number(tenant.avg_payment_days_late)
                     : 0,
+                exchangeRates: (tenant.exchange_rates as Record<string, number>) ?? undefined,
             }
             : null,
     };
@@ -57,11 +58,13 @@ function setTenantContext(user: AuthUser) {
         setCurrentTenant({
             ...user.tenant,
             currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+            exchangeRates: user.tenant.exchangeRates,
         });
         // Ensure tenant is in the tenants array so currency lookups work
         const tenantWithCurrency = {
             ...user.tenant,
             currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+            exchangeRates: user.tenant.exchangeRates,
         };
         const exists = tenants.some((t) => t.id === user.tenant!.id);
         if (!exists) {

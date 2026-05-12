@@ -17,6 +17,7 @@ export interface AuthUser {
         taxRate?: number;
         deliveryLagMonths?: number;
         paymentDaysLate?: number;
+        exchangeRates?: Record<string, number>;
     } | null;
 }
 

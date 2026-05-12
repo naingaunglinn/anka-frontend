@@ -10,6 +10,7 @@ export interface TenantSettings {
     deliveryLagMonths: number;
     paymentDaysLate: number;
     isActive: boolean;
+    exchangeRates?: Record<string, number>;
 }
 
 function toTenant(row: Record<string, unknown>): TenantSettings {
@@ -25,6 +26,7 @@ function toTenant(row: Record<string, unknown>): TenantSettings {
         deliveryLagMonths: typeof rawLag === 'number' ? rawLag : rawLag != null ? Number(rawLag) : 1,
         paymentDaysLate:   typeof rawDays === 'number' ? rawDays : rawDays != null ? Number(rawDays) : 0,
         isActive:          row.is_active as boolean,
+        exchangeRates:     row.exchange_rates as Record<string, number> | undefined,
     };
 }
 
@@ -63,5 +65,19 @@ export function useTenantMutations() {
         },
     });
 
-    return { updateTenant };
+    const updateExchangeRate = useMutation({
+        mutationFn: async (payload: {
+            from_currency: string;
+            to_currency?: string;
+            rate: number;
+        }) => {
+            const { data: body } = await api.put('/exchange-rates', payload);
+            return body.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: tenantKeys.current() });
+        },
+    });
+
+    return { updateTenant, updateExchangeRate };
 }

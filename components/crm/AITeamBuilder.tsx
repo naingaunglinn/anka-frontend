@@ -13,6 +13,7 @@ import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
 import { extractRequiredSkills } from '@/lib/skillMatching'
+import { toUSD, fromUSD } from '@/lib/currencyConverter'
 
 interface Props {
     dealId: string
@@ -134,6 +135,7 @@ export function AITeamBuilder(props: Props) {
     const deal = useBusinessStore(s => s.deals.find(d => d.id === props.dealId))
     const activeTenantId = useTenantStore(s => s.activeTenantId)
     const currency = useTenantCurrency()
+    const exchangeRates = useTenantStore(s => s.currentTenant?.exchangeRates)
 
     // Real available monthly hours per employee after subtracting load from other open deals.
     const employeeAvailability = useMemo(() => {
@@ -189,22 +191,48 @@ export function AITeamBuilder(props: Props) {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
 
+        // Normalize monetary values to USD for accurate cross-currency AI analysis
+        const usdBudget = toUSD(budget, currency, exchangeRates)
+        const usdEmployees = employees.map(e => ({
+            ...e,
+            monthlySalary: toUSD(e.monthlySalary, currency, exchangeRates),
+            costPerHour: toUSD(e.costPerHour, currency, exchangeRates),
+        }))
+        const usdEngineers = engineers.map(e => ({
+            ...e,
+            monthlySalary: toUSD(e.monthlySalary, currency, exchangeRates),
+        }))
+        const usdOverheads = globalOverheads.map(o => ({
+            ...o,
+            monthlyCost: toUSD(o.monthlyCost, currency, exchangeRates),
+        }))
+        const usdCompanySettings: typeof companySettings = {
+            ...companySettings,
+            yearlyFixedCost: toUSD(companySettings.yearlyFixedCost, currency, exchangeRates),
+            fallbackHourlyCost: toUSD(companySettings.fallbackHourlyCost, currency, exchangeRates),
+        }
+        const usdGhostRoles = props.ghostRoles?.map(g => ({
+            ...g,
+            minMonthlySalary: toUSD(g.minMonthlySalary, currency, exchangeRates),
+            maxMonthlySalary: toUSD(g.maxMonthlySalary, currency, exchangeRates),
+        }))
+
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
-            clientBudget: budget,
+            clientBudget: usdBudget,
             timelineMonths: months,
             workloadHours: hours,
             workloadDescription: props.workloadDescription,
             workloadDocumentText: props.workloadDocumentText,
             requiredSkills: requiredSkills.length > 0 ? requiredSkills : undefined,
             complexity,
-            employees,
-            engineers,
-            globalOverheads,
-            companySettings,
-            currency,
+            employees: usdEmployees,
+            engineers: usdEngineers,
+            globalOverheads: usdOverheads,
+            companySettings: usdCompanySettings,
+            currency: 'USD',
             employeeAvailability,
-            ghostRoles: props.ghostRoles,
+            ghostRoles: usdGhostRoles,
             previousResult: result ?? undefined,
             regenerateFeedback: feedback,
         }
@@ -225,14 +253,44 @@ export function AITeamBuilder(props: Props) {
             }
 
             const data: AITeamBuilderResult = await res.json()
-            setResult(data)
+            // Convert AI results from USD back to tenant currency for display
+            const resultInTenantCurrency: AITeamBuilderResult = {
+                ...data,
+                baseLaborCost: fromUSD(data.baseLaborCost, currency, exchangeRates),
+                overheadCost: fromUSD(data.overheadCost, currency, exchangeRates),
+                bufferCost: fromUSD(data.bufferCost, currency, exchangeRates),
+                totalEstimatedCost: fromUSD(data.totalEstimatedCost, currency, exchangeRates),
+                estimatedGrossProfit: fromUSD(data.estimatedGrossProfit, currency, exchangeRates),
+                team: data.team.map(m => ({
+                    ...m,
+                    monthlySalary: fromUSD(m.monthlySalary, currency, exchangeRates),
+                    costPerHour: fromUSD(m.costPerHour, currency, exchangeRates),
+                    totalCost: fromUSD(m.totalCost, currency, exchangeRates),
+                })),
+            }
+            setResult(resultInTenantCurrency)
             toast.success('AI team recommendation ready!')
 
         } catch (err: unknown) {
             // Presentation bulletproof: if API is unreachable, generate fallback locally
             console.error('AI Team Builder network error, using client fallback:', err)
             const fallback = generateClientFallback(input)
-            setResult(fallback)
+            // Convert fallback results from USD back to tenant currency
+            const fallbackInTenantCurrency: AITeamBuilderResult = {
+                ...fallback,
+                baseLaborCost: fromUSD(fallback.baseLaborCost, currency, exchangeRates),
+                overheadCost: fromUSD(fallback.overheadCost, currency, exchangeRates),
+                bufferCost: fromUSD(fallback.bufferCost, currency, exchangeRates),
+                totalEstimatedCost: fromUSD(fallback.totalEstimatedCost, currency, exchangeRates),
+                estimatedGrossProfit: fromUSD(fallback.estimatedGrossProfit, currency, exchangeRates),
+                team: fallback.team.map(m => ({
+                    ...m,
+                    monthlySalary: fromUSD(m.monthlySalary, currency, exchangeRates),
+                    costPerHour: fromUSD(m.costPerHour, currency, exchangeRates),
+                    totalCost: fromUSD(m.totalCost, currency, exchangeRates),
+                })),
+            }
+            setResult(fallbackInTenantCurrency)
             toast.success('AI team recommendation ready! (offline mode)')
         } finally {
             clearInterval(stepInterval)
