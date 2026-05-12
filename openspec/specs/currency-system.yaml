@@ -1,0 +1,92 @@
+id: currency-system
+name: Currency System
+version: "1.0"
+
+summary: |
+  Currency is tenant-scoped (MMK, JPY, USD). The system uses shared hooks and
+  config to ensure currency symbols are never hardcoded. Server-side formatting
+  avoids React imports for API routes.
+
+currency_config:
+  file: lib/currencyConfig.ts
+  type: pure module (no React)
+  safe_for: both client and server
+  currencies:
+    - code: MMK
+      symbol: Ks
+      locale: en-US
+      label: Myanmar Kyat
+    - code: JPY
+      symbol: ¥
+      locale: ja-JP
+      label: Japanese Yen
+    - code: USD
+      symbol: $
+      locale: en-US
+      label: US Dollar
+
+server_formatting:
+  file: lib/currencyServer.ts
+  safe_for: server only
+  exports:
+    - formatMoney(amount, currency): string
+    - formatMoneyShort(amount, currency): string
+  purpose: |
+    Used in Next.js API routes (e.g., /api/ai-team-builder) where React hooks
+    cannot be imported. Uses Intl.NumberFormat with the currency's locale.
+
+client_formatting:
+  file: lib/currency.ts
+  exports:
+    - formatMoney(amount, currency): string
+  purpose: |
+    Client-side currency formatting for UI display.
+
+hooks:
+  - name: useTenantCurrency
+    file: hooks/useTenantCurrency.ts
+    returns: "{ currency: Currency, symbol: string }"
+    logic: |
+      Looks up current tenant's currency from tenantStore. Falls back to 'MMK'
+      if no tenant is active.
+  - name: useCurrencySymbol
+    file: hooks/useTenantCurrency.ts
+    returns: string
+    logic: "Convenience hook returning CURRENCY_CONFIG[currency].symbol"
+
+currency_symbol_component:
+  name: CurrencySymbol
+  file: components/CurrencySymbol.tsx (if exists)
+  purpose: Render the current tenant's currency symbol
+
+rules:
+  - "NEVER hardcode '$', 'Ks', or '¥' in display text or labels"
+  - "ALWAYS use formatMoney() + CURRENCY_CONFIG[currency].symbol"
+  - "ALWAYS use useTenantCurrency() or useCurrencySymbol() in React components"
+  - "ALWAYS use lib/currencyServer.ts in API routes"
+  - "AIUsageDashboard.tsx is the ONLY exception — it stays in USD because it tracks actual API spend"
+
+migration_history:
+  - |
+    Previously, many components hardcoded '$' for all currency displays.
+    A systematic fix replaced hardcoded symbols across 15+ files using
+    useCurrencySymbol() and formatMoney().
+  - |
+    Currency type and CURRENCY_CONFIG were extracted from tenantStore.ts
+    into pure lib/currencyConfig.ts to avoid React imports in server files.
+
+files_using_currency:
+  components:
+    - components/crm/KanbanBoard.tsx
+    - components/crm/DealForm.tsx
+    - components/crm/AITeamBuilderResult.tsx
+    - components/estimation/EstimationSimulator.tsx
+    - components/tables/EmployeesTable.tsx
+    - components/forms/EmployeeForm.tsx
+    - components/forms/OverheadForm.tsx
+    - app/(dashboard)/financial/page.tsx
+    - app/(dashboard)/contracts/page.tsx
+  api_routes:
+    - app/api/ai-team-builder/route.ts
+  server:
+    - lib/currencyServer.ts

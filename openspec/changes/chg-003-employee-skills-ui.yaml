@@ -1,0 +1,44 @@
+id: chg-003
+title: "Employee Form Skills Assignment UI"
+status: completed
+branch: feature/bug-fix-akp
+merged: false
+
+description: |
+  Added skills picker to EmployeeForm with proficiency levels. This enables
+  the AI Team Builder to perform skill-based matching for user-created employees.
+
+changes:
+  - file: components/forms/EmployeeForm.tsx
+    type: update
+    description: |
+      Added multi-select skills picker with proficiency levels (beginner/
+      intermediate/expert). Skills feed into the employee object for AI
+      team builder consumption. Uses popover with search and badge display.
+
+  - file: components/tables/EmployeesTable.tsx
+    type: update
+    description: Added skill badges column with overflow handling
+
+  - file: store/businessStore.ts
+    type: update
+    description: Synced employee skills in addEmployee/updateEmployee mutations
+
+  - file: types/business.ts
+    type: update
+    description: Added EmployeeSkillWithName type with proficiency levels
+
+  - file: lib/queries/organization.ts
+    type: update
+    description: Added employee skills CRUD functions
+
+affected_specs:
+  - components
+  - state-management
+  - api-layer
+
+notes: |
+  Employee skills exist in DB (employee_skills table) and API endpoints
+  (GET/POST/DELETE /employees/{id}/skills) but previously had zero frontend
+  UI. This change closes the gap so AI team builder can use skill-based
+  matching for all employees, not just seeded data.
