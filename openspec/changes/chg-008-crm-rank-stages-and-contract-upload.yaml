@@ -55,3 +55,19 @@ risk: |
 manual_steps:
   - (backend) composer update && php artisan migrate
   - npm run dev / npm run build — picks up the new components and lib files
+
+fixups:
+  - id: fb1f735
+    summary: |
+      KanbanBoard build broke on Vercel under strict TypeScript. The refactor
+      introduced Record<DealStage, …> maps (columns + stage-probability),
+      but @hello-pangea/dnd types DropResult.droppableId as plain string,
+      so indexing the records inside onDragEnd raised TS7053. Fix: cast
+      `source.droppableId` / `destination.droppableId` to DealStage once
+      at the top of onDragEnd (their runtime values come from STAGE_ORDER)
+      and annotate the `.find` callback's parameter to drop the implicit
+      any. Verified with `npx tsc --noEmit`.
+    follow_up:
+      - Run `npx tsc --noEmit` (or full `npm run build`) before pushing
+        non-trivial frontend changes — the existing lint step does not
+        type-check.
