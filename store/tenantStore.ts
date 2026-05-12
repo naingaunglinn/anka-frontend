@@ -13,6 +13,7 @@ export interface Tenant {
     taxRate?: number;
     deliveryLagMonths?: number;
     paymentDaysLate?: number;
+    exchangeRates?: Record<string, number>;
 }
 
 interface TenantState {

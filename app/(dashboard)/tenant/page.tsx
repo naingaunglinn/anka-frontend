@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, Building2, Plus, Users, ChevronDown, ChevronRight, PowerOff, Power, Pencil, Trash2, Search } from 'lucide-react';
+import { Save, Building2, Plus, Users, ChevronDown, ChevronRight, PowerOff, Power, Pencil, Trash2, Search, DollarSign } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { useAdminTenantList, useAdminTenantUsers, useAdminMutations, type AdminTenant, type AdminUser } from '@/lib/queries/admin';
@@ -18,19 +18,31 @@ import { useEffect } from 'react';
 
 // -- Org user view -------------------------------------------------------------
 
+const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
+    MMK: 4500,
+    JPY: 158,
+};
+
 function OrgTenantSettings() {
     const tenantQuery = useTenantSettings();
-    const { updateTenant } = useTenantMutations();
+    const { updateTenant, updateExchangeRate } = useTenantMutations();
 
     const [taxRatePct, setTaxRatePct] = useState('');
     const [deliveryLag, setDeliveryLag] = useState('');
     const [paymentDays, setPaymentDays] = useState('');
+    const [exchangeRates, setExchangeRates] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (tenantQuery.data) {
             setTaxRatePct((tenantQuery.data.taxRate * 100).toFixed(2));
             setDeliveryLag(String(tenantQuery.data.deliveryLagMonths));
             setPaymentDays(String(tenantQuery.data.paymentDaysLate));
+            const rates: Record<string, string> = {};
+            for (const currency of ['MMK', 'JPY']) {
+                const val = tenantQuery.data.exchangeRates?.[currency] ?? DEFAULT_EXCHANGE_RATES[currency];
+                rates[currency] = String(val);
+            }
+            setExchangeRates(rates);
         }
     }, [tenantQuery.data]);
 
@@ -59,6 +71,26 @@ function OrgTenantSettings() {
             toast.success('Tenant settings saved.');
         } catch {
             toast.error('Failed to save settings.');
+        }
+    };
+
+    const handleSaveExchangeRates = async () => {
+        try {
+            for (const [currency, rateStr] of Object.entries(exchangeRates)) {
+                const rate = parseFloat(rateStr);
+                if (isNaN(rate) || rate <= 0) {
+                    toast.error(`Exchange rate for ${currency} must be a positive number.`);
+                    return;
+                }
+                await updateExchangeRate.mutateAsync({
+                    from_currency: currency,
+                    to_currency: 'USD',
+                    rate,
+                });
+            }
+            toast.success('Exchange rates saved.');
+        } catch {
+            toast.error('Failed to save exchange rates.');
         }
     };
 
@@ -158,6 +190,53 @@ function OrgTenantSettings() {
                                 <Button className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSave} disabled={updateTenant.isPending}>
                                     <Save className="w-4 h-4" />
                                     {updateTenant.isPending ? 'Saving...' : 'Save Profile'}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border-[#e6e9ee]">
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <DollarSign className="w-5 h-5 text-[#8a8a8a]" />
+                                    Exchange Rates
+                                </CardTitle>
+                                <CardDescription>
+                                    Set exchange rates against USD for accurate AI budget calculations.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-xs text-[#8a8a8a]">
+                                    The AI Team Builder converts all budgets and costs to USD before analysis.
+                                    Default: 1 USD = 4,500 MMK, 1 USD = 158 JPY.
+                                </p>
+                                {Object.entries(DEFAULT_EXCHANGE_RATES).map(([currency, defaultRate]) => (
+                                    <div key={currency} className="space-y-2">
+                                        <Label htmlFor={`rate-${currency}`}>1 USD = ___ {currency}</Label>
+                                        <div className="flex items-center">
+                                            <Input
+                                                id={`rate-${currency}`}
+                                                type="number"
+                                                min={0.000001}
+                                                step="any"
+                                                value={exchangeRates[currency] ?? String(defaultRate)}
+                                                onChange={e => setExchangeRates(prev => ({ ...prev, [currency]: e.target.value }))}
+                                                className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-[#8a8a8a]">
+                                            {tenantQuery.data.exchangeRates?.[currency] != null
+                                                ? 'Custom rate set.'
+                                                : 'Using default rate.'}
+                                        </p>
+                                    </div>
+                                ))}
+                                <Button
+                                    className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]"
+                                    onClick={handleSaveExchangeRates}
+                                    disabled={updateExchangeRate.isPending}
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {updateExchangeRate.isPending ? 'Saving...' : 'Save Exchange Rates'}
                                 </Button>
                             </CardContent>
                         </Card>

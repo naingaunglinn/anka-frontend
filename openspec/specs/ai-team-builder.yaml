@@ -1,11 +1,16 @@
 id: ai-team-builder
 name: AI Team Builder System
-version: "1.0"
+version: "1.1"
 
 summary: |
   The AI Team Builder suggests optimal team compositions for deals using Claude 3.5 Sonnet.
   It considers employee skills, availability, capacity pool, and deal complexity.
   Falls back to deterministic selection when the API is unavailable.
+
+  **v1.1 — USD Normalization:** All monetary values sent to the AI are converted
+  to USD using tenant-configured exchange rates (fallback: MMK=4500, JPY=158).
+  This ensures accurate budget feasibility across currencies (e.g. 5M JPY ≠ 5M MMK).
+  Results are converted back to tenant currency for display.
 
 architecture:
   trigger: "User clicks 'Build Team' in deal creation/edit flow"
@@ -14,14 +19,17 @@ architecture:
   prompt_builder: lib/aiTeamBuilder.ts
   skill_extractor: lib/skillMatching.ts
   complexity_scorer: lib/dealComplexity.ts
+  currency_converter: lib/currencyConverter.ts
 
 flow:
   1. Extract required skills from workload description (lib/skillMatching.ts)
   2. Compute deal complexity score 0-10 (lib/dealComplexity.ts)
   3. Build employee availability map (subtract hard assignments from other deals)
-  4. Call POST /api/ai-team-builder with full context
-  5. Parse AI response into AITeamBuilderResult
-  6. On API failure, fall back to generateClientFallback() deterministic selection
+  4. Convert clientBudget and employee costs to USD (lib/currencyConverter.ts)
+  5. Call POST /api/ai-team-builder with USD-normalized context
+  6. Parse AI response into AITeamBuilderResult (in USD)
+  7. Convert monetary fields back to tenant currency for display
+  8. On API failure, fall back to generateClientFallback() deterministic selection
 
 input_context:
   deal_info:
@@ -33,13 +41,19 @@ input_context:
     - id, name, role, capacityRole, monthlySalary, workableHours
     - costPerHour, skills[] with proficiency
     - current_hard_assignments (hours already booked)
+    NOTE: monthlySalary and costPerHour are converted to USD before AI call.
   capacity_context:
     - capacity_pool totals per role type
     - company_settings (overhead %, buffer %, fallback hourly cost)
+    NOTE: yearlyFixedCost and monthly overheads are converted to USD.
   complexity_signals:
     - burnRate, skillBreadth, hardKeyword, mediumKeyword
     - ghostVariety, domainDepth
     - band: easy/medium/hard
+  currency_context:
+    - tenant_currency: original display currency (MMK/JPY/USD)
+    - exchange_rates: tenant overrides or fallback defaults
+    - ai_currency: always 'USD' in the prompt
 
 api_route_details:
   file: app/api/ai-team-builder/route.ts
@@ -49,7 +63,8 @@ api_route_details:
   fallback: |
     If ANTHROPIC_API_KEY is missing or the call fails, returns deterministic
     result: selects up to 5 employees by role match + availability, using
-    keyword-based weighting.
+    keyword-based weighting. Budget and costs are already in USD (converted
+    by frontend), so no additional conversion needed in the fallback.
   logging: |
     POST /ai-usage to backend with input_tokens, output_tokens, estimated_cost_usd
 
@@ -75,8 +90,9 @@ result_display:
     - Accept & Save: stores hard assignments in deal
     - Regenerate: retries with optional feedback text
   currency_formatting: |
-    Uses formatMoney() + CURRENCY_CONFIG[tenantCurrency].symbol
-    Never hardcodes $, Ks, or ¥
+    AI returns values in USD. Frontend converts back to tenant currency via
+    fromUSD() before display. Uses formatMoney() + CURRENCY_CONFIG[tenantCurrency].symbol.
+    Never hardcodes $, Ks, or ¥.
 
 skill_extraction:
   file: lib/skillMatching.ts
@@ -116,3 +132,11 @@ known_issues:
   - |
     Deterministic fallback always returns the same 5 people for the same
     inputs due to lack of randomness in the selection algorithm.
+
+changelog:
+  - version: "1.1"
+    changes:
+      - "Added USD normalization via lib/currencyConverter.ts"
+      - "Tenant exchange rates affect AI budget feasibility"
+      - "AI prompt now treats all monetary values as USD"
+      - "Display converts back to tenant currency via fromUSD()"

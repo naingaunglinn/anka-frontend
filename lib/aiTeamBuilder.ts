@@ -3,6 +3,10 @@ import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
 
 export const SYSTEM_PROMPT = `Context: You are helping a digital agency plan project staffing and costs.
 
+IMPORTANT: All monetary values in this prompt are in USD (United States Dollars).
+The system has already normalized budgets, salaries, and costs to USD using the
+tenant's exchange rates. Do NOT convert currencies — use the provided numbers as-is.
+
 Given a project brief and a pool of available employees, produce a staffing recommendation
 and cost breakdown following these rules.
 
@@ -130,11 +134,11 @@ Apply the target team shape from the system prompt for the ${input.complexity.ba
 `
         : ''
 
-    const sym = CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol
+    const sym = '$'
 
     let ghostRolesSection = ''
     if (input.ghostRoles && input.ghostRoles.length > 0) {
-        const lines = input.ghostRoles.map(gr => `- ${gr.quantity}× ${gr.roleType} (salary range: ${sym}${gr.minMonthlySalary.toLocaleString()} – ${sym}${gr.maxMonthlySalary.toLocaleString()})`).join('\n')
+        const lines = input.ghostRoles.map(gr => `- ${gr.quantity}× ${gr.roleType} (salary range: $${gr.minMonthlySalary.toLocaleString()} – $${gr.maxMonthlySalary.toLocaleString()} USD)`).join('\n')
         ghostRolesSection = `## Pre-defined Team Shape (soft constraint)
 
 The user already sketched this composition in Cost Estimate. Respect it unless budget or skill coverage forces a deviation — explain any deviations in warnings.
@@ -167,7 +171,8 @@ Produce a meaningfully different recommendation. ${regenerateInstruction}
 
     return `## Client Project Brief
 
-Budget: ${CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol}${input.clientBudget.toLocaleString()}
+Currency: USD (all values normalized to US Dollars)
+Budget: $${input.clientBudget.toLocaleString()}
 Timeline: ${input.timelineMonths} months
 Total Workload: ${input.workloadHours} hours
 
@@ -192,9 +197,9 @@ ${JSON.stringify(activeEmployees, null, 2)}
 
 Overhead Percentage: ${input.companySettings.overheadPercentage}% (use decimal ${overheadDecimal} for calculations)
 Risk Buffer Percentage: ${input.companySettings.bufferPercentage}% (use decimal ${bufferDecimal} for calculations)
-Yearly Fixed Cost: ${CURRENCY_CONFIG[input.currency ?? 'MMK'].symbol}${input.companySettings.yearlyFixedCost.toLocaleString()}
+Yearly Fixed Cost: $${input.companySettings.yearlyFixedCost.toLocaleString()} (USD)
 
-## Monthly Overhead Items
+## Monthly Overhead Items (USD)
 
 ${JSON.stringify(
                 input.globalOverheads.map(o => ({ category: o.category, monthlyCost: o.monthlyCost })),

@@ -1,0 +1,108 @@
+id: chg-007
+title: "Tenant Exchange Rates & USD Base Normalization for AI Budget"
+status: in-progress
+branch: feature/bug-fix-akp
+merged: false
+
+description: |
+  Enables tenants to configure their own exchange rates against USD. The AI Team
+  Builder normalizes client budgets and employee costs to USD before sending to
+  the AI, ensuring accurate feasibility checks across currencies (e.g. 5M JPY vs
+  5M MMK). Results are converted back to the tenant's display currency.
+
+  Fallback defaults: MMK=4500, JPY=158. Tenants can override via Settings page.
+
+changes:
+  # --- Backend ---
+  - file: database/migrations/2026_05_12_000001_create_exchange_rates_table.php
+    type: new
+    description: |
+      exchange_rates table: uuid PK, tenant_id FK, from_currency (3 char),
+      to_currency (3 char, default USD), rate decimal(14,6). Unique on
+      tenant_id + from_currency + to_currency.
+
+  - file: app/Models/ExchangeRate.php
+    type: new
+    description: BelongsToTenant trait, fillable from_currency/to_currency/rate
+
+  - file: app/Http/Controllers/Api/ExchangeRateController.php
+    type: new
+    description: |
+      index() — list tenant rates filtered to_currency=USD.
+      upsert() — validate from_currency in:MMK,JPY,USD, rate numeric>0.
+                   Update if exists, create if not.
+      destroy() — delete a rate.
+
+  - file: app/Http/Controllers/Api/TenantController.php
+    type: update
+    description: Include exchange_rates (keyed by from_currency) in tenantData()
+
+  - file: routes/api.php
+    type: update
+    description: Add GET/PUT /exchange-rates, DELETE /exchange-rates/{rate}
+
+  - file: app/Models/Tenant.php
+    type: update
+    description: Add exchangeRates() hasMany relationship
+
+  # --- Frontend ---
+  - file: lib/currencyConverter.ts
+    type: new
+    description: |
+      Pure utility (no React). getExchangeRate(currency, tenantRates?) → rate.
+      toUSD(amount, currency, tenantRates?) → number.
+      fromUSD(amount, currency, tenantRates?) → number.
+      Default rates: MMK=4500, JPY=158, USD=1.
+
+  - file: types/business.ts
+    type: update
+    description: Add ExchangeRate interface
+
+  - file: lib/queries/tenant.ts
+    type: update
+    description: |
+      Add exchangeRates?: Record<string,number> to TenantSettings.
+      Map from API response in toTenant(). Add useExchangeRateMutations hook.
+
+  - file: store/tenantStore.ts
+    type: update
+    description: Add exchangeRates to Tenant interface
+
+  - file: app/(dashboard)/tenant/page.tsx
+    type: update
+    description: |
+      Add "Exchange Rates" section to OrgTenantSettings. Table with rows for
+      MMK and JPY. Inputs for rate (e.g. "1 USD = ___ MMK"). Save calls
+      PUT /exchange-rates. Show fallback defaults when no custom rate set.
+
+  - file: components/crm/AITeamBuilder.tsx
+    type: update
+    description: |
+      Before AI call: convert clientBudget + employee costs to USD via toUSD().
+      Send currency='USD' to AI.
+      After AI response: convert all monetary fields back via fromUSD().
+      Display in tenant currency.
+
+  - file: lib/aiTeamBuilder.ts
+    type: update
+    description: |
+      SYSTEM_PROMPT: clarify that all monetary values are in USD.
+      buildUserPrompt: ensure Budget / Fixed Cost / Overheads show USD symbol.
+
+  - file: app/api/ai-team-builder/route.ts
+    type: update
+    description: |
+      generateDemoResult: employee costs and budget are already USD (converted
+      by frontend before POST), no extra conversion needed here.
+
+affected_specs:
+  - currency-system
+  - ai-team-builder
+  - state-management
+  - components
+
+notes: |
+  - All existing deals/employee data is implicitly in tenant currency.
+  - Conversion happens only at the AI boundary (input construction & output
+    display). Stored deal/employee values remain in tenant currency.
+  - If tenant hasn't set rates, hardcoded defaults apply silently.

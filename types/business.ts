@@ -1,5 +1,11 @@
 export type RoleType = "frontend" | "backend" | "pm" | "qa" | "design";
 
+export interface ExchangeRate {
+    fromCurrency: string;
+    toCurrency: string;
+    rate: number;
+}
+
 // --- Organization ---
 export interface Role {
     id: string;
