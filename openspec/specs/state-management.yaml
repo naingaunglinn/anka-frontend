@@ -1,0 +1,150 @@
+id: state-management
+name: State Management (Zustand Stores)
+version: "1.0"
+
+summary: |
+  Four Zustand stores manage application state. `businessStore.ts` is the primary
+  store containing the entire business domain. `tenantStore.ts` handles multi-tenancy
+  and currency. `authStore.ts` manages authentication. `uiStore.ts` persists UI preferences.
+
+stores:
+  - name: businessStore
+    file: store/businessStore.ts
+    persisted: false
+    purpose: Primary application state — org data, CRM, contracts, projects, time, P&L
+    state_shape:
+      departments: Department[]
+      roles: Role[]
+      employees: Employee[]
+      engineers: Engineer[]           # derived from active employees with capacityRole
+      globalOverheads: GlobalOverhead[]
+      companySettings: CompanySettings
+      deals: Deal[]
+      contracts: Contract[]
+      invoices: Invoice[]
+      milestones: Milestone[]
+      projects: Project[]
+      timeEntries: TimeEntry[]
+      skills: Skill[]
+    default_company_settings:
+      overheadPercentage: 20
+      bufferPercentage: 10
+      yearlyFixedCost: 0
+      employerTaxPercentage: 8
+      benefitsPercentage: 12
+      costToBillRatio: 0.40
+      defaultMonthlyCapacityHours: 160
+      fallbackHourlyCost: 50
+    key_methods:
+      org_crud:
+        - addEmployee / updateEmployee / deleteEmployee
+        - addRole / updateRole / deleteRole
+        - addDepartment / updateDepartment / deleteDepartment
+        - addGlobalOverhead / updateGlobalOverhead / deleteGlobalOverhead
+        - addSkill / updateSkill / deleteSkill
+        - updateCompanySettings
+      crm:
+        - addDeal / updateDeal / deleteDeal
+        - updateDealStage
+        - assignEngineer
+        - winDeal / loseDeal
+      contracts_projects:
+        - updateContract / deleteContract
+        - updateProject / deleteProject
+      time_billing:
+        - addTimeEntry / approveTimeEntry / deleteTimeEntry
+        - addInvoice / updateInvoice / payInvoice / deleteInvoice
+      computed_getters:
+        - getCapacityPool(): DepartmentCapacity[]
+        - getFinancialPnL(): MonthlyPnL[]
+        - getDealEstimation(dealId): DealEstimation
+    mutation_pattern: |
+      Snapshot → optimistic set → API call → on error restore snapshot + toast error + rethrow
+      (so React Query treats the mutation as failed).
+
+  - name: tenantStore
+    file: store/tenantStore.ts
+    persisted: true
+    storage_key: tenant-storage
+    purpose: Active tenant ID + tenant list for multi-tenancy
+    state_shape:
+      activeTenantId: string | null
+      currentTenant: Tenant | null
+      tenants: Tenant[]
+    key_methods:
+      - setActiveTenant(id)
+      - setCurrentTenant(tenant)
+      - setTenants(tenants)
+      - setTenantCurrency(tenantId, currency)
+      - clearTenant()
+    tenant_shape:
+      id: string
+      name: string
+      slug: string
+      currency?: Currency        # 'MMK' | 'JPY' | 'USD'
+      taxRate?: number
+      deliveryLagMonths?: number
+      paymentDaysLate?: number
+
+  - name: authStore
+    file: store/authStore.ts
+    persisted: false
+    purpose: Current user + auth state
+    notes: |
+      Token lives only in memory; persistence is via httpOnly `__session` cookie.
+      The legacy `store/authStore.ts` (persisted to auth-storage) exists but should
+      not be used for new code — use `store/useAuthStore.ts` instead.
+    state_shape:
+      user: AuthUser | null
+      token: string | null
+      isAuthenticated: boolean
+    key_methods:
+      - login(user, token)
+      - setToken(token)
+      - logout()
+    user_shape:
+      id: string
+      employeeId?: string
+      firstName: string
+      lastName: string
+      email: string
+      appRole: 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR'
+      systemRole: string
+      isSuperAdmin: boolean
+      tenant: { id, name, slug, currency, taxRate, deliveryLagMonths, paymentDaysLate } | null
+
+  - name: uiStore
+    file: store/uiStore.ts
+    persisted: true
+    storage_key: ui-storage
+    skip_hydration: true
+    purpose: UI preferences and demo mode
+    state_shape:
+      isSidebarCollapsed: boolean
+      isDemoMode: boolean
+      chatbotOpen: boolean
+    key_methods:
+      - toggleSidebar()
+      - enterDemoMode()
+      - exitDemoMode()
+      - toggleChatbot()
+
+computed_getters:
+  - name: getCapacityPool
+    returns: "DepartmentCapacity[] — total/soft/hard booked hours per role type"
+    logic: |
+      Aggregates employees by capacityRole. Soft booked hours = sum of deal ghost roles
+      weighted by win probability. Hard booked hours = sum of deal hard assignments.
+  - name: getFinancialPnL
+    returns: "MonthlyPnL[] — revenue, directLabor, overhead, grossProfit, operatingProfit, netProfit"
+    logic: |
+      Revenue = paid invoices. Direct Labor = active/on-leave payroll. Overhead =
+      period-matched global overheads. Tax applied to operating profit.
+    warning: |
+      Uses current headcount for all historical months — hire/termination history
+      is not yet tracked.
+  - name: getDealEstimation
+    returns: "DealEstimation — laborCost, overheadCost, suggestedPrice, expectedProfit, totalCost"
+    logic: |
+      If deal has totalEstimatedCost, uses margin-on-cost formula.
+      Otherwise falls back to summing estimationResources × role rate.

@@ -1,0 +1,33 @@
+id: chg-005
+title: "Deal Lead Source Validation Fix"
+status: completed
+branch: feature/bug-fix-akp
+merged: false
+
+description: |
+  Fixed leadSource validation bug where null values from API caused Zod
+  validation failures. Added proper null → undefined mapping.
+
+changes:
+  - file: lib/dealsMapper.ts
+    type: update
+    description: |
+      Added null → undefined mapping for leadSource field. API returns null
+      for unset lead sources, but Zod schema expects undefined or a valid
+      enum value.
+
+  - file: lib/schemas/deal.schema.ts
+    type: update
+    description: Relaxed leadSource schema to accept null and transform to undefined
+
+  - file: components/crm/DealForm.tsx
+    type: update
+    description: Updated leadSource select to handle null/undefined correctly
+
+affected_specs:
+  - api-layer
+  - components
+
+notes: |
+  This was a subtle bug where deals created without a lead source could not
+  be edited because the form would fail Zod validation on submit.

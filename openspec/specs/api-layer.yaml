@@ -1,0 +1,97 @@
+id: api-layer
+name: API Layer & HTTP Clients
+version: "1.0"
+
+summary: |
+  Three HTTP clients serve different backends. All business calls go through
+  `lib/api.ts` to the Laravel backend with automatic `X-Tenant-ID` and bearer
+  token injection.
+
+clients:
+  - name: api.ts
+    file: lib/api.ts
+    base_url: NEXT_PUBLIC_API_URL or NEXT_PUBLIC_BACKEND_URL/api
+    purpose: Primary business API client
+    features:
+      - "Request interceptor: injects Bearer token from authStore"
+      - "Request interceptor: injects X-Tenant-ID header from tenantStore (validates UUID)"
+      - "Super admins bypass tenant header"
+      - "Response interceptor: 429 → rate-limit countdown toast"
+      - "Response interceptor: 401 → logout + redirect"
+      - "Response interceptor: 403 → toast permission denied"
+
+  - name: axios.ts
+    file: lib/axios.ts
+    base_url: NEXT_PUBLIC_BACKEND_URL/api
+    purpose: Laravel backend client with CSRF handling
+    features:
+      - "withCredentials: true, timeout 15s"
+      - "Disables automatic XSRF handling to avoid CORS preflight issues"
+      - "Auto-fetches /sanctum/csrf-cookie before mutating requests if XSRF-TOKEN absent"
+      - "Demo mode guard: blocks all mutating requests with toast if isDemoMode true"
+      - "Token refresh queue: on 401 + token_expired, queues requests, calls /auth/refresh, drains queue"
+      - "Emits auth-unauthorized event on refresh failure"
+      - "Separate rate-limit countdown toast for login throttling"
+
+  - name: supabaseOrganization.ts
+    file: lib/supabaseOrganization.ts
+    purpose: Direct Supabase Postgres queries for org module
+    features:
+      - "Used for departments, roles, employees, overheads, company settings"
+      - "Contains snake_case ↔ camelCase mappers"
+
+tanstack_queries:
+  location: lib/queries/
+  files:
+    - deals.ts
+    - contracts.ts
+    - projects.ts
+    - invoices.ts
+    - milestones.ts
+    - timeEntries.ts
+    - estimationVersions.ts
+    - organization.ts
+    - tenant.ts
+    - admin.ts
+    - adminAudit.ts
+    - adminDashboard.ts
+    - aiUsage.ts
+  pattern: |
+    Each file exports query hooks (useXxxList, useXxxDetail) and mutation hooks
+    (useCreateXxx, useUpdateXxx, useDeleteXxx) wrapping React Query.
+
+api_routes:
+  - path: /api/ai-team-builder
+    file: app/api/ai-team-builder/route.ts
+    method: POST
+    auth: "Sanctum bearer + RBAC permission check"
+    purpose: Claude 3.5 Sonnet integration for team recommendations
+    fallback: |
+      On API key missing or call failure, returns deterministic demo result
+      (5 employees selected by role match + availability).
+    logging: |
+      Logs usage to backend POST /ai-usage with input/output tokens.
+
+  - path: /api/ai-chatbot
+    file: app/api/ai-chatbot/route.ts
+    method: POST
+    purpose: AI chatbot endpoint
+
+  - path: /api/ai-forecast
+    file: app/api/ai-forecast/route.ts
+    method: POST
+    purpose: AI forecasting endpoint
+
+  - path: /api/auth/session
+    file: app/api/auth/session/route.ts
+    methods: [POST, GET, DELETE]
+    purpose: |
+      httpOnly cookie manager for Sanctum token (__session) and role (__role).
+      POST sets cookie, GET returns current session, DELETE clears it.
+
+auth_flow:
+  1. Login form submits credentials to Laravel /auth/login
+  2. On success, frontend calls POST /api/auth/session to set httpOnly cookie
+  3. AuthInitializer component re-hydrates authStore from /auth/me on mount
+  4. All subsequent requests include Bearer token + X-Tenant-ID automatically
+  5. On 401 + token_expired, axios.ts queues requests and refreshes token

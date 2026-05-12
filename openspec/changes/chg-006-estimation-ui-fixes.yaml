@@ -1,0 +1,34 @@
+id: chg-006
+title: "Estimation Simulator UI Improvements"
+status: completed
+branch: feature/bug-fix-akp
+merged: false
+
+description: |
+  Fixed dark mode card styling and remaining hardcoded currency symbols in
+  the Estimation Simulator. Added Previously Built Team summary card.
+
+changes:
+  - file: components/estimation/EstimationSimulator.tsx
+    type: update
+    description: |
+      Fixed dark card bg-slate-900 → bg-white for light mode consistency.
+      Replaced remaining hardcoded $ symbols. Added version comparison
+      banner with proper diff display.
+
+  - file: app/(dashboard)/crm/new/page.tsx
+    type: update
+    description: Added Previously Built Team summary card in Estimation tab
+
+  - file: app/(dashboard)/crm/edit/[id]/page.tsx
+    type: update
+    description: Added Previously Built Team summary card in Estimation tab
+
+affected_specs:
+  - components
+  - app-routes
+  - currency-system
+
+notes: |
+  The Margin Simulator card previously used dark background even in light
+  mode, making text unreadable. Now properly uses themed colors.

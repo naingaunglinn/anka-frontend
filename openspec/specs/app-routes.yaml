@@ -1,0 +1,150 @@
+id: app-routes
+name: App Router Routes & Page Architecture
+version: "1.0"
+
+summary: |
+  The frontend uses Next.js 16 App Router with two primary route groups:
+  `(auth)/` for unauthenticated flows and `(dashboard)/` for the protected
+  application shell. A custom API route handles AI team building.
+
+route_groups:
+  - name: Authentication
+    path: (auth)
+    layout: app/(auth)/layout.tsx
+    notes: Full-screen layout without sidebar.
+    routes:
+      - path: /login
+        file: app/(auth)/login/page.tsx
+        purpose: Login form. Sets httpOnly `__session` cookie via `/api/auth/session`.
+      - path: /register
+        file: app/(auth)/register/page.tsx
+        purpose: Registration form.
+      - path: /auth/google/callback
+        file: app/(auth)/auth/google/callback/page.tsx
+        purpose: Google OAuth callback handler.
+
+  - name: Dashboard (Protected)
+    path: (dashboard)
+    layout: app/(dashboard)/layout.tsx
+    notes: Wrapped by DashboardShell (Sidebar + Header + Toaster). Protected by middleware.ts.
+    routes:
+      - path: /dashboard
+        file: app/(dashboard)/dashboard/page.tsx
+        purpose: Main dashboard with P&L charts, KPI cards, pipeline overview. Supports demo mode.
+
+      - path: /crm
+        file: app/(dashboard)/crm/page.tsx
+        purpose: Sales pipeline Kanban board with filters, search, capacity KPIs.
+
+      - path: /crm/new
+        file: app/(dashboard)/crm/new/page.tsx
+        purpose: Multi-tab deal creation wizard (Sales Context + Cost Estimate). Integrates AI Team Builder.
+
+      - path: /crm/[id]
+        file: app/(dashboard)/crm/[id]/page.tsx
+        purpose: Deal detail page with workflow bar, financial summary, ghost roles table, linked contract/project.
+
+      - path: /crm/edit/[id]
+        file: app/(dashboard)/crm/edit/[id]/page.tsx
+        purpose: Edit existing deal (same wizard as `/crm/new`).
+
+      - path: /crm/[id]/staffing
+        file: app/(dashboard)/crm/[id]/staffing/page.tsx
+        purpose: Hard booking page — canonical writer of `hardAssignments`.
+
+      - path: /estimation
+        file: app/(dashboard)/estimation/page.tsx
+        purpose: Estimation engine. Wraps `EstimationSimulator` with `?dealId` support.
+
+      - path: /organization
+        file: app/(dashboard)/organization/page.tsx
+        purpose: Organization settings — 6 tabs (Departments, Roles, Employees, Skills, Salary Structure, Global Overhead).
+
+      - path: /financial
+        file: app/(dashboard)/financial/page.tsx
+        purpose: P&L statement page with monthly breakdown, CSV export, date filtering.
+
+      - path: /forecast
+        file: app/(dashboard)/forecast/page.tsx
+        purpose: Forecasting module.
+
+      - path: /contracts
+        file: app/(dashboard)/contracts/page.tsx
+        purpose: Contracts list (read-only; created via `winDeal`).
+
+      - path: /contracts/[id]
+        file: app/(dashboard)/contracts/[id]/page.tsx
+        purpose: Contract detail.
+
+      - path: /projects
+        file: app/(dashboard)/projects/page.tsx
+        purpose: Projects list (read-only; created via `winDeal`).
+
+      - path: /projects/[id]
+        file: app/(dashboard)/projects/[id]/page.tsx
+        purpose: Project detail with team assignments.
+
+      - path: /time-tracking
+        file: app/(dashboard)/time-tracking/page.tsx
+        purpose: Manager view of time entries.
+
+      - path: /my-tasks
+        file: app/(dashboard)/my-tasks/page.tsx
+        purpose: Employee self-service time entry view.
+
+      - path: /profile
+        file: app/(dashboard)/profile/page.tsx
+        purpose: User profile page.
+
+      - path: /tenant
+        file: app/(dashboard)/tenant/page.tsx
+        purpose: Tenant settings (org users) or super-admin tenant management.
+
+  - name: Admin (Super Admin)
+    path: (dashboard)/admin
+    layout: app/(dashboard)/admin/layout.tsx
+    routes:
+      - path: /admin/dashboard
+        file: app/(dashboard)/admin/dashboard/page.tsx
+        purpose: Super-admin dashboard with stats, signups, AI usage.
+
+      - path: /admin/audit
+        file: app/(dashboard)/admin/audit/page.tsx
+        purpose: Audit log viewer with filters.
+
+      - path: /admin/billing
+        file: app/(dashboard)/admin/billing/page.tsx
+        purpose: Admin billing management.
+
+      - path: /admin/ai-usage
+        file: app/(dashboard)/admin/ai-usage/page.tsx
+        purpose: Tenant-scoped AI usage dashboard.
+
+  - name: API Routes
+    path: api
+    routes:
+      - path: /api/ai-team-builder
+        file: app/api/ai-team-builder/route.ts
+        purpose: |
+          Claude 3.5 Sonnet integration. Auth + RBAC gated. Builds team
+          recommendations. Falls back to deterministic demo mode on errors
+          or missing API key. Logs usage to backend.
+
+      - path: /api/ai-chatbot
+        file: app/api/ai-chatbot/route.ts
+        purpose: AI chatbot endpoint.
+
+      - path: /api/ai-forecast
+        file: app/api/ai-forecast/route.ts
+        purpose: AI forecasting endpoint.
+
+      - path: /api/auth/session
+        file: app/api/auth/session/route.ts
+        purpose: |
+          httpOnly cookie manager for Sanctum token (`__session`) and role
+          (`__role`). Supports POST, GET, DELETE.
+
+middleware:
+  - file: middleware.ts
+    purpose: Route protection, tenant validation, role-based redirects.
+    notes: Guards dashboard routes; redirects unauthenticated users to /login.

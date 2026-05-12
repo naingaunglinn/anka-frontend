@@ -1,0 +1,73 @@
+id: chg-001
+title: "Currency Symbol Systematization & Hardcode Removal"
+status: completed
+branch: feature/currency-common-fix
+merged: false
+
+description: |
+  Systematically replaced all hardcoded currency symbols ($, Ks, ¥) across the
+  frontend with dynamic tenant-aware formatting. Created shared currency hooks
+  and config to ensure consistency.
+
+changes:
+  - file: lib/currencyConfig.ts
+    type: new
+    description: Pure currency config module (MMK/JPY/USD) safe for client and server
+
+  - file: lib/currencyServer.ts
+    type: new
+    description: Server-side formatMoney/formatMoneyShort using Intl.NumberFormat
+
+  - file: hooks/useTenantCurrency.ts
+    type: new
+    description: Shared React hook for tenant currency lookup and symbol
+
+  - file: components/crm/KanbanBoard.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: components/crm/DealForm.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: components/crm/AITeamBuilderResult.tsx
+    type: update
+    description: Replaced hardcoded $ with formatMoney() + CURRENCY_CONFIG
+
+  - file: components/estimation/EstimationSimulator.tsx
+    type: update
+    description: Replaced hardcoded $ with useTenantCurrency() and formatMoney()
+
+  - file: components/tables/EmployeesTable.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: components/forms/EmployeeForm.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: components/forms/OverheadForm.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: app/(dashboard)/financial/page.tsx
+    type: update
+    description: Replaced hardcoded $ with formatMoney()
+
+  - file: app/(dashboard)/contracts/page.tsx
+    type: update
+    description: Replaced hardcoded $ with useCurrencySymbol()
+
+  - file: lib/calculations.ts
+    type: update
+    description: Added currency-agnostic calculation helpers
+
+affected_specs:
+  - currency-system
+  - components
+  - app-routes
+
+notes: |
+  AIUsageDashboard.tsx was intentionally skipped — it tracks actual API spend
+  in USD and is not tenant-facing.
+  All changes pushed to feature/currency-common-fix on both repos.

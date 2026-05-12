@@ -1,0 +1,118 @@
+id: ai-team-builder
+name: AI Team Builder System
+version: "1.0"
+
+summary: |
+  The AI Team Builder suggests optimal team compositions for deals using Claude 3.5 Sonnet.
+  It considers employee skills, availability, capacity pool, and deal complexity.
+  Falls back to deterministic selection when the API is unavailable.
+
+architecture:
+  trigger: "User clicks 'Build Team' in deal creation/edit flow"
+  entry_point: components/crm/AITeamBuilder.tsx
+  api_route: app/api/ai-team-builder/route.ts
+  prompt_builder: lib/aiTeamBuilder.ts
+  skill_extractor: lib/skillMatching.ts
+  complexity_scorer: lib/dealComplexity.ts
+
+flow:
+  1. Extract required skills from workload description (lib/skillMatching.ts)
+  2. Compute deal complexity score 0-10 (lib/dealComplexity.ts)
+  3. Build employee availability map (subtract hard assignments from other deals)
+  4. Call POST /api/ai-team-builder with full context
+  5. Parse AI response into AITeamBuilderResult
+  6. On API failure, fall back to generateClientFallback() deterministic selection
+
+input_context:
+  deal_info:
+    - name, client, workload_hours, workload_description
+    - timeline_months, client_budget, target_margin
+    - ghost_roles (role types needed)
+    - requiredSkills (extracted from description)
+  employee_pool:
+    - id, name, role, capacityRole, monthlySalary, workableHours
+    - costPerHour, skills[] with proficiency
+    - current_hard_assignments (hours already booked)
+  capacity_context:
+    - capacity_pool totals per role type
+    - company_settings (overhead %, buffer %, fallback hourly cost)
+  complexity_signals:
+    - burnRate, skillBreadth, hardKeyword, mediumKeyword
+    - ghostVariety, domainDepth
+    - band: easy/medium/hard
+
+api_route_details:
+  file: app/api/ai-team-builder/route.ts
+  auth: Sanctum bearer + RBAC permission check
+  model: Claude 3.5 Sonnet (via api.vibecode-claude.online)
+  temperature: 0.7 (enables variation on regenerate)
+  fallback: |
+    If ANTHROPIC_API_KEY is missing or the call fails, returns deterministic
+    result: selects up to 5 employees by role match + availability, using
+    keyword-based weighting.
+  logging: |
+    POST /ai-usage to backend with input_tokens, output_tokens, estimated_cost_usd
+
+fallback_behavior:
+  name: generateClientFallback
+  location: components/crm/AITeamBuilder.tsx
+  logic: |
+    Deterministic keyword-based role weighting. Scores each employee by how
+    well their capacityRole matches ghostRoles. Selects top matches up to team
+    size appropriate for complexity band.
+  limitation: |
+    Always returns the same result for the same inputs (no variation).
+    Does NOT consider skill proficiency or soft-booking state.
+
+result_display:
+  component: components/crm/AITeamBuilderResult.tsx
+  cards:
+    - Recommended Team: member list with allocated hours and cost
+    - P&L Estimate: labor, overhead, buffer, total cost, margin
+    - AI Reasoning: explanation of selections
+    - Warnings: capacity conflicts, skill gaps, budget concerns
+  actions:
+    - Accept & Save: stores hard assignments in deal
+    - Regenerate: retries with optional feedback text
+  currency_formatting: |
+    Uses formatMoney() + CURRENCY_CONFIG[tenantCurrency].symbol
+    Never hardcodes $, Ks, or ¥
+
+skill_extraction:
+  file: lib/skillMatching.ts
+  purpose: Extract required skills from workload description
+  method: Whole-word keyword matching against known skills database
+  output: string[] of skill names
+
+complexity_scoring:
+  file: lib/dealComplexity.ts
+  score_range: 0-10
+  bands:
+    - easy:   score <= 2.5  → team size ~2
+    - medium: score <= 5.5  → team size ~3-4
+    - hard:   score > 5.5   → team size ~5-7
+  signals:
+    burnRate:     "(workloadHours / timelineMonths) / 100"
+    skillBreadth: "requiredSkills.length × 0.5"
+    hardKeyword:  "+2 if HIPAA, blockchain, payments, etc."
+    mediumKeyword: "+1 if dashboard, integration, API, etc."
+    ghostVariety: "distinct ghost role types × 0.3"
+    domainDepth:  "+0.5 per additional hard keyword beyond first"
+
+types:
+  file: types/aiTeamBuilder.ts
+  key_types:
+    - AITeamBuilderInput
+    - AITeamBuilderResult
+    - RecommendedMember
+    - PnLEstimate
+
+known_issues:
+  - |
+    User-created employees have empty skills: [] because the EmployeeForm
+    did not historically include a skills picker. The backend API supports
+    skills, but frontend UI was missing. This causes the AI fallback to
+    select based on role alone, ignoring skill-based matching.
+  - |
+    Deterministic fallback always returns the same 5 people for the same
+    inputs due to lack of randomness in the selection algorithm.

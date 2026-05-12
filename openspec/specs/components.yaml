@@ -1,0 +1,139 @@
+id: components
+name: Key Components & UI Architecture
+version: "1.0"
+
+summary: |
+  Components are organized by domain: crm/, estimation/, forms/, tables/, layout/.
+  All UI primitives come from components/ui/ (shadcn/ui, "new-york" style, neutral palette).
+  Icons from lucide-react only.
+
+component_groups:
+  - name: CRM Components
+    path: components/crm/
+    components:
+      - name: KanbanBoard
+        file: components/crm/KanbanBoard.tsx
+        purpose: Drag-and-drop sales pipeline
+        features:
+          - "Columns: Lead → Qualified → Proposal → Negotiation → Won → Lost"
+          - "@hello-pangea/dnd for drag-and-drop"
+          - "Smart probability merge: preserves manual overrides within ±5pp on stage drag"
+          - "RBAC-gated via usePermission('manage_crm')"
+          - "Card info: client name, staffing badge, est. cost, gross profit, budget, win probability bar, booking state"
+          - "Actions: Edit, Staffing, Win Deal, Mark as Lost, Delete"
+
+      - name: DealForm
+        file: components/crm/DealForm.tsx
+        purpose: Quick deal add/edit dialog
+        fields: name, client, estimated value, win probability, stage
+        currency: uses useCurrencySymbol()
+
+      - name: AITeamBuilder
+        file: components/crm/AITeamBuilder.tsx
+        purpose: Orchestrates AI team build process
+        features:
+          - "Computes requiredSkills via extractRequiredSkills() from workload description"
+          - "Computes complexity via computeDealComplexity()"
+          - "Builds employeeAvailability map subtracting hard assignments from other deals"
+          - "Calls POST /api/ai-team-builder with full context"
+          - "On API failure, falls back to generateClientFallback() (deterministic keyword-based)"
+          - "Supports regeneration with feedback text"
+          - "Accept button passes result to parent (onAccept)"
+
+      - name: AITeamBuilderResult
+        file: components/crm/AITeamBuilderResult.tsx
+        purpose: Displays AI result in 4 cards
+        cards:
+          - Recommended Team (avatar, role, allocated hours, total cost)
+          - P&L Estimate (labor, overhead, buffer, total cost, client budget, gross profit, margin %)
+          - AI Reasoning (explanation text)
+          - Warnings (capacity conflicts, skill gaps)
+        actions: Accept & Save, Regenerate
+        margin_colors: "<0% red, <10% yellow, >=10% green"
+
+  - name: Estimation Components
+    path: components/estimation/
+    components:
+      - name: EstimationSimulator
+        file: components/estimation/EstimationSimulator.tsx
+        lines: "~892"
+        purpose: Full estimation engine with scope tables and margin simulator
+        layout: Two-column (scope left, simulator right)
+        features:
+          - "Scope & Labor table: add/remove resources (feature name, role, hours)"
+          - "Cost rate strategy: median employee costPerHour → role.rate × costToBillRatio → fallbackHourlyCost"
+          - "Project Overhead table: one-time expenses"
+          - "Margin Simulator: slider 10-80% target margin"
+          - "Computes totalCost = labor + company overhead + project overhead + buffer"
+          - "Suggested price = totalCost / (1 - margin%)"
+          - "Version history: save snapshots, restore, compare versions"
+          - "Budget reality check: flags if suggested price exceeds client budget by >5%"
+          - "Uses useTenantCurrency() and useCurrencySymbol()"
+
+  - name: Organization Components
+    path: components/tables/ + components/forms/
+    components:
+      - name: EmployeesTable
+        file: components/tables/EmployeesTable.tsx
+        purpose: Employee directory with availability calculation
+        features:
+          - "@tanstack/react-table with sorting, pagination"
+          - "Columns: Name, Role, Monthly Salary, Cost/Hr, Total Hours/Mo, Available Hours, Skills, Status, Actions"
+          - "Available Hours = workableHours - sum(timeEntries.hours) for current month"
+          - "Overbooked employees highlighted in red"
+          - "Skills displayed as badges with overflow handling"
+
+      - name: EmployeeForm
+        file: components/forms/EmployeeForm.tsx
+        purpose: Create/edit employee with skills assignment
+        features:
+          - "React Hook Form + Zod (employeeSchema / employeeCreateSchema)"
+          - "Fields: name, department, billing role, capacity pool, monthly salary, workable hours, status"
+          - "Skills picker: popover with search, add/remove skills with proficiency (beginner/intermediate/expert)"
+          - "Login credentials: email + password (create requires both; edit treats blank as no change)"
+          - "blankToUndefined preprocessor for optional fields"
+
+  - name: Layout Components
+    path: components/layout/
+    components:
+      - name: DashboardShell
+        file: components/layout/DashboardShell.tsx
+        purpose: Wraps all dashboard routes with Sidebar + Header + Toaster
+
+      - name: Header
+        file: components/layout/Header.tsx
+        purpose: Top bar with tenant switcher, user menu, demo mode toggle
+
+      - name: Sidebar
+        file: components/layout/Sidebar.tsx
+        purpose: Navigation with collapsible groups, RBAC-gated links
+
+  - name: Permission & Guard Components
+    components:
+      - name: PermissionGuard
+        file: components/PermissionGuard.tsx
+        purpose: Conditionally renders children based on usePermission()
+        rule: "Never hide guarded controls; disable + tooltip the reason"
+
+      - name: OrgSyncErrorBanner
+        file: components/OrgSyncErrorBanner.tsx
+        purpose: Retryable error banner for useOrganizationSync failures
+
+ui_primitives:
+  source: components/ui/
+  style: shadcn/ui "new-york", neutral palette
+  examples: [button, card, dialog, input, select, table, badge, slider, toast]
+  composition: |
+    All className composition uses cn() from lib/utils.ts (clsx + tailwind-merge)
+
+icons:
+  source: lucide-react only
+  examples: [Plus, Trash2, Calculator, Save, Clock, History, TrendingUp, TrendingDown, DollarSign, AlertCircle]
+
+drag_and_drop:
+  library: "@hello-pangea/dnd"
+  usage: CRM Kanban board stage transitions
+
+toasts:
+  library: react-hot-toast
+  placement: <Toaster> in dashboard layout

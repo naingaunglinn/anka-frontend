@@ -1,0 +1,58 @@
+id: chg-002
+title: "AI Team Builder Enhancement — Claude API Integration"
+status: completed
+branch: feature/bug-fix-akp
+merged: false
+
+description: |
+  Improved the AI Team Builder to use real Claude 3.5 Sonnet API instead of
+  deterministic fallback. Added skill extraction, complexity scoring, and
+  result variation.
+
+changes:
+  - file: app/api/ai-team-builder/route.ts
+    type: update
+    description: |
+      Integrated Claude API via api.vibecode-claude.online. Raised temperature
+      from 0.0 to 0.7 to enable result variation on regenerate. Added proper
+      error handling with fallback to deterministic selection.
+
+  - file: lib/aiTeamBuilder.ts
+    type: update
+    description: Enhanced prompt builder with complexity signals and skill context
+
+  - file: components/crm/AITeamBuilder.tsx
+    type: update
+    description: |
+      Added requiredSkills auto-extraction from workload description using
+      extractRequiredSkills(). Computes employee availability by subtracting
+      hard assignments from other open deals.
+
+  - file: components/crm/AITeamBuilderResult.tsx
+    type: update
+    description: Added currency formatting with formatMoney() + CURRENCY_CONFIG
+
+  - file: lib/dealComplexity.ts
+    type: update
+    description: |
+      Deterministic complexity heuristic (0-10 score) based on burn rate,
+      skill breadth, keyword detection (HIPAA, blockchain, payments, etc.),
+      and ghost role variety.
+
+  - file: lib/skillMatching.ts
+    type: new
+    description: Whole-word skill extraction from workload descriptions
+
+  - file: .env.local
+    type: update
+    description: Added ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL
+
+affected_specs:
+  - ai-team-builder
+  - currency-system
+  - components
+
+notes: |
+  If API key is missing or call fails, deterministic fallback always returns
+  same 5 people via .slice(0, 5). Temperature 0.7 enables variation but
+  results may still be similar for identical inputs.
