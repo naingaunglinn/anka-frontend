@@ -134,20 +134,27 @@ export function KanbanBoard({
             return;
         }
 
+        // Droppable ids are sourced from STAGE_ORDER (see the columns map
+        // above), so a runtime droppableId is always a valid DealStage —
+        // cast both for type-safe lookups against the Record<DealStage, …>
+        // tables. @hello-pangea/dnd types these as plain `string`.
+        const sourceStage      = source.droppableId      as DealStage;
+        const destinationStage = destination.droppableId as DealStage;
+
         // Prevent moving from terminal statuses (won / lost). Reverting a
         // closed deal would orphan the linked Contract/Project.
-        if (source.droppableId === 'won' || source.droppableId === 'lost') {
+        if (sourceStage === 'won' || sourceStage === 'lost') {
             return;
         }
 
-        const draggedDeal = columns[source.droppableId]?.deals.find(d => d.id === draggableId);
+        const draggedDeal = columns[sourceStage]?.deals.find((d: Deal) => d.id === draggableId);
 
         // Dragging to Won is only allowed from Negotiation (A) AND only via
         // the contract-document upload + AI-analysis flow. Block manual drags
         // so the contract gate can't be skipped. Open the deal detail page
         // where the uploader lives.
-        if (destination.droppableId === 'won') {
-            if (source.droppableId === 'negotiation') {
+        if (destinationStage === 'won') {
+            if (sourceStage === 'negotiation') {
                 toast.error('Upload an approved contract document to move this deal to Won.');
                 if (draggedDeal) router.push(`/crm/${draggableId}#contract-document`);
             } else {
@@ -158,7 +165,7 @@ export function KanbanBoard({
 
         // Dragging to Lost opens the loss-reason dialog (which requires a
         // reason) so deals never get marked lost without context.
-        if (destination.droppableId === 'lost') {
+        if (destinationStage === 'lost') {
             if (draggedDeal) openLoseDeal(draggableId, draggedDeal.name);
             return;
         }
@@ -167,15 +174,15 @@ export function KanbanBoard({
         // manually diverged from the source stage's default. A deliberate
         // override (e.g. 32% in a "lead" stage with default 10%) survives
         // stage drags so the salesperson's judgment isn't silently clobbered.
-        const oldDefault = stageProbability[source.droppableId] ?? 50;
-        const newDefault = stageProbability[destination.droppableId] ?? 50;
+        const oldDefault = stageProbability[sourceStage] ?? 50;
+        const newDefault = stageProbability[destinationStage] ?? 50;
         const currentProb = draggedDeal?.winProbability ?? oldDefault;
         const isAutoManaged = Math.abs(currentProb - oldDefault) <= PROB_TOLERANCE;
         const newProb = isAutoManaged ? newDefault : currentProb;
 
         updateDealStage.mutate({
             id: draggableId,
-            status: destination.droppableId,
+            status: destinationStage,
             probability: newProb,
         });
     };
