@@ -71,3 +71,54 @@ fixups:
       - Run `npx tsc --noEmit` (or full `npm run build`) before pushing
         non-trivial frontend changes — the existing lint step does not
         type-check.
+
+  - id: rich-verdict-2026-05-13
+    summary: |
+      ContractDocumentUploader now renders the rich Claude verdict via a
+      new AnalysisResultCard component (matches the API-side rewrite in
+      chg-005 fixup of the same id).
+
+      Changes:
+      - lib/queries/contractDocuments.ts: ContractDocumentAnalysis type
+        rewritten to model the rich shape (FieldGrade, DisputeRisk,
+        VerdictDiff, PaymentPattern). New top-level ContractDocument
+        fields: overall_score, detected_payment_pattern, previous_analysis.
+      - New components/crm/AnalysisResultCard.tsx:
+        - Score gauge (severity-tier colour bands: emerald 80+, amber
+          60-79, red <60)
+        - Executive summary + payment-pattern chip + critical-issue badge
+        - Diff banner on re-uploads (previous → current score, ✓
+          improvements, ✗ regressions)
+        - "Needs attention" section: failing critical/required fields,
+          expanded by default with evidence quote + reasoning + suggested
+          fix (blue Sparkles call-out)
+        - Dispute risks section with severity chips, quote, and remediation
+        - Expandable "Show all 26 graded fields" grouped by severity
+        - Failure-path branch: text-extraction errors collapse to a
+          single red alert
+      - ContractDocumentUploader: removed inline reasoning block,
+        delegates the verdict render entirely to AnalysisResultCard.
+    follow_up:
+      - When the salesperson uploads a doc and gets rejected, expose a
+        one-click "copy fixes as email to customer" action that bundles
+        every suggested_fix into a plain-text message.
+
+  - id: deal-match-banner-2026-05-13
+    summary: |
+      Frontend support for the new deal_match verdict section (matches the
+      anka-api chg-005 fixup of the same id).
+
+      Changes:
+      - lib/queries/contractDocuments.ts: new DealMatch + DealMatchCheck
+        types; ContractDocumentAnalysis gains an optional deal_match field.
+      - AnalysisResultCard: when deal_match.is_match === false, render a
+        red banner ABOVE the existing top-bar showing
+          - "Wrong contract uploaded — doesn't match this deal" headline
+          - Claude's reasoning
+          - "Deal expects: X · Contract parties: Y, Z" comparison
+          - bullet list of specific discrepancies
+          - "Approval is blocked until the correct contract is uploaded."
+      - Tightened the "fallback grading" badge logic so it only shows when
+        model === 'keyword-fallback'. Previously any model other than the
+        exact constant claude-3-5-sonnet-latest triggered the badge — that
+        broke for our proxy which silently upgrades to claude-sonnet-4.6.

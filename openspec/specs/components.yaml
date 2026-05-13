@@ -30,10 +30,24 @@ component_groups:
         purpose: Upload + Claude-analyse the customer-signed contract that gates A → S
         features:
           - "Visible on the deal detail page only while stage = 'negotiation'"
-          - "Drag/drop or click-to-browse; accepts pdf, docx, xlsx, pptx, txt up to 25 MB"
-          - "Shows analysis verdict per document (approved / rejected / failed) with reasoning + missing fields"
+          - "Drag/drop or click-to-browse; accepts pdf, docx, txt up to 25 MB"
+          - "Renders AnalysisResultCard for the rich verdict (see below)"
           - "On approved, backend auto-fires win_deal(); component routes to /contracts/{id}"
           - "Uses lib/queries/contractDocuments.ts (TanStack Query hooks)"
+
+      - name: AnalysisResultCard
+        file: components/crm/AnalysisResultCard.tsx
+        purpose: Renders the rich Claude verdict for a contract document
+        features:
+          - "Deal-mismatch banner (red, top of card): shown when deal_match.is_match=false — Claude detected the contract belongs to a different customer or project. Lists Claude's reasoning, the deal client vs detected doc parties, and specific discrepancies. Hard-blocks approval."
+          - "Top bar: status + filename + score gauge (0-100, severity-tier colour)"
+          - "Executive summary + payment-pattern chip + critical-issue count"
+          - "Diff banner on re-uploads: previous → current score, improvements/regressions list"
+          - "'Needs attention' section: failing critical/required fields, expanded by default with evidence quote + suggested fix"
+          - "Dispute risks section: free-form Claude flags with severity chips"
+          - "Expandable 'Show all 26 graded fields' grouped by severity (critical / required / recommended)"
+          - "Per-field row: status icon + chip + score + evidence-location, expand for verbatim evidence quote + reasoning + suggested fix"
+          - "Failure path (text extraction broke) collapses to a single red alert with the error + suggestion"
 
       - name: DealForm
         file: components/crm/DealForm.tsx

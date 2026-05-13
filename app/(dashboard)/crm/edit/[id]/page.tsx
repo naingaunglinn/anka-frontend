@@ -187,6 +187,10 @@ export default function EditDealPage() {
     const workloadHours = form.watch("workloadHours") ?? 0;
     const workloadDescription = form.watch("workloadDescription") || "";
     const expectedCloseDate = form.watch("expectedCloseDate");
+    // Deal identity for the AI Team Builder prompt — read live so re-builds
+    // reflect any rename the user just made in the Sales Context tab.
+    const dealName = form.watch("name") || dealToEdit?.name || "";
+    const dealClient = form.watch("client") || dealToEdit?.client || "";
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -523,7 +527,7 @@ export default function EditDealPage() {
                                                             <FormItem>
                                                                 <FormLabel>Timeline (Months) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" step="0.5" className="bg-white" {...field} />
+                                                                    <Input type="number" step="1" min="1" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -800,6 +804,8 @@ export default function EditDealPage() {
                                                     )}
                                                     <AITeamBuilder
                                                         dealId={dealId}
+                                                        dealName={dealName}
+                                                        dealClient={dealClient}
                                                         clientBudget={clientBudget}
                                                         timelineMonths={timelineMonths}
                                                         workloadHours={workloadHours}

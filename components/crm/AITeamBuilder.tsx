@@ -17,6 +17,10 @@ import { toUSD, fromUSD } from '@/lib/currencyConverter'
 
 interface Props {
     dealId: string
+    /** Deal title — passed straight into the prompt so Claude knows which project it's staffing. */
+    dealName?: string
+    /** Client / customer name — gives the prompt richer context. */
+    dealClient?: string
     clientBudget: number | string
     timelineMonths: number | string
     workloadHours: number | string
@@ -219,6 +223,8 @@ export function AITeamBuilder(props: Props) {
 
         const input: AITeamBuilderInput = {
             dealId: props.dealId,
+            dealName: props.dealName,
+            dealClient: props.dealClient,
             clientBudget: usdBudget,
             timelineMonths: months,
             workloadHours: hours,

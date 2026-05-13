@@ -46,7 +46,10 @@ export const dealSchema = z.object({
         'inbound', 'referral', 'cold_outreach', 'social', 'event', 'partner', 'other',
     ]).optional(),
     clientBudget: z.coerce.number().min(0, 'Budget must be ≥ 0'),
-    timelineMonths: z.coerce.number().min(0.5, 'Timeline is required'),
+    // Stored as integer in the DB (timeline_months on deals). The backend's
+    // Laravel validator rejects non-integer values, so we coerce + .int()
+    // here so the form fails fast instead of round-tripping a 422.
+    timelineMonths: z.coerce.number().int('Timeline must be a whole number of months').min(1, 'Timeline must be at least 1 month'),
     workloadHours: z.coerce.number().min(0, 'Must be ≥ 0'),
     winProbability: z.coerce.number().min(0).max(100),
     workloadDescription: z.string().max(5000).optional(),

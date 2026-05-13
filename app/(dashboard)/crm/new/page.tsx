@@ -151,6 +151,10 @@ export default function NewDealPage() {
     const workloadHours = form.watch("workloadHours");
     const workloadDescription = form.watch("workloadDescription") || "";
     const expectedCloseDate = form.watch("expectedCloseDate");
+    // Deal identity for the AI Team Builder prompt — read live so the prompt
+    // reflects whatever the user just typed in the Sales Context tab.
+    const dealName = form.watch("name") || "";
+    const dealClient = form.watch("client") || "";
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -467,7 +471,7 @@ export default function NewDealPage() {
                                                             <FormItem>
                                                                 <FormLabel>Timeline (Months) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" step="0.5" className="bg-white" {...field} />
+                                                                    <Input type="number" step="1" min="1" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -660,6 +664,8 @@ export default function NewDealPage() {
                                                 summary. */}
                                             <AITeamBuilder
                                                 dealId={dealId}
+                                                dealName={dealName}
+                                                dealClient={dealClient}
                                                 clientBudget={clientBudget}
                                                 timelineMonths={timelineMonths}
                                                 workloadHours={workloadHours}

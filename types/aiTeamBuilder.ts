@@ -4,6 +4,10 @@ import type { ComplexityResult } from '@/lib/dealComplexity'
 
 export interface AITeamBuilderInput {
     dealId: string
+    /** Deal title — surfaced in the prompt so Claude knows which project it's staffing. */
+    dealName?: string
+    /** Client name — gives Claude additional context (industry signals, etc.). */
+    dealClient?: string
     clientBudget: number
     timelineMonths: number
     workloadHours: number
