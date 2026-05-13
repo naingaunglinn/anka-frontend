@@ -136,6 +136,34 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             },
         },
         {
+            // Sort by rank.level (numeric) so column ordering is meaningful:
+            // unranked → Junior → Mid → Senior → Lead. Custom ranks are placed
+            // by their level, not their position in the array.
+            id: 'rank',
+            accessorFn: (row) => row.rank?.level ?? -1,
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                    className="-ml-4 h-8 px-4"
+                >
+                    Rank
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => {
+                const rank = row.original.rank;
+                if (!rank) return <span className="text-[#8a8a8a]">—</span>;
+                // Same colour bands as the Ranks tab table for consistency.
+                const cls =
+                    rank.level >= 40 ? 'bg-purple-100 text-purple-700' :
+                    rank.level >= 30 ? 'bg-blue-100 text-blue-700' :
+                    rank.level >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                                       'bg-slate-100 text-slate-700';
+                return <Badge className={`${cls} hover:${cls}`}>{rank.code}</Badge>;
+            },
+        },
+        {
             accessorKey: 'monthlySalary',
             header: ({ column }) => {
                 return (

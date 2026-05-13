@@ -14,6 +14,7 @@ import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
 import { extractRequiredSkills } from '@/lib/skillMatching'
 import { toUSD, fromUSD } from '@/lib/currencyConverter'
+import api from '@/lib/api'
 
 interface Props {
     dealId: string
@@ -129,6 +130,10 @@ export function AITeamBuilder(props: Props) {
     const [loadingStep, setLoadingStep] = useState(0)
     const [showFeedback, setShowFeedback] = useState(false)
     const [regenerateFeedback, setRegenerateFeedback] = useState('')
+    // "Need Management" toggle — default ON. When OFF the prompt drops the
+    // "must include a leadership-level employee" rule so small projects can
+    // be staffed lean without a token senior on top.
+    const [requireLeadership, setRequireLeadership] = useState(true)
 
     const employees = useBusinessStore(s => s.employees)
     const deals = useBusinessStore(s => s.deals)
@@ -195,6 +200,19 @@ export function AITeamBuilder(props: Props) {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
 
+        // Fetch rich employee context (rank + past_projects) from the Laravel
+        // backend. Best-effort: a failure here just means we ship the prompt
+        // without past-project signal and Claude falls back to roleTitle
+        // keyword matching. Uses the same api helper as the rest of the
+        // module so X-Tenant-ID + Bearer are attached automatically.
+        let employeeContext: import('@/types/aiTeamBuilder').AITeamBuilderEmployeeContext[] | undefined
+        try {
+            const ctxRes = await api.get(`/deals/${props.dealId}/ai-team-builder-context`)
+            employeeContext = ctxRes?.data?.data?.employees
+        } catch {
+            // Swallow — fallback path will still produce a usable team.
+        }
+
         // Normalize monetary values to USD for accurate cross-currency AI analysis
         const usdBudget = toUSD(budget, currency, exchangeRates)
         const usdEmployees = employees.map(e => ({
@@ -225,6 +243,8 @@ export function AITeamBuilder(props: Props) {
             dealId: props.dealId,
             dealName: props.dealName,
             dealClient: props.dealClient,
+            requireLeadership,
+            employeeContext,
             clientBudget: usdBudget,
             timelineMonths: months,
             workloadHours: hours,
@@ -317,6 +337,25 @@ export function AITeamBuilder(props: Props) {
                     </span>
                 </div>
             )}
+
+            {/* Need Management toggle — forces the AI to include a leadership-
+                level employee on the team. Default ON; toggle OFF for lean
+                projects that don't justify a senior coordinator. */}
+            <label className="flex items-center justify-center gap-2 text-xs cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-indigo-600"
+                    checked={requireLeadership}
+                    onChange={(e) => setRequireLeadership(e.target.checked)}
+                    disabled={loading}
+                />
+                <span className="text-[#4a4a4a] font-medium">Need Management</span>
+                <span className="text-[#8a8a8a]">
+                    {requireLeadership
+                        ? '— team will include a leadership-level employee'
+                        : '— team may skip a Senior/Lead if not needed'}
+                </span>
+            </label>
 
             <Button
                 type="button"
