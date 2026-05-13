@@ -35,6 +35,23 @@ export interface DisputeRisk {
     suggested_remediation: string;
 }
 
+export type DealMatchCheck = 'present' | 'partial' | 'mismatch' | 'not_found' | 'within_5%' | 'within_25%' | 'large_gap' | 'unknown';
+
+export interface DealMatch {
+    is_match: boolean;
+    confidence: number | null;
+    deal_client: string | null;
+    doc_parties: string[];
+    checks: {
+        client_name_match: DealMatchCheck;
+        value_alignment: DealMatchCheck;
+        project_name_match: DealMatchCheck;
+        contact_match: DealMatchCheck;
+    };
+    discrepancies: string[];
+    reasoning: string | null;
+}
+
 export interface VerdictDiff {
     improvements: string[];
     regressions: string[];
@@ -56,6 +73,7 @@ export interface ContractDocumentAnalysis {
     field_grades?: FieldGrade[];
     critical_failures?: string[];
     dispute_risks?: DisputeRisk[];
+    deal_match?: DealMatch;
     diff_vs_previous?: VerdictDiff | null;
     model?: string;
     note?: string;

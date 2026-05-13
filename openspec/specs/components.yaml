@@ -39,6 +39,7 @@ component_groups:
         file: components/crm/AnalysisResultCard.tsx
         purpose: Renders the rich Claude verdict for a contract document
         features:
+          - "Deal-mismatch banner (red, top of card): shown when deal_match.is_match=false — Claude detected the contract belongs to a different customer or project. Lists Claude's reasoning, the deal client vs detected doc parties, and specific discrepancies. Hard-blocks approval."
           - "Top bar: status + filename + score gauge (0-100, severity-tier colour)"
           - "Executive summary + payment-pattern chip + critical-issue count"
           - "Diff banner on re-uploads: previous → current score, improvements/regressions list"

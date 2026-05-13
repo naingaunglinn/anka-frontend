@@ -215,9 +215,55 @@ function RichVerdict({
     const score = a.overall_score ?? doc.overall_score ?? 0;
     const pattern = a.detected_payment_pattern ?? doc.detected_payment_pattern ?? 'unknown';
     const diff = a.diff_vs_previous;
+    const mismatch = a.deal_match && a.deal_match.is_match === false ? a.deal_match : null;
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            {/* ── Deal mismatch banner: appears ABOVE everything else when
+                  Claude (or the heuristic fallback) decided this contract
+                  isn't for the current deal. Hard-blocks approval — no
+                  matter how complete the contract is, a wrong-customer
+                  upload must never auto-fire win_deal(). ─────────────────── */}
+            {mismatch && (
+                <div className="px-4 py-3 bg-red-50 border-b-2 border-red-300">
+                    <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-red-900">
+                                Wrong contract uploaded — doesn&apos;t match this deal
+                            </h4>
+                            <p className="text-xs text-red-800 mt-1">
+                                {mismatch.reasoning ?? 'The uploaded contract appears to be for a different customer or project.'}
+                            </p>
+                            {mismatch.deal_client && (
+                                <p className="text-[11px] text-red-700 mt-1">
+                                    <span className="font-medium">Deal expects:</span> {mismatch.deal_client}
+                                    {mismatch.doc_parties.length > 0 && (
+                                        <>
+                                            {' · '}<span className="font-medium">Contract parties:</span>{' '}
+                                            {mismatch.doc_parties.join(', ')}
+                                        </>
+                                    )}
+                                </p>
+                            )}
+                            {mismatch.discrepancies.length > 0 && (
+                                <ul className="mt-2 space-y-0.5">
+                                    {mismatch.discrepancies.map((d, i) => (
+                                        <li key={i} className="text-[11px] text-red-700 flex gap-1.5 items-start">
+                                            <span className="shrink-0">✗</span>
+                                            <span>{d}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <p className="text-[10px] text-red-600 italic mt-2">
+                                Approval is blocked until the correct contract is uploaded.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Top bar: status + filename + score gauge ─────────────────── */}
             <div className={`px-4 py-3 flex items-start gap-3 ${
                 approved ? 'bg-emerald-50/50 border-b border-emerald-100'
@@ -246,7 +292,7 @@ function RichVerdict({
                                 {a.critical_failures.length} critical {a.critical_failures.length === 1 ? 'issue' : 'issues'}
                             </Badge>
                         )}
-                        {a.model && a.model !== 'claude-3-5-sonnet-latest' && (
+                        {a.model === 'keyword-fallback' && (
                             <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-200">
                                 fallback grading
                             </Badge>

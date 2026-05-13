@@ -102,3 +102,23 @@ fixups:
       - When the salesperson uploads a doc and gets rejected, expose a
         one-click "copy fixes as email to customer" action that bundles
         every suggested_fix into a plain-text message.
+
+  - id: deal-match-banner-2026-05-13
+    summary: |
+      Frontend support for the new deal_match verdict section (matches the
+      anka-api chg-005 fixup of the same id).
+
+      Changes:
+      - lib/queries/contractDocuments.ts: new DealMatch + DealMatchCheck
+        types; ContractDocumentAnalysis gains an optional deal_match field.
+      - AnalysisResultCard: when deal_match.is_match === false, render a
+        red banner ABOVE the existing top-bar showing
+          - "Wrong contract uploaded — doesn't match this deal" headline
+          - Claude's reasoning
+          - "Deal expects: X · Contract parties: Y, Z" comparison
+          - bullet list of specific discrepancies
+          - "Approval is blocked until the correct contract is uploaded."
+      - Tightened the "fallback grading" badge logic so it only shows when
+        model === 'keyword-fallback'. Previously any model other than the
+        exact constant claude-3-5-sonnet-latest triggered the badge — that
+        broke for our proxy which silently upgrades to claude-sonnet-4.6.
