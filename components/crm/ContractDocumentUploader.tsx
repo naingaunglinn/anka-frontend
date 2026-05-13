@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useContractDocuments, useContractDocumentMutations } from '@/lib/queries/contractDocuments';
 import type { ContractDocument } from '@/lib/queries/contractDocuments';
 import { normalizeError } from '@/lib/errorHandler';
+import { AnalysisResultCard } from '@/components/crm/AnalysisResultCard';
 
 // xlsx + pptx were dropped because phpoffice/phpspreadsheet has unresolved
 // security advisories on every release; clients can re-export those as PDF
@@ -182,17 +183,16 @@ export function ContractDocumentUploader({ dealId, canManage, enabled }: Props) 
                 )}
 
                 {docs.length > 0 && (
-                    <ul className="space-y-2">
+                    <ul className="space-y-3">
                         {docs.map((doc) => (
-                            <li key={doc.id} className="border border-slate-200 rounded-lg p-3 space-y-2">
-                                <div className="flex items-start justify-between gap-3">
+                            <li key={doc.id} className="space-y-2">
+                                <div className="flex items-start justify-between gap-3 px-1">
                                     <div className="flex items-start gap-2 min-w-0">
                                         {statusIcon(doc.analysis_status)}
                                         <div className="min-w-0">
-                                            <p className="text-sm font-medium truncate">{doc.original_filename}</p>
                                             <p className="text-xs text-[#8a8a8a]">
                                                 {doc.extension.toUpperCase()} · {formatBytes(doc.size_bytes)}
-                                                {doc.analyzed_at ? ` · ${new Date(doc.analyzed_at).toLocaleString()}` : ''}
+                                                {doc.analyzed_at ? ` · analysed ${new Date(doc.analyzed_at).toLocaleString()}` : ''}
                                             </p>
                                         </div>
                                     </div>
@@ -213,26 +213,7 @@ export function ContractDocumentUploader({ dealId, canManage, enabled }: Props) 
                                     </div>
                                 </div>
 
-                                {doc.analysis_result && (
-                                    <div className="text-xs text-[#4a4a4a] space-y-1 bg-slate-50 rounded p-2">
-                                        {doc.analysis_result.reasoning && (
-                                            <p>{doc.analysis_result.reasoning}</p>
-                                        )}
-                                        {doc.analysis_result.error && (
-                                            <p className="text-red-600">{doc.analysis_result.error}</p>
-                                        )}
-                                        {doc.analysis_result.suggestion && (
-                                            <p className="text-[#8a8a8a] italic">{doc.analysis_result.suggestion}</p>
-                                        )}
-                                        {Array.isArray(doc.analysis_result.missing_fields)
-                                            && doc.analysis_result.missing_fields.length > 0 && (
-                                            <p>
-                                                <span className="font-semibold">Missing:</span>{' '}
-                                                {doc.analysis_result.missing_fields.join(', ')}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
+                                <AnalysisResultCard document={doc} />
                             </li>
                         ))}
                     </ul>
