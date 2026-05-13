@@ -467,7 +467,7 @@ export default function NewDealPage() {
                                                             <FormItem>
                                                                 <FormLabel>Timeline (Months) <span className="text-destructive">*</span></FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" step="0.5" className="bg-white" {...field} />
+                                                                    <Input type="number" step="1" min="1" className="bg-white" {...field} />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
