@@ -12,7 +12,10 @@ import { useContractDocuments, useContractDocumentMutations } from '@/lib/querie
 import type { ContractDocument } from '@/lib/queries/contractDocuments';
 import { normalizeError } from '@/lib/errorHandler';
 
-const ALLOWED_EXT = ['pdf', 'docx', 'xlsx', 'pptx', 'txt'] as const;
+// xlsx + pptx were dropped because phpoffice/phpspreadsheet has unresolved
+// security advisories on every release; clients can re-export those as PDF
+// or DOCX. Mirror this list with DealContractDocumentController::ALLOWED_EXT.
+const ALLOWED_EXT = ['pdf', 'docx', 'txt'] as const;
 const MAX_BYTES = 25 * 1024 * 1024;
 
 function statusBadge(status: ContractDocument['analysis_status']) {
@@ -148,7 +151,7 @@ export function ContractDocumentUploader({ dealId, canManage, enabled }: Props) 
                             ref={fileInputRef}
                             type="file"
                             className="hidden"
-                            accept=".pdf,.docx,.xlsx,.pptx,.txt"
+                            accept=".pdf,.docx,.txt"
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) void handleFile(file);
@@ -167,7 +170,7 @@ export function ContractDocumentUploader({ dealId, canManage, enabled }: Props) 
                                     Drag a contract here or <span className="text-[#00a7f4] font-medium">click to browse</span>
                                 </span>
                                 <span className="text-xs text-[#8a8a8a]">
-                                    Accepted: PDF, DOCX, XLSX, PPTX, TXT · max 25 MB
+                                    Accepted: PDF, DOCX, TXT · max 25 MB
                                 </span>
                             </div>
                         )}

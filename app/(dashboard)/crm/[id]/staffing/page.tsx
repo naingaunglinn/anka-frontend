@@ -217,9 +217,15 @@ export default function StaffingPage() {
 
     const isAssigned = (employeeId: string) => (allocations[employeeId] ?? 0) > 0;
 
+    // Only block save when someone YOU are booking on this deal would
+    // tip over their monthly capacity. Pre-existing over-allocation on
+    // other open deals (e.g. a backend engineer already at 200h across
+    // won + negotiation deals) is not actionable from this screen and
+    // shouldn't disable the Save button on an unrelated deal.
     const hasConflicts = activeEmployees.some((e) => {
-        const otherMonthly    = getEmployeeMonthlyLoad(e.id);
         const thisDealMonthly = toMonthlyHours(allocations[e.id] || 0, deal.timelineMonths);
+        if (thisDealMonthly <= 0) return false;
+        const otherMonthly = getEmployeeMonthlyLoad(e.id);
         return otherMonthly + thisDealMonthly > (e.workableHours ?? 0);
     });
 
