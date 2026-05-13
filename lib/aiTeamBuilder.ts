@@ -169,9 +169,17 @@ Produce a meaningfully different recommendation. ${regenerateInstruction}
 `
     }
 
+    // Deal identity goes ABOVE the financials so Claude reads "what is this
+    // project" before "what's the budget" — improves contextual reasoning,
+    // especially for short workload descriptions where the deal title carries
+    // most of the signal.
+    const dealHeader = (input.dealName || input.dealClient)
+        ? `Deal: ${input.dealName ?? '(untitled)'}${input.dealClient ? `  ·  Client: ${input.dealClient}` : ''}\n`
+        : ''
+
     return `## Client Project Brief
 
-Currency: USD (all values normalized to US Dollars)
+${dealHeader}Currency: USD (all values normalized to US Dollars)
 Budget: $${input.clientBudget.toLocaleString()}
 Timeline: ${input.timelineMonths} months
 Total Workload: ${input.workloadHours} hours
