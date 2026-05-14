@@ -40,6 +40,7 @@ import { LEAD_SOURCE_OPTIONS, dealSchema, type DealFormValues } from "@/lib/sche
 import { useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
 import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
+import { CustomerRequirementsSection } from "@/components/project-pipeline/CustomerRequirementsSection";
 
 export default function NewDealPage() {
     const router = useRouter();
@@ -72,6 +73,10 @@ export default function NewDealPage() {
             otRatePerHour: null,
             otIncludedHoursPerMonth: null,
             otNotes: null,
+            customerSupportObligations: null,
+            outOfScopePolicy: null,
+            workingHours: null,
+            testingRange: null,
             // The schema still requires at least one ghost role (legacy).
             // Estimation owns ghost-role detail; this menu just seeds an
             // empty placeholder so the schema validator passes.
@@ -119,6 +124,10 @@ export default function NewDealPage() {
             otRatePerHour: data.otRatePerHour ?? null,
             otIncludedHoursPerMonth: data.otIncludedHoursPerMonth ?? null,
             otNotes: data.otNotes ?? null,
+            customerSupportObligations: data.customerSupportObligations ?? null,
+            outOfScopePolicy: data.outOfScopePolicy ?? null,
+            workingHours: data.workingHours ?? null,
+            testingRange: data.testingRange ?? null,
             winProbability: data.winProbability,
             status: "lead",
             // Cost / staffing fields are now owned by ④ Estimation and
@@ -349,6 +358,8 @@ export default function NewDealPage() {
                             />
 
                             <OtPolicySection />
+
+                            <CustomerRequirementsSection />
 
                             <div>
                                 <label className="text-sm font-medium leading-none">

@@ -42,6 +42,7 @@ import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
 import { isLockedStage } from "@/lib/dealRanks";
 import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
+import { CustomerRequirementsSection } from "@/components/project-pipeline/CustomerRequirementsSection";
 
 export default function EditDealPage() {
     const router = useRouter();
@@ -77,6 +78,10 @@ export default function EditDealPage() {
             otRatePerHour: dealToEdit?.otRatePerHour ?? null,
             otIncludedHoursPerMonth: dealToEdit?.otIncludedHoursPerMonth ?? null,
             otNotes: dealToEdit?.otNotes ?? null,
+            customerSupportObligations: dealToEdit?.customerSupportObligations ?? null,
+            outOfScopePolicy: dealToEdit?.outOfScopePolicy ?? null,
+            workingHours: dealToEdit?.workingHours ?? null,
+            testingRange: dealToEdit?.testingRange ?? null,
             // Schema still requires at least one ghost role. Estimation
             // owns ghost-role detail; this menu seeds an empty placeholder
             // so save doesn't trip the validator.
@@ -110,6 +115,10 @@ export default function EditDealPage() {
             otRatePerHour: dealToEdit.otRatePerHour ?? null,
             otIncludedHoursPerMonth: dealToEdit.otIncludedHoursPerMonth ?? null,
             otNotes: dealToEdit.otNotes ?? null,
+            customerSupportObligations: dealToEdit.customerSupportObligations ?? null,
+            outOfScopePolicy: dealToEdit.outOfScopePolicy ?? null,
+            workingHours: dealToEdit.workingHours ?? null,
+            testingRange: dealToEdit.testingRange ?? null,
             ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
                 : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
@@ -149,6 +158,10 @@ export default function EditDealPage() {
                 otRatePerHour: data.otRatePerHour ?? null,
                 otIncludedHoursPerMonth: data.otIncludedHoursPerMonth ?? null,
                 otNotes: data.otNotes ?? null,
+                customerSupportObligations: data.customerSupportObligations ?? null,
+                outOfScopePolicy: data.outOfScopePolicy ?? null,
+                workingHours: data.workingHours ?? null,
+                testingRange: data.testingRange ?? null,
                 winProbability: data.winProbability,
             },
         });
@@ -416,6 +429,8 @@ export default function EditDealPage() {
                             />
 
                             <OtPolicySection />
+
+                            <CustomerRequirementsSection />
 
                             <div className="flex justify-end gap-3 pt-4 border-t">
                                 <Button

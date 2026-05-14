@@ -2,7 +2,6 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
-import type { Deal } from '@/types/business';
 import { useDealDetail, useDealMutations } from '@/lib/queries/deals';
 import { useContractList } from '@/lib/queries/contracts';
 import { useProjectList } from '@/lib/queries/projects';
@@ -24,6 +23,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { isContractEligible } from '@/lib/dealRanks';
 import { useContractDrafts } from '@/lib/queries/contractDrafts';
 import { Sparkles } from 'lucide-react';
+import { RequirementsChecklist } from '@/components/project-pipeline/RequirementsChecklist';
 
 // Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
 // The old "Proposal" stage was merged into Qualified — see
@@ -35,51 +35,6 @@ const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     won:         { label: 'S — Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     lost:        { label: 'D — Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
 };
-
-// ── OT / Overage policy display ───────────────────────────────────────────────
-
-const OT_MODEL_LABELS: Record<string, string> = {
-    customer_pays_per_hour: 'Customer pays per hour',
-    capped_then_customer_pays: 'Capped — first N hours included, then customer pays',
-    absorbed_by_provider: 'Absorbed by us (reduces project profit)',
-    no_overtime_allowed: 'No overtime permitted',
-};
-
-function OtPolicySummary({ deal }: { deal: Deal }) {
-    if (!deal.otPolicyModel) {
-        return (
-            <p className="text-sm text-amber-700">
-                Not yet decided. Set this before contract drafting — the AI will leave a TODO marker otherwise.
-            </p>
-        );
-    }
-
-    const isAbsorbed = deal.otPolicyModel === 'absorbed_by_provider' || deal.otPolicyModel === 'capped_then_customer_pays';
-
-    return (
-        <div className="space-y-1.5">
-            <p className="text-sm font-medium text-slate-900">
-                {OT_MODEL_LABELS[deal.otPolicyModel] ?? deal.otPolicyModel}
-            </p>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600">
-                {deal.otRatePerHour != null && (
-                    <span>Rate: <span className="font-semibold text-slate-800">{deal.otRatePerHour.toLocaleString()} / hour</span></span>
-                )}
-                {deal.otIncludedHoursPerMonth != null && (
-                    <span>Included: <span className="font-semibold text-slate-800">{deal.otIncludedHoursPerMonth} hrs/month</span></span>
-                )}
-            </div>
-            {deal.otNotes && (
-                <p className="text-xs text-slate-500 italic mt-1">{deal.otNotes}</p>
-            )}
-            {isAbsorbed && (
-                <p className="text-[11px] text-amber-700 mt-1">
-                    ⓘ ⑦ Profit Calculate will subtract actual overtime from this deal&apos;s profit.
-                </p>
-            )}
-        </div>
-    );
-}
 
 // ── Workflow status bar ───────────────────────────────────────────────────────
 
@@ -434,18 +389,16 @@ export default function DealDetailPage() {
                                     </p>
                                 </div>
                             </div>
-                            {dealToEdit.workloadDescription && (
-                                <div className="mt-5 pt-5 border-t border-slate-100">
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Requirement Description</p>
-                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{dealToEdit.workloadDescription}</p>
-                                </div>
-                            )}
-                            <div className="mt-5 pt-5 border-t border-slate-100">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">OT / Overage Policy</p>
-                                <OtPolicySummary deal={dealToEdit} />
-                            </div>
                         </CardContent>
                     </Card>
+
+                    {/* chg-011: Customer Requirements checklist — see what's
+                        captured / missing at a glance. ④ Estimation reads
+                        these when pricing; ⑤ contract drafting renders them
+                        as clauses. Includes a "✓ N / M captured" summary so
+                        the salesperson knows when the deal is ready for the
+                        contract drafting wizard. */}
+                    <RequirementsChecklist deal={dealToEdit} dealId={dealId} canEdit={canManageCrm} />
 
                     {/* Ghost Roles */}
                     <Card className="shadow-sm border-slate-100">

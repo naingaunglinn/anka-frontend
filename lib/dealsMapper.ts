@@ -87,6 +87,10 @@ interface ApiDeal {
     ot_rate_per_hour?: ApiDecimal;
     ot_included_hours_per_month?: number | null;
     ot_notes?: string | null;
+    customer_support_obligations?: string | null;
+    out_of_scope_policy?: string | null;
+    working_hours?: string | null;
+    testing_range?: string | null;
     wizard_step?: string;
     target_margin?: number;
     base_labor_cost?: number;
@@ -231,6 +235,10 @@ export function toDeal(row: ApiDeal): Deal {
         otRatePerHour: row.ot_rate_per_hour == null ? null : Number(row.ot_rate_per_hour),
         otIncludedHoursPerMonth: row.ot_included_hours_per_month ?? null,
         otNotes: row.ot_notes ?? null,
+        customerSupportObligations: row.customer_support_obligations ?? null,
+        outOfScopePolicy: row.out_of_scope_policy ?? null,
+        workingHours: row.working_hours ?? null,
+        testingRange: row.testing_range ?? null,
         wizardStep: row.wizard_step as Deal['wizardStep'],
         targetMargin: row.target_margin,
         baseLaborCost: row.base_labor_cost,
@@ -394,6 +402,10 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.otRatePerHour !== undefined) payload.ot_rate_per_hour = deal.otRatePerHour;
     if (deal.otIncludedHoursPerMonth !== undefined) payload.ot_included_hours_per_month = deal.otIncludedHoursPerMonth;
     if (deal.otNotes !== undefined) payload.ot_notes = deal.otNotes;
+    if (deal.customerSupportObligations !== undefined) payload.customer_support_obligations = deal.customerSupportObligations;
+    if (deal.outOfScopePolicy !== undefined) payload.out_of_scope_policy = deal.outOfScopePolicy;
+    if (deal.workingHours !== undefined) payload.working_hours = deal.workingHours;
+    if (deal.testingRange !== undefined) payload.testing_range = deal.testingRange;
     if (deal.wizardStep !== undefined) payload.wizard_step = deal.wizardStep;
     if (deal.targetMargin !== undefined) payload.target_margin = deal.targetMargin;
     if (deal.baseLaborCost !== undefined) payload.base_labor_cost = deal.baseLaborCost;

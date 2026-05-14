@@ -231,6 +231,15 @@ export interface Deal {
     otRatePerHour?: number | null;
     otIncludedHoursPerMonth?: number | null;
     otNotes?: string | null;
+
+    // ── Customer requirements (collected progressively in C and B) ───
+    // All optional. The deal detail page surfaces what's captured vs
+    // missing as a checklist; ④ Estimation reads them when pricing;
+    // ⑤ contract drafting renders them as clauses.
+    customerSupportObligations?: string | null;
+    outOfScopePolicy?: string | null;
+    workingHours?: string | null;
+    testingRange?: string | null;
     ghostRoles?: GhostRole[];
     hardAssignments?: HardAssignment[];
     baseLaborCost?: number;

@@ -96,6 +96,13 @@ export const dealSchema = z.object({
     otRatePerHour: z.coerce.number().min(0, 'Rate must be ≥ 0').nullable().optional(),
     otIncludedHoursPerMonth: z.coerce.number().int().min(0).max(744).nullable().optional(),
     otNotes: z.string().max(2000).nullable().optional(),
+    // Customer requirements collected progressively during nego.
+    // All optional — salespeople fill them in as customer conversations
+    // surface the details. Surfaced as a checklist on the deal detail page.
+    customerSupportObligations: z.string().max(2000).nullable().optional(),
+    outOfScopePolicy: z.string().max(2000).nullable().optional(),
+    workingHours: z.string().max(500).nullable().optional(),
+    testingRange: z.string().max(1000).nullable().optional(),
     ghostRoles: z.array(ghostRoleSchema).min(1, 'At least one role is required'),
 }).refine(
     // capped model requires both rate AND included hours to be useful.
