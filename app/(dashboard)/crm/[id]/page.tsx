@@ -20,6 +20,9 @@ import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { ContractDocumentUploader } from '@/components/crm/ContractDocumentUploader';
 import { usePermission } from '@/hooks/usePermission';
+import { isContractEligible } from '@/lib/dealRanks';
+import { useContractDrafts } from '@/lib/queries/contractDrafts';
+import { Sparkles } from 'lucide-react';
 
 // Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
 // The old "Proposal" stage was merged into Qualified — see
@@ -83,6 +86,14 @@ export default function DealDetailPage() {
 
     const [deleteOpen, setDeleteOpen] = useState(false);
     const { allowed: canManageCrm } = usePermission('manage_crm');
+
+    // chg-011 Phase C: AI contract drafting button + "open existing draft" link.
+    const draftsQuery = useContractDrafts(dealId);
+    const activeDraft = useMemo(() => {
+        const drafts = draftsQuery.data ?? [];
+        return drafts.find(d => d.status !== 'superseded') ?? null;
+    }, [draftsQuery.data]);
+    const canGenerateDraft = !!dealToEdit && isContractEligible(dealToEdit);
 
     // ── Use proper foreign-key matching ───────────────────────────────────────
     const linkedContract = useMemo(
@@ -196,6 +207,35 @@ export default function DealDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {/* chg-011 Phase C: Generate Contract Draft (B → A trigger)
+                        when Estimation has handed off all required final_*
+                        fields. If a draft already exists, surface "Open draft"
+                        instead so users don't generate duplicates. */}
+                    {activeDraft ? (
+                        <Button
+                            variant="outline"
+                            className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                            onClick={() => router.push(`/crm/${dealId}/contract-draft/${activeDraft.id}`)}
+                        >
+                            <FileText className="h-4 w-4" /> Open contract draft
+                            {activeDraft.todo_count > 0 && (
+                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">
+                                    {activeDraft.todo_count} TODO
+                                </Badge>
+                            )}
+                        </Button>
+                    ) : (
+                        canGenerateDraft && (
+                            <PermissionGuard permission="manage_crm">
+                                <Button
+                                    className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    onClick={() => router.push(`/crm/${dealId}/contract-draft/new`)}
+                                >
+                                    <Sparkles className="h-4 w-4" /> Generate Contract Draft
+                                </Button>
+                            </PermissionGuard>
+                        )
+                    )}
                     {/* Manual "Win Deal" was replaced by the contract-document upload
                         flow — the deal auto-transitions to Won (S) once Claude
                         approves the uploaded contract. The button below only shows
