@@ -4,8 +4,64 @@ import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toProject } from '@/lib/dealsMapper';
 import { normalizeError } from '@/lib/errorHandler';
-import type { Project, ProjectTeamAssignment } from '@/types/business';
+import type {
+    Project,
+    ProjectTeamAssignment,
+    ProjectTaskAssignment,
+    ProjectTaskPhaseAssignment,
+    ProjectTaskAssignmentsPayload,
+    ActivePhase,
+    PhaseCode,
+} from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
+
+function toPhaseAssignment(row: Record<string, unknown>): ProjectTaskPhaseAssignment {
+    return {
+        id:                 row.id as string,
+        taskAssignmentId:   row.task_assignment_id as string,
+        phaseCode:          row.phase_code as PhaseCode,
+        phaseName:          (row.phase_name as string) ?? '',
+        phaseOrder:         Number(row.phase_order ?? 0),
+        estimatedHours:     Number(row.estimated_hours ?? 0),
+        assigneeId:         (row.assignee_id as string | null) ?? null,
+        assigneeName:       (row.assignee_name as string | null) ?? null,
+        assigneeRankId:     (row.assignee_rank_id as string | null) ?? null,
+        assigneeRankCode:   (row.assignee_rank_code as ProjectTaskPhaseAssignment['assigneeRankCode']) ?? null,
+        assigneeRankName:   (row.assignee_rank_name as string | null) ?? null,
+        assignmentSource:   (row.assignment_source as ProjectTaskPhaseAssignment['assignmentSource']) ?? 'ai',
+        plannedStart:       (row.planned_start as string | null) ?? null,
+        plannedEnd:         (row.planned_end as string | null) ?? null,
+        actualStart:        (row.actual_start as string | null) ?? null,
+        actualEnd:          (row.actual_end as string | null) ?? null,
+        status:             (row.status as ProjectTaskPhaseAssignment['status']) ?? '未着手',
+    };
+}
+
+function toTaskAssignment(row: Record<string, unknown>): ProjectTaskAssignment {
+    const phases = Array.isArray(row.phases)
+        ? (row.phases as Record<string, unknown>[]).map(toPhaseAssignment)
+        : [];
+    return {
+        id:           row.id as string,
+        projectId:    row.project_id as string,
+        rowNo:        Number(row.row_no ?? 0),
+        functionId:   (row.function_id as string | null) ?? null,
+        functionName: (row.function_name as string) ?? '',
+        category:     (row.category as string | null) ?? null,
+        offshore:     (row.offshore as string | null) ?? null,
+        difficulty:   (row.difficulty as ProjectTaskAssignment['difficulty']) ?? '普通',
+        totalHours:   Number(row.total_hours ?? 0),
+        phases,
+    };
+}
+
+function toActivePhase(row: Record<string, unknown>): ActivePhase {
+    return {
+        code:  row.code as PhaseCode,
+        name:  (row.name as string) ?? '',
+        order: Number(row.order ?? 0),
+    };
+}
 
 function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
     return {
@@ -29,6 +85,7 @@ export const projectKeys = {
     details: () => [...projectKeys.all, 'detail'] as const,
     detail: (id: string) => [...projectKeys.details(), id] as const,
     team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
+    tasks: (id: string) => [...projectKeys.detail(id), 'tasks'] as const,
 };
 
 export interface ProjectListParams {
@@ -147,6 +204,89 @@ export function useProjectTeamMutations(projectId: string) {
     });
 
     return { assignMember, removeMember, autoAssignTeam };
+}
+
+// ── Task Assignments (xlsx-driven AI allocation) ─────────────────────────────
+
+/**
+ * Fetches persisted per-phase task assignments for a project from
+ * `GET /projects/:id/task-assignments`. Used by the Master Assign Table.
+ *
+ * Returns both `data` (task rows with nested `phases[]`) and `meta.activePhases`
+ * (the dynamic column set for the table header).
+ */
+export function useProjectTaskAssignments(projectId: string) {
+    return useQuery<ProjectTaskAssignmentsPayload>({
+        queryKey: projectKeys.tasks(projectId),
+        queryFn: async () => {
+            const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
+            const rows = (body.data ?? []) as Record<string, unknown>[];
+            const phases = ((body.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
+            return {
+                data: rows.map(toTaskAssignment),
+                meta: { activePhases: phases },
+            };
+        },
+        enabled: !!projectId,
+        staleTime: 10_000,
+    });
+}
+
+/**
+ * Mutations for the Master Assign Table.
+ *
+ * `assignTasks` triggers the backend to read Estimate.xlsx and ask Claude to
+ * map each (task × phase) to a current team member (destructive: wipes existing
+ * rows for the project).
+ *
+ * `updatePhaseAssignment` powers inline edits to assignee / dates / status on a
+ * specific phase cell.
+ */
+export function useProjectTaskMutations(projectId: string) {
+    const queryClient = useQueryClient();
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: projectKeys.tasks(projectId) });
+    };
+
+    const assignTasks = useMutation({
+        mutationFn: async (): Promise<ProjectTaskAssignmentsPayload> => {
+            const { data } = await api.post(`/projects/${projectId}/assign-tasks`);
+            const rows = (data.data ?? []) as Record<string, unknown>[];
+            const phases = ((data.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
+            return {
+                data: rows.map(toTaskAssignment),
+                meta: { activePhases: phases },
+            };
+        },
+        onSuccess: ({ data, meta }) =>
+            toast.success(
+                `AI assigned ${data.length} ${data.length === 1 ? 'task' : 'tasks'} across ${meta.activePhases.length} ${meta.activePhases.length === 1 ? 'phase' : 'phases'}.`
+            ),
+        onError: (err) => toast.error(`Task assignment failed: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    const updatePhaseAssignment = useMutation({
+        mutationFn: async ({ phaseAssignmentId, updates }: { phaseAssignmentId: string; updates: Partial<ProjectTaskPhaseAssignment> }) => {
+            const payload: Record<string, unknown> = {};
+            if ('assigneeId' in updates) payload.assignee_id = updates.assigneeId;
+            if ('plannedStart' in updates) payload.planned_start = updates.plannedStart;
+            if ('plannedEnd' in updates) payload.planned_end = updates.plannedEnd;
+            if ('actualStart' in updates) payload.actual_start = updates.actualStart;
+            if ('actualEnd' in updates) payload.actual_end = updates.actualEnd;
+            if ('status' in updates) payload.status = updates.status;
+            const { data } = await api.patch(
+                `/projects/${projectId}/task-phase-assignments/${phaseAssignmentId}`,
+                payload,
+            );
+            return toPhaseAssignment(data.data ?? data);
+        },
+        onError: (err) => toast.error(`Update failed: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    return { assignTasks, updatePhaseAssignment };
 }
 
 // ── Mutation hooks ───────────────────────────────────────────────────────────
