@@ -265,11 +265,10 @@ export default function DealDetailPage() {
                             <Edit3 className="h-4 w-4" /> Edit Deal
                         </Button>
                     </PermissionGuard>
-                    <PermissionGuard permission="manage_crm">
-                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/project-pipeline/${dealId}/staffing`)}>
-                            <Users className="h-4 w-4" /> Hard Booking
-                        </Button>
-                    </PermissionGuard>
+                    {/* "Hard Booking" button removed — staffing belongs to
+                        ⑥ Task Assign per the manager's spec. The page still
+                        works at /project-pipeline/[id]/staffing for direct
+                        URL access until Phase A relocates it. */}
                     <PermissionGuard permission="manage_crm">
                         <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                             Delete

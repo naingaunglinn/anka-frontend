@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Users, Trophy, Ban } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Trophy, Ban } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -198,7 +198,7 @@ export function KanbanBoard({
                                                 <div className="flex justify-between items-start">
                                                     <div
                                                         className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer"
-                                                        onClick={() => router.push(`/crm/${deal.id}`)}
+                                                        onClick={() => router.push(`/project-pipeline/${deal.id}`)}
                                                     >
                                                         {deal.name}
                                                     </div>
@@ -211,21 +211,17 @@ export function KanbanBoard({
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-[180px]">
                                                             <DropdownMenuItem
-                                                                onClick={() => router.push(`/crm/edit/${deal.id}`)}
+                                                                onClick={() => router.push(`/project-pipeline/edit/${deal.id}`)}
                                                                 disabled={!canManageCrm}
                                                                 title={!canManageCrm ? rbacReason : undefined}
                                                             >
                                                                 <Edit2 className="mr-2 h-4 w-4" />
                                                                 Edit Details
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                onClick={() => router.push(`/crm/${deal.id}/staffing`)}
-                                                                disabled={!canManageCrm}
-                                                                title={!canManageCrm ? rbacReason : undefined}
-                                                            >
-                                                                <Users className="mr-2 h-4 w-4" />
-                                                                Staffing
-                                                            </DropdownMenuItem>
+                                                            {/* "Staffing" dropdown item removed — staffing belongs
+                                                                to ⑥ Task Assign per the manager's spec. The page
+                                                                still works at /project-pipeline/[id]/staffing for
+                                                                direct URL access until Phase A relocates it. */}
                                                             {canDropThisDeal && (
                                                                 <>
                                                                     {/* Legacy contract-document upload path. Still
