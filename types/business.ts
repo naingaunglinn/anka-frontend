@@ -172,6 +172,24 @@ export type SuggestedTemplateVariant =
     | 'managed_hosting'
     | 'engineer_dispatch';
 
+/**
+ * How overtime / overage hours are billed under the customer's contract.
+ * Captured at nego time so:
+ *   - ④ Estimation can price the deal accurately
+ *   - ⑦ Profit Calculate can subtract absorbed OT cost from project profit
+ *   - ⑤ Contract drafting can render a precise OT clause
+ *
+ *   customer_pays_per_hour      Customer billed per OT hour at ot_rate_per_hour.
+ *   capped_then_customer_pays   First N hours/month absorbed; beyond that, customer pays.
+ *   absorbed_by_provider        Provider eats all OT. Profit gets reduced.
+ *   no_overtime_allowed         Contract forbids OT entirely.
+ */
+export type OtPolicyModel =
+    | 'customer_pays_per_hour'
+    | 'capped_then_customer_pays'
+    | 'absorbed_by_provider'
+    | 'no_overtime_allowed';
+
 export interface Deal {
     id: string;
     name: string;
@@ -205,6 +223,14 @@ export interface Deal {
     timelineMonths?: number;
     workloadHours?: number;
     workloadDescription?: string;
+
+    // ── OT / overage expectation captured at nego (③) ────────────────
+    // Drives ⑦ Profit Calculate (absorbed OT reduces profit) and the
+    // ⑤ contract drafting prompt. Editable in C and B; locked in A/S.
+    otPolicyModel?: OtPolicyModel | null;
+    otRatePerHour?: number | null;
+    otIncludedHoursPerMonth?: number | null;
+    otNotes?: string | null;
     ghostRoles?: GhostRole[];
     hardAssignments?: HardAssignment[];
     baseLaborCost?: number;

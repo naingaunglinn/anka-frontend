@@ -41,6 +41,7 @@ import { LEAD_SOURCE_OPTIONS, dealSchema, type DealFormValues } from "@/lib/sche
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
 import { isLockedStage } from "@/lib/dealRanks";
+import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
 
 export default function EditDealPage() {
     const router = useRouter();
@@ -72,6 +73,10 @@ export default function EditDealPage() {
             workloadHours: dealToEdit?.workloadHours || 0,
             winProbability: dealToEdit?.winProbability ?? 30,
             workloadDescription: dealToEdit?.workloadDescription || "",
+            otPolicyModel: dealToEdit?.otPolicyModel ?? null,
+            otRatePerHour: dealToEdit?.otRatePerHour ?? null,
+            otIncludedHoursPerMonth: dealToEdit?.otIncludedHoursPerMonth ?? null,
+            otNotes: dealToEdit?.otNotes ?? null,
             // Schema still requires at least one ghost role. Estimation
             // owns ghost-role detail; this menu seeds an empty placeholder
             // so save doesn't trip the validator.
@@ -101,6 +106,10 @@ export default function EditDealPage() {
             workloadHours: dealToEdit.workloadHours || 0,
             winProbability: dealToEdit.winProbability ?? 30,
             workloadDescription: dealToEdit.workloadDescription || "",
+            otPolicyModel: dealToEdit.otPolicyModel ?? null,
+            otRatePerHour: dealToEdit.otRatePerHour ?? null,
+            otIncludedHoursPerMonth: dealToEdit.otIncludedHoursPerMonth ?? null,
+            otNotes: dealToEdit.otNotes ?? null,
             ghostRoles: dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0
                 ? dealToEdit.ghostRoles
                 : [{ roleType: 'frontend', quantity: 1, months: 100, minMonthlySalary: 0, maxMonthlySalary: 0 }],
@@ -136,6 +145,10 @@ export default function EditDealPage() {
                 clientBudget: data.clientBudget,
                 timelineMonths: data.timelineMonths,
                 workloadDescription: data.workloadDescription,
+                otPolicyModel: data.otPolicyModel ?? null,
+                otRatePerHour: data.otRatePerHour ?? null,
+                otIncludedHoursPerMonth: data.otIncludedHoursPerMonth ?? null,
+                otNotes: data.otNotes ?? null,
                 winProbability: data.winProbability,
             },
         });
@@ -401,6 +414,8 @@ export default function EditDealPage() {
                                     </FormItem>
                                 )}
                             />
+
+                            <OtPolicySection />
 
                             <div className="flex justify-end gap-3 pt-4 border-t">
                                 <Button

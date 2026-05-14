@@ -36,10 +36,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, AlertCircle, ArrowLeft } from "lucide-react";
-import { LEAD_SOURCE_OPTIONS } from "@/lib/schemas/deal.schema";
-import { dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
+import { LEAD_SOURCE_OPTIONS, dealSchema, type DealFormValues } from "@/lib/schemas/deal.schema";
 import { useDealMutations } from "@/lib/queries/deals";
 import { usePermission } from "@/hooks/usePermission";
+import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
 
 export default function NewDealPage() {
     const router = useRouter();
@@ -68,6 +68,10 @@ export default function NewDealPage() {
             workloadHours: 0,
             winProbability: 30,
             workloadDescription: "",
+            otPolicyModel: null,
+            otRatePerHour: null,
+            otIncludedHoursPerMonth: null,
+            otNotes: null,
             // The schema still requires at least one ghost role (legacy).
             // Estimation owns ghost-role detail; this menu just seeds an
             // empty placeholder so the schema validator passes.
@@ -111,6 +115,10 @@ export default function NewDealPage() {
             clientBudget: data.clientBudget,
             timelineMonths: data.timelineMonths,
             workloadDescription: data.workloadDescription,
+            otPolicyModel: data.otPolicyModel ?? null,
+            otRatePerHour: data.otRatePerHour ?? null,
+            otIncludedHoursPerMonth: data.otIncludedHoursPerMonth ?? null,
+            otNotes: data.otNotes ?? null,
             winProbability: data.winProbability,
             status: "lead",
             // Cost / staffing fields are now owned by ④ Estimation and
@@ -339,6 +347,8 @@ export default function NewDealPage() {
                                     </FormItem>
                                 )}
                             />
+
+                            <OtPolicySection />
 
                             <div>
                                 <label className="text-sm font-medium leading-none">

@@ -6,6 +6,7 @@ import type {
     GhostRole,
     HardAssignment,
     EstimationResource,
+    OtPolicyModel,
     ProjectOverhead,
     Contract,
     Project,
@@ -82,6 +83,10 @@ interface ApiDeal {
     timeline_months?: number;
     workload_hours?: number;
     workload_description?: string;
+    ot_policy_model?: OtPolicyModel | null;
+    ot_rate_per_hour?: ApiDecimal;
+    ot_included_hours_per_month?: number | null;
+    ot_notes?: string | null;
     wizard_step?: string;
     target_margin?: number;
     base_labor_cost?: number;
@@ -222,6 +227,10 @@ export function toDeal(row: ApiDeal): Deal {
         timelineMonths: row.timeline_months,
         workloadHours: row.workload_hours,
         workloadDescription: row.workload_description,
+        otPolicyModel: row.ot_policy_model ?? null,
+        otRatePerHour: row.ot_rate_per_hour == null ? null : Number(row.ot_rate_per_hour),
+        otIncludedHoursPerMonth: row.ot_included_hours_per_month ?? null,
+        otNotes: row.ot_notes ?? null,
         wizardStep: row.wizard_step as Deal['wizardStep'],
         targetMargin: row.target_margin,
         baseLaborCost: row.base_labor_cost,
@@ -381,6 +390,10 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.timelineMonths !== undefined) payload.timeline_months = deal.timelineMonths;
     if (deal.workloadHours !== undefined) payload.workload_hours = deal.workloadHours;
     if (deal.workloadDescription !== undefined) payload.workload_description = deal.workloadDescription;
+    if (deal.otPolicyModel !== undefined) payload.ot_policy_model = deal.otPolicyModel;
+    if (deal.otRatePerHour !== undefined) payload.ot_rate_per_hour = deal.otRatePerHour;
+    if (deal.otIncludedHoursPerMonth !== undefined) payload.ot_included_hours_per_month = deal.otIncludedHoursPerMonth;
+    if (deal.otNotes !== undefined) payload.ot_notes = deal.otNotes;
     if (deal.wizardStep !== undefined) payload.wizard_step = deal.wizardStep;
     if (deal.targetMargin !== undefined) payload.target_margin = deal.targetMargin;
     if (deal.baseLaborCost !== undefined) payload.base_labor_cost = deal.baseLaborCost;
