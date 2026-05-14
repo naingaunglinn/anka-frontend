@@ -35,6 +35,47 @@ const SEVERITY_LABEL: Record<FieldSeverity, string> = {
     recommended: 'Recommended',
 };
 
+/**
+ * Internal verdict keys that aren't field grades (so they don't appear in
+ * field_grades' label map) but DO leak into Claude's diff strings as
+ * snake_case. Mapped here so the scrubber can humanize them.
+ */
+const NON_GRADE_KEY_LABELS: Record<string, string> = {
+    deal_match: 'Deal match',
+    critical_failures: 'Critical failures',
+    dispute_risks: 'Dispute risks',
+    overall_score: 'Overall score',
+    detected_payment_pattern: 'Payment pattern',
+    field_grades: 'Field grades',
+    diff_vs_previous: 'Changes since last upload',
+};
+
+/**
+ * Replace internal snake_case field keys with human-readable labels in any
+ * string Claude returns (improvements, regressions, summary, reasoning).
+ * Defensive — even with the prompt instructing Claude to use labels, an
+ * occasional `customer_signature` slips through. Builds the label map from
+ * the verdict's own field_grades so it stays in sync with FIELD_DEFINITIONS
+ * on the backend.
+ */
+function buildKeyToLabelMap(grades: FieldGrade[]): Record<string, string> {
+    const map: Record<string, string> = { ...NON_GRADE_KEY_LABELS };
+    for (const g of grades) {
+        if (g.field && g.label) map[g.field] = g.label;
+    }
+    return map;
+}
+
+function humanizeKeys(text: string, keyToLabel: Record<string, string>): string {
+    if (!text) return text;
+    // Match snake_case_words ≥ 4 chars containing an underscore. Case-
+    // insensitive replace; if the key isn't in the map, leave it alone.
+    return text.replace(/\b[a-z][a-z0-9_]{3,}\b/gi, (match) => {
+        const lower = match.toLowerCase();
+        return keyToLabel[lower] ?? match;
+    });
+}
+
 function statusIcon(status: FieldStatus) {
     const cls = 'h-4 w-4 shrink-0';
     if (status === 'present') return <CheckCircle2 className={`${cls} text-emerald-600`} />;
@@ -186,6 +227,10 @@ function RichVerdict({
     onToggleAll: () => void;
 }) {
     const grades = a.field_grades ?? [];
+    // Built once per verdict — shared by every place we humanize Claude's
+    // free-text output (currently the diff bullets; suggested_fix /
+    // reasoning could use it too if needed).
+    const keyToLabel = useMemo(() => buildKeyToLabelMap(grades), [grades]);
 
     // Group field grades by severity, missing/partial first within each tier.
     const groups = useMemo(() => {
@@ -346,12 +391,12 @@ function RichVerdict({
                         <ul className="mt-1.5 space-y-0.5">
                             {diff.improvements.map((s, i) => (
                                 <li key={`i-${i}`} className="text-[11px] text-emerald-700 flex gap-1.5">
-                                    <span>✓</span><span>{s}</span>
+                                    <span>✓</span><span>{humanizeKeys(s, keyToLabel)}</span>
                                 </li>
                             ))}
                             {diff.regressions.map((s, i) => (
                                 <li key={`r-${i}`} className="text-[11px] text-red-700 flex gap-1.5">
-                                    <span>✗</span><span>{s}</span>
+                                    <span>✗</span><span>{humanizeKeys(s, keyToLabel)}</span>
                                 </li>
                             ))}
                         </ul>
