@@ -27,13 +27,24 @@ component_groups:
 
       - name: ContractDocumentUploader
         file: components/crm/ContractDocumentUploader.tsx
-        purpose: Upload + Claude-analyse the customer-signed contract that gates A → S
+        purpose: Upload + AI-analyse the customer-signed contract that gates A → S
         features:
           - "Visible on the deal detail page only while stage = 'negotiation'"
           - "Drag/drop or click-to-browse; accepts pdf, docx, txt up to 25 MB"
-          - "Renders AnalysisResultCard for the rich verdict (see below)"
+          - "Renders a compact ContractDocumentSummaryRow per uploaded doc with status badge, score, executive summary, and an 'Open full review →' link to /crm/contract-reviews/[id] for the deep verdict (chg-010)"
+          - "Wrong-customer banner: when deal_match.is_match=false, the row shows a red 'wrong contract' chip — full reasoning lives on the deep page"
           - "On approved, backend auto-fires win_deal(); component routes to /contracts/{id}"
           - "Uses lib/queries/contractDocuments.ts (TanStack Query hooks)"
+
+      - name: ContractReviewsTable
+        file: components/tables/ContractReviewsTable.tsx
+        purpose: Tenant-wide queue of contract documents (chg-010)
+        features:
+          - "@tanstack/react-table with sortable Status / Score / Uploaded columns"
+          - "Default sort: created_at DESC (most-recent uploads first for triage)"
+          - "Score column: emerald 80+, amber 60-79, red <60; '—' for pending/analyzing/failed"
+          - "Deal column: name + client, links to /crm/[id]"
+          - "Each row: 'Review →' link to /crm/contract-reviews/[id]"
 
       - name: AnalysisResultCard
         file: components/crm/AnalysisResultCard.tsx

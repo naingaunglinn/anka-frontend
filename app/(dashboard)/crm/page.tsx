@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Search, Target, TrendingUp, Plus, X } from 'lucide-react';
+import { DollarSign, Search, Target, TrendingUp, Plus, X, FileSearch } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
@@ -100,13 +100,25 @@ export default function CRMPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-[#171717]">CRM & Sales Pipeline</h2>
                     <p className="text-[#4a4a4a] mt-1">Manage leads, track opportunities, and forecast revenue.</p>
                 </div>
-                <PermissionGuard permission="manage_crm">
-                    <Link href="/crm/new">
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> New Deal
+                <div className="flex items-center gap-2">
+                    {/* Contract Reviews lives under /crm because it's a CRM
+                        workflow, not a top-level destination. The button
+                        here surfaces it from the Kanban view so salespeople
+                        can switch from "what's in flight" to "what needs
+                        triage" without leaving the CRM context. */}
+                    <Link href="/crm/contract-reviews">
+                        <Button variant="outline" className="gap-2">
+                            <FileSearch className="h-4 w-4" /> Contract Reviews
                         </Button>
                     </Link>
-                </PermissionGuard>
+                    <PermissionGuard permission="manage_crm">
+                        <Link href="/crm/new">
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> New Deal
+                            </Button>
+                        </Link>
+                    </PermissionGuard>
+                </div>
             </div>
 
             <OrgSyncErrorBanner
