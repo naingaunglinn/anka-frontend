@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Search, Target, TrendingUp, Plus, X, FileSearch } from 'lucide-react';
+import { DollarSign, Search, Target, TrendingUp, Plus, X, FileSearch, EyeOff, Eye } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
@@ -39,6 +39,9 @@ export default function CRMPage() {
     const [searchInput, setSearchInput] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES);
+    // chg-009: Dropped is now a status flag, not a rank column. Toggle
+    // overlays greyed dropped cards in their last-known stage column.
+    const [showDropped, setShowDropped] = useState(false);
 
     // Page size disclosure. Default 100 matches the backend's default, max
     // is 500 (also enforced server-side in DealController::index). Tenants
@@ -63,6 +66,10 @@ export default function CRMPage() {
     const deals = useMemo(() => dealsQuery.data?.data ?? [], [dealsQuery.data]);
     const totalDeals      = dealsQuery.data?.meta?.total ?? deals.length;
     const hasMore         = totalDeals > deals.length;
+    const droppedCount = useMemo(
+        () => deals.filter(d => d.lifecycleStatus === 'dropped' || d.status === 'lost').length,
+        [deals],
+    );
 
     const hasActiveFilters = statusFilter !== ALL_STATUSES || debouncedSearch.trim().length > 0;
     const clearFilters = () => {
@@ -217,9 +224,19 @@ export default function CRMPage() {
                         <SelectItem value="qualified">B — Qualified</SelectItem>
                         <SelectItem value="negotiation">A — Negotiation</SelectItem>
                         <SelectItem value="won">S — Won</SelectItem>
-                        <SelectItem value="lost">D — Lost</SelectItem>
                     </SelectContent>
                 </Select>
+                <Button
+                    type="button"
+                    variant={showDropped ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setShowDropped(v => !v)}
+                    className="gap-1.5"
+                    title={showDropped ? 'Hide dropped deals' : 'Overlay dropped deals on the board'}
+                >
+                    {showDropped ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {showDropped ? 'Hide dropped' : `Show dropped${droppedCount ? ` (${droppedCount})` : ''}`}
+                </Button>
                 {hasActiveFilters && (
                     <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
                         <X className="h-3.5 w-3.5" />
@@ -287,7 +304,7 @@ export default function CRMPage() {
                         )}
                     </div>
                 ) : (
-                    <KanbanBoard deals={deals} onMetricsUpdate={handleMetricsUpdate} />
+                    <KanbanBoard deals={deals} onMetricsUpdate={handleMetricsUpdate} showDropped={showDropped} />
                 )}
             </div>
         </div>

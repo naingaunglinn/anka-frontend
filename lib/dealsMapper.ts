@@ -1,6 +1,8 @@
 import type {
     Deal,
+    DealDroppedAtStage,
     DealLeadSource,
+    DealLifecycleStatus,
     GhostRole,
     HardAssignment,
     EstimationResource,
@@ -10,9 +12,16 @@ import type {
     Invoice,
     TimeEntry,
     RoleType,
+    SuggestedTemplateVariant,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
+
+/**
+ * Laravel returns decimals as strings to preserve precision; some endpoints
+ * return them as numbers. Resource transformers use Number() to coerce.
+ */
+type ApiDecimal = number | string | null;
 
 interface ApiGhostRole {
     id: string;
@@ -64,6 +73,9 @@ interface ApiDeal {
     estimated_value?: number;
     win_probability?: number;
     status?: Deal['status'];
+    lifecycle_status?: DealLifecycleStatus;
+    dropped_at_stage?: DealDroppedAtStage | null;
+    dropped_at?: string | null;
     expected_close_date?: string;
     lead_source?: string;
     client_budget?: number;
@@ -77,6 +89,15 @@ interface ApiDeal {
     buffer_cost?: number;
     total_estimated_cost?: number;
     estimated_gross_profit?: number;
+    final_monthly_fee?: ApiDecimal;
+    final_installation_fee?: ApiDecimal;
+    final_contract_months?: number | null;
+    final_ot_policy?: string | null;
+    final_support_hours_per_month?: number | null;
+    final_team_summary?: string | null;
+    final_currency?: string | null;
+    final_confirmed_at?: string | null;
+    suggested_template_variant?: SuggestedTemplateVariant | null;
     win_reason?: string;
     loss_reason?: string;
     ghost_roles?: ApiGhostRole[];
@@ -192,6 +213,9 @@ export function toDeal(row: ApiDeal): Deal {
         estimatedValue: row.estimated_value,
         winProbability: row.win_probability,
         status: row.status,
+        lifecycleStatus: row.lifecycle_status ?? 'active',
+        droppedAtStage: row.dropped_at_stage ?? null,
+        droppedAt: row.dropped_at ?? undefined,
         expectedCloseDate: row.expected_close_date,
         leadSource: row.lead_source ? (row.lead_source as DealLeadSource) : undefined,
         clientBudget: row.client_budget,
@@ -205,6 +229,15 @@ export function toDeal(row: ApiDeal): Deal {
         bufferCost: row.buffer_cost,
         totalEstimatedCost: row.total_estimated_cost,
         estimatedGrossProfit: row.estimated_gross_profit,
+        finalMonthlyFee: row.final_monthly_fee == null ? undefined : Number(row.final_monthly_fee),
+        finalInstallationFee: row.final_installation_fee == null ? null : Number(row.final_installation_fee),
+        finalContractMonths: row.final_contract_months ?? undefined,
+        finalOtPolicy: row.final_ot_policy ?? null,
+        finalSupportHoursPerMonth: row.final_support_hours_per_month ?? null,
+        finalTeamSummary: row.final_team_summary ?? undefined,
+        finalCurrency: row.final_currency ?? undefined,
+        finalConfirmedAt: row.final_confirmed_at ?? undefined,
+        suggestedTemplateVariant: row.suggested_template_variant ?? null,
         winReason: row.win_reason,
         lossReason: row.loss_reason,
         ghostRoles: (row.ghost_roles ?? []).map(toGhostRole),
@@ -306,6 +339,30 @@ export function toTimeEntry(row: ApiTimeEntry): TimeEntry {
 
 // ─── Frontend types → API payload (camelCase → snake_case) ───────────────────
 
+/** [camelCase Deal field, snake_case payload key] tuples. */
+const ESTIMATION_HANDOFF_FIELDS: ReadonlyArray<[keyof Deal, string]> = [
+    ['finalMonthlyFee',           'final_monthly_fee'],
+    ['finalInstallationFee',      'final_installation_fee'],
+    ['finalContractMonths',       'final_contract_months'],
+    ['finalOtPolicy',             'final_ot_policy'],
+    ['finalSupportHoursPerMonth', 'final_support_hours_per_month'],
+    ['finalTeamSummary',          'final_team_summary'],
+    ['finalCurrency',             'final_currency'],
+    ['finalConfirmedAt',          'final_confirmed_at'],
+    ['suggestedTemplateVariant',  'suggested_template_variant'],
+];
+
+function copyDefined<T extends object>(
+    target: Record<string, unknown>,
+    source: T,
+    fields: ReadonlyArray<[keyof T, string]>,
+): void {
+    for (const [from, to] of fields) {
+        const value = source[from];
+        if (value !== undefined) target[to] = value;
+    }
+}
+
 export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
     if (deal.name !== undefined)          payload.name           = deal.name;
@@ -331,6 +388,10 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.bufferCost !== undefined) payload.buffer_cost = deal.bufferCost;
     if (deal.totalEstimatedCost !== undefined) payload.total_estimated_cost = deal.totalEstimatedCost;
     if (deal.estimatedGrossProfit !== undefined) payload.estimated_gross_profit = deal.estimatedGrossProfit;
+    // ── Estimation handoff fields ────────────────────────────────────
+    // Owned by the Estimation menu (④); Project Pipeline forms don't
+    // surface them. Backend rejects writes when status ∈ {negotiation,won}.
+    copyDefined(payload, deal, ESTIMATION_HANDOFF_FIELDS);
     if (deal.ghostRoles !== undefined) {
         payload.ghost_roles = deal.ghostRoles.map((role) => ({
             ...(role.id ? { id: role.id } : {}),

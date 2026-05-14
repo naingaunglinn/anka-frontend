@@ -5,7 +5,7 @@ import { useIsClient } from '@/hooks/useIsClient';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Users, Trophy, XCircle } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Users, Trophy, Ban } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -45,9 +45,16 @@ function getMarginColor(budget: number, profit: number): string {
 export function KanbanBoard({
     deals,
     onMetricsUpdate,
+    showDropped = false,
 }: {
     deals: Deal[];
     onMetricsUpdate: (total: number, weighted: number) => void;
+    /**
+     * When true, dropped deals overlay greyed cards in their last-known
+     * stage column. When false (default), they're hidden. Parent page
+     * owns the toggle UI; this board only renders.
+     */
+    showDropped?: boolean;
 }) {
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
@@ -66,13 +73,13 @@ export function KanbanBoard({
     // -- Confirm dialog states -------------------------------------------------
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
-    const [lostOpen, setLostOpen] = useState(false);
-    const [losingDeal, setLosingDeal] = useState<{ id: string; name: string } | null>(null);
-    const [lossReason, setLossReason] = useState('');
+    const [dropOpen, setDropOpen] = useState(false);
+    const [droppingDeal, setDroppingDeal] = useState<{ id: string; name: string } | null>(null);
+    const [dropReason, setDropReason] = useState('');
 
-    // Column order is the visual flow left-to-right. `lost` lives at the
-    // far right as a terminal state — visible so deals don't silently
-    // disappear from the pipeline view. 5 columns total (4 active + lost).
+    // 4-column board (D removed in chg-009 — Dropped is now an orthogonal
+    // status flag, not a column). Active deals occupy their stage column;
+    // dropped deals overlay as greyed cards when showDropped is on.
     const columns = useMemo(() => {
         const cols: Record<DealStage, ColumnData> = {} as Record<DealStage, ColumnData>;
         STAGE_ORDER.forEach((stage) => {
@@ -80,26 +87,32 @@ export function KanbanBoard({
         });
 
         deals.forEach(deal => {
-            const status = (deal.status ?? 'lead') as DealStage;
-            if (cols[status]) {
-                cols[status].deals.push(deal);
-            }
+            const isDropped = deal.lifecycleStatus === 'dropped' || deal.status === 'lost';
+            if (isDropped && !showDropped) return;
+
+            // Place dropped deals in their last-known stage column. Backfill
+            // for legacy 'lost' deals (where dropped_at_stage is null) falls
+            // back to the stage stored on `status`.
+            const stage = isDropped
+                ? (deal.droppedAtStage ?? (deal.status === 'lost' ? 'qualified' : deal.status)) as DealStage
+                : deal.status as DealStage;
+            const effective: DealStage = (cols[stage] ? stage : 'lead');
+            cols[effective].deals.push(deal);
         });
 
         return cols;
-    }, [deals]);
+    }, [deals, showDropped]);
 
     useEffect(() => {
-        // Pipeline value reflects ACTIVE opportunities only. Closed columns
-        // (`won` already booked as revenue, `lost` no longer in play) would
-        // inflate the KPIs — e.g. a $1M lost deal still counting in "Total
-        // Pipeline Value" misleads the salesperson.
+        // Pipeline value reflects ACTIVE opportunities only. The Won column
+        // is already booked revenue; dropped deals are out of pipeline.
         let totalValue = 0;
         let weightedRevenue = 0;
 
         Object.entries(columns).forEach(([columnId, col]) => {
-            if (columnId === 'won' || columnId === 'lost') return;
+            if (columnId === 'won') return;
             col.deals.forEach(deal => {
+                if (deal.lifecycleStatus === 'dropped' || deal.status === 'lost') return;
                 const budget = deal.clientBudget || deal.estimatedValue || 0;
                 const winProb = deal.winProbability || 0;
                 totalValue += budget;
@@ -141,13 +154,20 @@ export function KanbanBoard({
         const sourceStage      = source.droppableId      as DealStage;
         const destinationStage = destination.droppableId as DealStage;
 
-        // Prevent moving from terminal statuses (won / lost). Reverting a
-        // closed deal would orphan the linked Contract/Project.
-        if (sourceStage === 'won' || sourceStage === 'lost') {
+        // Prevent moving from Won (terminal). Reverting a closed deal
+        // would orphan the linked Contract/Project.
+        if (sourceStage === 'won') {
             return;
         }
 
         const draggedDeal = columns[sourceStage]?.deals.find((d: Deal) => d.id === draggableId);
+
+        // Block dragging dropped deals back into the active pipeline. They
+        // can be re-considered only by creating a new deal.
+        if (draggedDeal?.lifecycleStatus === 'dropped') {
+            toast.error('Dropped deals cannot be reactivated — create a new deal instead.');
+            return;
+        }
 
         // Dragging to Won is only allowed from Negotiation (A) AND only via
         // the contract-document upload + AI-analysis flow. Block manual drags
@@ -160,13 +180,6 @@ export function KanbanBoard({
             } else {
                 toast.error('Deals must pass through Negotiation (A) before they can be Won.');
             }
-            return;
-        }
-
-        // Dragging to Lost opens the loss-reason dialog (which requires a
-        // reason) so deals never get marked lost without context.
-        if (destinationStage === 'lost') {
-            if (draggedDeal) openLoseDeal(draggableId, draggedDeal.name);
             return;
         }
 
@@ -199,18 +212,25 @@ export function KanbanBoard({
         setDeletingDealId(null);
     };
 
-    const openLoseDeal = (dealId: string, dealName: string) => {
-        setLosingDeal({ id: dealId, name: dealName });
-        setLossReason('');
-        setLostOpen(true);
+    const openDropDeal = (dealId: string, dealName: string) => {
+        setDroppingDeal({ id: dealId, name: dealName });
+        setDropReason('');
+        setDropOpen(true);
     };
 
-    const handleLoseDeal = () => {
-        if (!losingDeal || !lossReason.trim()) return;
-        loseDeal.mutate({ dealId: losingDeal.id, lossReason: lossReason.trim() });
-        setLostOpen(false);
-        setLosingDeal(null);
-        setLossReason('');
+    /**
+     * Phase B note: backend's POST /deals/{id}/drop endpoint ships in
+     * Phase B-breaking. For now this still hits the legacy `lose` mutation,
+     * which sets status='lost' — the migration backfill maps that to
+     * lifecycle_status='dropped'. Swap to dropDeal mutation when the
+     * dedicated endpoint lands.
+     */
+    const handleDropDeal = () => {
+        if (!droppingDeal || !dropReason.trim()) return;
+        loseDeal.mutate({ dealId: droppingDeal.id, lossReason: dropReason.trim() });
+        setDropOpen(false);
+        setDroppingDeal(null);
+        setDropReason('');
     };
 
     if (!isMounted) return <div className="h-96 w-full animate-pulse bg-slate-100 rounded-lg" />;
@@ -255,10 +275,11 @@ export function KanbanBoard({
                                             const hardBookedCount = (deal.hardAssignments || []).length;
                                             const isFullyStaffed = rolesNeededCount > 0 && hardBookedCount >= rolesNeededCount;
                                             const isWon  = deal.status === 'won';
-                                            const isLost = deal.status === 'lost';
+                                            const isDropped = deal.lifecycleStatus === 'dropped' || deal.status === 'lost';
+                                            const canDropThisDeal = !isDropped && !isWon;
 
                                             return (
-                                                <Draggable key={deal.id} draggableId={deal.id} index={index}>
+                                                <Draggable key={deal.id} draggableId={deal.id} index={index} isDragDisabled={isDropped}>
                                                     {(provided, snapshot) => (
                                                         <div
                                                             ref={provided.innerRef}
@@ -272,7 +293,7 @@ export function KanbanBoard({
                                                                     : 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)',
                                                             }}
                                                         >
-                                                            <Card className={`border shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${snapshot.isDragging ? 'rotate-1 scale-[1.02] shadow-lg ring-2 ring-[#00a7f4]/30' : ''}`}>
+                                                            <Card className={`border shadow-sm hover:shadow-md transition-all duration-200 ${isDropped ? 'opacity-60 grayscale cursor-default' : 'cursor-grab active:cursor-grabbing'} ${snapshot.isDragging ? 'rotate-1 scale-[1.02] shadow-lg ring-2 ring-[#00a7f4]/30' : ''}`}>
                                                                 <CardContent className="p-4 space-y-3">
                                                                     {/* Header: Name + Menu */}
                                                                     <div className="flex justify-between items-start">
@@ -301,7 +322,7 @@ export function KanbanBoard({
                                                                                     <Users className="mr-2 h-4 w-4" />
                                                                                     Staffing
                                                                                 </DropdownMenuItem>
-                                                                                {!isWon && deal.status !== 'lost' && (
+                                                                                {canDropThisDeal && (
                                                                                     <>
                                                                                         {/* "Win Deal" now requires an approved contract document
                                                                                             (uploaded on the deal detail page) — manual win is
@@ -318,13 +339,13 @@ export function KanbanBoard({
                                                                                             Upload Contract → Win
                                                                                         </DropdownMenuItem>
                                                                                         <DropdownMenuItem
-                                                                                            onClick={() => openLoseDeal(deal.id, deal.name)}
+                                                                                            onClick={() => openDropDeal(deal.id, deal.name)}
                                                                                             disabled={loseDeal.isPending || !canManageCrm}
                                                                                             title={!canManageCrm ? rbacReason : undefined}
                                                                                             className="text-orange-600 focus:text-orange-700 focus:bg-orange-50"
                                                                                         >
-                                                                                            <XCircle className="mr-2 h-4 w-4" />
-                                                                                            Mark as Lost
+                                                                                            <Ban className="mr-2 h-4 w-4" />
+                                                                                            Drop deal
                                                                                         </DropdownMenuItem>
                                                                                     </>
                                                                                 )}
@@ -390,15 +411,15 @@ export function KanbanBoard({
                                                                     </div>
 
                                                                     {/* Booking-state badge — Won = hard committed,
-                                                                        Lost = no longer booked, otherwise soft-booked. */}
+                                                                        Dropped = no longer booked, otherwise soft-booked. */}
                                                                     <div className="flex justify-end pt-1">
                                                                         {isWon ? (
                                                                             <Badge variant="default" className="bg-[#171717] hover:bg-[#00a7f4] text-[10px]">
                                                                                 Hard Booked
                                                                             </Badge>
-                                                                        ) : isLost ? (
-                                                                            <Badge variant="secondary" className="bg-slate-200 text-slate-600 hover:bg-slate-200 text-[10px]">
-                                                                                Released
+                                                                        ) : isDropped ? (
+                                                                            <Badge variant="secondary" className="bg-slate-300 text-slate-700 hover:bg-slate-300 text-[10px]">
+                                                                                Dropped
                                                                             </Badge>
                                                                         ) : (
                                                                             <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 text-[10px]">
@@ -442,37 +463,37 @@ export function KanbanBoard({
                 </DialogContent>
             </Dialog>
 
-            {/* -- Mark as Lost Dialog -------------------------------------------- */}
-            <Dialog open={lostOpen} onOpenChange={(open) => { setLostOpen(open); if (!open) setLossReason(''); }}>
+            {/* -- Drop Deal Dialog ----------------------------------------------- */}
+            <Dialog open={dropOpen} onOpenChange={(open) => { setDropOpen(open); if (!open) setDropReason(''); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Mark as Lost</DialogTitle>
+                        <DialogTitle>Drop deal</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-[#4a4a4a]">
-                        Mark <strong>{losingDeal?.name}</strong> as Lost?<br />
-                        The deal will be removed from the active pipeline.
+                        Drop <strong>{droppingDeal?.name}</strong> from the pipeline?<br />
+                        Dropped deals can&apos;t be reactivated — to reconsider this opportunity, create a new deal.
                     </p>
                     <div className="mt-3 space-y-1">
-                        <Label htmlFor="loss-reason" className="text-sm text-[#4a4a4a]">
-                            Loss reason <span className="text-red-500">*</span>
+                        <Label htmlFor="drop-reason" className="text-sm text-[#4a4a4a]">
+                            Reason <span className="text-red-500">*</span>
                         </Label>
                         <Textarea
-                            id="loss-reason"
+                            id="drop-reason"
                             placeholder="e.g. Lost to competitor on price, project cancelled, budget frozen"
-                            value={lossReason}
-                            onChange={(e) => setLossReason(e.target.value)}
+                            value={dropReason}
+                            onChange={(e) => setDropReason(e.target.value)}
                             maxLength={500}
                             className="min-h-[80px]"
                         />
                     </div>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setLostOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setDropOpen(false)}>Cancel</Button>
                         <Button
                             variant="destructive"
-                            onClick={handleLoseDeal}
-                            disabled={loseDeal.isPending || !lossReason.trim()}
+                            onClick={handleDropDeal}
+                            disabled={loseDeal.isPending || !dropReason.trim()}
                         >
-                            {loseDeal.isPending ? 'Processing...' : 'Mark as Lost'}
+                            {loseDeal.isPending ? 'Processing...' : 'Drop deal'}
                         </Button>
                     </div>
                 </DialogContent>

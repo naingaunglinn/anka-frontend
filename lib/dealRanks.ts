@@ -1,21 +1,30 @@
 import type { Deal } from '@/types/business';
 
-export type DealStage = NonNullable<Deal['status']>;
+/**
+ * Active pipeline stages — the 4 statuses a deal moves through forward-only.
+ * 'lost' is a legacy value that may still appear on old rows during the
+ * Phase B → Phase B-breaking migration window; the Kanban filters it out.
+ */
+export type DealStage = 'lead' | 'qualified' | 'negotiation' | 'won';
+
+/** Every value the backend may return for `deal.status`. */
+export type DealStatusValue = NonNullable<Deal['status']>;
 
 /**
- * Rank labels shown on the Kanban board.
- *   lead        → C (initial contact)
- *   qualified   → B (Qualified + old Proposal merged)
- *   negotiation → A (contract-document upload gate lives here)
- *   won         → S (deal closed)
- *   lost        → D (deal lost)
+ * Rank labels per the manager's "System Flow — ANKA" spec (2026-05-14):
+ *   lead        → C (initial contact / nego start)
+ *   qualified   → B (estimation in progress, deal still iterating)
+ *   negotiation → A (contract drafting started — fields lock)
+ *   won         → S (contract signed)
+ *
+ * The legacy 'lost' status is replaced by Dropped (orthogonal lifecycleStatus
+ * flag). Existing 'lost' rows are still readable; new code must not write it.
  */
-export const STAGE_RANK: Record<DealStage, string> = {
+export const STAGE_RANK: Record<DealStage, 'C' | 'B' | 'A' | 'S'> = {
     lead:        'C',
     qualified:   'B',
     negotiation: 'A',
     won:         'S',
-    lost:        'D',
 };
 
 export const STAGE_TITLE: Record<DealStage, string> = {
@@ -23,15 +32,13 @@ export const STAGE_TITLE: Record<DealStage, string> = {
     qualified:   'Qualified',
     negotiation: 'Negotiation',
     won:         'Won',
-    lost:        'Lost',
 };
 
 export const STAGE_DESCRIPTION: Record<DealStage, string> = {
     lead:        'Initial contact',
-    qualified:   'Qualified · Proposal sent',
-    negotiation: 'Contract being settled',
-    won:         'Contract approved · Booked',
-    lost:        'No longer in play',
+    qualified:   'Estimation in progress',
+    negotiation: 'Contract being drafted',
+    won:         'Contract signed · Booked',
 };
 
 /** "B — Qualified" etc. */
@@ -39,14 +46,65 @@ export function stageDisplayLabel(stage: DealStage): string {
     return `${STAGE_RANK[stage]} — ${STAGE_TITLE[stage]}`;
 }
 
-/** Column order, left-to-right. Lost is terminal at the far right. */
-export const STAGE_ORDER: DealStage[] = ['lead', 'qualified', 'negotiation', 'won', 'lost'];
+/** Column order on the Kanban, left-to-right. 4 columns now (D removed). */
+export const STAGE_ORDER: DealStage[] = ['lead', 'qualified', 'negotiation', 'won'];
 
-/** Stage probability defaults — matches DealController stageProbabilities map. */
+/**
+ * Probability weights used by the Forecast module (⑧).
+ * Per the manager's spec: C=30, B=50, A=80, S=100.
+ */
 export const STAGE_PROBABILITY: Record<DealStage, number> = {
-    lead:        10,
-    qualified:   40,
-    negotiation: 75,
+    lead:        30,
+    qualified:   50,
+    negotiation: 80,
     won:         100,
-    lost:        0,
 };
+
+/**
+ * Stages where a deal's terms are locked (no edits allowed).
+ * Once contract drafting fires (A) or contract is signed (S), the
+ * estimation handoff fields and customer requirements are frozen.
+ * To change scope, drop this deal and start a new one.
+ */
+export const LOCKED_STAGES: ReadonlyArray<DealStage> = ['negotiation', 'won'];
+
+export function isLockedStage(status: DealStatusValue | undefined): boolean {
+    if (!status) return false;
+    return (LOCKED_STAGES as ReadonlyArray<string>).includes(status);
+}
+
+/** Stages from which a deal can be dropped. S deals cannot be dropped. */
+export const DROPPABLE_STAGES: ReadonlyArray<DealStage> = ['lead', 'qualified', 'negotiation'];
+
+export function canDropDeal(deal: Pick<Deal, 'status' | 'lifecycleStatus'>): boolean {
+    if (deal.lifecycleStatus === 'dropped') return false;
+    if (!deal.status) return false;
+    return (DROPPABLE_STAGES as ReadonlyArray<string>).includes(deal.status);
+}
+
+/**
+ * Resolves the rank shown on a deal card. Returns 'Dropped' when the deal
+ * has been dropped — caller can render a different badge style. The backend
+ * computes the same value via Deal::getRankAttribute().
+ */
+export function dealRank(deal: Pick<Deal, 'status' | 'lifecycleStatus'>): 'C' | 'B' | 'A' | 'S' | 'Dropped' {
+    if (deal.lifecycleStatus === 'dropped') return 'Dropped';
+    if (!deal.status || deal.status === 'lost') return 'C';
+    return STAGE_RANK[deal.status] ?? 'C';
+}
+
+/**
+ * Returns true when the deal has all the Estimation handoff fields needed
+ * for contract drafting. Mirrors Deal::isContractEligible() on the backend.
+ */
+export function isContractEligible(deal: Deal): boolean {
+    return (
+        deal.status === 'qualified' &&
+        deal.lifecycleStatus !== 'dropped' &&
+        deal.finalMonthlyFee != null &&
+        deal.finalContractMonths != null &&
+        !!deal.finalTeamSummary &&
+        !!deal.finalCurrency &&
+        !!deal.finalConfirmedAt
+    );
+}

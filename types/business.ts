@@ -163,6 +163,15 @@ export type DealLeadSource =
     | 'partner'
     | 'other';
 
+export type DealLifecycleStatus = 'active' | 'dropped';
+
+export type DealDroppedAtStage = 'lead' | 'qualified' | 'negotiation';
+
+export type SuggestedTemplateVariant =
+    | 'cloud_backup'
+    | 'managed_hosting'
+    | 'engineer_dispatch';
+
 export interface Deal {
     id: string;
     name: string;
@@ -173,11 +182,20 @@ export interface Deal {
     contactPhone?: string;
     estimatedValue?: number;
     winProbability?: number;
-    // 5-stage pipeline. UI rank labels (in lib/dealRanks.ts):
-    //   lead → C, qualified → B, negotiation → A, won → S, lost → D.
-    // The old "proposal" stage was merged into "qualified" in migration
-    // 2026_05_12_000001_collapse_proposal_into_qualified.php.
+    // 4-stage pipeline (D removed in chg-009 — Dropped is now a status flag).
+    // UI rank labels (in lib/dealRanks.ts):
+    //   lead → C, qualified → B, negotiation → A, won → S.
+    // 'lost' kept as a legacy value during Phase B; Phase B-breaking will
+    // remove it from the union and migrate any remaining rows.
     status?: "lead" | "qualified" | "negotiation" | "won" | "lost";
+    /** Orthogonal flag — replaces D rank. Active deals show on the board;
+     *  dropped deals are hidden behind a "Show dropped (N)" filter chip
+     *  and rendered as greyed cards in their droppedAtStage column. */
+    lifecycleStatus?: DealLifecycleStatus;
+    /** Stage the deal was at when dropped. Lets analytics tell whether we
+     *  burned estimation effort before losing the deal. */
+    droppedAtStage?: DealDroppedAtStage | null;
+    droppedAt?: string;
     wizardStep?: DealWizardStep;
     expectedCloseDate?: string;   // YYYY-MM-DD
     leadSource?: DealLeadSource;
@@ -199,6 +217,22 @@ export interface Deal {
     estimationResources?: EstimationResource[];
     projectOverheads?: ProjectOverhead[];
     targetMargin?: number;
+
+    // ── Estimation handoff (④ → ⑤) ────────────────────────────────────
+    // These fields are populated by the Estimation menu when the customer
+    // confirms the estimate. Project Pipeline reads them to enable the
+    // [Generate Contract Draft] button and to fill the contract template.
+    // See openspec/integrations/estimation-to-project-pipeline.md.
+    // READ-ONLY in this menu — Estimation owns writes.
+    finalMonthlyFee?: number;
+    finalInstallationFee?: number | null;
+    finalContractMonths?: number;
+    finalOtPolicy?: string | null;
+    finalSupportHoursPerMonth?: number | null;
+    finalTeamSummary?: string;
+    finalCurrency?: string;
+    finalConfirmedAt?: string;
+    suggestedTemplateVariant?: SuggestedTemplateVariant | null;
 
     // Closure metadata
     winReason?: string;

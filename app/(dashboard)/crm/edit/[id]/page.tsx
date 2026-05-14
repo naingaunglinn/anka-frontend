@@ -41,6 +41,8 @@ import { dealSchema, type DealFormValues, LEAD_SOURCE_OPTIONS, CAPACITY_ROLE_OPT
 import { useDealDetail, useDealMutations } from "@/lib/queries/deals";
 import { useLinkedContract } from "@/lib/queries/contracts";
 import { usePermission } from "@/hooks/usePermission";
+import { isLockedStage } from "@/lib/dealRanks";
+import { Lock } from "lucide-react";
 
 export default function EditDealPage() {
     const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
@@ -325,6 +327,38 @@ export default function EditDealPage() {
 
     if (!dealToEdit) {
         return <div className="p-8">Deal not found.</div>;
+    }
+
+    // chg-009: deal fields lock once rank reaches A (negotiation) or S (won).
+    // Edits past this point would diverge the draft contract from the deal
+    // record. Show a locked card; the salesperson can still view the deal
+    // via the detail page.
+    if (isLockedStage(dealToEdit.status)) {
+        return (
+            <div className="container mx-auto p-6 max-w-3xl space-y-4">
+                <Card className="border-amber-200 bg-amber-50/40">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-amber-900">
+                            <Lock className="h-5 w-5" />
+                            Deal locked
+                        </CardTitle>
+                        <CardDescription className="text-amber-800">
+                            {dealToEdit.status === 'won'
+                                ? 'This deal is signed and locked. Amendments require a new deal.'
+                                : 'Contract drafting has started — the deal’s scope, timeline, and budget are now locked. To change scope, drop this deal and start a new one.'}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-2">
+                        <Button variant="outline" onClick={() => router.push(`/crm/${dealId}`)}>
+                            View deal
+                        </Button>
+                        <Button variant="ghost" onClick={() => router.push('/crm')}>
+                            Back to pipeline
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
     }
 
     return (
