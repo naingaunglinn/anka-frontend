@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
     CheckCircle2, XCircle, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
     FileText, Sparkles, TrendingUp, TrendingDown, Minus, Quote,
@@ -226,6 +227,13 @@ function RichVerdict({
     showAll: boolean;
     onToggleAll: () => void;
 }) {
+    // When the contract is for the wrong deal, hide every other warning
+    // by default — they're computed on a document that doesn't belong
+    // here, so the score / failing fields / dispute risks are noise.
+    // Salesperson can still expand to see the AI's grading if they want
+    // to argue against the mismatch detection.
+    const [showAnalysisAnyway, setShowAnalysisAnyway] = useState(false);
+
     const grades = a.field_grades ?? [];
     // Built once per verdict — shared by every place we humanize Claude's
     // free-text output (currently the diff bullets; suggested_fix /
@@ -330,10 +338,43 @@ function RichVerdict({
                             <p className="text-[10px] text-red-600 italic mt-2">
                                 Approval is blocked until the correct contract is uploaded.
                             </p>
+
+                            {/* Action row + expander. The default state hides
+                                the rest of the verdict (score / failing
+                                fields / dispute risks) because they were
+                                computed against the wrong document. The
+                                expander lets the user reveal them when they
+                                want to argue with the AI's mismatch call. */}
+                            <div className="mt-3 flex items-center gap-3 flex-wrap">
+                                <Link
+                                    href={`/crm/${doc.deal_id}#contract-document`}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5"
+                                >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Upload correct contract
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAnalysisAnyway(s => !s)}
+                                    className="text-[11px] text-red-700 hover:text-red-900 underline underline-offset-2"
+                                >
+                                    {showAnalysisAnyway
+                                        ? '▴ Hide analysis of this (wrong) document'
+                                        : '▾ Show analysis of this (wrong) document anyway'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* ── Sections below this point are HIDDEN when the contract is
+                  for the wrong deal (the score / grades / dispute risks were
+                  computed on the wrong document — showing them is misleading
+                  noise). The "Show analysis anyway" expander on the mismatch
+                  banner reveals them for users who want to argue with the
+                  AI's mismatch call. ─────────────────────────────────────── */}
+            {(!mismatch || showAnalysisAnyway) && (<>
 
             {/* ── Top bar: status + filename + score gauge ─────────────────── */}
             <div className={`px-4 py-3 flex items-start gap-3 ${
@@ -486,6 +527,8 @@ function RichVerdict({
                     ))}
                 </div>
             )}
+
+            </>)}
         </div>
     );
 }
