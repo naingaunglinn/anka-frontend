@@ -238,3 +238,30 @@ export function useContractDocumentMutations(dealId: string) {
 
     return { upload, remove };
 }
+
+/**
+ * Re-runs AI analysis against an existing uploaded contract document. Used
+ * to recover from keyword-fallback verdicts when Claude was unreachable at
+ * upload time. Same response shape as upload — including auto_won when the
+ * re-analysis approves and the deal is still in negotiation.
+ *
+ * Not scoped to a single deal because the deep-review page reaches this
+ * by document id, not by deal id.
+ */
+export function useReanalyzeContractDocument() {
+    const queryClient = useQueryClient();
+
+    return useMutation<UploadResponse, Error, string>({
+        mutationFn: async (documentId: string) => {
+            const { data: body } = await api.post(`/contract-documents/${documentId}/reanalyze`);
+            return body as UploadResponse;
+        },
+        onSettled: (_data, _err, documentId) => {
+            // Bust every cache that might reference this doc — detail (for
+            // the deep page), per-deal lists, tenant-wide queue, and the
+            // deals/contracts caches in case auto-win fired.
+            queryClient.invalidateQueries({ queryKey: contractDocumentKeys.detail(documentId) });
+            queryClient.invalidateQueries({ queryKey: contractDocumentKeys.all });
+        },
+    });
+}

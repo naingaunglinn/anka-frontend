@@ -216,9 +216,35 @@ function RichVerdict({
     const pattern = a.detected_payment_pattern ?? doc.detected_payment_pattern ?? 'unknown';
     const diff = a.diff_vs_previous;
     const mismatch = a.deal_match && a.deal_match.is_match === false ? a.deal_match : null;
+    // Keyword-fallback verdicts have no Claude reasoning behind them — the
+    // model couldn't be reached at analysis time. We surface this as a
+    // prominent banner (not just a small chip) because the rest of the
+    // verdict LOOKS like a real AI review, and a salesperson glancing at
+    // it would otherwise assume Claude analysed the contract.
+    const usedFallback = a.model === 'keyword-fallback';
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            {/* ── Fallback warning banner: makes it unmistakable that the
+                  verdict below came from heuristic keyword matching, not
+                  Claude. Re-analyse (via the Retry button on the deep
+                  review page) once the AI is back online. ──────────────── */}
+            {usedFallback && (
+                <div className="px-4 py-3 bg-amber-50 border-b-2 border-amber-300">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-amber-900">
+                                AI review unavailable — heuristic check only
+                            </h4>
+                            <p className="text-xs text-amber-800 mt-1">
+                                Claude could not be reached when this contract was uploaded, so the verdict below comes from a deterministic keyword scan rather than the AI. <strong>Re-analyse from the deep review page</strong> once the AI is back online to get a proper review with evidence quotes, dispute risks, and per-field reasoning.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Deal mismatch banner: appears ABOVE everything else when
                   Claude (or the heuristic fallback) decided this contract
                   isn't for the current deal. Hard-blocks approval — no

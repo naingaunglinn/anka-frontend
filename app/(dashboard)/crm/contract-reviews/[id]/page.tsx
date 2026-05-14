@@ -2,15 +2,18 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useContractDocument } from '@/lib/queries/contractDocuments';
+import { useContractDocument, useReanalyzeContractDocument } from '@/lib/queries/contractDocuments';
 import { AnalysisResultCard } from '@/components/crm/AnalysisResultCard';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { formatMoney } from '@/lib/currency';
 import { useDealDetail } from '@/lib/queries/deals';
+import { usePermission } from '@/hooks/usePermission';
+import { normalizeError } from '@/lib/errorHandler';
 
 /**
  * Deep review surface — full-page version of the AnalysisResultCard with
@@ -27,6 +30,8 @@ export default function ContractReviewDeepPage() {
     const currency = useTenantCurrency();
 
     const { data: doc, isLoading, error } = useContractDocument(docId);
+    const reanalyze = useReanalyzeContractDocument();
+    const { allowed: canManage } = usePermission('manage_crm');
     // Deal detail loaded only after we know the deal_id from the doc.
     // useDealDetail accepts an empty string and short-circuits with
     // enabled=false; we pass undefined-safe value here.
@@ -83,14 +88,51 @@ export default function ContractReviewDeepPage() {
                         <span className="truncate">{doc.original_filename}</span>
                     </h1>
                 </div>
-                {dealId && (
-                    <Link
-                        href={`/crm/${dealId}`}
-                        className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                    >
-                        Open deal <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
-                )}
+                <div className="flex items-center gap-3 shrink-0">
+                    {/* Retry analysis: show when the verdict came from the
+                        keyword fallback (Claude was unreachable) OR when
+                        text extraction failed entirely. One click re-runs
+                        the analyser against the existing file on disk —
+                        no re-upload required. Gated by manage_crm because
+                        success can auto-fire win_deal(). */}
+                    {canManage && (doc.analysis_result?.model === 'keyword-fallback' || doc.analysis_status === 'failed') && (
+                        <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                            disabled={reanalyze.isPending}
+                            onClick={async () => {
+                                try {
+                                    const result = await reanalyze.mutateAsync(doc.id);
+                                    if (result.auto_won && result.contract?.id) {
+                                        toast.success('Contract approved — deal moved to Won (S).');
+                                        router.push(`/contracts/${result.contract.id}`);
+                                        return;
+                                    }
+                                    const status = result.document.analysis_status;
+                                    if (status === 'approved') toast.success('Re-analysis complete — approved.');
+                                    else if (status === 'rejected') toast('Re-analysis complete — see details.');
+                                    else if (status === 'failed') toast.error('Re-analysis failed — see details.');
+                                    else toast.success('Re-analysis complete.');
+                                } catch (err) {
+                                    toast.error(normalizeError(err).message);
+                                }
+                            }}
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${reanalyze.isPending ? 'animate-spin' : ''}`} />
+                            {reanalyze.isPending ? 'Re-analysing…' : 'Retry analysis'}
+                        </Button>
+                    )}
+                    {dealId && (
+                        <Link
+                            href={`/crm/${dealId}`}
+                            className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                            Open deal <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
