@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, FileText, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Search, FileText, Loader2, ArrowLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +33,7 @@ const STATUS_FILTERS: Array<{ value: ContractDocumentStatusFilter; label: string
  * with the full AnalysisResultCard + deal-context side panel.
  */
 export default function ContractReviewsPage() {
+    const router = useRouter();
     const { allowed: canView } = usePermission('view_crm');
     const [status, setStatus] = useState<ContractDocumentStatusFilter>('all');
     const [search, setSearch] = useState('');
@@ -77,14 +80,31 @@ export default function ContractReviewsPage() {
 
     return (
         <div className="container mx-auto p-6 max-w-6xl space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                    <FileText className="h-6 w-6 text-indigo-600" />
-                    Contract Reviews
-                </h1>
-                <p className="text-sm text-slate-600 mt-1">
-                    AI analysis of every customer contract uploaded across your deals. Use this view to triage what needs attention.
-                </p>
+            <div className="flex items-start gap-3">
+                <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => router.push('/crm')}
+                    aria-label="Back to CRM"
+                    title="Back to CRM"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                    <div className="text-xs text-slate-500">
+                        <Link href="/crm" className="hover:text-slate-900 hover:underline">
+                            CRM &amp; Pipeline
+                        </Link>
+                        <span> / Contract Reviews</span>
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2 mt-0.5">
+                        <FileText className="h-6 w-6 text-indigo-600" />
+                        Contract Reviews
+                    </h1>
+                    <p className="text-sm text-slate-600 mt-1">
+                        AI analysis of every customer contract uploaded across your deals. Use this view to triage what needs attention.
+                    </p>
+                </div>
             </div>
 
             {/* Quick-glance stats from the current filter result */}
