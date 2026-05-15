@@ -228,7 +228,7 @@ export function KanbanBoard({
                                                                         functional during Phase A move-out; will be
                                                                         retired when Contract Review menu takes the
                                                                         upload code. */}
-                                                                    {deal.status === 'negotiation' && (
+                                                                    {deal.status === 'negotiation' && deal.hasSentContractDraft && (
                                                                         <DropdownMenuItem
                                                                             onClick={() => router.push(`/project-pipeline/${deal.id}#contract-document`)}
                                                                             disabled={!canManageCrm}
