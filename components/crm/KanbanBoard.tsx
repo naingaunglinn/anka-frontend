@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Trophy, Ban } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Ban, FileText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,6 +22,8 @@ import {
     STAGE_RANK,
     STAGE_TITLE,
     STAGE_DESCRIPTION,
+    STAGE_COLORS,
+    DROPPED_COLORS,
     type DealStage,
 } from '@/lib/dealRanks';
 
@@ -128,11 +131,15 @@ export function KanbanBoard({
         setDeleteOpen(true);
     };
 
-    const handleDeleteDeal = () => {
+    const handleDeleteDeal = async () => {
         if (!deletingDealId) return;
-        deleteDeal.mutate(deletingDealId);
-        setDeleteOpen(false);
-        setDeletingDealId(null);
+        try {
+            await deleteDeal.mutateAsync(deletingDealId);
+            toast.success('Deal deleted.');
+        } finally {
+            setDeleteOpen(false);
+            setDeletingDealId(null);
+        }
     };
 
     const openDropDeal = (dealId: string, dealName: string) => {
@@ -156,12 +163,13 @@ export function KanbanBoard({
                     const stage = columnId as DealStage;
                     const rank = STAGE_RANK[stage];
                     const description = STAGE_DESCRIPTION[stage];
+                    const stageColor = STAGE_COLORS[stage];
                     return (
                         <div key={columnId} className="flex flex-col min-w-[280px] w-[280px] bg-slate-100 rounded-xl shrink-0">
                             <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-[#e6e9ee] flex justify-between items-start gap-2">
                                 <div className="min-w-0">
                                     <h3 className="font-semibold text-slate-700 flex items-center gap-2">
-                                        <span className="inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded bg-slate-700 text-white text-xs font-bold">
+                                        <span className={`inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded text-xs font-bold ${stageColor.bg} ${stageColor.text}`}>
                                             {rank}
                                         </span>
                                         <span className="truncate">{column.title}</span>
@@ -171,7 +179,7 @@ export function KanbanBoard({
                                 <Badge variant="secondary" className="bg-white shrink-0">{column.deals.length}</Badge>
                             </div>
 
-                            <div className="p-3 space-y-3 min-h-[120px]">
+                            <div className="p-3 space-y-6 min-h-[120px]">
                                 {column.deals.map((deal) => {
                                     const estimation = getDealEstimation(deal.id);
                                     const budget = deal.clientBudget || 0;
@@ -186,21 +194,32 @@ export function KanbanBoard({
                                     const isDropped = deal.lifecycleStatus === 'dropped' || deal.status === 'lost';
                                     const canDropThisDeal = !isDropped && !isWon;
 
+                                    // Per-rank colours for the card accent + rank chip. Dropped cards
+                                    // use a neutral grey palette regardless of last-known stage.
+                                    const cardStage = (STAGE_COLORS[deal.status as DealStage] ? deal.status : 'lead') as DealStage;
+                                    const cardColor = isDropped ? DROPPED_COLORS : STAGE_COLORS[cardStage];
+                                    const cardRank = isDropped ? 'D' : STAGE_RANK[cardStage];
+
                                     return (
                                         <Card
                                             key={deal.id}
-                                            className={`border shadow-sm hover:shadow-md transition-all duration-200 ${
+                                            className={`border border-l-4 shadow-sm hover:shadow-md transition-all duration-200 ${cardColor.border} ${
                                                 isDropped ? 'opacity-60 grayscale' : ''
                                             }`}
                                         >
                                             <CardContent className="p-4 space-y-3">
-                                                {/* Header: Name + Menu */}
-                                                <div className="flex justify-between items-start">
-                                                    <div
-                                                        className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer"
-                                                        onClick={() => router.push(`/project-pipeline/${deal.id}`)}
-                                                    >
-                                                        {deal.name}
+                                                {/* Header: Rank + Name + Menu */}
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className={`inline-flex h-5 min-w-5 px-1.5 items-center justify-center rounded text-[10px] font-bold shrink-0 ${cardColor.bg} ${cardColor.text}`}>
+                                                            {cardRank}
+                                                        </span>
+                                                        <div
+                                                            className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer"
+                                                            onClick={() => router.push(`/project-pipeline/${deal.id}`)}
+                                                        >
+                                                            {deal.name}
+                                                        </div>
                                                     </div>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
@@ -224,21 +243,16 @@ export function KanbanBoard({
                                                                 direct URL access until Phase A relocates it. */}
                                                             {canDropThisDeal && (
                                                                 <>
-                                                                    {/* Legacy contract-document upload path. Still
-                                                                        functional during Phase A move-out; will be
-                                                                        retired when Contract Review menu takes the
-                                                                        upload code. */}
-                                                                    <DropdownMenuItem
-                                                                        onClick={() => router.push(`/crm/${deal.id}#contract-document`)}
-                                                                        disabled={!canManageCrm}
-                                                                        title={!canManageCrm
-                                                                            ? rbacReason
-                                                                            : 'Upload an approved contract document to move the deal to Won.'}
-                                                                        className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                    >
-                                                                        <Trophy className="mr-2 h-4 w-4" />
-                                                                        Upload Contract → Win
-                                                                    </DropdownMenuItem>
+                                                                    {deal.status === 'negotiation' && deal.activeContractDraftId && (
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}/contract-draft/${deal.activeContractDraftId}`)}
+                                                                            disabled={!canManageCrm}
+                                                                            title={!canManageCrm ? rbacReason : 'View the active contract draft.'}
+                                                                        >
+                                                                            <FileText className="mr-2 h-4 w-4" />
+                                                                            Open contract draft
+                                                                        </DropdownMenuItem>
+                                                                    )}
                                                                     <DropdownMenuItem
                                                                         onClick={() => openDropDeal(deal.id, deal.name)}
                                                                         disabled={dropDeal.isPending || !canManageCrm}
@@ -309,23 +323,21 @@ export function KanbanBoard({
                                                     </div>
                                                 </div>
 
-                                                {/* Booking-state badge — Won = hard committed,
-                                                    Dropped = no longer booked, otherwise soft-booked. */}
-                                                <div className="flex justify-end pt-1">
-                                                    {isWon ? (
-                                                        <Badge variant="default" className="bg-[#171717] hover:bg-[#00a7f4] text-[10px]">
-                                                            Hard Booked
-                                                        </Badge>
-                                                    ) : isDropped ? (
-                                                        <Badge variant="secondary" className="bg-slate-300 text-slate-700 hover:bg-slate-300 text-[10px]">
-                                                            Dropped
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 text-[10px]">
-                                                            Soft Booked
-                                                        </Badge>
-                                                    )}
-                                                </div>
+                                                {/* Contract status badge — A-stage only */}
+                                                {deal.status === 'negotiation' && !isDropped && (
+                                                    <div className="flex justify-start pt-1">
+                                                        {deal.hasSentContractDraft ? (
+                                                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] border-0">
+                                                                Contract Sent
+                                                            </Badge>
+                                                        ) : deal.activeContractDraftId ? (
+                                                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px] border-0">
+                                                                Drafting
+                                                            </Badge>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+
                                             </CardContent>
                                         </Card>
                                     );

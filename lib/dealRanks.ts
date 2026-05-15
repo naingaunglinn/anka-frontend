@@ -96,10 +96,15 @@ export function dealRank(deal: Pick<Deal, 'status' | 'lifecycleStatus'>): 'C' | 
 /**
  * Returns true when the deal has all the Estimation handoff fields needed
  * for contract drafting. Mirrors Deal::isContractEligible() on the backend.
+ *
+ * Rank A (negotiation) is the contract-drafting stage. The B→A flip is
+ * fired by the backend the moment Estimation completes the handoff, so
+ * by the time we reach A all the final_* fields are guaranteed present —
+ * but we re-check them defensively in case of stale frontend state.
  */
 export function isContractEligible(deal: Deal): boolean {
     return (
-        deal.status === 'qualified' &&
+        deal.status === 'negotiation' &&
         deal.lifecycleStatus !== 'dropped' &&
         deal.finalMonthlyFee != null &&
         deal.finalContractMonths != null &&
@@ -108,3 +113,22 @@ export function isContractEligible(deal: Deal): boolean {
         !!deal.finalConfirmedAt
     );
 }
+
+/**
+ * Light per-rank colour palette. Used by the Kanban column header chip,
+ * the per-card left-border accent, and the rank chip in the card header.
+ * Keep these in sync with STAGE_CONFIG in the deal detail page.
+ *
+ *   bg     — light wash for the chip background
+ *   text   — readable text on the wash
+ *   border — accent for the card's left border (slightly stronger than bg)
+ */
+export const STAGE_COLORS: Record<DealStage, { bg: string; text: string; border: string }> = {
+    lead:        { bg: 'bg-slate-100',   text: 'text-slate-700',   border: 'border-l-slate-300' },
+    qualified:   { bg: 'bg-blue-50',     text: 'text-blue-700',    border: 'border-l-blue-300' },
+    negotiation: { bg: 'bg-purple-50',   text: 'text-purple-700',  border: 'border-l-purple-300' },
+    won:         { bg: 'bg-emerald-50',  text: 'text-emerald-700', border: 'border-l-emerald-300' },
+};
+
+/** Light palette for dropped deals — neutral grey regardless of last-known stage. */
+export const DROPPED_COLORS = { bg: 'bg-slate-100', text: 'text-slate-500', border: 'border-l-slate-200' };

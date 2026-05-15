@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { CURRENCY_CONFIG } from "@/lib/currencyConfig";
 import { Deal } from "@/types/business";
@@ -137,8 +138,9 @@ export default function NewDealPage() {
             wizardStep: 'context',
         };
 
-        const created = await createDeal.mutateAsync(newDeal);
-        router.push(`/project-pipeline/edit/${created.id}`);
+        await createDeal.mutateAsync(newDeal);
+        toast.success(`Deal "${data.name}" created`);
+        router.push('/project-pipeline');
     }
 
     if (!canManageCrm) {
