@@ -25,7 +25,7 @@ import {
     type RenderedSection,
 } from '@/lib/queries/contractDrafts';
 import type { Deal } from '@/types/business';
-import { normalizeError } from '@/lib/errorHandler';
+import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
 type Step = 'choose' | 'edit' | 'send';
 
@@ -104,7 +104,13 @@ export function ContractDraftWizard({
             setStep('edit');
             toast.success('Draft generated.');
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            const normalized = normalizeError(err);
+            // Laravel's default 422 message is the generic "The given data was
+            // invalid." — useless on its own. Surface the first field-level
+            // error instead so the user sees the real reason (e.g. "Estimation
+            // handoff is incomplete. Missing: final_monthly_fee, ...").
+            const detail = firstFieldError(normalized);
+            toast.error(detail ?? normalized.message);
         }
     }
 
