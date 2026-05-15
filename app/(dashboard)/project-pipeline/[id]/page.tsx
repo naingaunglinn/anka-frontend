@@ -212,7 +212,7 @@ export default function DealDetailPage() {
                         when Estimation has handed off all required final_*
                         fields. If a draft already exists, surface "Open draft"
                         instead so users don't generate duplicates. */}
-                    {activeDraft ? (
+                    {stage === 'negotiation' && activeDraft ? (
                         <Button
                             variant="outline"
                             className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
