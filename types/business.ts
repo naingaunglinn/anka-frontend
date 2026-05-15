@@ -276,6 +276,9 @@ export interface Deal {
      *  (status sent_to_customer or signed). Used to gate the Kanban
      *  "Upload Contract → Win" action to deals where a draft was actually sent. */
     hasSentContractDraft?: boolean;
+    /** ID of the most recent non-superseded contract draft. Used to open
+     *  the draft directly from the Kanban card dropdown. */
+    activeContractDraftId?: string | null;
 }
 
 // --- Contracts & Billing ---

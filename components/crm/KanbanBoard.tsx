@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Trophy, Ban } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Trophy, Ban, FileText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -224,6 +224,16 @@ export function KanbanBoard({
                                                                 direct URL access until Phase A relocates it. */}
                                                             {canDropThisDeal && (
                                                                 <>
+                                                                    {deal.status === 'negotiation' && deal.activeContractDraftId && (
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}/contract-drafts/${deal.activeContractDraftId}`)}
+                                                                            disabled={!canManageCrm}
+                                                                            title={!canManageCrm ? rbacReason : 'View the active contract draft.'}
+                                                                        >
+                                                                            <FileText className="mr-2 h-4 w-4" />
+                                                                            Open contract draft
+                                                                        </DropdownMenuItem>
+                                                                    )}
                                                                     {/* Legacy contract-document upload path. Still
                                                                         functional during Phase A move-out; will be
                                                                         retired when Contract Review menu takes the
@@ -310,6 +320,21 @@ export function KanbanBoard({
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {/* Contract status badge — A-stage only */}
+                                                {deal.status === 'negotiation' && !isDropped && (
+                                                    <div className="flex justify-start pt-1">
+                                                        {deal.hasSentContractDraft ? (
+                                                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] border-0">
+                                                                Contract Sent
+                                                            </Badge>
+                                                        ) : deal.activeContractDraftId ? (
+                                                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px] border-0">
+                                                                Drafting
+                                                            </Badge>
+                                                        ) : null}
+                                                    </div>
+                                                )}
 
                                                 {/* Booking-state badge — Won = hard committed,
                                                     Dropped = no longer booked, otherwise soft-booked. */}

@@ -110,6 +110,7 @@ interface ApiDeal {
     win_reason?: string;
     loss_reason?: string;
     has_sent_contract_draft?: boolean;
+    active_contract_draft_id?: string | null;
     ghost_roles?: ApiGhostRole[];
     hard_assignments?: ApiHardAssignment[];
     estimation_resources?: ApiEstimationResource[];
@@ -259,6 +260,7 @@ export function toDeal(row: ApiDeal): Deal {
         winReason: row.win_reason,
         lossReason: row.loss_reason,
         hasSentContractDraft: row.has_sent_contract_draft ?? false,
+        activeContractDraftId: row.active_contract_draft_id ?? null,
         ghostRoles: (row.ghost_roles ?? []).map(toGhostRole),
         hardAssignments: (row.hard_assignments ?? []).map(toHardAssignment),
         estimationResources: (row.estimation_resources ?? []).map(toEstimationResource),
