@@ -66,7 +66,7 @@ export default function NewContractDraftPage() {
 
     if (!isContractEligible(deal)) {
         const missing: string[] = [];
-        if (deal.status !== 'qualified') missing.push(`deal must be at rank B (currently ${deal.status ?? 'unknown'})`);
+        if (deal.status !== 'negotiation') missing.push(`deal must be at rank A (currently ${deal.status ?? 'unknown'} — the Estimation handoff auto-advances B → A once complete)`);
         if (deal.lifecycleStatus === 'dropped') missing.push('deal has been dropped');
         if (deal.finalMonthlyFee == null) missing.push('final_monthly_fee');
         if (deal.finalContractMonths == null) missing.push('final_contract_months');

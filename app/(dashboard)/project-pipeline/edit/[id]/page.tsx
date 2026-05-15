@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -166,6 +167,7 @@ export default function EditDealPage() {
             },
         });
 
+        toast.success(`Deal "${data.name}" updated.`);
         router.push(`/project-pipeline/${dealId}`);
     }
 
