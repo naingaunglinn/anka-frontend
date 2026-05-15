@@ -16,6 +16,7 @@ import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/proje
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
+import { SimulatedDateBar } from '@/components/SimulatedDateBar';
 
 export default function TimeTrackingPage() {
     const store = useBusinessStore();
@@ -214,6 +215,8 @@ export default function TimeTrackingPage() {
                     </DialogContent>
                 </Dialog>
             </div>
+
+            <SimulatedDateBar />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="shadow-sm border-[#e6e9ee]">

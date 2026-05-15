@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Loader2, ListTree, PencilLine } from 'lucide-react';
 import {
     useProjectTaskAssignments,
@@ -15,8 +16,10 @@ import {
 import {
     useScheduleTrackingList,
     useLogProgress,
+    usePhaseProgressLogs,
 } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
+import { useAsOfParam } from '@/components/SimulatedDateBar';
 import type {
     ProjectTaskAssignment,
     ProjectTaskPhaseAssignment,
@@ -44,7 +47,8 @@ interface Props {
 
 export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
     const tasksQuery    = useProjectTaskAssignments(projectId);
-    const trackingQuery = useScheduleTrackingList(projectId, { per_page: 200, assignee_id: employeeId });
+    const asOf = useAsOfParam();
+    const trackingQuery = useScheduleTrackingList(projectId, { per_page: 200, assignee_id: employeeId, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks        = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
     const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
@@ -253,6 +257,13 @@ function LogProgressModal({
     const logProgress = useLogProgress();
     const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
 
+    // Prior progress logs for this phase. Hook is gated on null when the modal
+    // is closed (see usePhaseProgressLogs.enabled), so no request fires until
+    // the user actually opens the modal for a phase. After save, useLogProgress
+    // invalidates the same query key, so reopening the modal shows the new row.
+    const { data: prevLogs = [], isLoading: logsLoading } =
+        usePhaseProgressLogs(open && phase ? phase.id : null);
+
     if (!phase) return null;
 
     const save = () => {
@@ -302,6 +313,42 @@ function LogProgressModal({
                 </DialogHeader>
 
                 <div className="space-y-4 mt-2">
+                    <div className="space-y-1.5">
+                        <div className="text-xs font-medium text-slate-700">Previous entries</div>
+                        {logsLoading ? (
+                            <div className="h-12 animate-pulse bg-slate-100 rounded-md" />
+                        ) : prevLogs.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic">
+                                No prior entries — this will be the first log for this phase.
+                            </p>
+                        ) : (
+                            <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="h-8 text-xs">Date</TableHead>
+                                            <TableHead className="h-8 text-xs text-right">Progress (h)</TableHead>
+                                            <TableHead className="h-8 text-xs text-right">Used (h)</TableHead>
+                                            <TableHead className="h-8 text-xs">Note</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {prevLogs.map((log) => (
+                                            <TableRow key={log.id}>
+                                                <TableCell className="py-1.5 text-xs font-mono">{log.logDate}</TableCell>
+                                                <TableCell className="py-1.5 text-xs text-right">{log.progressHours}</TableCell>
+                                                <TableCell className="py-1.5 text-xs text-right">{log.usedHours}</TableCell>
+                                                <TableCell className="py-1.5 text-xs text-slate-600">
+                                                    {log.note ? (log.note.length > 40 ? log.note.slice(0, 40) + '…' : log.note) : '—'}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
                             <label className="text-xs text-slate-600">Log date</label>

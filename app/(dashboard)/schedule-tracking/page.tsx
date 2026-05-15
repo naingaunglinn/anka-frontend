@@ -16,6 +16,7 @@ import {
 } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
+import { SimulatedDateBar, useAsOfParam } from '@/components/SimulatedDateBar';
 import { Search } from 'lucide-react';
 import type { ScheduleTrackingRow } from '@/types/business';
 
@@ -53,16 +54,19 @@ export default function ScheduleTrackingPage() {
 
     useEffect(() => { setPage(1); }, [projectId, debouncedSearch, healthFilter]);
 
+    const asOf = useAsOfParam();
+
     const params = useMemo(() => {
         const p: Record<string, string | number> = { page, per_page: 25 };
         if (debouncedSearch.trim()) p.search = debouncedSearch.trim();
         if (healthFilter)            p.health = healthFilter;
+        if (asOf)                    p.as_of  = asOf;
         return p;
-    }, [page, debouncedSearch, healthFilter]);
+    }, [page, debouncedSearch, healthFilter, asOf]);
 
     const listQuery     = useScheduleTrackingList(projectId, params);
-    const summaryQuery  = useProjectScheduleSummary(projectId);
-    const byAssignee    = useProjectScheduleByAssignee(projectId);
+    const summaryQuery  = useProjectScheduleSummary(projectId, asOf);
+    const byAssignee    = useProjectScheduleByAssignee(projectId, asOf);
 
     const rows = listQuery.data?.data ?? [];
     const meta = (listQuery.data?.meta as { current_page?: number; last_page?: number; total?: number }) ?? {};
@@ -76,6 +80,8 @@ export default function ScheduleTrackingPage() {
                     Per-phase progress vs plan across the whole project. Click a row for the day-by-day log history.
                 </p>
             </div>
+
+            <SimulatedDateBar />
 
             {/* Controls */}
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

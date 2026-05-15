@@ -7,6 +7,7 @@ import { LoadingState } from '@/components/LoadingState';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectList } from '@/lib/queries/projects';
 import { MyScheduleEmployeeTable } from '@/components/time-tracking/MyScheduleEmployeeTable';
+import { SimulatedDateBar } from '@/components/SimulatedDateBar';
 
 export default function MySchedulePage() {
     const user = useAuthStore((s) => s.user);
@@ -31,6 +32,8 @@ export default function MySchedulePage() {
                     <span className="font-medium"> progress hours</span> and <span className="font-medium">used hours</span>.
                 </p>
             </div>
+
+            <SimulatedDateBar />
 
             {!employeeId && (
                 <Card className="shadow-sm border-amber-200 bg-amber-50">

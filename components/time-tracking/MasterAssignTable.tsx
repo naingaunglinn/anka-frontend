@@ -13,6 +13,7 @@ import {
 } from '@/lib/queries/projects';
 import { useScheduleTrackingList } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
+import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
 import type {
     ProjectTaskPhaseAssignment,
@@ -45,7 +46,10 @@ export function MasterAssignTable({ projectId }: Props) {
     const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
     // Pull all schedule-tracking rows for this project so each phase cell can
     // show its variance/health badge. Large per_page to avoid pagination here.
-    const trackingQuery = useScheduleTrackingList(projectId, { per_page: 100 });
+    // `as_of` threads the simulated-today override through so badges recompute
+    // when the user picks a test date.
+    const asOf = useAsOfParam();
+    const trackingQuery = useScheduleTrackingList(projectId, { per_page: 100, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
     const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
