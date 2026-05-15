@@ -231,7 +231,7 @@ export function KanbanBoard({
                                                                 <>
                                                                     {deal.status === 'negotiation' && deal.activeContractDraftId && (
                                                                         <DropdownMenuItem
-                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}/contract-drafts/${deal.activeContractDraftId}`)}
+                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}/contract-draft/${deal.activeContractDraftId}`)}
                                                                             disabled={!canManageCrm}
                                                                             title={!canManageCrm ? rbacReason : 'View the active contract draft.'}
                                                                         >
