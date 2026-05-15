@@ -52,6 +52,24 @@ route_groups:
         file: app/(dashboard)/crm/[id]/staffing/page.tsx
         purpose: Hard booking page — canonical writer of `hardAssignments`.
 
+      - path: /crm/contract-reviews
+        file: app/(dashboard)/crm/contract-reviews/page.tsx
+        purpose: |
+          Tenant-wide queue of every uploaded contract document and its AI
+          verdict status. Triage view for salespeople and managers — filter
+          chips (Pending / Needs attention / Approved / Failed), search,
+          quick-glance stats. Linked from a "Contract Reviews" button on
+          /crm. Lives under /crm rather than top-level because it's a CRM
+          workflow, not a primary destination (chg-010).
+
+      - path: /crm/contract-reviews/[id]
+        file: app/(dashboard)/crm/contract-reviews/[id]/page.tsx
+        purpose: |
+          Deep-review surface — full-page AnalysisResultCard with deal-
+          context side panel for reconciliation. Linked from the queue
+          and from the compact summary row on the deal-detail uploader
+          (chg-010).
+
       - path: /estimation
         file: app/(dashboard)/estimation/page.tsx
         purpose: Estimation engine. Wraps `EstimationSimulator` with `?dealId` support.

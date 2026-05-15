@@ -1,4 +1,4 @@
-import type { AITeamBuilderInput, AITeamBuilderResult, AITeamMember } from '@/types/aiTeamBuilder'
+import type { AITeamBuilderInput, AITeamBuilderResult, AITeamMember, AITeamBuilderEmployeeContext } from '@/types/aiTeamBuilder'
 import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
 
 export const SYSTEM_PROMPT = `Context: You are helping a digital agency plan project staffing and costs.
@@ -30,10 +30,17 @@ Don't deviate from the band's default size for any other reason. Over-staffing e
 
 Each employee in the pool has these fields you should weigh during selection:
   - capacityRole: bucket — frontend / backend / pm / qa / design (or unknown).
-  - roleTitle: their billing role text (e.g. "Senior Backend Engineer", "Junior Frontend Engineer", "Scrum Master", "Head of Organization", or null). Read seniority from the title:
+  - roleTitle: their billing role text (e.g. "Senior Backend Engineer").
+  - **rank**: a structured seniority object \`{ code, level }\` where higher level = more senior. THIS IS THE CANONICAL SENIORITY SIGNAL when present:
+      • level ≥ 40 → Lead / technical leadership
+      • level ≥ 30 → Senior
+      • level ≥ 20 → Mid-level
+      • level ≤ 10 → Junior
+    When \`rank\` is null, fall back to keyword-matching on roleTitle:
       • Leadership: titles containing Lead, Senior, Head, Master, Principal, or Manager.
       • Junior: titles containing Junior, Intern, or Associate.
       • Mid-level: everything else (or null roleTitle).
+  - **pastProjects**: an array of recent projects this employee has worked on, each with \`{ name, client, status, dealDescription }\`. Used as the experience signal in the cost-vs-experience tiebreaker below.
   - skills: their recorded skills with proficiency (expert/intermediate/beginner).
   - costPerHour, monthlySalary, maxProjectHours: cost & capacity.
 
@@ -44,7 +51,7 @@ Selection priorities — weigh these together to produce the best feasible team.
   2. **Required skills.** For every entry in requiredSkills, include a carrier when budget allows, preferring higher proficiency (expert > intermediate > beginner). When budget can't afford to include a carrier, list the skill in gapSkills with a hire/contract recommendation rather than forcing the team over budget.
 
   3. **Team composition.**
-     • Include at least 1 leadership-level employee (roleTitle marks them as Lead/Senior/Head/Master/Principal/Manager) when any exist in the pool — every team needs technical leadership.
+     • Leadership: see the "Need Management" instruction in the user prompt. When the user requested leadership, include at least 1 leadership-level employee (rank.level ≥ 30 OR roleTitle marks them as Lead/Senior/Head/Master/Principal/Manager) when any exist in the pool. When the user opted out of leadership ("Need Management = no"), do NOT add a senior solely for management — optimise for skill coverage + budget. Note this in aiReasoning either way.
      • Include 1 PM-class employee (capacityRole = pm OR roleTitle implies project management) when the project description suggests coordination work (multi-stakeholder, multi-month, multiple workstreams).
      • Balance senior vs junior weight against workload complexity. Short or well-scoped projects tolerate junior-heavy teams; complex or long projects warrant more senior weight. Do NOT staff the entire team with seniors when juniors can handle routine workstreams — that wastes budget.
 
@@ -52,7 +59,9 @@ Selection priorities — weigh these together to produce the best feasible team.
 
   5. **Capacity-role fit.** Pick capacityRoles that match the project description (e.g. brand-heavy projects need design; data-heavy projects need backend).
 
-  6. **Cost efficiency.** Among comparable candidates, prefer lower costPerHour.
+  6. **Past-project experience (tiebreaker — applies AFTER budget, skills, leadership, workload).** When two candidates are otherwise equal (same skill at same proficiency, same rank, both within budget), prefer the one whose \`pastProjects\` show similar work to the current deal description. "Similar" means same industry vertical, same deliverable type, or overlapping tech stack. **Past-project relevance beats raw cost efficiency** — picking a candidate with relevant past projects over a cheaper candidate without is encouraged. When neither candidate has relevant past projects, fall through to cost (prefer lower costPerHour). Reflect this choice in the team member's \`reasoning\` field, e.g. *"Picked over Y because X led a similar GCP backup project for Yazaki — productivity uplift offsets the small cost delta."*
+
+  7. **Cost efficiency.** Among candidates with NO past-project differentiator, prefer lower costPerHour.
 
 Allocation realism (apply per team member):
   - A specialist covering a single niche skill (brand identity, ML, blockchain, etc.) usually contributes a fraction of project hours — allocate proportional to actual contribution (e.g. 40-160h for a brand-identity specialist on a multi-component build), NOT full project capacity.
@@ -92,16 +101,36 @@ Output format (JSON):
 }`
 
 export function buildUserPrompt(input: AITeamBuilderInput): string {
+    // Build a lookup of rich employee context by id (rank + past_projects)
+    // — sourced from the AI-team-builder-context backend endpoint. Falls
+    // back to {rank: null, pastProjects: []} when context isn't supplied.
+    const ctxById = new Map<string, { rank: { code: string; level: number } | null; pastProjects: Array<{ name: string; client: string | null; status: string; dealDescription: string | null }> }>()
+    for (const c of input.employeeContext ?? []) {
+        ctxById.set(c.id, {
+            rank: c.rank ? { code: c.rank.code, level: c.rank.level } : null,
+            pastProjects: (c.past_projects ?? []).map(p => ({
+                name: p.name,
+                client: p.client,
+                status: p.status,
+                dealDescription: p.deal_description,
+            })),
+        })
+    }
+
     const activeEmployees = input.employees
         .filter(e => e.status === 'Active')
         .map(e => {
             // Use real available hours (after other deals) when provided, else fall back to static capacity.
             const availableMonthly = input.employeeAvailability?.[e.id] ?? e.workableHours
+            const ctx = ctxById.get(e.id)
             return {
                 id: e.id,
                 name: e.name,
                 capacityRole: e.capacityRole ?? 'unknown',
                 roleTitle: e.roleName ?? null,
+                // Rank pulled from context endpoint (null when unranked or
+                // context unavailable; prompt falls back to roleTitle keywords).
+                rank: ctx?.rank ?? null,
                 costPerHour: e.costPerHour,
                 monthlySalary: e.monthlySalary,
                 monthlyCapacityHours: availableMonthly,
@@ -110,6 +139,9 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
                     name: s.name ?? s.skillId ?? 'unknown',
                     proficiency: s.proficiency ?? 'intermediate',
                 })),
+                // Past projects — empty array when employee has no relevant
+                // history or no skill overlap with this deal (backend skipped them).
+                pastProjects: ctx?.pastProjects ?? [],
             }
         })
         // Exclude employees with no available capacity — they can't contribute and waste Claude's context.
@@ -177,12 +209,17 @@ Produce a meaningfully different recommendation. ${regenerateInstruction}
         ? `Deal: ${input.dealName ?? '(untitled)'}${input.dealClient ? `  ·  Client: ${input.dealClient}` : ''}\n`
         : ''
 
+    // Default ON when undefined for back-compat — older callers didn't ship
+    // this field. Maps to the leadership rule in the system prompt.
+    const needLeadership = input.requireLeadership !== false
+
     return `## Client Project Brief
 
 ${dealHeader}Currency: USD (all values normalized to US Dollars)
 Budget: $${input.clientBudget.toLocaleString()}
 Timeline: ${input.timelineMonths} months
 Total Workload: ${input.workloadHours} hours
+Need Management: ${needLeadership ? 'yes — team MUST include a leadership-level employee (rank.level ≥ 30 OR roleTitle implies leadership)' : 'no — leadership is not required; do NOT add a senior solely for management'}
 
 Project Description:
 ${input.workloadDescription || 'No description provided.'}
@@ -243,25 +280,77 @@ const PROFICIENCY_RANK: Record<string, number> = {
     beginner: 1,
 }
 
+/**
+ * Cheap keyword-overlap heuristic for "does this employee have relevant past
+ * projects for this deal." Used by the server-side carrier finder so its
+ * tiebreaker matches the rule documented in the AI prompt: experience beats
+ * raw cost efficiency. Intentionally less smart than Claude's free-text
+ * judgement — this only fires when Claude missed a required skill and we're
+ * picking a fallback carrier.
+ */
+function hasRelevantPastProject(
+    pastProjects: Array<{ dealDescription?: string | null; name?: string; client?: string | null }> | undefined,
+    dealKeywords: string[],
+): boolean {
+    if (!pastProjects || pastProjects.length === 0 || dealKeywords.length === 0) {
+        return false
+    }
+    for (const p of pastProjects) {
+        const haystack = `${p.dealDescription ?? ''} ${p.name ?? ''} ${p.client ?? ''}`.toLowerCase()
+        for (const kw of dealKeywords) {
+            if (kw.length >= 3 && haystack.includes(kw)) return true
+        }
+    }
+    return false
+}
+
+function extractDealKeywords(input: AITeamBuilderInput): string[] {
+    const text = `${input.workloadDescription ?? ''} ${(input.requiredSkills ?? []).join(' ')}`.toLowerCase()
+    const tokens = text.split(/[^a-z0-9+#.]+/i).filter(t => t.length >= 4)
+    // Drop common stop-words that would otherwise match every project trivially.
+    const stop = new Set(['this', 'that', 'with', 'will', 'have', 'their', 'from', 'project', 'system'])
+    return Array.from(new Set(tokens.filter(t => !stop.has(t))))
+}
+
 function findCarrier(
     skill: string,
-    employees: AITeamBuilderInput['employees'],
+    input: AITeamBuilderInput,
     excludedIds: Set<string>,
 ): { employee: AITeamBuilderInput['employees'][number]; proficiency: string } | null {
     const needle = skill.toLowerCase()
-    const candidates = employees
+    const dealKeywords = extractDealKeywords(input)
+    const ctxById = new Map<string, AITeamBuilderEmployeeContext>()
+    for (const c of input.employeeContext ?? []) {
+        ctxById.set(c.id, c)
+    }
+
+    const candidates = input.employees
         .filter(e => e.status === 'Active' && !excludedIds.has(e.id))
         .map(e => {
             const match = (e.skills ?? []).find(
                 s => (s.name ?? '').toLowerCase() === needle,
             )
-            return match ? { employee: e, proficiency: match.proficiency ?? 'intermediate' } : null
+            if (!match) return null
+            const ctx = ctxById.get(e.id)
+            const past = ctx?.past_projects ?? []
+            return {
+                employee: e,
+                proficiency: match.proficiency ?? 'intermediate',
+                hasRelevantPast: hasRelevantPastProject(
+                    past.map(p => ({ dealDescription: p.deal_description, name: p.name, client: p.client })),
+                    dealKeywords,
+                ),
+            }
         })
         .filter((x): x is NonNullable<typeof x> => x !== null)
         .sort((a, b) => {
+            // 1. Higher proficiency wins (expert > intermediate > beginner).
             const aRank = PROFICIENCY_RANK[a.proficiency] ?? 2
             const bRank = PROFICIENCY_RANK[b.proficiency] ?? 2
             if (aRank !== bRank) return bRank - aRank
+            // 2. Past-project relevance beats raw cost — matches the prompt rule.
+            if (a.hasRelevantPast !== b.hasRelevantPast) return a.hasRelevantPast ? -1 : 1
+            // 3. Among otherwise-equal candidates, prefer the cheaper one.
             return (a.employee.costPerHour ?? 0) - (b.employee.costPerHour ?? 0)
         })
     return candidates[0] ?? null
@@ -298,7 +387,7 @@ export function enforceSkillCoverage(
     for (const skill of required) {
         if (teamCovers.has(skill.toLowerCase())) continue
 
-        const carrier = findCarrier(skill, input.employees, selectedIds)
+        const carrier = findCarrier(skill, input, selectedIds)
         if (!carrier) continue // genuinely uncovered — leave in gapSkills
 
         const emp = carrier.employee

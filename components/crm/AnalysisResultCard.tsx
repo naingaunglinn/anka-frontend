@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
     CheckCircle2, XCircle, AlertTriangle, AlertCircle, ChevronDown, ChevronRight,
     FileText, Sparkles, TrendingUp, TrendingDown, Minus, Quote,
@@ -34,6 +35,47 @@ const SEVERITY_LABEL: Record<FieldSeverity, string> = {
     required: 'Required',
     recommended: 'Recommended',
 };
+
+/**
+ * Internal verdict keys that aren't field grades (so they don't appear in
+ * field_grades' label map) but DO leak into Claude's diff strings as
+ * snake_case. Mapped here so the scrubber can humanize them.
+ */
+const NON_GRADE_KEY_LABELS: Record<string, string> = {
+    deal_match: 'Deal match',
+    critical_failures: 'Critical failures',
+    dispute_risks: 'Dispute risks',
+    overall_score: 'Overall score',
+    detected_payment_pattern: 'Payment pattern',
+    field_grades: 'Field grades',
+    diff_vs_previous: 'Changes since last upload',
+};
+
+/**
+ * Replace internal snake_case field keys with human-readable labels in any
+ * string Claude returns (improvements, regressions, summary, reasoning).
+ * Defensive — even with the prompt instructing Claude to use labels, an
+ * occasional `customer_signature` slips through. Builds the label map from
+ * the verdict's own field_grades so it stays in sync with FIELD_DEFINITIONS
+ * on the backend.
+ */
+function buildKeyToLabelMap(grades: FieldGrade[]): Record<string, string> {
+    const map: Record<string, string> = { ...NON_GRADE_KEY_LABELS };
+    for (const g of grades) {
+        if (g.field && g.label) map[g.field] = g.label;
+    }
+    return map;
+}
+
+function humanizeKeys(text: string, keyToLabel: Record<string, string>): string {
+    if (!text) return text;
+    // Match snake_case_words ≥ 4 chars containing an underscore. Case-
+    // insensitive replace; if the key isn't in the map, leave it alone.
+    return text.replace(/\b[a-z][a-z0-9_]{3,}\b/gi, (match) => {
+        const lower = match.toLowerCase();
+        return keyToLabel[lower] ?? match;
+    });
+}
 
 function statusIcon(status: FieldStatus) {
     const cls = 'h-4 w-4 shrink-0';
@@ -185,7 +227,18 @@ function RichVerdict({
     showAll: boolean;
     onToggleAll: () => void;
 }) {
+    // When the contract is for the wrong deal, hide every other warning
+    // by default — they're computed on a document that doesn't belong
+    // here, so the score / failing fields / dispute risks are noise.
+    // Salesperson can still expand to see the AI's grading if they want
+    // to argue against the mismatch detection.
+    const [showAnalysisAnyway, setShowAnalysisAnyway] = useState(false);
+
     const grades = a.field_grades ?? [];
+    // Built once per verdict — shared by every place we humanize Claude's
+    // free-text output (currently the diff bullets; suggested_fix /
+    // reasoning could use it too if needed).
+    const keyToLabel = useMemo(() => buildKeyToLabelMap(grades), [grades]);
 
     // Group field grades by severity, missing/partial first within each tier.
     const groups = useMemo(() => {
@@ -216,9 +269,35 @@ function RichVerdict({
     const pattern = a.detected_payment_pattern ?? doc.detected_payment_pattern ?? 'unknown';
     const diff = a.diff_vs_previous;
     const mismatch = a.deal_match && a.deal_match.is_match === false ? a.deal_match : null;
+    // Keyword-fallback verdicts have no Claude reasoning behind them — the
+    // model couldn't be reached at analysis time. We surface this as a
+    // prominent banner (not just a small chip) because the rest of the
+    // verdict LOOKS like a real AI review, and a salesperson glancing at
+    // it would otherwise assume Claude analysed the contract.
+    const usedFallback = a.model === 'keyword-fallback';
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            {/* ── Fallback warning banner: makes it unmistakable that the
+                  verdict below came from heuristic keyword matching, not
+                  Claude. Re-analyse (via the Retry button on the deep
+                  review page) once the AI is back online. ──────────────── */}
+            {usedFallback && (
+                <div className="px-4 py-3 bg-amber-50 border-b-2 border-amber-300">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-amber-900">
+                                AI review unavailable — heuristic check only
+                            </h4>
+                            <p className="text-xs text-amber-800 mt-1">
+                                Claude could not be reached when this contract was uploaded, so the verdict below comes from a deterministic keyword scan rather than the AI. <strong>Re-analyse from the deep review page</strong> once the AI is back online to get a proper review with evidence quotes, dispute risks, and per-field reasoning.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Deal mismatch banner: appears ABOVE everything else when
                   Claude (or the heuristic fallback) decided this contract
                   isn't for the current deal. Hard-blocks approval — no
@@ -259,10 +338,43 @@ function RichVerdict({
                             <p className="text-[10px] text-red-600 italic mt-2">
                                 Approval is blocked until the correct contract is uploaded.
                             </p>
+
+                            {/* Action row + expander. The default state hides
+                                the rest of the verdict (score / failing
+                                fields / dispute risks) because they were
+                                computed against the wrong document. The
+                                expander lets the user reveal them when they
+                                want to argue with the AI's mismatch call. */}
+                            <div className="mt-3 flex items-center gap-3 flex-wrap">
+                                <Link
+                                    href={`/crm/${doc.deal_id}#contract-document`}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5"
+                                >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Upload correct contract
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAnalysisAnyway(s => !s)}
+                                    className="text-[11px] text-red-700 hover:text-red-900 underline underline-offset-2"
+                                >
+                                    {showAnalysisAnyway
+                                        ? '▴ Hide analysis of this (wrong) document'
+                                        : '▾ Show analysis of this (wrong) document anyway'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* ── Sections below this point are HIDDEN when the contract is
+                  for the wrong deal (the score / grades / dispute risks were
+                  computed on the wrong document — showing them is misleading
+                  noise). The "Show analysis anyway" expander on the mismatch
+                  banner reveals them for users who want to argue with the
+                  AI's mismatch call. ─────────────────────────────────────── */}
+            {(!mismatch || showAnalysisAnyway) && (<>
 
             {/* ── Top bar: status + filename + score gauge ─────────────────── */}
             <div className={`px-4 py-3 flex items-start gap-3 ${
@@ -320,12 +432,12 @@ function RichVerdict({
                         <ul className="mt-1.5 space-y-0.5">
                             {diff.improvements.map((s, i) => (
                                 <li key={`i-${i}`} className="text-[11px] text-emerald-700 flex gap-1.5">
-                                    <span>✓</span><span>{s}</span>
+                                    <span>✓</span><span>{humanizeKeys(s, keyToLabel)}</span>
                                 </li>
                             ))}
                             {diff.regressions.map((s, i) => (
                                 <li key={`r-${i}`} className="text-[11px] text-red-700 flex gap-1.5">
-                                    <span>✗</span><span>{s}</span>
+                                    <span>✗</span><span>{humanizeKeys(s, keyToLabel)}</span>
                                 </li>
                             ))}
                         </ul>
@@ -415,6 +527,8 @@ function RichVerdict({
                     ))}
                 </div>
             )}
+
+            </>)}
         </div>
     );
 }

@@ -27,13 +27,24 @@ component_groups:
 
       - name: ContractDocumentUploader
         file: components/crm/ContractDocumentUploader.tsx
-        purpose: Upload + Claude-analyse the customer-signed contract that gates A → S
+        purpose: Upload + AI-analyse the customer-signed contract that gates A → S
         features:
           - "Visible on the deal detail page only while stage = 'negotiation'"
           - "Drag/drop or click-to-browse; accepts pdf, docx, txt up to 25 MB"
-          - "Renders AnalysisResultCard for the rich verdict (see below)"
+          - "Renders a compact ContractDocumentSummaryRow per uploaded doc with status badge, score, executive summary, and an 'Open full review →' link to /crm/contract-reviews/[id] for the deep verdict (chg-010)"
+          - "Wrong-customer banner: when deal_match.is_match=false, the row shows a red 'wrong contract' chip — full reasoning lives on the deep page"
           - "On approved, backend auto-fires win_deal(); component routes to /contracts/{id}"
           - "Uses lib/queries/contractDocuments.ts (TanStack Query hooks)"
+
+      - name: ContractReviewsTable
+        file: components/tables/ContractReviewsTable.tsx
+        purpose: Tenant-wide queue of contract documents (chg-010)
+        features:
+          - "@tanstack/react-table with sortable Status / Score / Uploaded columns"
+          - "Default sort: created_at DESC (most-recent uploads first for triage)"
+          - "Score column: emerald 80+, amber 60-79, red <60; '—' for pending/analyzing/failed"
+          - "Deal column: name + client, links to /crm/[id]"
+          - "Each row: 'Review →' link to /crm/contract-reviews/[id]"
 
       - name: AnalysisResultCard
         file: components/crm/AnalysisResultCard.tsx
@@ -62,6 +73,8 @@ component_groups:
           - "Computes requiredSkills via extractRequiredSkills() from workload description"
           - "Computes complexity via computeDealComplexity()"
           - "Builds employeeAvailability map subtracting hard assignments from other deals"
+          - "Need Management toggle (default ON): forces the AI to include a leadership-level employee (rank.level ≥ 30) when ON; allows lean teams without a Senior/Lead when OFF (chg-009)"
+          - "Before building, fetches /deals/{deal}/ai-team-builder-context to enrich employees with rank + past_projects for the prompt (chg-009)"
           - "Calls POST /api/ai-team-builder with full context"
           - "On API failure, falls back to generateClientFallback() (deterministic keyword-based)"
           - "Supports regeneration with feedback text"
@@ -105,20 +118,37 @@ component_groups:
         purpose: Employee directory with availability calculation
         features:
           - "@tanstack/react-table with sorting, pagination"
-          - "Columns: Name, Role, Monthly Salary, Cost/Hr, Total Hours/Mo, Available Hours, Skills, Status, Actions"
+          - "Columns: Name, Role, Rank, Monthly Salary, Cost/Hr, Total Hours/Mo, Available Hours, Skills, Status, Actions"
+          - "Rank column shows the employee's seniority code (Junior/Mid/Senior/Lead or custom) with level-band colour; sortable by rank.level (chg-009)"
           - "Available Hours = workableHours - sum(timeEntries.hours) for current month"
           - "Overbooked employees highlighted in red"
           - "Skills displayed as badges with overflow handling"
 
       - name: EmployeeForm
         file: components/forms/EmployeeForm.tsx
-        purpose: Create/edit employee with skills assignment
+        purpose: Create/edit employee with skills + rank assignment
         features:
           - "React Hook Form + Zod (employeeSchema / employeeCreateSchema)"
-          - "Fields: name, department, billing role, capacity pool, monthly salary, workable hours, status"
+          - "Fields: name, department, billing role, capacity pool, rank, monthly salary, workable hours, status"
+          - "Rank dropdown lists tenant ranks ordered by level; 'Unranked' sentinel maps to null on save (chg-009)"
           - "Skills picker: popover with search, add/remove skills with proficiency (beginner/intermediate/expert)"
           - "Login credentials: email + password (create requires both; edit treats blank as no change)"
           - "blankToUndefined preprocessor for optional fields"
+
+      - name: RanksTable
+        file: components/tables/RanksTable.tsx
+        purpose: Tenant rank list with inline edit + delete (chg-009)
+        features:
+          - "@tanstack/react-table sorted by level (lowest first)"
+          - "Columns: Level (coloured chip), Name, Code, Actions"
+          - "Level colour bands: 40+ purple (Lead), 30+ blue (Senior), 20+ emerald (Mid), <20 slate (Junior)"
+
+      - name: RankForm
+        file: components/forms/RankForm.tsx
+        purpose: Create/edit a tenant rank (chg-009)
+        features:
+          - "Fields: name, code (regex-validated), level (0-100 integer)"
+          - "Level field hint suggests gaps between defaults so custom ranks (Principal 35, Staff 45) can be inserted later"
 
   - name: Layout Components
     path: components/layout/

@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, UploadCloud, Loader2, CheckCircle2, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { FileText, UploadCloud, Loader2, CheckCircle2, XCircle, AlertTriangle, Trash2, ChevronRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useContractDocuments, useContractDocumentMutations } from '@/lib/queries/contractDocuments';
 import type { ContractDocument } from '@/lib/queries/contractDocuments';
 import { normalizeError } from '@/lib/errorHandler';
-import { AnalysisResultCard } from '@/components/crm/AnalysisResultCard';
 
 // xlsx + pptx were dropped because phpoffice/phpspreadsheet has unresolved
 // security advisories on every release; clients can re-export those as PDF
@@ -183,42 +183,110 @@ export function ContractDocumentUploader({ dealId, canManage, enabled }: Props) 
                 )}
 
                 {docs.length > 0 && (
-                    <ul className="space-y-3">
+                    <ul className="space-y-2">
                         {docs.map((doc) => (
-                            <li key={doc.id} className="space-y-2">
-                                <div className="flex items-start justify-between gap-3 px-1">
-                                    <div className="flex items-start gap-2 min-w-0">
-                                        {statusIcon(doc.analysis_status)}
-                                        <div className="min-w-0">
-                                            <p className="text-xs text-[#8a8a8a]">
-                                                {doc.extension.toUpperCase()} · {formatBytes(doc.size_bytes)}
-                                                {doc.analyzed_at ? ` · analysed ${new Date(doc.analyzed_at).toLocaleString()}` : ''}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        {statusBadge(doc.analysis_status)}
-                                        {canManage && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7"
-                                                onClick={() => remove.mutate(doc.id)}
-                                                disabled={remove.isPending}
-                                                title="Delete document"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <AnalysisResultCard document={doc} />
+                            <li key={doc.id}>
+                                <ContractDocumentSummaryRow
+                                    doc={doc}
+                                    canManage={canManage}
+                                    onDelete={() => remove.mutate(doc.id)}
+                                    deleting={remove.isPending}
+                                />
                             </li>
                         ))}
                     </ul>
                 )}
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * Compact one-line summary used INSIDE the deal-detail uploader. The deep
+ * verdict + per-field grades + dispute risks live on /crm/contract-reviews/[id]
+ * — this row just gives the salesperson enough at-a-glance signal to know
+ * whether to click through.
+ */
+function ContractDocumentSummaryRow({
+    doc, canManage, onDelete, deleting,
+}: {
+    doc: ContractDocument;
+    canManage: boolean;
+    onDelete: () => void;
+    deleting: boolean;
+}) {
+    const score = doc.overall_score ?? doc.analysis_result?.overall_score;
+    const summary = doc.analysis_result?.executive_summary;
+    const isMismatch = doc.analysis_result?.deal_match?.is_match === false;
+    const criticalCount = doc.analysis_result?.critical_failures?.length ?? 0;
+
+    const scoreColor =
+        score == null ? 'text-slate-400' :
+        score >= 80 ? 'text-emerald-600' :
+        score >= 60 ? 'text-amber-600' :
+                      'text-red-600';
+
+    return (
+        <div className={`rounded-lg border ${
+            isMismatch ? 'border-red-300 bg-red-50/40' :
+            doc.analysis_status === 'approved' ? 'border-emerald-200 bg-emerald-50/30' :
+            doc.analysis_status === 'rejected' ? 'border-amber-200 bg-amber-50/30' :
+            doc.analysis_status === 'failed'   ? 'border-red-200 bg-red-50/30' :
+            'border-slate-200 bg-slate-50/40'
+        } p-3`}>
+            <div className="flex items-start gap-3">
+                {statusIcon(doc.analysis_status)}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-slate-900 truncate max-w-[280px]">
+                            {doc.original_filename}
+                        </span>
+                        {statusBadge(doc.analysis_status)}
+                        {score != null && (
+                            <span className={`text-xs font-semibold ${scoreColor}`}>
+                                {score}/100
+                            </span>
+                        )}
+                        {isMismatch && (
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-[10px] gap-1">
+                                <AlertCircle className="h-2.5 w-2.5" /> wrong contract
+                            </Badge>
+                        )}
+                        {!isMismatch && criticalCount > 0 && (
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">
+                                {criticalCount} critical
+                            </Badge>
+                        )}
+                    </div>
+                    <p className="text-xs text-[#8a8a8a] mt-0.5">
+                        {doc.extension.toUpperCase()} · {formatBytes(doc.size_bytes)}
+                        {doc.analyzed_at ? ` · analysed ${new Date(doc.analyzed_at).toLocaleString()}` : ''}
+                    </p>
+                    {summary && (
+                        <p className="text-xs text-slate-700 mt-1.5 line-clamp-2">{summary}</p>
+                    )}
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <Link
+                        href={`/crm/contract-reviews/${doc.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                        Open full review <ChevronRight className="h-3 w-3" />
+                    </Link>
+                    {canManage && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={onDelete}
+                            disabled={deleting}
+                            title="Delete document"
+                        >
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }

@@ -157,7 +157,7 @@ export default function Home() {
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[#0086c4]">Platform Modules</p>
           <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">Everything an agency needs, connected.</h2>
           <div className="mt-12 grid gap-5 md:grid-cols-12">
-            <FeatureCard className="md:col-span-4" icon={<Layers className="h-5 w-5" />} title="CRM & Pipeline" description="Kanban board with drag-and-drop deal stages. Track probability, budget, and timeline from lead to closed-won." />
+            <FeatureCard className="md:col-span-4" icon={<Layers className="h-5 w-5" />} title="Project Pipeline" description="Move deals through C → B → A → S with event-driven rank transitions. AI drafts contracts from your Estimation handoff and locks terms once drafting starts." />
             <FeatureCard className="md:col-span-4" icon={<BarChart3 className="h-5 w-5" />} title="Estimation Engine" description="Calculate labor, overhead, buffer, and margin in real time. AI suggests the right team before you commit." />
             <FeatureCard className="md:col-span-4" icon={<FileText className="h-5 w-5" />} title="Contracts & Billing" description="Milestone-based contracts with invoice tracking. Revenue recognition updates automatically when invoices are paid." />
             <FeatureCard className="md:col-span-4" icon={<Briefcase className="h-5 w-5" />} title="Project Delivery" description="Track budget hours, consumed hours, and burn rate. See which projects are on track, at risk, or over budget." />
@@ -203,7 +203,7 @@ export default function Home() {
               <p className="text-xl font-semibold">ANKA</p>
               <p className="mt-3 max-w-sm text-sm text-[#4a4a4a]">All-in-one agency management: pipeline, estimation, contracts, projects, time tracking, and financials — with AI that works.</p>
             </div>
-            <FooterCol t="Product" items={["CRM & Pipeline", "AI Estimation", "Contracts", "Time Tracking", "Financials"]} />
+            <FooterCol t="Product" items={["Project Pipeline", "AI Estimation", "Contracts", "Time Tracking", "Financials"]} />
             <FooterCol t="Company" items={["About", "Customers", "Careers", "Contact"]} />
             <FooterCol t="Resources" items={["Documentation", "API reference", "Demo Guide", "Security"]} />
           </div>

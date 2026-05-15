@@ -83,6 +83,15 @@ export interface ContractDocumentAnalysis {
     suggestion?: string;
 }
 
+/** Lightweight deal summary embedded on a ContractDocument when fetched via
+ * the tenant-wide list endpoint (drives the queue table's Deal column). */
+export interface ContractDocumentDealSummary {
+    id: string;
+    name: string;
+    client: string;
+    status: string;
+}
+
 // Server-returned shape — kept snake_case to mirror the Laravel resource.
 export interface ContractDocument {
     id: string;
@@ -97,6 +106,10 @@ export interface ContractDocument {
     overall_score: number | null;
     detected_payment_pattern: PaymentPattern | null;
     previous_analysis: ContractDocumentAnalysis | null;
+    /** Only present when fetched via the tenant-wide list endpoint
+     * (DealContractDocumentResource conditionally exposes this when the
+     * `deal` relation is eager-loaded). */
+    deal?: ContractDocumentDealSummary | null;
     analyzed_at: string | null;
     created_at: string | null;
     updated_at: string | null;
@@ -113,6 +126,8 @@ export interface UploadResponse {
 export const contractDocumentKeys = {
     all: ['contract-documents'] as const,
     forDeal: (dealId: string) => [...contractDocumentKeys.all, 'deal', dealId] as const,
+    list: (filters: ContractDocumentFilters) => [...contractDocumentKeys.all, 'list', filters] as const,
+    detail: (id: string) => [...contractDocumentKeys.all, 'detail', id] as const,
 };
 
 export function useContractDocuments(dealId: string) {
@@ -124,6 +139,69 @@ export function useContractDocuments(dealId: string) {
         },
         enabled: !!dealId,
         staleTime: 10_000,
+    });
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Tenant-wide contract documents — feeds the /contract-reviews queue
+// page. Server returns paginated data; the deal summary is joined.
+// ───────────────────────────────────────────────────────────────────────
+
+export type ContractDocumentStatusFilter =
+    | 'all'
+    | 'pending'
+    | 'analyzing'
+    | 'approved'
+    | 'rejected'
+    | 'failed';
+
+export interface ContractDocumentFilters {
+    status?: ContractDocumentStatusFilter;
+    search?: string;
+    perPage?: number;
+}
+
+export interface ContractDocumentListResult {
+    data: ContractDocument[];
+    meta?: {
+        current_page?: number;
+        last_page?: number;
+        per_page?: number;
+        total?: number;
+    };
+}
+
+export function useAllContractDocuments(filters: ContractDocumentFilters = {}) {
+    return useQuery<ContractDocumentListResult>({
+        queryKey: contractDocumentKeys.list(filters),
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            if (filters.status && filters.status !== 'all') params.status = filters.status;
+            if (filters.search) params.search = filters.search;
+            if (filters.perPage) params.per_page = filters.perPage;
+
+            const { data: body } = await api.get('/contract-documents', { params });
+            return {
+                data: (body.data ?? []) as ContractDocument[],
+                meta: body.meta,
+            };
+        },
+        staleTime: 15_000,
+    });
+}
+
+/** Single-document fetch for the deep-review page. Falls back to the cached
+ *  list result if the doc is already in cache from the queue, else hits the
+ *  show endpoint. */
+export function useContractDocument(id: string) {
+    return useQuery<ContractDocument>({
+        queryKey: contractDocumentKeys.detail(id),
+        queryFn: async () => {
+            const { data: body } = await api.get(`/contract-documents/${id}`);
+            return body.data as ContractDocument;
+        },
+        enabled: !!id,
+        staleTime: 5_000,
     });
 }
 
@@ -159,4 +237,31 @@ export function useContractDocumentMutations(dealId: string) {
     });
 
     return { upload, remove };
+}
+
+/**
+ * Re-runs AI analysis against an existing uploaded contract document. Used
+ * to recover from keyword-fallback verdicts when Claude was unreachable at
+ * upload time. Same response shape as upload — including auto_won when the
+ * re-analysis approves and the deal is still in negotiation.
+ *
+ * Not scoped to a single deal because the deep-review page reaches this
+ * by document id, not by deal id.
+ */
+export function useReanalyzeContractDocument() {
+    const queryClient = useQueryClient();
+
+    return useMutation<UploadResponse, Error, string>({
+        mutationFn: async (documentId: string) => {
+            const { data: body } = await api.post(`/contract-documents/${documentId}/reanalyze`);
+            return body as UploadResponse;
+        },
+        onSettled: (_data, _err, documentId) => {
+            // Bust every cache that might reference this doc — detail (for
+            // the deep page), per-deal lists, tenant-wide queue, and the
+            // deals/contracts caches in case auto-win fired.
+            queryClient.invalidateQueries({ queryKey: contractDocumentKeys.detail(documentId) });
+            queryClient.invalidateQueries({ queryKey: contractDocumentKeys.all });
+        },
+    });
 }

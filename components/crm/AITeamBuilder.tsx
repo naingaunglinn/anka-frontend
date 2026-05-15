@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useBusinessStore } from '@/store/businessStore'
 import { useTenantStore } from '@/store/tenantStore'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
@@ -11,9 +11,10 @@ import { Loader2, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
-import { computeDealComplexity, type ComplexityBand } from '@/lib/dealComplexity'
+import { computeDealComplexity, recommendManagement, type ComplexityBand } from '@/lib/dealComplexity'
 import { extractRequiredSkills } from '@/lib/skillMatching'
 import { toUSD, fromUSD } from '@/lib/currencyConverter'
+import api from '@/lib/api'
 
 interface Props {
     dealId: string
@@ -129,6 +130,13 @@ export function AITeamBuilder(props: Props) {
     const [loadingStep, setLoadingStep] = useState(0)
     const [showFeedback, setShowFeedback] = useState(false)
     const [regenerateFeedback, setRegenerateFeedback] = useState('')
+    // "Need Management" toggle. The default is AI-recommended based on
+    // project complexity (see recommendManagement in lib/dealComplexity).
+    // While the user hasn't manually flipped it, the toggle re-syncs with
+    // the recommendation as inputs change. Once the user clicks it, their
+    // choice is sticky — recommendation still shown but no longer auto-applied.
+    const [requireLeadership, setRequireLeadership] = useState(true)
+    const [leadershipOverridden, setLeadershipOverridden] = useState(false)
 
     const employees = useBusinessStore(s => s.employees)
     const deals = useBusinessStore(s => s.deals)
@@ -185,6 +193,23 @@ export function AITeamBuilder(props: Props) {
         [hours, months, props.workloadDescription, props.workloadDocumentText, requiredSkills, deal?.ghostRoles],
     )
 
+    // AI's recommendation for the "Need Management" toggle. Reactively
+    // recomputed as the deal inputs change. The toggle below auto-syncs
+    // with this until the user explicitly flips it.
+    const leadershipRecommendation = useMemo(
+        () => recommendManagement(complexity, deal?.ghostRoles?.length ?? 0, months),
+        [complexity, deal?.ghostRoles?.length, months],
+    )
+
+    // Sync the toggle with the recommendation while the user hasn't taken
+    // manual control yet. After a manual flip, leadershipOverridden=true
+    // freezes the toggle at the user's choice (recommendation still shown).
+    useEffect(() => {
+        if (!leadershipOverridden) {
+            setRequireLeadership(leadershipRecommendation.recommended)
+        }
+    }, [leadershipRecommendation.recommended, leadershipOverridden])
+
     async function handleBuild(feedback?: string) {
         setLoading(true)
         setLoadingStep(0)
@@ -194,6 +219,19 @@ export function AITeamBuilder(props: Props) {
         const stepInterval = setInterval(() => {
             setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1))
         }, 1200)
+
+        // Fetch rich employee context (rank + past_projects) from the Laravel
+        // backend. Best-effort: a failure here just means we ship the prompt
+        // without past-project signal and Claude falls back to roleTitle
+        // keyword matching. Uses the same api helper as the rest of the
+        // module so X-Tenant-ID + Bearer are attached automatically.
+        let employeeContext: import('@/types/aiTeamBuilder').AITeamBuilderEmployeeContext[] | undefined
+        try {
+            const ctxRes = await api.get(`/deals/${props.dealId}/ai-team-builder-context`)
+            employeeContext = ctxRes?.data?.data?.employees
+        } catch {
+            // Swallow — fallback path will still produce a usable team.
+        }
 
         // Normalize monetary values to USD for accurate cross-currency AI analysis
         const usdBudget = toUSD(budget, currency, exchangeRates)
@@ -225,6 +263,8 @@ export function AITeamBuilder(props: Props) {
             dealId: props.dealId,
             dealName: props.dealName,
             dealClient: props.dealClient,
+            requireLeadership,
+            employeeContext,
             clientBudget: usdBudget,
             timelineMonths: months,
             workloadHours: hours,
@@ -317,6 +357,62 @@ export function AITeamBuilder(props: Props) {
                     </span>
                 </div>
             )}
+
+            {/* Need Management toggle — AI-recommended default based on
+                complexity / ghost roles / timeline. User can override with
+                a click; "Reset to AI" reverts to the live recommendation. */}
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-indigo-600"
+                            checked={requireLeadership}
+                            onChange={(e) => {
+                                setRequireLeadership(e.target.checked)
+                                setLeadershipOverridden(true)
+                            }}
+                            disabled={loading}
+                        />
+                        <span className="text-[#171717] font-medium">Need Management</span>
+                    </label>
+
+                    {leadershipOverridden ? (
+                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">manual override</Badge>
+                    ) : (
+                        <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px]">
+                            <Sparkles className="h-2.5 w-2.5 mr-1" /> AI recommended
+                        </Badge>
+                    )}
+
+                    {leadershipOverridden && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLeadershipOverridden(false)
+                                setRequireLeadership(leadershipRecommendation.recommended)
+                            }}
+                            className="text-[10px] text-indigo-600 hover:text-indigo-800 underline ml-auto"
+                            disabled={loading}
+                        >
+                            Reset to AI
+                        </button>
+                    )}
+                </div>
+
+                <p className="text-[11px] text-[#4a4a4a] mt-1.5 leading-snug">
+                    <span className="font-medium text-[#171717]">
+                        AI suggests {leadershipRecommendation.recommended ? 'ON' : 'OFF'}:
+                    </span>{' '}
+                    {leadershipRecommendation.reasoning}
+                </p>
+
+                {leadershipOverridden && requireLeadership !== leadershipRecommendation.recommended && (
+                    <p className="text-[10px] text-amber-700 mt-1 italic">
+                        You overrode the recommendation — toggle stays at your choice ({requireLeadership ? 'ON' : 'OFF'}).
+                    </p>
+                )}
+            </div>
 
             <Button
                 type="button"

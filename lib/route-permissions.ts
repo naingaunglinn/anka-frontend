@@ -27,6 +27,9 @@ export const ROUTE_PERMISSIONS: Record<string, Role[] | 'public'> = {
     // executors and shouldn't see organization-wide data.
     '/dashboard':     ['Executive', 'Sales', 'HR'],
     '/organization':  ['Executive', 'HR'],
+    '/project-pipeline': ['Executive', 'Sales'],
+    // /crm/* kept for one release as a backward-compat redirect target.
+    // Phase D rename (chg-009) made /project-pipeline the canonical home.
     '/crm':           ['Executive', 'Sales'],
     '/estimation':    ['Executive', 'Sales'],
     '/contracts':     ['Executive', 'Sales'],
