@@ -355,23 +355,6 @@ export function KanbanBoard({
                                                     </div>
                                                 )}
 
-                                                {/* Booking-state badge — Won = hard committed,
-                                                    Dropped = no longer booked, otherwise soft-booked. */}
-                                                <div className="flex justify-end pt-1">
-                                                    {isWon ? (
-                                                        <Badge variant="default" className="bg-[#171717] hover:bg-[#00a7f4] text-[10px]">
-                                                            Hard Booked
-                                                        </Badge>
-                                                    ) : isDropped ? (
-                                                        <Badge variant="secondary" className="bg-slate-300 text-slate-700 hover:bg-slate-300 text-[10px]">
-                                                            Dropped
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 text-[10px]">
-                                                            Soft Booked
-                                                        </Badge>
-                                                    )}
-                                                </div>
                                             </CardContent>
                                         </Card>
                                     );
