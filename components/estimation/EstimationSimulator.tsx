@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal, EstimationResource, ProjectOverhead } from '@/types/business';
 import type { Currency } from '@/lib/currencyConfig';
@@ -17,7 +17,11 @@ import {
     useEstimationVersions,
     useEstimationVersionDetail,
     useEstimationVersionMutations,
+    useDownloadEstimationXlsx,
+    useGenerateAIEstimationDraft,
+    type AIEstimationDraft,
 } from '@/lib/queries/estimationVersions';
+import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
 import { useDealList } from '@/lib/queries/deals';
 import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
 import toast from 'react-hot-toast';
@@ -198,6 +202,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     // Version queries
     const versionsQuery = useEstimationVersions(selectedDealId || null);
     const { saveVersion, restoreVersion } = useEstimationVersionMutations();
+    const { downloadVersion, isDownloading } = useDownloadEstimationXlsx();
+    const { generate: generateAi, isGenerating: isGeneratingAi, reset: resetAi } = useGenerateAIEstimationDraft();
+    const [aiDraft, setAiDraft] = useState<AIEstimationDraft | null>(null);
     const versions = versionsQuery.data ?? [];
     const currentVersion = versions[0]; // latest (sorted desc)
     const totalVersions = versions.length;
@@ -333,6 +340,71 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         setDirty(true);
     };
 
+    const handleGenerateAi = async () => {
+        if (!selectedDealId) return;
+        try {
+            const draft = await generateAi(selectedDealId);
+
+            // Join AI sheet2 features with sheet3 dev_hours by function_id.
+            // Each manhour row now also carries a `role` (verbatim org role
+            // title, picked by Claude per-feature) and a `suggestedEmployeeId`
+            // (the most-available active employee for that role this month,
+            // picked server-side in EstimationAiService::suggestEmployees).
+            // The frontend resolves the role title to a roleId via store.roles,
+            // and only falls back to store.roles[0] when the AI's role title
+            // doesn't match any known role (rare; tracked in toast).
+            const fallbackRoleId = store.roles[0]?.id;
+            if (!fallbackRoleId) {
+                toast.error('No roles defined for your tenant — add at least one role before generating an AI draft.');
+                return;
+            }
+            const titleToRoleId = new Map(
+                store.roles.map(r => [r.title.toLowerCase().trim(), r.id]),
+            );
+            const manhourByFunctionId = new Map(
+                draft.sheet3Manhours.map(m => [m.functionId, m]),
+            );
+
+            let unmatched = 0;
+            const aiResources: EstimationResource[] = draft.sheet2Features.map((f) => {
+                const mh = manhourByFunctionId.get(f.functionId);
+                const titleKey = (mh?.role ?? '').toLowerCase().trim();
+                const resolvedRoleId = titleKey ? titleToRoleId.get(titleKey) : undefined;
+                if (mh?.role && !resolvedRoleId) unmatched++;
+                return {
+                    id: `ai-${f.functionId}`,
+                    featureName: f.name,
+                    roleId: resolvedRoleId ?? fallbackRoleId,
+                    employeeId: mh?.suggestedEmployeeId ?? null,
+                    hours: Math.round(mh?.devHours ?? 0),
+                };
+            });
+            if (unmatched > 0) {
+                toast(`${unmatched} feature${unmatched === 1 ? '' : 's'} fell back to the default role — AI returned a role name not in your organization.`);
+            }
+            setResources(aiResources);
+            // AI does not propose overheads or margin — leave them as-is so the
+            // user's prior choices (or the deal's defaults) stick.
+            setAiDraft(draft);
+            setDirty(true);
+            toast.success(`AI generated ${aiResources.length} features — review and Save to persist.`);
+        } catch {
+            // Hook already toasted via normalizeError; nothing to add here.
+        }
+    };
+
+    const handleDiscardAiDraft = () => {
+        // Reset local state to whatever was loaded from the deal originally.
+        // Doesn't preserve any manual edits the user made between Generate
+        // and Discard — documented in chg-010 risk.
+        resetAi();
+        setAiDraft(null);
+        const deal = store.deals.find(d => d.id === selectedDealId);
+        if (deal) {
+            loadFromDeal(deal);
+        }
+    };
+
     const handleSave = async () => {
         if (!selectedDealId) return;
 
@@ -345,14 +417,44 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         }
 
         const nextVer = (currentVersion?.versionNumber ?? 0) + 1;
+        // When the version came from an AI draft, ride the per-sheet
+        // metadata along as sentinel rows in the resources JSONB. The
+        // XLSX writer reads these on export to populate Sheet 1 summary
+        // numbers and Sheet 5 monthly allocations. Sentinels are skipped
+        // by the controller when syncing the estimation_resources table.
+        const aiSentinels: Record<string, unknown>[] = [];
+        if (aiDraft) {
+            aiSentinels.push({
+                _sheet1_summary: {
+                    rough_estimate_hours: aiDraft.sheet1Summary.roughEstimateHours,
+                    requirement_study_hours: aiDraft.sheet1Summary.requirementStudyHours,
+                    web_development_hours: aiDraft.sheet1Summary.webDevelopmentHours,
+                    environment_setup_hours: aiDraft.sheet1Summary.environmentSetupHours,
+                    total_hours_per_person: aiDraft.sheet1Summary.totalHoursPerPerson,
+                    total_days_per_person: aiDraft.sheet1Summary.totalDaysPerPerson,
+                    total_months_per_person: aiDraft.sheet1Summary.totalMonthsPerPerson,
+                },
+            });
+            aiSentinels.push({
+                _sheet5_team_stack: aiDraft.sheet5TeamStack.map(t => ({
+                    role: t.role,
+                    count: t.count,
+                    monthly_allocation: t.monthlyAllocation,
+                })),
+            });
+        }
         try {
             await saveVersion.mutateAsync({
                 dealId: selectedDealId,
-                resources: resources.map(r => ({
-                    roleId: r.roleId,
-                    featureName: r.featureName,
-                    hours: r.hours,
-                })),
+                resources: [
+                    ...aiSentinels,
+                    ...resources.map(r => ({
+                        roleId: r.roleId,
+                        employeeId: r.employeeId ?? null,
+                        featureName: r.featureName,
+                        hours: r.hours,
+                    })),
+                ],
                 overheads,
                 targetMargin: margin[0],
                 notes: versionNotes || undefined,
@@ -415,8 +517,21 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         return store.companySettings.fallbackHourlyCost;
     };
 
+    // When a specific employee is picked for a row, use their exact cost_per_hour
+    // instead of the role's median. Estimating with the real cost is more accurate
+    // than the role median when the staffing decision is firm.
+    const costRateForResource = (res: EstimationResource): number => {
+        if (res.employeeId) {
+            const emp = store.employees.find(e => e.id === res.employeeId);
+            if (emp && typeof emp.costPerHour === 'number' && Number.isFinite(emp.costPerHour) && emp.costPerHour > 0) {
+                return emp.costPerHour;
+            }
+        }
+        return costRateForRole(res.roleId);
+    };
+
     const laborCost = resources.reduce(
-        (sum, res) => sum + res.hours * costRateForRole(res.roleId),
+        (sum, res) => sum + res.hours * costRateForResource(res),
         0,
     );
 
@@ -638,6 +753,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                             <GitCompare className="h-3 w-3" />
                                             {compareWithId === v.id ? 'Comparing' : 'Compare'}
                                         </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 gap-1 text-xs"
+                                            disabled={!!isDownloading[v.id]}
+                                            onClick={() => {
+                                                const dealName = store.deals.find(d => d.id === selectedDealId)?.name?.replace(/\s+/g, '_') || 'estimation';
+                                                downloadVersion(v.id, `${dealName}_v${v.versionNumber}.xlsx`);
+                                            }}
+                                        >
+                                            <Download className="h-3 w-3" />
+                                            {isDownloading[v.id] ? 'Exporting…' : 'Export XLSX'}
+                                        </Button>
                                         {idx > 0 && (
                                             <Button
                                                 variant="outline"
@@ -663,12 +791,19 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             onClose={() => setCompareWithId(null)}
                         />
                     )}
+                    {aiDraft && (
+                        <AIDraftReviewPanel
+                            draft={aiDraft}
+                            onDiscard={handleDiscardAiDraft}
+                        />
+                    )}
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
                                     <TableHead>Feature</TableHead>
                                     <TableHead>Role</TableHead>
+                                    <TableHead>Employee</TableHead>
                                     <TableHead className="text-right">Rate/hr (Cost)</TableHead>
                                     <TableHead className="text-right">Hours</TableHead>
                                     <TableHead className="text-right">Cost</TableHead>
@@ -678,11 +813,47 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <TableBody>
                                 {resources.map((res) => {
                                     const role = store.roles.find(r => r.id === res.roleId);
-                                    const costRate = costRateForRole(res.roleId);
+                                    const emp = res.employeeId ? store.employees.find(e => e.id === res.employeeId) : null;
+                                    const costRate = costRateForResource(res);
+                                    // Per-row employee dropdown filtered to active employees in
+                                    // the row's role. "—" sentinel clears the assignment so the
+                                    // rate reverts to the role median.
+                                    const eligibleEmployees = store.employees.filter(
+                                        e => e.status === 'Active' && e.jobRoleId === res.roleId,
+                                    );
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
                                             <TableCell>{role?.title || 'Unknown Role'}</TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    value={res.employeeId ?? '__none__'}
+                                                    onValueChange={(val) => {
+                                                        setResources(prev => prev.map(r =>
+                                                            r.id === res.id
+                                                                ? { ...r, employeeId: val === '__none__' ? null : val }
+                                                                : r,
+                                                        ));
+                                                        setDirty(true);
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-7 px-2 text-xs w-[160px] bg-white">
+                                                        <SelectValue placeholder="—" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="__none__">— Unassigned</SelectItem>
+                                                        {eligibleEmployees.map(e => (
+                                                            <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                                        ))}
+                                                        {emp && !eligibleEmployees.some(e => e.id === emp.id) && (
+                                                            // Show the current employee even if they're not in the
+                                                            // current eligible list (role mismatch / inactive) so
+                                                            // the dropdown doesn't silently drop the selection.
+                                                            <SelectItem key={emp.id} value={emp.id}>{emp.name} (mismatch)</SelectItem>
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                             <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
@@ -872,18 +1043,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        <Button
-                            onClick={handleSave}
-                            disabled={isUnchangedFromSaved || saveVersion.isPending}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
-                        >
-                            <Save className="h-4 w-4" />
-                            {saveVersion.isPending
-                                ? 'Saving...'
-                                : isUnchangedFromSaved
-                                    ? 'No changes to save'
-                                    : `Save Estimate v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
-                        </Button>
+                        {resources.length === 0 ? (
+                            <Button
+                                onClick={handleGenerateAi}
+                                disabled={!selectedDealId || isGeneratingAi}
+                                className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
+                                title="Generate a first-draft estimation from the deal context using Claude"
+                            >
+                                <Sparkles className="h-4 w-4" />
+                                {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={handleSave}
+                                disabled={isUnchangedFromSaved || saveVersion.isPending}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
+                            >
+                                <Save className="h-4 w-4" />
+                                {saveVersion.isPending
+                                    ? 'Saving...'
+                                    : isUnchangedFromSaved
+                                        ? 'No changes to save'
+                                        : `Save Estimate v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>

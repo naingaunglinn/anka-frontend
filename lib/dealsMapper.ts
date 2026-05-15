@@ -45,6 +45,7 @@ interface ApiEstimationResource {
     id: string;
     feature_name: string;
     role_id: string;
+    employee_id?: string | null;
     hours: number;
 }
 
@@ -169,6 +170,7 @@ function toEstimationResource(row: ApiEstimationResource): EstimationResource {
         id: row.id,
         featureName: row.feature_name,
         roleId: row.role_id,
+        employeeId: row.employee_id ?? null,
         hours: row.hours,
     };
 }
@@ -352,6 +354,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
         payload.estimation_resources = deal.estimationResources.map((resource) => ({
             feature_name: resource.featureName,
             role_id: resource.roleId,
+            employee_id: resource.employeeId ?? null,
             hours: resource.hours,
         }));
     }
