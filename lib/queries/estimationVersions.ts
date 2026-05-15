@@ -179,6 +179,17 @@ export interface AIEstimationDraft {
         count: number
         monthlyAllocation: number[]
     }>
+    /**
+     * Optional. Project-specific overheads Claude predicted from the client
+     * + workload description (travel, licenses, audits, etc.). Populated
+     * when the prompt's project_overheads rule triggered; absent for
+     * straightforward in-house projects. Costs are in the deal's currency.
+     */
+    projectOverheads?: Array<{
+        name: string
+        cost: number
+        reason?: string
+    }>
     reasoning: string
     confidence: 'high' | 'medium' | 'low' | string
 }
@@ -229,6 +240,15 @@ function mapAIDraft(raw: Record<string, unknown>): AIEstimationDraft {
                 ? (t.monthly_allocation as number[]).map(Number)
                 : [],
         })),
+        projectOverheads: Array.isArray(raw.project_overheads)
+            ? (raw.project_overheads as Array<Record<string, unknown>>)
+                .map(o => ({
+                    name: String(o.name ?? '').trim(),
+                    cost: Number(o.cost ?? 0),
+                    reason: typeof o.reason === 'string' ? o.reason : undefined,
+                }))
+                .filter(o => o.name.length > 0 && o.cost > 0)
+            : undefined,
         reasoning: String(raw.reasoning ?? ''),
         confidence: String(raw.confidence ?? 'medium'),
     }

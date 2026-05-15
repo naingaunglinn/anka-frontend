@@ -1,6 +1,159 @@
 import type { AITeamBuilderInput, AITeamBuilderResult, AITeamMember, AITeamBuilderEmployeeContext } from '@/types/aiTeamBuilder'
 import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
 
+// ── Role-mode prompt (outputMode === 'roles') ──────────────────────────────
+//
+// Used by /estimation's "AI Team Builder" panel. Asks Claude to suggest a
+// ghost-role composition (role buckets × quantities × cost ranges) instead
+// of picking real Employees. The user accepts the result into the deal's
+// ghostRoles, and the scope estimator below then costs the project from
+// those buckets.
+
+export const ROLE_SYSTEM_PROMPT = `Context: You are helping a digital agency size and cost a software project at the ROLE level. You are NOT picking specific people — you are suggesting how many of each role bucket the project needs and what the going salary range is for each bucket.
+
+IMPORTANT: All monetary values in this prompt are in USD. The system normalised everything to USD upstream — do NOT convert.
+
+The tenant's role buckets are constrained to these five:
+  - **frontend** — Frontend / UI engineering
+  - **backend** — Backend / API / database / server engineering
+  - **design** — Product design, UX/UI, brand
+  - **qa** — Test engineering, QA automation
+  - **pm** — Project management / product management (software)
+
+Choose a subset of these buckets for the project. DO NOT invent new buckets.
+
+**Workload hours — handle this case carefully.**
+
+The user's brief may or may not include a "Total Workload" hour figure.
+  - **If the brief says "Total Workload: 0 hours" or "Total Workload: not specified"**: the user doesn't know yet, and they want you to estimate. Propose a total hour count yourself based on the project description, the client budget (using the company's overhead/buffer settings to back into a feasible labor cost), and the timeline. Return your proposed number as **\`estimatedTotalHours\`** in the result. Use this estimate when sizing roles.
+  - **If the brief gives a real number** (≥ 1): use it as-is. Echo it back in \`estimatedTotalHours\` for symmetry.
+
+When proposing hours from scratch, sanity-check against feasibility: total hours × the average cost-per-hour implied by the salary brackets should leave room for overhead + buffer under the client budget. If the budget is impossibly tight at any realistic effort, propose the lowest defensible hour count and flag the budget-feasibility issue in \`warnings\`.
+
+For each chosen bucket, output:
+  - roleType (one of the five above)
+  - label (human-readable, e.g. "Backend Engineer")
+  - quantity (integer ≥ 1)
+  - months (integer ≤ project timeline; shorter when the role only contributes in late stages)
+  - allocatedHours (TOTAL hours for this bucket across all quantity slots over the role's months — should roughly sum across all roles to the project's total workload hours)
+  - minMonthlySalary / maxMonthlySalary — pulled from the engineers (salary brackets) list provided. Pick a bracket that fits the seniority you're suggesting; min/max can span more than one bracket if you want a range. **Never invent salary numbers outside the bracket list — use what the tenant has.**
+  - estimatedCost (quantity × months × ((min+max)/2))
+  - reasoning (1-2 sentences justifying the bucket + quantity + seniority)
+
+**Team-shape rules — apply the complexity band first:**
+  - easy (score ≤ 2.5): aim for **2 role buckets** total — 1 hands-on bucket matching the project + 1 leadership-flavoured bucket (e.g. backend + design, or pm + frontend).
+  - medium (2.6–5.5): **3-4 buckets** covering main workstreams + 1 PM if coordination signals are clear.
+  - hard (> 5.5): **5 buckets** typically (all of frontend / backend / design / qa / pm).
+
+**Quantity guidance:** for software projects, quantities are usually 1 per bucket. Only suggest quantity ≥ 2 when the workload is genuinely too heavy for one person at the chosen seniority (e.g. 1500h of backend work over 3 months → 2 backend engineers).
+
+**Cost rules:**
+  - baseLaborCost = sum over roles of (quantity × months × avgMonthlySalary), where avgMonthlySalary = (min + max) / 2 × hoursWeight. **Use the simple formula quantity × months × avgMonthlySalary** for baseLaborCost — the rest of the system reconstitutes the per-hour view from allocatedHours.
+  - overheadCost = baseLaborCost × overheadPercentage
+  - bufferCost = (baseLaborCost + overheadCost) × bufferPercentage
+  - totalEstimatedCost = baseLaborCost + overheadCost + bufferCost
+  - estimatedGrossProfit = clientBudget − totalEstimatedCost
+  - profitMarginPercent = (estimatedGrossProfit / clientBudget) × 100
+  - isFeasible = totalEstimatedCost ≤ clientBudget
+  - feasibilityNote: if feasible say "Project is within budget"; else state the overage amount
+  - aiReasoning: 2–4 sentences on the role mix, seniority choices, and how the total stacks up to budget
+  - warnings: margin < 10%, budget overage, missing critical bucket the project description implies but you couldn't fit
+
+**Output schema (return ONLY this JSON, no prose):**
+{
+  "roles": [
+    { "roleType": "frontend"|"backend"|"design"|"qa"|"pm",
+      "label": string,
+      "quantity": number,
+      "months": number,
+      "allocatedHours": number,
+      "minMonthlySalary": number,
+      "maxMonthlySalary": number,
+      "estimatedCost": number,
+      "reasoning": string
+    }
+  ],
+  "team": [],
+  "estimatedTotalHours": number,
+  "baseLaborCost": number,
+  "overheadCost": number,
+  "bufferCost": number,
+  "totalEstimatedCost": number,
+  "estimatedGrossProfit": number,
+  "profitMarginPercent": number,
+  "isFeasible": boolean,
+  "feasibilityNote": string,
+  "aiReasoning": string,
+  "warnings": string[]
+}
+
+\`team\` MUST be an empty array — role mode does not pick employees. The frontend renders \`roles\` only.`
+
+export function buildRoleUserPrompt(input: AITeamBuilderInput): string {
+    const overheadDecimal = (input.companySettings.overheadPercentage ?? 0) / 100
+    const bufferDecimal   = (input.companySettings.bufferPercentage ?? 0) / 100
+
+    // Brackets, grouped by role bucket. Claude reads this to pick min/max for each
+    // suggested role. Empty bucket = no bracket exists for that role; Claude can
+    // either skip the bucket or warn about the missing bracket.
+    const brackets: Record<string, Array<{ name: string; monthlySalary: number; capacityHours: number }>> = {
+        frontend: [], backend: [], design: [], qa: [], pm: [],
+    }
+    for (const e of input.engineers) {
+        if (brackets[e.role]) {
+            brackets[e.role].push({
+                name: e.name,
+                monthlySalary: e.monthlySalary,
+                capacityHours: e.monthlyCapacityHours,
+            })
+        }
+    }
+
+    const complexitySection = input.complexity
+        ? `## Project Complexity (deterministic — use this to pick the number of buckets)
+
+Computed band: **${input.complexity.band}** (score ${input.complexity.score} / 10)
+`
+        : ''
+
+    const dealHeader = (input.dealName || input.dealClient)
+        ? `Deal: ${input.dealName ?? '(untitled)'}${input.dealClient ? `  ·  Client: ${input.dealClient}` : ''}\n`
+        : ''
+
+    // Phrase the workload line based on whether the user provided a number.
+    // When zero/missing, we ask Claude to propose one — the system prompt's
+    // "Workload hours — handle this case carefully" section explains the
+    // sentinel "not specified" wording it should react to.
+    const workloadLine = (input.workloadHours && input.workloadHours > 0)
+        ? `Total Workload: ${input.workloadHours} hours`
+        : `Total Workload: not specified — estimate this yourself and return it as \`estimatedTotalHours\``
+
+    return `## Project Brief
+
+${dealHeader}Currency: USD
+Budget: $${input.clientBudget.toLocaleString()}
+Timeline: ${input.timelineMonths} months
+${workloadLine}
+
+Project Description:
+${input.workloadDescription || 'No description provided.'}
+
+${complexitySection}
+## Engineer Salary Brackets (the tenant's actual cost data — pick min/max from these)
+
+${JSON.stringify(brackets, null, 2)}
+
+## Company Financial Settings
+
+Overhead Percentage: ${input.companySettings.overheadPercentage}% (decimal ${overheadDecimal})
+Risk Buffer Percentage: ${input.companySettings.bufferPercentage}% (decimal ${bufferDecimal})
+
+---
+
+Pick the role mix this project actually needs. Return ONLY the JSON object described in the system prompt — \`roles\` populated, \`team\` empty.`
+}
+// ── End role-mode prompt ───────────────────────────────────────────────────
+
 export const SYSTEM_PROMPT = `Context: You are helping a digital agency plan project staffing and costs.
 
 IMPORTANT: All monetary values in this prompt are in USD (United States Dollars).
@@ -13,7 +166,34 @@ and cost breakdown following these rules.
 - Assign employees from the provided list using their exact IDs.
 - Allocated hours per person must not exceed their maxProjectHours.
 
-**Target team shape — apply this FIRST, then refine with the priorities below.**
+**IT / Technical roles only — HARD CONSTRAINT (apply BEFORE everything else).**
+
+This team builder is for software project staffing. Decide whether each employee is in a technical (IT) role by reading their \`roleTitle\` AND \`departmentName\` together. Only consider employees whose role is technical.
+
+Technical roles include (non-exhaustive):
+  - Software engineering of any kind — frontend, backend, full-stack, mobile, embedded
+  - Design / UX / UI / product design
+  - QA / SDET / test engineer / automation engineer
+  - DevOps / SRE / cloud / platform / infrastructure
+  - Data / ML / AI / analytics engineering
+  - Product manager or project manager **on software projects**
+  - Engineering leadership: Lead, Principal, Architect, CTO, Engineering Manager, Technical Director
+
+DO NOT pick employees in non-technical roles, even if the project has budget for them. Examples to exclude:
+  - HR / People / Recruiting / Talent
+  - Finance / Accounting / Bookkeeping / Payroll
+  - Sales / Business Development / Account Management (Sales Engineers ARE technical and OK)
+  - Marketing / Content / Brand / SEO / Social Media
+  - Legal / Compliance / Contracts
+  - Administration / Office Management / Reception / Executive Assistant
+  - Customer Success / Customer Support (Technical Support IS technical and OK)
+  - Operations / Logistics (unless DevOps/Platform Operations)
+
+Use \`departmentName\` as a reinforcing signal: an employee in an "HR" or "Finance" department is non-technical regardless of how their role title reads. Conversely, an "Engineering" / "IT" / "Technology" / "Product" department reinforces a technical classification.
+
+If you're uncertain about an employee, EXCLUDE them — false positives (picking a non-IT person) are worse than false negatives (skipping a borderline one). Note any excluded ambiguous picks in \`aiReasoning\`.
+
+**Target team shape — apply this AFTER the IT-only filter, then refine with the priorities below.**
 
 The user prompt provides a Project Complexity section with a deterministic difficulty band. That band sets the default team size and structure:
 
@@ -128,6 +308,7 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
                 name: e.name,
                 capacityRole: e.capacityRole ?? 'unknown',
                 roleTitle: e.roleName ?? null,
+                departmentName: e.departmentName ?? null,
                 // Rank pulled from context endpoint (null when unranked or
                 // context unavailable; prompt falls back to roleTitle keywords).
                 rank: ctx?.rank ?? null,
@@ -255,6 +436,7 @@ ${JSON.stringify(
 
 ## Final compliance checklist (verify BEFORE returning)
 
+  - **IT-only check.** For every team member, is their roleTitle AND departmentName technical? Drop any non-technical pick (HR, Finance, Sales (not Sales Eng), Marketing, Legal, Admin, Operations, Customer Success) before returning, even if it leaves a skill uncovered — list those uncovered skills in gapSkills instead.
   - For each entry in "Required Skills": is some pool employee a carrier? If yes and budget allows, include them. If yes but inclusion would violate budget feasibility, list the skill in gapSkills with a hire/contract recommendation.
   - Does the team have at least one leadership-level employee (roleTitle marks them Lead/Senior/Head/Master/Principal/Manager) when any exist in the pool? If not, fix it before returning.
   - Are allocations realistic? A specialist's allocatedHours should reflect their actual contribution scope, not full project capacity. A leader is typically 30-60% of their maxProjectHours.

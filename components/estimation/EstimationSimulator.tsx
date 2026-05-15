@@ -22,7 +22,10 @@ import {
     type AIEstimationDraft,
 } from '@/lib/queries/estimationVersions';
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
-import { useDealList } from '@/lib/queries/deals';
+import { EstimationRoleBuilder } from '@/components/estimation/EstimationRoleBuilder';
+import { useDealList, useDealMutations } from '@/lib/queries/deals';
+import type { AISuggestedRole } from '@/types/aiTeamBuilder';
+import type { GhostRole } from '@/types/business';
 import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
@@ -184,6 +187,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const qc = useQueryClient();
     const currency = useTenantCurrency();
     const symbol = useCurrencySymbol();
+    const { updateDeal } = useDealMutations();
 
     // Self-fetch the deal list so the Target Deal picker is populated even
     // when the user lands on /estimation directly. The hook syncs results
@@ -235,47 +239,13 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const loadedDealIdRef = useRef<string | null>(null);
 
     const loadFromDeal = (deal: Deal) => {
-        const existingResources = deal.estimationResources || [];
-        if (existingResources.length > 0) {
-            setResources(existingResources);
-        } else if (deal.ghostRoles && deal.ghostRoles.length > 0) {
-            // Convert ghost roles to estimation resource seeds. The role lookup
-            // is best-effort: fuzzy-match on org role titles by roleType, with
-            // a 'pm' special-case ('pm' won't match 'Project Manager' via
-            // includes). If nothing matches, fall back to the first org role
-            // — never to a non-UUID type string, which would 422 on save.
-            const roles = store.roles;
-            const ghostToResources: EstimationResource[] = [];
-            // 160 mirrors the documented default — guards the first render
-            // before companySettings has hydrated, which would otherwise
-            // produce NaN hours in the table.
-            const monthlyCapacity = store.companySettings.defaultMonthlyCapacityHours || 160;
-            for (const gr of deal.ghostRoles) {
-                const matchingRole = roles.find(r => {
-                    const title = r.title.toLowerCase();
-                    if (gr.roleType === 'pm') return title.includes('project manager') || title.includes('pm');
-                    return title.includes(gr.roleType);
-                });
-                // Skip the seed if there's no usable role — saving with an
-                // invalid UUID would fail backend validation, and silently
-                // dropping is better than producing a row the user can't fix.
-                if (!matchingRole && roles.length === 0) continue;
-                const roleId = matchingRole?.id ?? roles[0].id;
-                const hours = (gr.quantity || 1) * ((gr.months || 100) / 100) * monthlyCapacity * (deal.timelineMonths || 1);
-                ghostToResources.push({
-                    // Stable id derived from the ghost role so re-loading the
-                    // same deal doesn't re-mint ids (which made the dirty/diff
-                    // signature unstable across refetches).
-                    id: `ghost-${gr.id || gr.roleType}`,
-                    featureName: `${gr.roleType.charAt(0).toUpperCase() + gr.roleType.slice(1)} Team (×${gr.quantity}, ${gr.months || 100}% alloc)`,
-                    roleId,
-                    hours: Math.round(hours),
-                });
-            }
-            setResources(ghostToResources);
-        } else {
-            setResources([]);
-        }
+        // Only load real saved scope rows — never auto-seed from ghostRoles.
+        // Ghost roles are displayed in their own "Project Roles" table above,
+        // and the scope table should stay empty until the user runs Generate
+        // with AI or adds rows manually. Previously this seeded synthetic
+        // "Backend Team / Frontend Team" rows that the user couldn't tell
+        // apart from real scope.
+        setResources(deal.estimationResources ?? []);
         setOverheads(deal.projectOverheads || []);
         setMargin([deal.targetMargin || 30]);
         setDirty(false);
@@ -304,6 +274,48 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         // in deps would defeat the once-per-deal guard above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDealId, store.deals, store.roles]);
+
+    // Debounced auto-save on edits. When the user mutates resources / overheads
+    // / margin and `dirty` flips true, schedule a PATCH to deal.estimation_resources
+    // + deal.deal_overheads after 800ms of inactivity. AI generation persists
+    // synchronously inside handleGenerateAi, so it sets dirty=false explicitly
+    // — this effect only handles row/overhead edits the user makes afterward.
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (!selectedDealId) return;
+        if (!dirty) return;
+        // Cancel any previously-scheduled save — the user is still typing.
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+        autoSaveTimerRef.current = setTimeout(async () => {
+            try {
+                await updateDeal.mutateAsync({
+                    id: selectedDealId,
+                    updates: {
+                        estimationResources: resources,
+                        projectOverheads: overheads,
+                        targetMargin: margin[0],
+                    },
+                });
+                setDirty(false);
+            } catch (err) {
+                // Keep dirty=true so the next edit re-triggers; toast once so
+                // the user knows the row they just changed didn't make it.
+                console.error('Auto-save failed:', err);
+                toast.error('Could not save changes — your edits are still in the UI but not on the deal.');
+            }
+        }, 800);
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+                autoSaveTimerRef.current = null;
+            }
+        };
+        // updateDeal is a stable mutation ref from useDealMutations; including
+        // it would re-trigger the timer on every render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dirty, resources, overheads, margin, selectedDealId]);
 
     const handleAdd = () => {
         if (!newFeature || !newHours || !newRoleId) return;
@@ -342,17 +354,31 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
     const handleGenerateAi = async () => {
         if (!selectedDealId) return;
+
+        // Regenerate guard: if there's already scope/overhead data on the
+        // deal, ask before clobbering it. AI generation now persists straight
+        // to the DB so a second click overwrites whatever the user had.
+        const hasExistingData = resources.length > 0 || overheads.length > 0;
+        if (hasExistingData) {
+            const ok = window.confirm(
+                'This will replace the current scope and overhead with a fresh AI suggestion, and save it to the deal. Continue?',
+            );
+            if (!ok) return;
+        }
+
+        // Snapshot pre-AI state in case the persist step fails — we restore
+        // these so the user doesn't end up with AI output in the UI that
+        // didn't actually save.
+        const prevResources = resources;
+        const prevOverheads = overheads;
+
         try {
             const draft = await generateAi(selectedDealId);
 
             // Join AI sheet2 features with sheet3 dev_hours by function_id.
-            // Each manhour row now also carries a `role` (verbatim org role
-            // title, picked by Claude per-feature) and a `suggestedEmployeeId`
-            // (the most-available active employee for that role this month,
-            // picked server-side in EstimationAiService::suggestEmployees).
-            // The frontend resolves the role title to a roleId via store.roles,
-            // and only falls back to store.roles[0] when the AI's role title
-            // doesn't match any known role (rare; tracked in toast).
+            // Each manhour row carries a `role` (verbatim org role title picked
+            // by Claude per-feature). Resolve to roleId via store.roles; fall
+            // back to store.roles[0] when no match (rare; toasted).
             const fallbackRoleId = store.roles[0]?.id;
             if (!fallbackRoleId) {
                 toast.error('No roles defined for your tenant — add at least one role before generating an AI draft.');
@@ -382,12 +408,44 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             if (unmatched > 0) {
                 toast(`${unmatched} feature${unmatched === 1 ? '' : 's'} fell back to the default role — AI returned a role name not in your organization.`);
             }
+
+            // Regenerate REPLACES, doesn't append. The confirmation above
+            // makes this an explicit choice — the user opted to overwrite.
+            const aiOverheads: ProjectOverhead[] = (draft.projectOverheads ?? []).map((o, i) => ({
+                id: `ai-ovh-${Date.now()}-${i}`,
+                name: o.name,
+                cost: Math.round(o.cost),
+            }));
+
+            // Persist immediately to the deal columns. On success we'll mirror
+            // into local state; on failure we keep the previous state visible
+            // so the user doesn't see "AI output" that isn't saved.
+            try {
+                await updateDeal.mutateAsync({
+                    id: selectedDealId,
+                    updates: {
+                        estimationResources: aiResources,
+                        projectOverheads: aiOverheads,
+                    },
+                });
+            } catch (saveErr) {
+                console.error('Failed to persist AI draft to deal:', saveErr);
+                toast.error('AI ran but could not save to the deal — try again.');
+                // Restore pre-AI state — refetch will repopulate from server too,
+                // but setting here avoids a flash of stale data.
+                setResources(prevResources);
+                setOverheads(prevOverheads);
+                return;
+            }
+
             setResources(aiResources);
-            // AI does not propose overheads or margin — leave them as-is so the
-            // user's prior choices (or the deal's defaults) stick.
+            setOverheads(aiOverheads);
             setAiDraft(draft);
-            setDirty(true);
-            toast.success(`AI generated ${aiResources.length} features — review and Save to persist.`);
+            setDirty(false); // already saved
+            const ovhSuffix = aiOverheads.length > 0
+                ? ` and ${aiOverheads.length} predicted overhead${aiOverheads.length === 1 ? '' : 's'}`
+                : '';
+            toast.success(`AI generated ${aiResources.length} features${ovhSuffix} — saved to deal.`);
         } catch {
             // Hook already toasted via normalizeError; nothing to add here.
         }
@@ -658,139 +716,257 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardContent>
                 </Card>
 
-                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <CardHeader className="pb-4 border-b">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="text-lg">Project Scope & Labor</CardTitle>
-                                <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span className="font-medium text-slate-700">
-                                        v{currentVersion?.versionNumber ?? 0}{hasUnsavedChanges ? '+' : ''}
-                                    </span>
-                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-                                        style={{
-                                            background: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
-                                            color: hasUnsavedChanges ? '#92400e' : '#065f46',
-                                        }}
-                                    >
-                                        {hasUnsavedChanges ? 'Draft' : 'Saved'}
-                                    </span>
-                                    {lastSavedAt && (
-                                        <span className="text-slate-400">· {lastSavedAt}</span>
-                                    )}
+                {selectedDealId && (
+                    <Card className="shadow-sm border-slate-100">
+                        <CardHeader className="pb-3 border-b">
+                            <div className="flex justify-between items-center flex-wrap gap-3">
+                                <div>
+                                    <CardTitle className="text-base">Estimate Versions</CardTitle>
+                                    <CardDescription className="text-xs">Track saved estimates, compare versions, and export to XLSX.</CardDescription>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs"
-                                    onClick={() => setShowHistory(!showHistory)}
-                                >
-                                    <History className="h-3 w-3" />
-                                    {totalVersions} versions
-                                </Button>
-                                {/* Pick any saved version to compare the live draft against,
-                                    not just v[N-1]. The "__none__" sentinel is the explicit
-                                    Stop-Comparing affordance — used because Radix Select rejects
-                                    SelectItems with empty-string values. */}
-                                <Select
-                                    value={compareWithId ?? '__placeholder__'}
-                                    onValueChange={(val) => setCompareWithId(val === '__none__' ? null : val)}
-                                    disabled={versions.length === 0}
-                                >
-                                    <SelectTrigger className="h-7 px-2 gap-1 text-xs w-auto min-w-[110px]">
-                                        <GitCompare className="h-3 w-3" />
-                                        <SelectValue placeholder="Compare to..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {compareWithId && (
-                                            <SelectItem value="__none__">— Stop comparing</SelectItem>
-                                        )}
-                                        {versions.map((v) => (
-                                            <SelectItem key={v.id} value={v.id}>
-                                                v{v.versionNumber}{v.notes ? ` · ${v.notes}` : ''}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    {showHistory && versions.length > 0 && (
-                        <div className="border-t bg-slate-50 p-4 space-y-2">
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Version History</p>
-                            {versions.map((v, idx) => (
-                                <div key={v.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-slate-800">v{v.versionNumber}</span>
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-medium">
-                                                {v.resourceCount} resources · {v.overheadCount} overheads
-                                            </span>
-                                            {idx === 0 && (
-                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">Latest</span>
-                                            )}
-                                        </div>
-                                        {v.notes && (
-                                            <p className="text-xs text-slate-500 mt-1">{v.notes}</p>
-                                        )}
-                                        <p className="text-xs text-slate-400 mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {/* Compare draft against THIS row's version, on every row.
-                                            Previously only the latest row had a Compare button and it
-                                            was hardwired to v[N-1] — so you couldn't compare against
-                                            v1 from a list that already had v3 saved. */}
-                                        <Button
-                                            variant={compareWithId === v.id ? 'default' : 'outline'}
-                                            size="sm"
-                                            className="h-7 gap-1 text-xs"
-                                            onClick={() => setCompareWithId(compareWithId === v.id ? null : v.id)}
-                                        >
-                                            <GitCompare className="h-3 w-3" />
-                                            {compareWithId === v.id ? 'Comparing' : 'Compare'}
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 gap-1 text-xs"
-                                            disabled={!!isDownloading[v.id]}
-                                            onClick={() => {
-                                                const dealName = store.deals.find(d => d.id === selectedDealId)?.name?.replace(/\s+/g, '_') || 'estimation';
-                                                downloadVersion(v.id, `${dealName}_v${v.versionNumber}.xlsx`);
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span className="font-medium text-slate-700">
+                                            v{currentVersion?.versionNumber ?? 0}{hasUnsavedChanges ? '+' : ''}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                                            style={{
+                                                background: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
+                                                color: hasUnsavedChanges ? '#92400e' : '#065f46',
                                             }}
                                         >
-                                            <Download className="h-3 w-3" />
-                                            {isDownloading[v.id] ? 'Exporting…' : 'Export XLSX'}
-                                        </Button>
-                                        {idx > 0 && (
+                                            {hasUnsavedChanges ? 'Draft' : 'Saved'}
+                                        </span>
+                                        {lastSavedAt && (
+                                            <span className="text-slate-400">· {lastSavedAt}</span>
+                                        )}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 gap-1 text-xs"
+                                        onClick={() => setShowHistory(!showHistory)}
+                                    >
+                                        <History className="h-3 w-3" />
+                                        {totalVersions} versions
+                                    </Button>
+                                    {/* Pick any saved version to compare the live draft against,
+                                        not just v[N-1]. The "__none__" sentinel is the explicit
+                                        Stop-Comparing affordance — used because Radix Select rejects
+                                        SelectItems with empty-string values. */}
+                                    <Select
+                                        value={compareWithId ?? '__placeholder__'}
+                                        onValueChange={(val) => setCompareWithId(val === '__none__' ? null : val)}
+                                        disabled={versions.length === 0}
+                                    >
+                                        <SelectTrigger className="h-7 px-2 gap-1 text-xs w-auto min-w-[110px]">
+                                            <GitCompare className="h-3 w-3" />
+                                            <SelectValue placeholder="Compare to..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {compareWithId && (
+                                                <SelectItem value="__none__">— Stop comparing</SelectItem>
+                                            )}
+                                            {versions.map((v) => (
+                                                <SelectItem key={v.id} value={v.id}>
+                                                    v{v.versionNumber}{v.notes ? ` · ${v.notes}` : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        {showHistory && versions.length > 0 && (
+                            <div className="border-t bg-slate-50 p-4 space-y-2">
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Version History</p>
+                                {versions.map((v, idx) => (
+                                    <div key={v.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-semibold text-slate-800">v{v.versionNumber}</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-medium">
+                                                    {v.resourceCount} resources · {v.overheadCount} overheads
+                                                </span>
+                                                {idx === 0 && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">Latest</span>
+                                                )}
+                                            </div>
+                                            {v.notes && (
+                                                <p className="text-xs text-slate-500 mt-1">{v.notes}</p>
+                                            )}
+                                            <p className="text-xs text-slate-400 mt-0.5">{v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant={compareWithId === v.id ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-7 gap-1 text-xs"
+                                                onClick={() => setCompareWithId(compareWithId === v.id ? null : v.id)}
+                                            >
+                                                <GitCompare className="h-3 w-3" />
+                                                {compareWithId === v.id ? 'Comparing' : 'Compare'}
+                                            </Button>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 className="h-7 gap-1 text-xs"
-                                                onClick={() => handleRestore(v.id, v.versionNumber)}
+                                                disabled={!!isDownloading[v.id]}
+                                                onClick={() => {
+                                                    const dealName = store.deals.find(d => d.id === selectedDealId)?.name?.replace(/\s+/g, '_') || 'estimation';
+                                                    downloadVersion(v.id, `${dealName}_v${v.versionNumber}.xlsx`);
+                                                }}
                                             >
-                                                <RotateCcw className="h-3 w-3" /> Restore
+                                                <Download className="h-3 w-3" />
+                                                {isDownloading[v.id] ? 'Exporting…' : 'Export XLSX'}
                                             </Button>
-                                        )}
+                                            {idx > 0 && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 gap-1 text-xs"
+                                                    onClick={() => handleRestore(v.id, v.versionNumber)}
+                                                >
+                                                    <RotateCcw className="h-3 w-3" /> Restore
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    {compareWithId && (
-                        <CompareBanner
-                            versionId={compareWithId}
-                            currentResources={resources}
-                            currentOverheads={overheads}
-                            currentMargin={margin[0]}
-                            currency={currency}
-                            onClose={() => setCompareWithId(null)}
-                        />
-                    )}
+                                ))}
+                            </div>
+                        )}
+                        {compareWithId && (
+                            <CompareBanner
+                                versionId={compareWithId}
+                                currentResources={resources}
+                                currentOverheads={overheads}
+                                currentMargin={margin[0]}
+                                currency={currency}
+                                onClose={() => setCompareWithId(null)}
+                            />
+                        )}
+                    </Card>
+                )}
+
+                {selectedDeal && (
+                    <Card className="shadow-sm border-slate-100">
+                        <CardHeader className="pb-4 border-b">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-indigo-600" />
+                                AI Project Planner
+                            </CardTitle>
+                            <CardDescription>
+                                Build the role mix and generate the project scope from the deal context. <span className="font-medium text-[#171717]">Build AI Team</span> suggests roles + cost; <span className="font-medium text-[#171717]">Generate with AI</span> turns the deal into scope rows and predicted overheads.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <EstimationRoleBuilder
+                                dealId={selectedDeal.id}
+                                dealName={selectedDeal.name}
+                                dealClient={selectedDeal.client}
+                                clientBudget={selectedDeal.clientBudget ?? 0}
+                                timelineMonths={selectedDeal.timelineMonths ?? 0}
+                                workloadHours={selectedDeal.workloadHours ?? 0}
+                                workloadDescription={selectedDeal.workloadDescription ?? ''}
+                                onAccept={async (roles: AISuggestedRole[]) => {
+                                    // Map AI's role suggestions onto the deal's ghost-role shape.
+                                    // The ghost-role IDs are server-assigned on persist, so we
+                                    // intentionally omit `id` here — the mapper drops empty ids.
+                                    const ghostRoles: GhostRole[] = roles.map(r => ({
+                                        id: '',
+                                        roleType: r.roleType,
+                                        quantity: r.quantity,
+                                        months: r.months,
+                                        minMonthlySalary: r.minMonthlySalary,
+                                        maxMonthlySalary: r.maxMonthlySalary,
+                                    }));
+                                    try {
+                                        await updateDeal.mutateAsync({
+                                            id: selectedDeal.id,
+                                            updates: { ghostRoles },
+                                        });
+                                        toast.success('Roles saved to deal');
+                                    } catch (err) {
+                                        console.error('Failed to save AI roles to deal:', err);
+                                        toast.error('Could not save the roles — please try again.');
+                                    }
+                                }}
+                                extraAction={
+                                    <Button
+                                        onClick={handleGenerateAi}
+                                        disabled={!selectedDealId || isGeneratingAi}
+                                        className="w-full h-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
+                                        size="lg"
+                                        title="Generate scope rows and predicted overheads from the deal context using Claude"
+                                    >
+                                        <Sparkles className="h-4 w-4" />
+                                        {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
+                                    </Button>
+                                }
+                            />
+                        </CardContent>
+                    </Card>
+                )}
+
+                {selectedDeal && (selectedDeal.ghostRoles?.length ?? 0) > 0 && (
+                    <Card className="shadow-sm border-slate-100">
+                        <CardHeader className="pb-4 border-b">
+                            <CardTitle className="text-lg">Project Roles</CardTitle>
+                            <CardDescription>
+                                The role mix saved on this deal. Generated by AI Team Builder above, or set manually on the deal page.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-slate-50">
+                                        <TableHead>Role</TableHead>
+                                        <TableHead className="text-right">Qty</TableHead>
+                                        <TableHead className="text-right">Months</TableHead>
+                                        <TableHead className="text-right">Monthly salary range</TableHead>
+                                        <TableHead className="text-right">Estimated cost</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {(selectedDeal.ghostRoles ?? []).map((gr, i) => {
+                                        const avg = ((gr.minMonthlySalary ?? 0) + (gr.maxMonthlySalary ?? 0)) / 2
+                                        const total = gr.quantity * gr.months * avg
+                                        const labelByRoleType: Record<string, string> = {
+                                            frontend: 'Frontend Engineer',
+                                            backend: 'Backend Engineer',
+                                            design: 'Product Designer',
+                                            qa: 'QA Engineer',
+                                            pm: 'Project Manager',
+                                        }
+                                        return (
+                                            <TableRow key={gr.id || `gr-${i}`}>
+                                                <TableCell>
+                                                    <div className="font-medium text-[#171717]">{labelByRoleType[gr.roleType] ?? gr.roleType}</div>
+                                                    <div className="text-[10px] uppercase tracking-wider text-[#8a8a8a]">{gr.roleType}</div>
+                                                </TableCell>
+                                                <TableCell className="text-right">{gr.quantity}</TableCell>
+                                                <TableCell className="text-right">{gr.months}</TableCell>
+                                                <TableCell className="text-right tabular-nums">
+                                                    {formatMoney(gr.minMonthlySalary, currency)} – {formatMoney(gr.maxMonthlySalary, currency)}
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums font-medium">
+                                                    {formatMoney(total, currency)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
+
+                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <CardHeader className="pb-4 border-b">
+                        <CardTitle className="text-lg">Project Scope & Labor</CardTitle>
+                        <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
+                    </CardHeader>
                     {aiDraft && (
                         <AIDraftReviewPanel
                             draft={aiDraft}
@@ -803,7 +979,6 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <TableRow>
                                     <TableHead>Feature</TableHead>
                                     <TableHead>Role</TableHead>
-                                    <TableHead>Employee</TableHead>
                                     <TableHead className="text-right">Rate/hr (Cost)</TableHead>
                                     <TableHead className="text-right">Hours</TableHead>
                                     <TableHead className="text-right">Cost</TableHead>
@@ -813,47 +988,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <TableBody>
                                 {resources.map((res) => {
                                     const role = store.roles.find(r => r.id === res.roleId);
-                                    const emp = res.employeeId ? store.employees.find(e => e.id === res.employeeId) : null;
+                                    // Cost rate is read from the role's median — employee picks no
+                                    // longer happen at estimation time, so we don't look up a
+                                    // specific employee's cost_per_hour here.
                                     const costRate = costRateForResource(res);
-                                    // Per-row employee dropdown filtered to active employees in
-                                    // the row's role. "—" sentinel clears the assignment so the
-                                    // rate reverts to the role median.
-                                    const eligibleEmployees = store.employees.filter(
-                                        e => e.status === 'Active' && e.jobRoleId === res.roleId,
-                                    );
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
                                             <TableCell>{role?.title || 'Unknown Role'}</TableCell>
-                                            <TableCell>
-                                                <Select
-                                                    value={res.employeeId ?? '__none__'}
-                                                    onValueChange={(val) => {
-                                                        setResources(prev => prev.map(r =>
-                                                            r.id === res.id
-                                                                ? { ...r, employeeId: val === '__none__' ? null : val }
-                                                                : r,
-                                                        ));
-                                                        setDirty(true);
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="h-7 px-2 text-xs w-[160px] bg-white">
-                                                        <SelectValue placeholder="—" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="__none__">— Unassigned</SelectItem>
-                                                        {eligibleEmployees.map(e => (
-                                                            <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                                                        ))}
-                                                        {emp && !eligibleEmployees.some(e => e.id === emp.id) && (
-                                                            // Show the current employee even if they're not in the
-                                                            // current eligible list (role mismatch / inactive) so
-                                                            // the dropdown doesn't silently drop the selection.
-                                                            <SelectItem key={emp.id} value={emp.id}>{emp.name} (mismatch)</SelectItem>
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
                                             <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
@@ -1043,30 +1185,21 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             />
                         </div>
 
-                        {resources.length === 0 ? (
-                            <Button
-                                onClick={handleGenerateAi}
-                                disabled={!selectedDealId || isGeneratingAi}
-                                className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
-                                title="Generate a first-draft estimation from the deal context using Claude"
-                            >
-                                <Sparkles className="h-4 w-4" />
-                                {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={handleSave}
-                                disabled={isUnchangedFromSaved || saveVersion.isPending}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
-                            >
-                                <Save className="h-4 w-4" />
-                                {saveVersion.isPending
-                                    ? 'Saving...'
-                                    : isUnchangedFromSaved
-                                        ? 'No changes to save'
-                                        : `Save Estimate v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
-                            </Button>
-                        )}
+                        <Button
+                            onClick={handleSave}
+                            disabled={!selectedDealId || isUnchangedFromSaved || saveVersion.isPending}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 disabled:opacity-60"
+                        >
+                            <Save className="h-4 w-4" />
+                            {saveVersion.isPending
+                                ? 'Snapshotting...'
+                                : isUnchangedFromSaved
+                                    ? 'No changes since last version'
+                                    : `Save Version v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
+                        </Button>
+                        <p className="text-[10px] text-slate-400 text-center -mt-1">
+                            Edits auto-save to the deal as you type. Save Version creates a checkpoint with XLSX.
+                        </p>
                     </CardContent>
                 </Card>
             </div>
