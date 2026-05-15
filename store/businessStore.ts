@@ -160,6 +160,7 @@ export const useBusinessStore = create<BusinessState>()(
                 overheadPercentage:           20,
                 bufferPercentage:             10,
                 yearlyFixedCost:              0,
+                annualInitialBudget:          1_000_000_000,
                 employerTaxPercentage:        8,
                 benefitsPercentage:           12,
                 costToBillRatio:              0.40,

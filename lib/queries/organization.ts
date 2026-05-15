@@ -96,6 +96,7 @@ function toCompanySettings(row: Record<string, unknown>): CompanySettings {
         overheadPercentage:           row.overhead_percentage as number,
         bufferPercentage:             row.buffer_percentage as number,
         yearlyFixedCost:              row.yearly_fixed_cost as number,
+        annualInitialBudget:          (row.annual_initial_budget as number) ?? 1_000_000_000,
         employerTaxPercentage:        (row.employer_tax_percentage as number) ?? 0,
         benefitsPercentage:           (row.benefits_percentage as number) ?? 0,
         // New estimation defaults — fall back to the same baked-in numbers the
@@ -289,6 +290,7 @@ export async function upsertCompanySettings(s: CompanySettings): Promise<void> {
         overhead_percentage:             s.overheadPercentage,
         buffer_percentage:               s.bufferPercentage,
         yearly_fixed_cost:               s.yearlyFixedCost,
+        annual_initial_budget:           s.annualInitialBudget,
         employer_tax_percentage:         s.employerTaxPercentage,
         benefits_percentage:             s.benefitsPercentage,
         cost_to_bill_ratio:              s.costToBillRatio,

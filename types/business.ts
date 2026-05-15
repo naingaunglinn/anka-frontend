@@ -114,6 +114,7 @@ export interface CompanySettings {
     overheadPercentage: number;
     bufferPercentage: number;
     yearlyFixedCost: number;
+    annualInitialBudget: number;
     employerTaxPercentage: number; // employer payroll tax % on top of salary
     benefitsPercentage: number;    // benefits/insurance % on top of salary
     // Estimation defaults — used to drive cost calculations on /estimation
@@ -366,6 +367,29 @@ export interface ProjectTeamAssignment {
     assignmentSource: 'manual' | 'ai' | 'deal_transfer';
     costPerHour?: number;
     monthlySalary?: number;
+}
+
+export interface ProjectTaskAssignment {
+    id: string;
+    projectId: string;
+    rowNo: number;
+    functionId?: string;
+    functionName: string;
+    category?: string | null;
+    offshore?: string | null;
+    difficulty?: string | null;
+    totalHours: number;
+    assigneeId?: string | null;
+    assigneeName?: string;
+    assigneeRankId?: string | null;
+    assigneeRankCode?: string | null;
+    assigneeRankName?: string | null;
+    assignmentSource?: string | null;
+    plannedStart?: string;
+    plannedEnd?: string;
+    actualStart?: string;
+    actualEnd?: string;
+    status?: string | null;
 }
 
 // --- Dashboard Capacity (Derived or Legacy) ---
