@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MoreVertical, Edit2, Trash2, Trophy, Ban, FileText } from 'lucide-react';
@@ -128,11 +129,15 @@ export function KanbanBoard({
         setDeleteOpen(true);
     };
 
-    const handleDeleteDeal = () => {
+    const handleDeleteDeal = async () => {
         if (!deletingDealId) return;
-        deleteDeal.mutate(deletingDealId);
-        setDeleteOpen(false);
-        setDeletingDealId(null);
+        try {
+            await deleteDeal.mutateAsync(deletingDealId);
+            toast.success('Deal deleted.');
+        } finally {
+            setDeleteOpen(false);
+            setDeletingDealId(null);
+        }
     };
 
     const openDropDeal = (dealId: string, dealName: string) => {

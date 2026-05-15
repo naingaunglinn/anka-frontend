@@ -15,6 +15,7 @@ import {
     TrendingUp, Briefcase, Trophy, ChevronRight, Calculator, ExternalLink,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { PermissionGuard } from '@/components/PermissionGuard';
@@ -571,6 +572,7 @@ export default function DealDetailPage() {
                         <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
                         <Button variant="destructive" onClick={async () => {
                             await deleteDeal.mutateAsync(dealId);
+                            toast.success(`Deal "${dealToEdit.name}" deleted.`);
                             setDeleteOpen(false);
                             router.push('/project-pipeline');
                         }} disabled={deleteDeal.isPending}>

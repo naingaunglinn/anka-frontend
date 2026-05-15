@@ -228,7 +228,7 @@ export function ContractDraftWizard({
                 )}
 
                 <div className="flex justify-between items-center">
-                    <Button variant="outline" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="outline" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         <ArrowLeft className="h-4 w-4" /> Back to deal
                     </Button>
                     <Button
@@ -321,7 +321,7 @@ export function ContractDraftWizard({
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <Button variant="ghost" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         <ArrowLeft className="h-4 w-4" /> Back to deal
                     </Button>
                     {!isLocked && (
@@ -427,7 +427,7 @@ export function ContractDraftWizard({
                     <Button variant="outline" onClick={() => setStep('edit')} disabled={isSigned}>
                         <ArrowLeft className="h-4 w-4" /> Back to edit
                     </Button>
-                    <Button variant="ghost" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         Back to deal
                     </Button>
                 </div>
