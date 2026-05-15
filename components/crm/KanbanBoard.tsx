@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Trophy, Ban, FileText } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Ban, FileText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -251,23 +251,6 @@ export function KanbanBoard({
                                                                         >
                                                                             <FileText className="mr-2 h-4 w-4" />
                                                                             Open contract draft
-                                                                        </DropdownMenuItem>
-                                                                    )}
-                                                                    {/* Legacy contract-document upload path. Still
-                                                                        functional during Phase A move-out; will be
-                                                                        retired when Contract Review menu takes the
-                                                                        upload code. */}
-                                                                    {deal.status === 'negotiation' && deal.hasSentContractDraft && (
-                                                                        <DropdownMenuItem
-                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}#contract-document`)}
-                                                                            disabled={!canManageCrm}
-                                                                            title={!canManageCrm
-                                                                                ? rbacReason
-                                                                                : 'Upload an approved contract document to move the deal to Won.'}
-                                                                            className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                        >
-                                                                            <Trophy className="mr-2 h-4 w-4" />
-                                                                            Upload Contract → Win
                                                                         </DropdownMenuItem>
                                                                     )}
                                                                     <DropdownMenuItem

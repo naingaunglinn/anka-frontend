@@ -12,14 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     ArrowLeft, Edit3, Users, FileText, DollarSign, Target, Calendar, Clock,
-    TrendingUp, Briefcase, Trophy, ChevronRight, Calculator, ExternalLink,
+    TrendingUp, Briefcase, ChevronRight, Calculator, ExternalLink,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { PermissionGuard } from '@/components/PermissionGuard';
-import { ContractDocumentUploader } from '@/components/crm/ContractDocumentUploader';
 import { usePermission } from '@/hooks/usePermission';
 import { isContractEligible } from '@/lib/dealRanks';
 import { useContractDrafts } from '@/lib/queries/contractDrafts';
@@ -76,8 +75,8 @@ export default function DealDetailPage() {
     const currency = useTenantCurrency();
 
     const dealQuery      = useDealDetail(dealId);
-    // winDeal is no longer triggered from this page — the only path to S/won
-    // is uploading an AI-approved contract document (ContractDocumentUploader).
+    // Win transition (A → S) fires when the customer's counter-signed PDF is
+    // uploaded inside the contract draft wizard's mark-signed step.
     const { deleteDeal } = useDealMutations();
     const contractsQuery = useContractList();
     const projectsQuery  = useProjectList();
@@ -238,23 +237,6 @@ export default function DealDetailPage() {
                             </PermissionGuard>
                         )
                     )}
-                    {/* Manual "Win Deal" was replaced by the contract-document upload
-                        flow — the deal auto-transitions to Won (S) once Claude
-                        approves the uploaded contract. The button below only shows
-                        in the Negotiation (A) stage and scrolls to the uploader. */}
-                    {stage === 'negotiation' && (
-                        <PermissionGuard permission="manage_crm">
-                            <Button
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => {
-                                    const el = document.getElementById('contract-document');
-                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }}
-                            >
-                                <Trophy className="h-4 w-4" /> Upload Contract → Win
-                            </Button>
-                        </PermissionGuard>
-                    )}
                     <Button
                         variant="outline"
                         className="gap-2"
@@ -281,19 +263,6 @@ export default function DealDetailPage() {
 
             {/* Workflow status bar */}
             <WorkflowBar steps={workflowSteps} />
-
-            {/* Contract document uploader — only rendered in A (Negotiation).
-                Approved uploads auto-fire win_deal() server-side. The id is the
-                scroll target for the "Upload Contract → Win" header button. */}
-            {stage === 'negotiation' && (
-                <div id="contract-document">
-                    <ContractDocumentUploader
-                        dealId={dealToEdit.id}
-                        canManage={canManageCrm}
-                        enabled
-                    />
-                </div>
-            )}
 
             {/* KPI cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

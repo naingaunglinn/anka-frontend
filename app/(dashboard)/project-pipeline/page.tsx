@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Search, Target, TrendingUp, Plus, X, FileSearch, EyeOff, Eye } from 'lucide-react';
+import { DollarSign, Search, Target, TrendingUp, Plus, X, EyeOff, Eye } from 'lucide-react';
 
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
@@ -108,15 +108,6 @@ export default function CRMPage() {
                     <p className="text-[#4a4a4a] mt-1">Manage leads, track opportunities, and forecast revenue.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* Contract Reviews still lives at /crm/contract-reviews
-                        — the Contract Review menu owner will relocate it in
-                        Phase A (chg-009). Until then, the button reaches
-                        the queue at its original URL. */}
-                    <Link href="/crm/contract-reviews">
-                        <Button variant="outline" className="gap-2">
-                            <FileSearch className="h-4 w-4" /> Contract Reviews
-                        </Button>
-                    </Link>
                     <PermissionGuard permission="manage_crm">
                         <Link href="/project-pipeline/new">
                             <Button>
