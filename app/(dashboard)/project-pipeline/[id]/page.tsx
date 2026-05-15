@@ -281,17 +281,18 @@ export default function DealDetailPage() {
             {/* Workflow status bar */}
             <WorkflowBar steps={workflowSteps} />
 
-            {/* Contract document uploader — visible in Negotiation (A) stage.
+            {/* Contract document uploader — only rendered in A (Negotiation).
                 Approved uploads auto-fire win_deal() server-side. The id is the
-                scroll target for the "Upload Contract → Win" header button and
-                the Kanban dropdown's deep link. */}
-            <div id="contract-document">
-                <ContractDocumentUploader
-                    dealId={dealToEdit.id}
-                    canManage={canManageCrm}
-                    enabled={stage === 'negotiation'}
-                />
-            </div>
+                scroll target for the "Upload Contract → Win" header button. */}
+            {stage === 'negotiation' && (
+                <div id="contract-document">
+                    <ContractDocumentUploader
+                        dealId={dealToEdit.id}
+                        canManage={canManageCrm}
+                        enabled
+                    />
+                </div>
+            )}
 
             {/* KPI cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
