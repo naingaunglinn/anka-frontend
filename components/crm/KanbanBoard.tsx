@@ -22,6 +22,8 @@ import {
     STAGE_RANK,
     STAGE_TITLE,
     STAGE_DESCRIPTION,
+    STAGE_COLORS,
+    DROPPED_COLORS,
     type DealStage,
 } from '@/lib/dealRanks';
 
@@ -161,12 +163,13 @@ export function KanbanBoard({
                     const stage = columnId as DealStage;
                     const rank = STAGE_RANK[stage];
                     const description = STAGE_DESCRIPTION[stage];
+                    const stageColor = STAGE_COLORS[stage];
                     return (
                         <div key={columnId} className="flex flex-col min-w-[280px] w-[280px] bg-slate-100 rounded-xl shrink-0">
                             <div className="p-4 bg-slate-200/50 rounded-t-xl border-b border-[#e6e9ee] flex justify-between items-start gap-2">
                                 <div className="min-w-0">
                                     <h3 className="font-semibold text-slate-700 flex items-center gap-2">
-                                        <span className="inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded bg-slate-700 text-white text-xs font-bold">
+                                        <span className={`inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded text-xs font-bold ${stageColor.bg} ${stageColor.text}`}>
                                             {rank}
                                         </span>
                                         <span className="truncate">{column.title}</span>
@@ -191,21 +194,32 @@ export function KanbanBoard({
                                     const isDropped = deal.lifecycleStatus === 'dropped' || deal.status === 'lost';
                                     const canDropThisDeal = !isDropped && !isWon;
 
+                                    // Per-rank colours for the card accent + rank chip. Dropped cards
+                                    // use a neutral grey palette regardless of last-known stage.
+                                    const cardStage = (STAGE_COLORS[deal.status as DealStage] ? deal.status : 'lead') as DealStage;
+                                    const cardColor = isDropped ? DROPPED_COLORS : STAGE_COLORS[cardStage];
+                                    const cardRank = isDropped ? 'D' : STAGE_RANK[cardStage];
+
                                     return (
                                         <Card
                                             key={deal.id}
-                                            className={`border shadow-sm hover:shadow-md transition-all duration-200 ${
+                                            className={`border border-l-4 shadow-sm hover:shadow-md transition-all duration-200 ${cardColor.border} ${
                                                 isDropped ? 'opacity-60 grayscale' : ''
                                             }`}
                                         >
                                             <CardContent className="p-4 space-y-3">
-                                                {/* Header: Name + Menu */}
-                                                <div className="flex justify-between items-start">
-                                                    <div
-                                                        className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer"
-                                                        onClick={() => router.push(`/project-pipeline/${deal.id}`)}
-                                                    >
-                                                        {deal.name}
+                                                {/* Header: Rank + Name + Menu */}
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className={`inline-flex h-5 min-w-5 px-1.5 items-center justify-center rounded text-[10px] font-bold shrink-0 ${cardColor.bg} ${cardColor.text}`}>
+                                                            {cardRank}
+                                                        </span>
+                                                        <div
+                                                            className="font-semibold text-sm line-clamp-1 hover:text-[#00a7f4] hover:underline cursor-pointer"
+                                                            onClick={() => router.push(`/project-pipeline/${deal.id}`)}
+                                                        >
+                                                            {deal.name}
+                                                        </div>
                                                     </div>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
