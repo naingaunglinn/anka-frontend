@@ -105,7 +105,7 @@ export default function CRMPage() {
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Project Pipeline</h2>
-                    <p className="text-[#4a4a4a] mt-1">Manage leads, track opportunities, and forecast revenue.</p>
+                    <p className="text-[#4a4a4a] mt-1">Manage leads, draft contracts with AI, and track opportunities through to signed.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <PermissionGuard permission="manage_crm">

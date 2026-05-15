@@ -190,9 +190,8 @@ export function KanbanBoard({
                                     const rolesNeededCount = (deal.ghostRoles || []).reduce((sum, r) => sum + r.quantity, 0);
                                     const hardBookedCount = (deal.hardAssignments || []).length;
                                     const isFullyStaffed = rolesNeededCount > 0 && hardBookedCount >= rolesNeededCount;
-                                    const isWon = deal.status === 'won';
                                     const isDropped = deal.lifecycleStatus === 'dropped' || deal.status === 'lost';
-                                    const canDropThisDeal = !isDropped && !isWon;
+                                    const canDropThisDeal = !isDropped && deal.status !== 'won';
 
                                     // Per-rank colours for the card accent + rank chip. Dropped cards
                                     // use a neutral grey palette regardless of last-known stage.
@@ -211,7 +210,7 @@ export function KanbanBoard({
                                                 {/* Header: Rank + Name + Menu */}
                                                 <div className="flex justify-between items-start gap-2">
                                                     <div className="flex items-center gap-2 min-w-0">
-                                                        <span className={`inline-flex h-5 min-w-5 px-1.5 items-center justify-center rounded text-[10px] font-bold shrink-0 ${cardColor.bg} ${cardColor.text}`}>
+                                                        <span className={`inline-flex h-6 min-w-6 px-1.5 items-center justify-center rounded text-xs font-bold shrink-0 ${cardColor.bg} ${cardColor.text}`}>
                                                             {cardRank}
                                                         </span>
                                                         <div
@@ -237,10 +236,8 @@ export function KanbanBoard({
                                                                 <Edit2 className="mr-2 h-4 w-4" />
                                                                 Edit Details
                                                             </DropdownMenuItem>
-                                                            {/* "Staffing" dropdown item removed — staffing belongs
-                                                                to ⑥ Task Assign per the manager's spec. The page
-                                                                still works at /project-pipeline/[id]/staffing for
-                                                                direct URL access until Phase A relocates it. */}
+                                                            {/* Staffing lives in the Task Assign menu now —
+                                                                no dropdown item here. */}
                                                             {canDropThisDeal && (
                                                                 <>
                                                                     {deal.status === 'negotiation' && deal.activeContractDraftId && (
