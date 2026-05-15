@@ -23,6 +23,9 @@ function toPhaseAssignment(row: Record<string, unknown>): ProjectTaskPhaseAssign
         phaseName:          (row.phase_name as string) ?? '',
         phaseOrder:         Number(row.phase_order ?? 0),
         estimatedHours:     Number(row.estimated_hours ?? 0),
+        startDayHours:      row.start_day_hours !== null && row.start_day_hours !== undefined
+            ? Number(row.start_day_hours)
+            : null,
         assigneeId:         (row.assignee_id as string | null) ?? null,
         assigneeName:       (row.assignee_name as string | null) ?? null,
         assigneeRankId:     (row.assignee_rank_id as string | null) ?? null,

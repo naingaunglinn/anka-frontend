@@ -299,6 +299,7 @@ export interface ProjectTaskPhaseAssignment {
     phaseName: string;
     phaseOrder: number;
     estimatedHours: number;
+    startDayHours: number | null;
     assigneeId: string | null;
     assigneeName: string | null;
     assigneeRankId: string | null;
