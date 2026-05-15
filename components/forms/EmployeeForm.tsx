@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/popover';
 import { DialogClose } from '@/components/ui/dialog';
 import { AlertCircle, ChevronsUpDown, Search, X } from 'lucide-react';
-import { Role, Department, Skill } from '@/types/business';
+import { Role, Department, Skill, Rank } from '@/types/business';
 import {
     employeeSchema,
     employeeCreateSchema,
@@ -52,6 +52,7 @@ interface EmployeeFormInitialData {
     role?: string;
     departmentId?: string;
     capacityRole?: string;
+    rankId?: string | null;
     monthlySalary?: number;
     workableHours?: number;
     status?: 'Active' | 'On Leave' | 'Terminated';
@@ -65,11 +66,13 @@ interface EmployeeFormProps {
     roles: Role[];
     departments?: Department[];
     skills?: Skill[];
+    /** Tenant ranks for the rank dropdown. Pass `[]` (or omit) to hide the dropdown. */
+    ranks?: Rank[];
     onSubmit: (data: EmployeeCreateValues) => void | Promise<void>;
     onCancel?: () => void;
 }
 
-export function EmployeeForm({ initialData, roles, departments = [], skills = [], onSubmit, onCancel }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, roles, departments = [], skills = [], ranks = [], onSubmit, onCancel }: EmployeeFormProps) {
     const symbol = useCurrencySymbol();
     const isEdit = !!initialData;
 
@@ -92,6 +95,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
             role:          initialData?.role ?? '',
             departmentId:  initialData?.departmentId ?? '',
             capacityRole:  initialData?.capacityRole ?? '',
+            rankId:        initialData?.rankId ?? '',
             monthlySalary: initialData?.monthlySalary ?? 0,
             workableHours: initialData?.workableHours ?? 160,
             status:        initialData?.status ?? 'Active',
@@ -245,6 +249,39 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         )}
                     />
                 </div>
+                <FormField
+                    control={form.control}
+                    name="rankId"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Rank <span className="text-[#4a4a4a] text-xs font-normal">(optional — used by AI Team Builder)</span></FormLabel>
+                            {/* "none" sentinel — Select can't represent undefined; the
+                                store mutation maps 'none' → null before persisting. */}
+                            <Select
+                                onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                                value={field.value && field.value !== '' ? field.value : 'none'}
+                            >
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Unranked" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="none">Unranked</SelectItem>
+                                    {ranks
+                                        .slice()
+                                        .sort((a, b) => a.level - b.level)
+                                        .map(r => (
+                                            <SelectItem key={r.id} value={r.id}>
+                                                {r.name} <span className="text-muted-foreground ml-1 text-xs">(level {r.level})</span>
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
