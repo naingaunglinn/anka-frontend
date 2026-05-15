@@ -1,9 +1,17 @@
-import type { Employee, Engineer, GlobalOverhead, CompanySettings } from './business'
+import type { Employee, Engineer, GlobalOverhead, CompanySettings, RoleType } from './business'
 import type { Currency } from '@/lib/currencyConfig'
 import type { ComplexityResult } from '@/lib/dealComplexity'
 
 export interface AITeamBuilderInput {
     dealId: string
+    /**
+     * Output shape. 'employees' (default) makes Claude pick specific Employees
+     * from the pool and return `team` (per-person picks). 'roles' makes Claude
+     * suggest a ghost-role-shaped composition using the tenant's Engineer
+     * salary brackets — used by /estimation, which costs the deal at role
+     * level before any staffing decision is made.
+     */
+    outputMode?: 'employees' | 'roles'
     /** Deal title — surfaced in the prompt so Claude knows which project it's staffing. */
     dealName?: string
     /** Client name — gives Claude additional context (industry signals, etc.). */
@@ -104,8 +112,38 @@ export interface SkillGapAnalysis {
     recommendations: string[]
 }
 
+/**
+ * Role-shaped output used when AITeamBuilderInput.outputMode === 'roles'.
+ * Maps cleanly onto deal_ghost_roles when the user accepts the suggestion.
+ */
+export interface AISuggestedRole {
+    roleType: RoleType
+    /** Display label — e.g. "Backend Engineer". */
+    label: string
+    quantity: number
+    /** Months on the project. Often equals timelineMonths, but Claude may shorten for late-stage roles. */
+    months: number
+    /** Total project hours for this role bucket (across all `quantity` slots). */
+    allocatedHours: number
+    /** Cost-bracket range pulled from the tenant's engineers list. */
+    minMonthlySalary: number
+    maxMonthlySalary: number
+    /** Mid-point × quantity × months — convenience, frontend can recompute. */
+    estimatedCost: number
+    reasoning: string
+}
+
 export interface AITeamBuilderResult {
     team: AITeamMember[]
+    /** Populated when outputMode === 'roles'. Empty/undefined in employees mode. */
+    roles?: AISuggestedRole[]
+    /**
+     * Populated by role mode when the input did not specify workloadHours
+     * (or sent zero). Claude proposes a total hour count based on the
+     * project description, budget, and timeline. The frontend displays it
+     * and the user can save it back to the deal if they want.
+     */
+    estimatedTotalHours?: number
     baseLaborCost: number
     overheadCost: number
     bufferCost: number

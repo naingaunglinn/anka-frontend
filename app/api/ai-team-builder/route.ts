@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage } from '@/lib/aiTeamBuilder'
+import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage, ROLE_SYSTEM_PROMPT, buildRoleUserPrompt } from '@/lib/aiTeamBuilder'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { formatMoney } from '@/lib/currencyServer'
 
@@ -39,6 +39,99 @@ function extractFirstJsonObject(text: string): string | null {
         }
     }
     return null
+}
+
+// ── Demo fallback for role mode: returns role-shaped output without calling Claude ──
+function generateRoleDemoResult(input: AITeamBuilderInput): AITeamBuilderResult {
+    const months = Math.max(1, Math.round(input.timelineMonths || 1))
+    // Hours unspecified → estimate from budget. Assume the labor portion is
+    // ~60% of budget (rest is overhead/buffer/margin) and an average effective
+    // rate of $25/hr — gives a sane ballpark for the demo path.
+    const estimatedHours = input.workloadHours && input.workloadHours > 0
+        ? input.workloadHours
+        : Math.max(80, Math.round((input.clientBudget * 0.6) / 25))
+    const totalHours = estimatedHours
+    const desc = (input.workloadDescription || '').toLowerCase()
+
+    // Weights mirror the live prompt's intent so demo output looks realistic.
+    const weights = {
+        backend:  /backend|api|database|server|node|laravel|python|django/.test(desc) ? 0.35 : 0.25,
+        frontend: /frontend|react|vue|angular|ui|ux|dashboard|mobile/.test(desc) ? 0.30 : 0.25,
+        design:   /design|figma|brand|visual|creative/.test(desc) ? 0.15 : 0.10,
+        qa:       /test|qa|quality|automation/.test(desc) ? 0.12 : 0.08,
+        pm:       /project|management|stakeholder|planning/.test(desc) ? 0.12 : 0.10,
+    } as const
+
+    const labels: Record<keyof typeof weights, string> = {
+        backend: 'Backend Engineer',
+        frontend: 'Frontend Engineer',
+        design: 'Product Designer',
+        qa: 'QA Engineer',
+        pm: 'Project Manager',
+    }
+
+    // Pull min/max from the tenant's engineer salary brackets; fall back to
+    // sensible USD ranges per bucket when no bracket exists.
+    const bracketsByRole: Record<string, number[]> = { backend: [], frontend: [], design: [], qa: [], pm: [] }
+    for (const e of input.engineers ?? []) {
+        if (bracketsByRole[e.role]) bracketsByRole[e.role].push(e.monthlySalary)
+    }
+    const fallbackBrackets: Record<string, [number, number]> = {
+        backend:  [3000, 6000],
+        frontend: [2800, 5500],
+        design:   [2500, 5000],
+        qa:       [2200, 4500],
+        pm:       [3000, 6000],
+    }
+
+    const roles: NonNullable<AITeamBuilderResult['roles']> = []
+    let baseLaborCost = 0
+    for (const key of Object.keys(weights) as Array<keyof typeof weights>) {
+        const allocated = Math.round(totalHours * weights[key])
+        if (allocated <= 0) continue
+        const bracketVals = bracketsByRole[key]
+        const min = bracketVals.length > 0 ? Math.min(...bracketVals) : fallbackBrackets[key][0]
+        const max = bracketVals.length > 0 ? Math.max(...bracketVals) : fallbackBrackets[key][1]
+        const avg = (min + max) / 2
+        const cost = Math.round(avg * months)
+        roles.push({
+            roleType: key,
+            label: labels[key],
+            quantity: 1,
+            months,
+            allocatedHours: allocated,
+            minMonthlySalary: min,
+            maxMonthlySalary: max,
+            estimatedCost: cost,
+            reasoning: `Demo fallback — projected ${allocated}h over ${months} month${months === 1 ? '' : 's'} based on description keywords.`,
+        })
+        baseLaborCost += cost
+    }
+
+    const overheadPct = (input.companySettings?.overheadPercentage ?? 20) / 100
+    const bufferPct   = (input.companySettings?.bufferPercentage ?? 10) / 100
+    const overheadCost = baseLaborCost * overheadPct
+    const bufferCost   = (baseLaborCost + overheadCost) * bufferPct
+    const totalEstimatedCost   = baseLaborCost + overheadCost + bufferCost
+    const estimatedGrossProfit = input.clientBudget - totalEstimatedCost
+    const profitMarginPercent  = input.clientBudget > 0 ? (estimatedGrossProfit / input.clientBudget) * 100 : 0
+    const isFeasible           = totalEstimatedCost <= input.clientBudget
+
+    return {
+        team: [],
+        roles,
+        estimatedTotalHours: totalHours,
+        baseLaborCost: Math.round(baseLaborCost),
+        overheadCost: Math.round(overheadCost),
+        bufferCost: Math.round(bufferCost),
+        totalEstimatedCost: Math.round(totalEstimatedCost),
+        estimatedGrossProfit: Math.round(estimatedGrossProfit),
+        profitMarginPercent: Math.round(profitMarginPercent * 100) / 100,
+        isFeasible,
+        feasibilityNote: isFeasible ? 'Project is within budget' : `Project exceeds budget by ${Math.round(totalEstimatedCost - input.clientBudget).toLocaleString()}`,
+        aiReasoning: `Demo role mix: ${roles.map(r => `${r.quantity}× ${r.label}`).join(', ')}. Total cost ${Math.round(totalEstimatedCost).toLocaleString()} against ${Math.round(input.clientBudget).toLocaleString()} budget.`,
+        warnings: profitMarginPercent < 10 ? ['Profit margin is below 10% — consider negotiating a higher budget or reducing scope.'] : [],
+    }
 }
 
 // ── Demo fallback: generates a realistic team recommendation without calling Claude ──
@@ -217,6 +310,9 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
         console.log('[AI Team Builder] Demo fallback — no API key configured')
         logUsage('ai_team_builder', 'demo-fallback', 0, 0, 0)
+        if (input.outputMode === 'roles') {
+            return NextResponse.json(generateRoleDemoResult(input))
+        }
         const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
         if (demoResult.addedNames.length > 0) {
             console.warn(`[AI Team Builder] Demo path: force-added skill carrier(s): ${demoResult.addedNames.join(', ')}`)
@@ -226,14 +322,21 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey, baseURL })
 
+    // outputMode === 'roles' uses the role-shaped prompt; the result has
+    // `roles` populated and `team` empty. Skip enforceSkillCoverage in role
+    // mode — it's an employee-pick safety net and doesn't apply.
+    const isRoleMode = input.outputMode === 'roles'
+    const systemPrompt = isRoleMode ? ROLE_SYSTEM_PROMPT : SYSTEM_PROMPT
+    const userPrompt   = isRoleMode ? buildRoleUserPrompt(input) : buildUserPrompt(input)
+
     try {
         const message = await client.messages.create({
             model:      CLAUDE_MODEL,
             max_tokens: 4096,
             temperature: 0.2,
-            system:     SYSTEM_PROMPT,
+            system:     systemPrompt,
             messages: [
-                { role: 'user', content: buildUserPrompt(input) },
+                { role: 'user', content: userPrompt },
                 { role: 'assistant', content: '{' },
             ],
         })
@@ -281,6 +384,12 @@ export async function POST(req: NextRequest) {
 
         // Fire-and-forget usage log — never blocks the AI response
         logUsage('ai_team_builder', message.model, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
+
+        // Role mode: no skill-coverage enforcement (it operates on per-employee
+        // picks). Return Claude's role-shaped output as-is.
+        if (isRoleMode) {
+            return NextResponse.json(result)
+        }
 
         // Belt-and-suspenders: even with the prompt's selection rules, Claude
         // sometimes leaves out a uniquely-skilled employee. enforceSkillCoverage

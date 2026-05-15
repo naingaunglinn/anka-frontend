@@ -130,6 +130,7 @@ export interface EstimationResource {
     id: string;
     featureName: string;
     roleId: string; // Links to Role
+    employeeId?: string | null; // Optional — picks a specific Employee; rate falls back to role median when null
     hours: number;
 }
 
