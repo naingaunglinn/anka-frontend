@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toProject } from '@/lib/dealsMapper';
 import { normalizeError } from '@/lib/errorHandler';
+import { scheduleTrackingKeys } from '@/lib/queries/scheduleTracking';
 import type {
     Project,
     ProjectTeamAssignment,
@@ -250,6 +251,12 @@ export function useProjectTaskMutations(projectId: string) {
 
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: projectKeys.tasks(projectId) });
+        // AI re-assign destructively wipes project_task_phase_assignments,
+        // which cascade-deletes phase_progress_logs via FK. Schedule-tracking
+        // caches (master grid badges, drill-down drawer logs, summary KPIs)
+        // would hold phantom rows pointing at deleted log IDs and 404 on
+        // subsequent actions. Invalidate them too.
+        queryClient.invalidateQueries({ queryKey: scheduleTrackingKeys.all });
     };
 
     const assignTasks = useMutation({

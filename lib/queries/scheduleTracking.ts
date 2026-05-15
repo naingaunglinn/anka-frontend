@@ -271,7 +271,18 @@ export function useDeleteProgressLog() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (id: string) => {
-            await api.delete(`/phase-progress-logs/${id}`);
+            try {
+                await api.delete(`/phase-progress-logs/${id}`);
+            } catch (err) {
+                // 404 = the row is already gone (deleted in another tab, by an
+                // AI re-assign cascade, or by a rapid second click). The
+                // desired end state matches what the user wanted — swallow it
+                // and let the cache invalidate so the stale row disappears.
+                const status = (err as { response?: { status?: number } })?.response?.status;
+                if (status !== 404) {
+                    throw err;
+                }
+            }
             return id;
         },
         onError: (err) => {

@@ -103,8 +103,18 @@ export function PhaseDrillDownDrawer({ open, onClose, row, isManager = false }: 
                                                 )}
                                             </div>
                                         ) : (
-                                            <Button size="sm" variant="ghost" className="text-rose-700" onClick={() => deleteLog.mutate(log.id)}>
-                                                Delete
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="text-rose-700"
+                                                disabled={deleteLog.isPending && deleteLog.variables === log.id}
+                                                onClick={() => {
+                                                    if (window.confirm(`Delete the ${log.logDate} log (${log.progressHours}h progress / ${log.usedHours}h used)? This cannot be undone.`)) {
+                                                        deleteLog.mutate(log.id);
+                                                    }
+                                                }}
+                                            >
+                                                {deleteLog.isPending && deleteLog.variables === log.id ? 'Deleting…' : 'Delete'}
                                             </Button>
                                         )}
                                     </TableCell>
