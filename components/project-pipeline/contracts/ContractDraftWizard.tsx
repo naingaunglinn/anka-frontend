@@ -25,7 +25,7 @@ import {
     type RenderedSection,
 } from '@/lib/queries/contractDrafts';
 import type { Deal } from '@/types/business';
-import { normalizeError } from '@/lib/errorHandler';
+import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
 type Step = 'choose' | 'edit' | 'send';
 
@@ -104,7 +104,13 @@ export function ContractDraftWizard({
             setStep('edit');
             toast.success('Draft generated.');
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            const normalized = normalizeError(err);
+            // Laravel's default 422 message is the generic "The given data was
+            // invalid." — useless on its own. Surface the first field-level
+            // error instead so the user sees the real reason (e.g. "Estimation
+            // handoff is incomplete. Missing: final_monthly_fee, ...").
+            const detail = firstFieldError(normalized);
+            toast.error(detail ?? normalized.message);
         }
     }
 
@@ -228,7 +234,7 @@ export function ContractDraftWizard({
                 )}
 
                 <div className="flex justify-between items-center">
-                    <Button variant="outline" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="outline" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         <ArrowLeft className="h-4 w-4" /> Back to deal
                     </Button>
                     <Button
@@ -321,7 +327,7 @@ export function ContractDraftWizard({
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <Button variant="ghost" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         <ArrowLeft className="h-4 w-4" /> Back to deal
                     </Button>
                     {!isLocked && (
@@ -427,7 +433,7 @@ export function ContractDraftWizard({
                     <Button variant="outline" onClick={() => setStep('edit')} disabled={isSigned}>
                         <ArrowLeft className="h-4 w-4" /> Back to edit
                     </Button>
-                    <Button variant="ghost" onClick={() => router.push(`/crm/${deal.id}`)}>
+                    <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         Back to deal
                     </Button>
                 </div>
