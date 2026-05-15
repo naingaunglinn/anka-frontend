@@ -228,17 +228,19 @@ export function KanbanBoard({
                                                                         functional during Phase A move-out; will be
                                                                         retired when Contract Review menu takes the
                                                                         upload code. */}
-                                                                    <DropdownMenuItem
-                                                                        onClick={() => router.push(`/crm/${deal.id}#contract-document`)}
-                                                                        disabled={!canManageCrm}
-                                                                        title={!canManageCrm
-                                                                            ? rbacReason
-                                                                            : 'Upload an approved contract document to move the deal to Won.'}
-                                                                        className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                    >
-                                                                        <Trophy className="mr-2 h-4 w-4" />
-                                                                        Upload Contract → Win
-                                                                    </DropdownMenuItem>
+                                                                    {deal.status === 'negotiation' && (
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => router.push(`/project-pipeline/${deal.id}#contract-document`)}
+                                                                            disabled={!canManageCrm}
+                                                                            title={!canManageCrm
+                                                                                ? rbacReason
+                                                                                : 'Upload an approved contract document to move the deal to Won.'}
+                                                                            className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                        >
+                                                                            <Trophy className="mr-2 h-4 w-4" />
+                                                                            Upload Contract → Win
+                                                                        </DropdownMenuItem>
+                                                                    )}
                                                                     <DropdownMenuItem
                                                                         onClick={() => openDropDeal(deal.id, deal.name)}
                                                                         disabled={dropDeal.isPending || !canManageCrm}
