@@ -179,7 +179,7 @@ export function KanbanBoard({
                                 <Badge variant="secondary" className="bg-white shrink-0">{column.deals.length}</Badge>
                             </div>
 
-                            <div className="p-3 space-y-3 min-h-[120px]">
+                            <div className="p-3 space-y-4 min-h-[120px]">
                                 {column.deals.map((deal) => {
                                     const estimation = getDealEstimation(deal.id);
                                     const budget = deal.clientBudget || 0;
