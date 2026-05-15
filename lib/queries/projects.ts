@@ -4,7 +4,7 @@ import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
 import { toProject } from '@/lib/dealsMapper';
 import { normalizeError } from '@/lib/errorHandler';
-import type { Project, ProjectTeamAssignment } from '@/types/business';
+import type { Project, ProjectTaskAssignment, ProjectTeamAssignment } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
 
 function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
@@ -20,6 +20,31 @@ function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
     };
 }
 
+function toTaskAssignment(row: Record<string, unknown>): ProjectTaskAssignment {
+    return {
+        id: row.id as string,
+        projectId: row.project_id as string,
+        rowNo: Number(row.row_no ?? 0),
+        functionId: (row.function_id as string | null) ?? undefined,
+        functionName: (row.function_name as string | null) ?? 'Task',
+        category: (row.category as string | null) ?? null,
+        offshore: (row.offshore as string | null) ?? null,
+        difficulty: (row.difficulty as string | null) ?? null,
+        totalHours: Number(row.total_hours ?? 0),
+        assigneeId: (row.assignee_id as string | null) ?? null,
+        assigneeName: (row.assignee_name as string | null) ?? undefined,
+        assigneeRankId: (row.assignee_rank_id as string | null) ?? null,
+        assigneeRankCode: (row.assignee_rank_code as string | null) ?? null,
+        assigneeRankName: (row.assignee_rank_name as string | null) ?? null,
+        assignmentSource: (row.assignment_source as string | null) ?? null,
+        plannedStart: (row.planned_start as string | null) ?? undefined,
+        plannedEnd: (row.planned_end as string | null) ?? undefined,
+        actualStart: (row.actual_start as string | null) ?? undefined,
+        actualEnd: (row.actual_end as string | null) ?? undefined,
+        status: (row.status as string | null) ?? null,
+    };
+}
+
 // ── Query key factory ────────────────────────────────────────────────────────
 
 export const projectKeys = {
@@ -29,6 +54,7 @@ export const projectKeys = {
     details: () => [...projectKeys.all, 'detail'] as const,
     detail: (id: string) => [...projectKeys.details(), id] as const,
     team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
+    taskAssignments: (id: string) => [...projectKeys.detail(id), 'task-assignments'] as const,
 };
 
 export interface ProjectListParams {
@@ -90,6 +116,21 @@ export function useProjectTeam(id: string) {
             const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
             return rows.map(toTeamAssignment);
         },
+        enabled: !!id,
+        staleTime: 10_000,
+    });
+}
+
+export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignment[]> {
+    const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
+    const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
+    return rows.map(toTaskAssignment);
+}
+
+export function useProjectTaskAssignments(id: string) {
+    return useQuery<ProjectTaskAssignment[]>({
+        queryKey: projectKeys.taskAssignments(id),
+        queryFn: () => fetchProjectTaskAssignments(id),
         enabled: !!id,
         staleTime: 10_000,
     });
