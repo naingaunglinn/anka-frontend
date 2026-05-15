@@ -379,7 +379,7 @@ export function ContractDraftWizard({
                                 value={emailTo}
                                 onChange={(e) => setEmailTo(e.target.value)}
                                 placeholder="customer@example.com"
-                                disabled={isSent || isSigned}
+                                disabled={isSigned}
                                 className="bg-white"
                             />
                             {draft.sent_to_email && (
@@ -392,7 +392,7 @@ export function ContractDraftWizard({
                         <Button
                             type="button"
                             onClick={handleSend}
-                            disabled={!emailTo || isSent || isSigned || sendMutation.isPending}
+                            disabled={!emailTo || isSigned || sendMutation.isPending}
                             className="bg-indigo-600 hover:bg-indigo-700"
                         >
                             {sendMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
