@@ -24,6 +24,7 @@ import {
     type DealContractDraft,
     type RenderedSection,
 } from '@/lib/queries/contractDrafts';
+import { useTenantSettings } from '@/lib/queries/tenant';
 import type { Deal } from '@/types/business';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
@@ -93,6 +94,25 @@ export function ContractDraftWizard({
     const [activeSaveKey, setActiveSaveKey] = useState<string | null>(null);
     const [emailTo, setEmailTo] = useState(deal.contactEmail ?? '');
 
+    // ── Provider signatory override state ──
+    // Tenant has a default signatory (Org → Company); this wizard step lets
+    // the operator override per-contract for cases where a different person
+    // signs (e.g. a director signs the big-ticket deals only). Empty → use
+    // tenant default at render time. The inputs pre-fill from the tenant.
+    const tenantQuery = useTenantSettings();
+    const [signatoryName, setSignatoryName] = useState('');
+    const [signatoryTitle, setSignatoryTitle] = useState('');
+    useEffect(() => {
+        if (initialDraft) return; // editing an existing draft — don't reset
+        if (signatoryName === '' && tenantQuery.data?.signatoryName) {
+            setSignatoryName(tenantQuery.data.signatoryName);
+        }
+        if (signatoryTitle === '' && tenantQuery.data?.signatoryTitle) {
+            setSignatoryTitle(tenantQuery.data.signatoryTitle);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tenantQuery.data?.id]);
+
     const todoCount = draft
         ? draft.sections.reduce((acc, s) => acc + (s.rendered.match(/\{\{TODO/g)?.length ?? 0), 0)
         : 0;
@@ -105,10 +125,19 @@ export function ContractDraftWizard({
             return;
         }
         try {
+            // Send the signatory override only when it differs from the tenant
+            // default. Null = "use tenant default at render time"; an explicit
+            // empty string would lock the draft to "no signatory" forever.
+            const tenantSigName = tenantQuery.data?.signatoryName ?? '';
+            const tenantSigTitle = tenantQuery.data?.signatoryTitle ?? '';
+            const sigNameTrimmed = signatoryName.trim();
+            const sigTitleTrimmed = signatoryTitle.trim();
             const result = await generateMutation.mutateAsync({
                 dealId: deal.id,
                 template_id: templateId,
                 wizard_inputs: wizardAnswers,
+                signatory_name_override: sigNameTrimmed !== tenantSigName.trim() ? (sigNameTrimmed || null) : null,
+                signatory_title_override: sigTitleTrimmed !== tenantSigTitle.trim() ? (sigTitleTrimmed || null) : null,
             });
             setDraft(result);
             setStep('edit');
@@ -241,6 +270,49 @@ export function ContractDraftWizard({
                                     onChange={(k, v) => setWizardAnswers((s) => ({ ...s, [k]: v }))}
                                 />
                             )}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {templateId && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">3 · Provider signatory</CardTitle>
+                            <CardDescription>
+                                The person who signs on behalf of your company. Pre-filled from your
+                                tenant default (Org → Company); override here just for this contract
+                                if a different person should sign.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-signatory-name" className="text-xs">Name</Label>
+                                    <Input
+                                        id="wizard-signatory-name"
+                                        value={signatoryName}
+                                        onChange={(e) => setSignatoryName(e.target.value)}
+                                        placeholder={tenantQuery.data?.signatoryName ?? 'e.g. U Aung Min'}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-signatory-title" className="text-xs">Title</Label>
+                                    <Input
+                                        id="wizard-signatory-title"
+                                        value={signatoryTitle}
+                                        onChange={(e) => setSignatoryTitle(e.target.value)}
+                                        placeholder={tenantQuery.data?.signatoryTitle ?? 'e.g. Managing Director'}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-2">
+                                Leave blank to use the tenant default. The contract date is auto-set
+                                to today when the PDF is generated.
+                            </p>
                         </CardContent>
                     </Card>
                 )}

@@ -8,6 +8,8 @@ export interface TenantSettings {
     plan: string | null;
     logoPath: string | null;
     logoUrl: string | null;
+    signatoryName: string | null;
+    signatoryTitle: string | null;
     taxRate: number;
     deliveryLagMonths: number;
     paymentDaysLate: number;
@@ -26,6 +28,8 @@ function toTenant(row: Record<string, unknown>): TenantSettings {
         plan:              row.plan as string | null,
         logoPath:          (row.logo_path as string | null) ?? null,
         logoUrl:           (row.logo_url as string | null) ?? null,
+        signatoryName:     (row.signatory_name as string | null) ?? null,
+        signatoryTitle:    (row.signatory_title as string | null) ?? null,
         taxRate:           typeof rawTax === 'number' ? rawTax : rawTax != null ? Number(rawTax) : 0.20,
         deliveryLagMonths: typeof rawLag === 'number' ? rawLag : rawLag != null ? Number(rawLag) : 1,
         paymentDaysLate:   typeof rawDays === 'number' ? rawDays : rawDays != null ? Number(rawDays) : 0,
@@ -57,6 +61,8 @@ export function useTenantMutations() {
         mutationFn: async (updates: {
             name?: string;
             slug?: string;
+            signatory_name?: string | null;
+            signatory_title?: string | null;
             tax_rate?: number;
             avg_delivery_lag_months?: number;
             avg_payment_days_late?: number;

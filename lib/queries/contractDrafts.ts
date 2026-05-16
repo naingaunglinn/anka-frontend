@@ -170,6 +170,10 @@ export interface GenerateDraftInput {
     dealId: string;
     template_id: string;
     wizard_inputs: Record<string, unknown>;
+    /** Per-draft override of the Provider signatory; null/missing →
+     *  PDF falls back to the tenant's default signatory at render time. */
+    signatory_name_override?: string | null;
+    signatory_title_override?: string | null;
 }
 
 /**
@@ -179,10 +183,12 @@ export interface GenerateDraftInput {
 export function useGenerateDraft() {
     const queryClient = useQueryClient();
     return useMutation<DealContractDraft, Error, GenerateDraftInput>({
-        mutationFn: async ({ dealId, template_id, wizard_inputs }) => {
+        mutationFn: async ({ dealId, template_id, wizard_inputs, signatory_name_override, signatory_title_override }) => {
             const { data: body } = await api.post(`/deals/${dealId}/contract-drafts`, {
                 template_id,
                 wizard_inputs,
+                signatory_name_override,
+                signatory_title_override,
             });
             return body.data as DealContractDraft;
         },
