@@ -116,7 +116,7 @@ export function PdfPreviewDialog({
                             current edits — close, edit, and reopen to see updates.
                         </DialogDescription>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex gap-2 shrink-0 mr-8">
                         <Button
                             variant="outline"
                             size="sm"
