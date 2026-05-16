@@ -6,6 +6,8 @@ export interface TenantSettings {
     name: string;
     slug: string;
     plan: string | null;
+    logoPath: string | null;
+    logoUrl: string | null;
     taxRate: number;
     deliveryLagMonths: number;
     paymentDaysLate: number;
@@ -22,6 +24,8 @@ function toTenant(row: Record<string, unknown>): TenantSettings {
         name:              row.name as string,
         slug:              row.slug as string,
         plan:              row.plan as string | null,
+        logoPath:          (row.logo_path as string | null) ?? null,
+        logoUrl:           (row.logo_url as string | null) ?? null,
         taxRate:           typeof rawTax === 'number' ? rawTax : rawTax != null ? Number(rawTax) : 0.20,
         deliveryLagMonths: typeof rawLag === 'number' ? rawLag : rawLag != null ? Number(rawLag) : 1,
         paymentDaysLate:   typeof rawDays === 'number' ? rawDays : rawDays != null ? Number(rawDays) : 0,
@@ -79,5 +83,32 @@ export function useTenantMutations() {
         },
     });
 
-    return { updateTenant, updateExchangeRate };
+    // Multipart upload of the company logo. Used by Organization → Company.
+    // Returns the refreshed tenant (with the new logoUrl) so the form can
+    // swap the preview without a separate fetch.
+    const uploadLogo = useMutation({
+        mutationFn: async (file: File) => {
+            const form = new FormData();
+            form.append('logo', file);
+            const { data: body } = await api.post('/tenant/logo', form, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return toTenant(body.data ?? body);
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(tenantKeys.current(), data);
+        },
+    });
+
+    const deleteLogo = useMutation({
+        mutationFn: async () => {
+            const { data: body } = await api.delete('/tenant/logo');
+            return toTenant(body.data ?? body);
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(tenantKeys.current(), data);
+        },
+    });
+
+    return { updateTenant, updateExchangeRate, uploadLogo, deleteLogo };
 }
