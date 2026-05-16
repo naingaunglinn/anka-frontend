@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Loader2, Trash2, Upload } from 'lucide-react';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
+import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney } from '@/lib/currency';
@@ -35,15 +36,23 @@ export function CompanySettingsForm() {
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [nameDraft, setNameDraft] = useState('');
+    const [signatoryNameDraft, setSignatoryNameDraft] = useState('');
+    const [signatoryTitleDraft, setSignatoryTitleDraft] = useState('');
     const [annualBudgetDraft, setAnnualBudgetDraft] = useState('');
     const [isSavingBudget, setIsSavingBudget] = useState(false);
 
-    // Sync the draft name with whatever the server says once it loads.
-    // We only reset when the tenant id changes (avoid clobbering an
-    // in-flight edit during a background refetch).
+    // Sync local drafts with whatever the server says once it loads.
+    // Reset only when the tenant id changes so background refetches don't
+    // clobber an in-flight edit.
     useEffect(() => {
         if (tenant?.name && nameDraft === '') {
             setNameDraft(tenant.name);
+        }
+        if (signatoryNameDraft === '') {
+            setSignatoryNameDraft(tenant?.signatoryName ?? '');
+        }
+        if (signatoryTitleDraft === '') {
+            setSignatoryTitleDraft(tenant?.signatoryTitle ?? '');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenant?.id]);
@@ -53,6 +62,10 @@ export function CompanySettingsForm() {
     }, [store.companySettings.annualInitialBudget]);
 
     const nameDirty = tenant && nameDraft !== tenant.name && nameDraft.trim().length > 0;
+    const signatoryDirty = tenant && (
+        signatoryNameDraft.trim() !== (tenant.signatoryName ?? '').trim()
+        || signatoryTitleDraft.trim() !== (tenant.signatoryTitle ?? '').trim()
+    );
     const parsedAnnualBudget = Number(annualBudgetDraft);
     const annualBudgetValid = Number.isFinite(parsedAnnualBudget) && parsedAnnualBudget >= 0;
     const annualBudgetDirty = annualBudgetValid && parsedAnnualBudget !== (store.companySettings.annualInitialBudget ?? 1_000_000_000);
@@ -82,6 +95,20 @@ export function CompanySettingsForm() {
         try {
             await updateTenant.mutateAsync({ name: nameDraft.trim() });
             toast.success('Company name updated.');
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleSaveSignatory = async () => {
+        if (!signatoryDirty) return;
+        try {
+            await updateTenant.mutateAsync({
+                signatory_name: signatoryNameDraft.trim() || null,
+                signatory_title: signatoryTitleDraft.trim() || null,
+            });
+            toast.success('Authorized signatory updated.');
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -160,6 +187,60 @@ export function CompanySettingsForm() {
                             size="sm"
                         >
                             {updateTenant.isPending ? 'Saving…' : 'Save name'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Authorized signatory</CardTitle>
+                    <CardDescription>
+                        Appears in the Provider signature block of every contract PDF. Set the
+                        person who actually signs on behalf of the company; salespeople can
+                        override on a per-contract basis during the draft wizard.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <SignatoryPicker
+                        id="signatory-picker-tenant"
+                        helper="Eligible employees: Manager rank or above. Picking auto-fills the fields below; manual edits still work."
+                        onSelect={({ name, title }) => {
+                            setSignatoryNameDraft(name);
+                            setSignatoryTitleDraft(title);
+                        }}
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="signatory-name">Name</Label>
+                            <Input
+                                id="signatory-name"
+                                value={signatoryNameDraft}
+                                onChange={(e) => setSignatoryNameDraft(e.target.value)}
+                                placeholder="e.g. U Aung Min"
+                                maxLength={255}
+                                className="bg-white"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="signatory-title">Title</Label>
+                            <Input
+                                id="signatory-title"
+                                value={signatoryTitleDraft}
+                                onChange={(e) => setSignatoryTitleDraft(e.target.value)}
+                                placeholder="e.g. Managing Director"
+                                maxLength={255}
+                                className="bg-white"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <Button
+                            onClick={handleSaveSignatory}
+                            disabled={!signatoryDirty || updateTenant.isPending}
+                            size="sm"
+                        >
+                            {updateTenant.isPending ? 'Saving…' : 'Save signatory'}
                         </Button>
                     </div>
                 </CardContent>

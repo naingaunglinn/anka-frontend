@@ -23,8 +23,10 @@ import { usePermission } from '@/hooks/usePermission';
 import { isContractEligible } from '@/lib/dealRanks';
 import { useContractDrafts } from '@/lib/queries/contractDrafts';
 import { Sparkles } from 'lucide-react';
-import { RequirementsChecklist } from '@/components/project-pipeline/RequirementsChecklist';
+import { RequirementsChecklist, formatOtSummary } from '@/components/project-pipeline/RequirementsChecklist';
 import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
+import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
+import type { EstimationResource } from '@/types/business';
 
 // Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
 // The old "Proposal" stage was merged into Qualified — see
@@ -79,11 +81,12 @@ export default function DealDetailPage() {
         [projects, linkedContract]
     );
 
-    const baseLaborCost = useMemo(() => {
+    // Ghost-role labor cost — feeds the "Ghost Roles" table footer only.
+    // `GhostRole.months` is the allocation PERCENTAGE (1–100), not a month count —
+    // legacy naming. Convert to a fraction and multiply by the deal's actual
+    // timelineMonths to get the lifetime labor cost (not just one month's worth).
+    const ghostLaborCost = useMemo(() => {
         if (!dealToEdit?.ghostRoles) return 0;
-        // `GhostRole.months` is the allocation PERCENTAGE (1–100), not a month count —
-        // legacy naming. Convert to a fraction and multiply by the deal's actual
-        // timelineMonths to get the lifetime labor cost (not just one month's worth).
         const months = dealToEdit.timelineMonths || 1;
         return dealToEdit.ghostRoles.reduce((sum, r) => {
             const avgSalary  = ((r.minMonthlySalary || 0) + (r.maxMonthlySalary || 0)) / 2;
@@ -91,6 +94,58 @@ export default function DealDetailPage() {
             return sum + (r.quantity || 0) * allocFrac * months * avgSalary;
         }, 0);
     }, [dealToEdit]);
+
+    // Live financial rollup driven by what the Estimation page persists onto the
+    // deal: estimation_resources × per-role cost rate, plus deal_overheads, plus
+    // company overhead %, plus risk buffer %. Mirrors EstimationSimulator's
+    // costRateForResource → laborCost → companyOverhead → buffer → total math
+    // so the Financial Summary card always agrees with the simulator. The
+    // legacy deal.{base_labor_cost, overhead_cost, buffer_cost, total_estimated_cost,
+    // estimated_gross_profit} columns are no longer read by this page.
+    const estimationRollup = useMemo(() => {
+        const resources = dealToEdit?.estimationResources ?? [];
+        const overheads = dealToEdit?.projectOverheads ?? [];
+        const clientBudget = dealToEdit?.clientBudget ?? 0;
+        const { overheadPercentage, bufferPercentage, costToBillRatio, fallbackHourlyCost } = store.companySettings;
+
+        const costRateForRole = (roleId: string): number => {
+            const rates = store.employees
+                .filter(e => e.jobRoleId === roleId && e.status === 'Active')
+                .map(e => e.costPerHour)
+                .filter((r): r is number => typeof r === 'number' && Number.isFinite(r) && r > 0);
+            if (rates.length > 0) {
+                const sorted = [...rates].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 === 0
+                    ? (sorted[mid - 1] + sorted[mid]) / 2
+                    : sorted[mid];
+            }
+            const role = store.roles.find(r => r.id === roleId);
+            if (role && role.rate > 0) return role.rate * costToBillRatio;
+            return fallbackHourlyCost;
+        };
+
+        const costRateForResource = (res: EstimationResource): number => {
+            if (res.employeeId) {
+                const emp = store.employees.find(e => e.id === res.employeeId);
+                if (emp && typeof emp.costPerHour === 'number' && Number.isFinite(emp.costPerHour) && emp.costPerHour > 0) {
+                    return emp.costPerHour;
+                }
+            }
+            return costRateForRole(res.roleId);
+        };
+
+        const laborCost = resources.reduce((sum, r) => sum + r.hours * costRateForResource(r), 0);
+        const companyOverheadCost = calculateOverhead(laborCost, overheadPercentage || 0);
+        const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
+        const overheadCost = companyOverheadCost + projectOverheadTotal;
+        const bufferCost = calculateRiskBuffer(laborCost, overheadCost, bufferPercentage || 0);
+        const totalEstimatedCost = laborCost + overheadCost + bufferCost;
+        const estimatedGrossProfit = clientBudget - totalEstimatedCost;
+        const marginPct = clientBudget > 0 ? (estimatedGrossProfit / clientBudget) * 100 : undefined;
+
+        return { laborCost, overheadCost, bufferCost, totalEstimatedCost, estimatedGrossProfit, marginPct };
+    }, [dealToEdit, store.companySettings, store.employees, store.roles]);
 
     if (dealQuery.isLoading) {
         return (
@@ -115,9 +170,11 @@ export default function DealDetailPage() {
     const isLost    = stage === 'lost';
     const isClosed  = isWon || isLost;
 
-    const marginPct = dealToEdit.clientBudget && dealToEdit.clientBudget > 0 && dealToEdit.estimatedGrossProfit !== undefined
-        ? (dealToEdit.estimatedGrossProfit / dealToEdit.clientBudget) * 100
-        : undefined;
+    const marginPct = estimationRollup.marginPct;
+    // B-and-above gate for the Financial Summary right-rail card. Ranks: lead=C,
+    // qualified=B, negotiation=A, won=S. C leads have no estimation yet → showing
+    // an all-zero card is noise, so hide it entirely.
+    const hasFinancials = stage === 'qualified' || stage === 'negotiation' || stage === 'won';
 
     const getMarginColor = (m: number) => {
         if (m < 0)  return 'text-red-500';
@@ -249,7 +306,10 @@ export default function DealDetailPage() {
             {/* Workflow status bar */}
             <WorkflowBar steps={workflowSteps} />
 
-            {/* KPI cards */}
+            {/* KPI cards — hidden on C leads where there's no estimation yet,
+                so an all-zero "Est. Total Cost / Gross Profit" strip doesn't
+                show. Same gate as the right-rail Financial Summary card. */}
+            {hasFinancials && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
@@ -269,7 +329,7 @@ export default function DealDetailPage() {
                             <TrendingUp className="h-4 w-4 text-slate-400" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
-                            {formatMoney(dealToEdit.totalEstimatedCost ?? 0, currency)}
+                            {formatMoney(estimationRollup.totalEstimatedCost, currency)}
                         </div>
                     </CardContent>
                 </Card>
@@ -281,7 +341,7 @@ export default function DealDetailPage() {
                         </div>
                         <div className="mt-1 text-2xl font-bold">
                             <span className={marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}>
-                                {formatMoney(dealToEdit.estimatedGrossProfit ?? 0, currency)}
+                                {formatMoney(estimationRollup.estimatedGrossProfit, currency)}
                             </span>
                             {marginPct !== undefined && (
                                 <span className={`ml-2 text-sm font-semibold ${getMarginColor(marginPct)}`}>
@@ -303,6 +363,7 @@ export default function DealDetailPage() {
                     </CardContent>
                 </Card>
             </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
@@ -342,6 +403,19 @@ export default function DealDetailPage() {
                                     <p className="text-sm font-medium mt-1 flex items-center gap-1.5">
                                         <Clock className="h-3.5 w-3.5 text-slate-400" />
                                         {dealToEdit.workloadHours ?? 0} hours
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Expected Start Date</p>
+                                    <p className="text-sm font-medium mt-1 flex items-center gap-1.5">
+                                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                                        {dealToEdit.expectedCloseDate ?? '—'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">OT Condition</p>
+                                    <p className="text-sm font-medium mt-1">
+                                        {dealToEdit.otPolicyModel ? formatOtSummary(dealToEdit) : '—'}
                                     </p>
                                 </div>
                             </div>
@@ -396,7 +470,7 @@ export default function DealDetailPage() {
                                         <TableRow className="bg-slate-50/50 font-bold">
                                             <TableCell>Total Labor Cost</TableCell>
                                             <TableCell /><TableCell /><TableCell />
-                                            <TableCell className="text-right">{formatMoney(baseLaborCost, currency)}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(ghostLaborCost, currency)}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
@@ -466,50 +540,53 @@ export default function DealDetailPage() {
 
                 {/* Sidebar */}
                 <div className="space-y-6">
-                    <Card className="shadow-sm border-slate-100 sticky top-6">
-                        <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100">
-                            <CardTitle className="text-lg">Financial Summary</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-5 space-y-4">
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Client Budget</span>
-                                    <span className="font-medium text-slate-700">{formatMoney(dealToEdit.clientBudget ?? 0, currency)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Base Labor Cost</span>
-                                    <span className="font-medium text-slate-700">{formatMoney(baseLaborCost, currency)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Overhead</span>
-                                    <span className="font-medium text-red-500/80">-{formatMoney(dealToEdit.overheadCost ?? 0, currency)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Risk Buffer</span>
-                                    <span className="font-medium text-red-500/80">-{formatMoney(dealToEdit.bufferCost ?? 0, currency)}</span>
-                                </div>
-                            </div>
-                            <div className="border-t border-slate-100 pt-4">
-                                <div className="flex justify-between font-bold text-slate-800 mb-2">
-                                    <span>Total Est. Cost</span>
-                                    <span>{formatMoney(dealToEdit.totalEstimatedCost ?? 0, currency)}</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                    <span className="font-bold text-slate-800">Gross Profit</span>
-                                    <div className="flex flex-col items-end">
-                                        <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
-                                            {formatMoney(dealToEdit.estimatedGrossProfit ?? 0, currency)}
-                                        </span>
-                                        {marginPct !== undefined && (
-                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>
-                                                {marginPct.toFixed(1)}% Margin
-                                            </span>
-                                        )}
+                    {hasFinancials && (
+                        <Card className="shadow-sm border-slate-100 sticky top-6">
+                            <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100">
+                                <CardTitle className="text-lg">Financial Summary</CardTitle>
+                                <CardDescription>Live from the Estimation page</CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-5 space-y-4">
+                                <div className="space-y-3">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500">Client Budget</span>
+                                        <span className="font-medium text-slate-700">{formatMoney(dealToEdit.clientBudget ?? 0, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500">Base Labor Cost</span>
+                                        <span className="font-medium text-slate-700">{formatMoney(estimationRollup.laborCost, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500">Overhead</span>
+                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.overheadCost, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500">Risk Buffer</span>
+                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.bufferCost, currency)}</span>
                                     </div>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                <div className="border-t border-slate-100 pt-4">
+                                    <div className="flex justify-between font-bold text-slate-800 mb-2">
+                                        <span>Total Est. Cost</span>
+                                        <span>{formatMoney(estimationRollup.totalEstimatedCost, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                        <span className="font-bold text-slate-800">Gross Profit</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
+                                                {formatMoney(estimationRollup.estimatedGrossProfit, currency)}
+                                            </span>
+                                            {marginPct !== undefined && (
+                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>
+                                                    {marginPct.toFixed(1)}% Margin
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             </div>
 

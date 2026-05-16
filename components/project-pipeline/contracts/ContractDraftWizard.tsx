@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowRight, ArrowLeft, Sparkles, Mail, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Sparkles, Mail, CheckCircle2, AlertTriangle, Eye } from 'lucide-react';
 import { TemplatePicker } from './TemplatePicker';
 import { WizardQuestions } from './WizardQuestions';
 import { SectionEditor } from './SectionEditor';
@@ -24,6 +24,9 @@ import {
     type DealContractDraft,
     type RenderedSection,
 } from '@/lib/queries/contractDrafts';
+import { useTenantSettings } from '@/lib/queries/tenant';
+import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
+import { PdfPreviewDialog } from './PdfPreviewDialog';
 import type { Deal } from '@/types/business';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
@@ -48,7 +51,17 @@ export function ContractDraftWizard({
     initialDraft?: DealContractDraft;
 }) {
     const router = useRouter();
-    const [step, setStep] = useState<Step>(initialDraft ? 'edit' : 'choose');
+    // When opening an existing draft that's already been sent (or signed),
+    // skip Edit and land on the Send step directly — that's where the
+    // user wants to be (re-send to a different email, or upload the
+    // counter-signed PDF). 'draft' status still starts on Edit.
+    const [step, setStep] = useState<Step>(() => {
+        if (!initialDraft) return 'choose';
+        if (initialDraft.status === 'sent_to_customer' || initialDraft.status === 'signed') {
+            return 'send';
+        }
+        return 'edit';
+    });
     const [draft, setDraft] = useState<DealContractDraft | null>(initialDraft ?? null);
 
     // ── Step 1 state ──
@@ -82,6 +95,35 @@ export function ContractDraftWizard({
     const [activeRegenerateKey, setActiveRegenerateKey] = useState<string | null>(null);
     const [activeSaveKey, setActiveSaveKey] = useState<string | null>(null);
     const [emailTo, setEmailTo] = useState(deal.contactEmail ?? '');
+    const [previewOpen, setPreviewOpen] = useState(false);
+
+    // ── Provider signatory override state ──
+    // Tenant has a default signatory (Org → Company); this wizard step lets
+    // the operator override per-contract for cases where a different person
+    // signs (e.g. a director signs the big-ticket deals only). Empty → use
+    // tenant default at render time. The inputs pre-fill from the tenant.
+    const tenantQuery = useTenantSettings();
+    const [signatoryName, setSignatoryName] = useState('');
+    const [signatoryTitle, setSignatoryTitle] = useState('');
+    useEffect(() => {
+        if (initialDraft) return; // editing an existing draft — don't reset
+        if (signatoryName === '' && tenantQuery.data?.signatoryName) {
+            setSignatoryName(tenantQuery.data.signatoryName);
+        }
+        if (signatoryTitle === '' && tenantQuery.data?.signatoryTitle) {
+            setSignatoryTitle(tenantQuery.data.signatoryTitle);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tenantQuery.data?.id]);
+
+    // ── Customer signer state ──
+    // Captured per-draft (not on the deal — the deal's contact_* is the
+    // day-to-day liaison, which is often not the authorised signer).
+    // Both optional; blank values render '____' on the PDF. No date —
+    // we never pre-fill the customer's signing date since we don't know
+    // when they'll sign; the PDF prints a blank Date line.
+    const [customerSignerName, setCustomerSignerName] = useState('');
+    const [customerSignerTitle, setCustomerSignerTitle] = useState('');
 
     const todoCount = draft
         ? draft.sections.reduce((acc, s) => acc + (s.rendered.match(/\{\{TODO/g)?.length ?? 0), 0)
@@ -95,10 +137,21 @@ export function ContractDraftWizard({
             return;
         }
         try {
+            // Send the signatory override only when it differs from the tenant
+            // default. Null = "use tenant default at render time"; an explicit
+            // empty string would lock the draft to "no signatory" forever.
+            const tenantSigName = tenantQuery.data?.signatoryName ?? '';
+            const tenantSigTitle = tenantQuery.data?.signatoryTitle ?? '';
+            const sigNameTrimmed = signatoryName.trim();
+            const sigTitleTrimmed = signatoryTitle.trim();
             const result = await generateMutation.mutateAsync({
                 dealId: deal.id,
                 template_id: templateId,
                 wizard_inputs: wizardAnswers,
+                signatory_name_override: sigNameTrimmed !== tenantSigName.trim() ? (sigNameTrimmed || null) : null,
+                signatory_title_override: sigTitleTrimmed !== tenantSigTitle.trim() ? (sigTitleTrimmed || null) : null,
+                customer_signatory_name: customerSignerName.trim() || null,
+                customer_signatory_title: customerSignerTitle.trim() || null,
             });
             setDraft(result);
             setStep('edit');
@@ -235,6 +288,101 @@ export function ContractDraftWizard({
                     </Card>
                 )}
 
+                {templateId && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">3 · Signatories</CardTitle>
+                            <CardDescription>
+                                The two people who will sign this contract. Provider side pre-fills
+                                from the tenant default; Customer side is captured at negotiation
+                                (different from the day-to-day deal contact).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+
+                        <div className="space-y-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Provider (your side)
+                        </div>
+                            <SignatoryPicker
+                                id="wizard-signatory-picker"
+                                label="Override with a senior employee (optional)"
+                                helper="Picking auto-fills the fields below. Leave the fields blank to use the tenant default."
+                                onSelect={({ name, title }) => {
+                                    setSignatoryName(name);
+                                    setSignatoryTitle(title);
+                                }}
+                            />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-signatory-name" className="text-xs">Name</Label>
+                                    <Input
+                                        id="wizard-signatory-name"
+                                        value={signatoryName}
+                                        onChange={(e) => setSignatoryName(e.target.value)}
+                                        placeholder={tenantQuery.data?.signatoryName ?? 'e.g. U Aung Min'}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-signatory-title" className="text-xs">Title</Label>
+                                    <Input
+                                        id="wizard-signatory-title"
+                                        value={signatoryTitle}
+                                        onChange={(e) => setSignatoryTitle(e.target.value)}
+                                        placeholder={tenantQuery.data?.signatoryTitle ?? 'e.g. Managing Director'}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                                Leave blank to use the tenant default. The contract date is auto-set
+                                to today when the PDF is generated.
+                            </p>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Customer (their side)
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-customer-signer-name" className="text-xs">Name</Label>
+                                    <Input
+                                        id="wizard-customer-signer-name"
+                                        value={customerSignerName}
+                                        onChange={(e) => setCustomerSignerName(e.target.value)}
+                                        placeholder={`e.g. U Hla Min`}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-customer-signer-title" className="text-xs">Title</Label>
+                                    <Input
+                                        id="wizard-customer-signer-title"
+                                        value={customerSignerTitle}
+                                        onChange={(e) => setCustomerSignerTitle(e.target.value)}
+                                        placeholder="e.g. CFO"
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                                Captured during negotiation. The deal contact ({deal.contactName ?? 'unset'})
+                                is the day-to-day liaison and is often <em>not</em> the authorised
+                                signer. Leave a field blank to print a blank line on the PDF for the
+                                customer to fill in by hand. The signing date is always left blank —
+                                we don&apos;t know when they&apos;ll sign.
+                            </p>
+                        </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <div className="flex justify-between items-center">
                     <Button variant="outline" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
                         <ArrowLeft className="h-4 w-4" /> Back to deal
@@ -266,6 +414,7 @@ export function ContractDraftWizard({
     // ─── Step 2: edit ─────────────────────────────────────────────────────
 
     if (step === 'edit' && draft) {
+        const isSentDraft = draft.status === 'sent_to_customer';
         return (
             <div className="space-y-6">
                 <Card>
@@ -286,17 +435,40 @@ export function ContractDraftWizard({
                                     : <span className="text-emerald-700 font-medium">All sections complete.</span>}
                             </CardDescription>
                         </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setStep('choose')}
-                            disabled={isLocked}
-                        >
-                            <ArrowLeft className="h-3.5 w-3.5" /> Edit answers
-                        </Button>
+                        <div className="flex gap-2 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPreviewOpen(true)}
+                                className="gap-1.5"
+                            >
+                                <Eye className="h-3.5 w-3.5" /> Preview PDF
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setStep('choose')}
+                                disabled={isLocked}
+                            >
+                                <ArrowLeft className="h-3.5 w-3.5" /> Edit answers
+                            </Button>
+                        </div>
                     </CardHeader>
                 </Card>
+
+                {isSentDraft && (
+                    <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-sm text-blue-900">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+                        <div>
+                            <span className="font-medium">This draft has already been sent.</span>{' '}
+                            Any edits you make here won&apos;t reach the customer until you re-send
+                            from the next step. The PDF re-renders automatically on re-send so the
+                            customer gets the updated content.
+                        </div>
+                    </div>
+                )}
 
                 {hasTodos && !isLocked && (
                     <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-sm text-amber-900">
@@ -335,15 +507,22 @@ export function ContractDraftWizard({
                     {!isLocked && (
                         <Button
                             onClick={() => setStep('send')}
-                            disabled={!draft || draft.status !== 'draft'}
+                            disabled={!draft}
                             size="lg"
                             className="bg-indigo-600 hover:bg-indigo-700"
                         >
-                            Continue to send
+                            {draft?.status === 'sent_to_customer' ? 'Go to send / upload signed' : 'Continue to send'}
                             <ArrowRight className="h-4 w-4" />
                         </Button>
                     )}
                 </div>
+
+                <PdfPreviewDialog
+                    open={previewOpen}
+                    onOpenChange={setPreviewOpen}
+                    draftId={draft.id}
+                    title={`${deal.name ?? 'Contract'} — Draft v${draft.version}`}
+                />
             </div>
         );
     }
@@ -357,15 +536,26 @@ export function ContractDraftWizard({
         return (
             <div className="space-y-6">
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            3 · Send to customer
-                            <DraftStatusChip status={draft.status} />
-                        </CardTitle>
-                        <CardDescription>
-                            Email the draft to your contact. v1 records the send; the actual SMTP delivery
-                            is wired in a follow-up.
-                        </CardDescription>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                3 · Send to customer
+                                <DraftStatusChip status={draft.status} />
+                            </CardTitle>
+                            <CardDescription>
+                                Email the draft to your contact. Preview the PDF first to sanity-check
+                                what they&apos;ll receive.
+                            </CardDescription>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPreviewOpen(true)}
+                            className="gap-1.5 shrink-0"
+                        >
+                            <Eye className="h-3.5 w-3.5" /> Preview PDF
+                        </Button>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {hasTodos && (
@@ -410,8 +600,9 @@ export function ContractDraftWizard({
                     </CardContent>
                 </Card>
 
-                {(isSent || isSigned) && (
+                {(isSent || isSigned) && draft && (
                     <SignedUpload
+                        draftId={draft.id}
                         onSubmit={handleMarkSigned}
                         isSubmitting={markSignedMutation.isPending}
                     />
@@ -439,6 +630,13 @@ export function ContractDraftWizard({
                         Back to deal
                     </Button>
                 </div>
+
+                <PdfPreviewDialog
+                    open={previewOpen}
+                    onOpenChange={setPreviewOpen}
+                    draftId={draft.id}
+                    title={`${deal.name ?? 'Contract'} — Draft v${draft.version}`}
+                />
             </div>
         );
     }

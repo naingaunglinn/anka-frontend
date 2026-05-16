@@ -31,6 +31,11 @@ const csp = [
         .filter(Boolean).join(' '),
     // next/font/google self-hosts fonts at build time — no external font origin needed.
     "font-src 'self' data:",
+    // Contract PDF preview is fetched as a blob and mounted in an iframe.
+    // Browsers treat the blob: URL as a distinct origin, so without these
+    // directives the iframe is blocked even though we just created the blob.
+    "frame-src 'self' blob:",
+    "child-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

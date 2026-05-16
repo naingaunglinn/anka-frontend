@@ -170,6 +170,16 @@ export interface GenerateDraftInput {
     dealId: string;
     template_id: string;
     wizard_inputs: Record<string, unknown>;
+    /** Per-draft override of the Provider signatory; null/missing →
+     *  PDF falls back to the tenant's default signatory at render time. */
+    signatory_name_override?: string | null;
+    signatory_title_override?: string | null;
+    /** Customer-side signer captured at draft time. Distinct from the
+     *  deal's contact_* (day-to-day liaison). Blank values render '____'
+     *  on the PDF for the customer to hand-fill on signing. No date —
+     *  we don't know when they'll sign; the PDF prints a blank Date line. */
+    customer_signatory_name?: string | null;
+    customer_signatory_title?: string | null;
 }
 
 /**
@@ -179,10 +189,22 @@ export interface GenerateDraftInput {
 export function useGenerateDraft() {
     const queryClient = useQueryClient();
     return useMutation<DealContractDraft, Error, GenerateDraftInput>({
-        mutationFn: async ({ dealId, template_id, wizard_inputs }) => {
+        mutationFn: async ({
+            dealId,
+            template_id,
+            wizard_inputs,
+            signatory_name_override,
+            signatory_title_override,
+            customer_signatory_name,
+            customer_signatory_title,
+        }) => {
             const { data: body } = await api.post(`/deals/${dealId}/contract-drafts`, {
                 template_id,
                 wizard_inputs,
+                signatory_name_override,
+                signatory_title_override,
+                customer_signatory_name,
+                customer_signatory_title,
             });
             return body.data as DealContractDraft;
         },
@@ -278,6 +300,38 @@ export function useSendDraft() {
             if (data?.deal_id) {
                 queryClient.invalidateQueries({ queryKey: contractDraftKeys.forDeal(data.deal_id) });
             }
+        },
+    });
+}
+
+export interface VerifySignedInput {
+    draftId: string;
+    signedPdf: File;
+}
+
+export interface VerifySignedResult {
+    match: boolean;
+    signature: boolean;
+    notes: string;
+}
+
+/**
+ * AI-backed pre-check on the customer's returned PDF. Compares against
+ * the original we sent and looks for a signature block. Read-only —
+ * does not mutate the draft. The wizard uses the verdict to gate
+ * mark-signed behind a passing check (with manual override).
+ */
+export function useVerifySignedDraft() {
+    return useMutation<VerifySignedResult, Error, VerifySignedInput>({
+        mutationFn: async ({ draftId, signedPdf }) => {
+            const form = new FormData();
+            form.append('signed_pdf', signedPdf);
+            const { data: body } = await api.post(
+                `/contract-drafts/${draftId}/verify-signed-pdf`,
+                form,
+                { headers: { 'Content-Type': 'multipart/form-data' } },
+            );
+            return body.data as VerifySignedResult;
         },
     });
 }

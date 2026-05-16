@@ -9,25 +9,20 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DollarSign, Search, Target, TrendingUp, Plus, X, EyeOff, Eye } from 'lucide-react';
 
-import { useBusinessStore } from '@/store/businessStore';
 import { useDealList } from '@/lib/queries/deals';
 import { formatMoneyShort } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { PermissionGuard } from '@/components/PermissionGuard';
-import { OrgSyncErrorBanner } from '@/components/OrgSyncErrorBanner';
 import type { Deal } from '@/types/business';
 
 const ALL_STATUSES = '__all__'; // Radix Select rejects '' as a SelectItem value; sentinel for "no filter".
 
 export default function CRMPage() {
-    // Pull employees, roles, skills, company settings into the store. /crm
-    // computes capacity metrics from employees and Kanban cards read
-    // employee data via getDealEstimation — without this sync, a direct
-    // visit to /crm (without coming from another page that already
-    // hydrated organization data) renders zero capacity bookings and
-    // empty soft/hard-booked totals.
-    const { syncing: orgSyncing, syncError: orgSyncError, retry: retryOrgSync } = useOrganizationSync();
+    // Hydrate org data into businessStore (roles, employees, companySettings)
+    // so downstream pages and the deal-detail Financial Summary card have
+    // what they need when the user navigates from here.
+    useOrganizationSync();
 
     const currency = useTenantCurrency();
     const [pipelineTotal, setPipelineTotal] = useState(0);
@@ -78,27 +73,10 @@ export default function CRMPage() {
         setPerPage(DEFAULT_PER_PAGE);
     };
 
-    const getCapacityPool = useBusinessStore(state => state.getCapacityPool);
-    // Subscribe to the inputs of getCapacityPool so React re-renders when they
-    // change, but memoise the call itself — the returned array is a fresh
-    // reference on every render otherwise, defeating any downstream memo.
-    const dealsForPool      = useBusinessStore(state => state.deals);
-    const employeesForPool  = useBusinessStore(state => state.employees);
-    const capacityPool = useMemo(
-        () => getCapacityPool(),
-        // dependencies intentionally include the slices the pool reads from.
-        // getCapacityPool is a stable function ref (Zustand) so it's safe to omit.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [dealsForPool, employeesForPool],
-    );
-
     const handleMetricsUpdate = useCallback((total: number, weighted: number) => {
         setPipelineTotal(total);
         setWeightedTotal(weighted);
     }, []);
-
-    const totalSoftBooked = capacityPool.reduce((acc, curr) => acc + curr.softBookedHours, 0);
-    const totalHardBooked = capacityPool.reduce((acc, curr) => acc + curr.hardBookedHours, 0);
 
     return (
         <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
@@ -118,14 +96,7 @@ export default function CRMPage() {
                 </div>
             </div>
 
-            <OrgSyncErrorBanner
-                error={orgSyncError}
-                onRetry={retryOrgSync}
-                retrying={orgSyncing}
-                context="Capacity bookings will read zero until organization data loads."
-            />
-
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Pipeline Value</CardTitle>
@@ -171,22 +142,6 @@ export default function CRMPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white border-[#e6e9ee] shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Capacity Bookings</CardTitle>
-                        <Target className="h-4 w-4 text-orange-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold flex gap-2">
-                            <span className="text-[#8a8a8a]">{totalSoftBooked.toFixed(0)}</span>
-                            <span className="text-slate-300">/</span>
-                            <span className="text-[#171717]">{totalHardBooked.toFixed(0)}</span>
-                        </div>
-                        <p className="text-xs text-[#4a4a4a] mt-1">
-                            Soft vs Hard Booked Hrs
-                        </p>
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Filter bar — server-side search + status filter. The backend's

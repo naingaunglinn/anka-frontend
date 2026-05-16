@@ -340,7 +340,7 @@ export default function EditDealPage() {
                                     name="expectedCloseDate"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Expected Start Date <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                            <FormLabel>Expected Start Date <span className="text-red-500">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="date" className="bg-white" {...field} />
                                             </FormControl>
