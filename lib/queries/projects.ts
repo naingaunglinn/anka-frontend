@@ -90,7 +90,140 @@ export const projectKeys = {
     detail: (id: string) => [...projectKeys.details(), id] as const,
     team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
     taskAssignments: (id: string) => [...projectKeys.detail(id), 'task-assignments'] as const,
+    teamPlanPreview: (id: string) => [...projectKeys.detail(id), 'team-plan-preview'] as const,
 };
+
+// ── Team plan preview (AI Task Assignment new flow) ──────────────────────────
+
+export interface TeamPlanKept {
+    employeeId: string;
+    name: string | null;
+    rankCode: string | null;
+    rankName: string | null;
+    capacityRole: string | null;
+    allocatedHours: number;
+}
+
+export interface TeamPlanProposed {
+    ghostRoleId: string;
+    employeeId: string;
+    employeeName: string | null;
+    employeeRank: string | null;
+    capacityRole: string | null;
+    roleType: string;
+    neededRank: string | null;
+    allocatedHours: number;
+    rankMatch: 'exact' | 'downgrade' | 'upgrade' | 'split';
+}
+
+export interface TeamPlanUnfilled {
+    ghostRoleId: string;
+    reason: string;
+}
+
+export interface TeamPlanRoleToFill {
+    ghostRoleId: string;
+    roleType: string;
+    rankCode: string | null;
+    rankName: string | null;
+    quantityNeeded: number;
+    minSalary: number;
+    avgSalary: number;
+    maxSalary: number;
+    months: number;
+}
+
+export interface TeamPlanPreview {
+    kept: TeamPlanKept[];
+    proposed: TeamPlanProposed[];
+    unfilled: TeamPlanUnfilled[];
+    rolesToFill: TeamPlanRoleToFill[];
+    message?: string;
+}
+
+function toTeamPlanKept(row: Record<string, unknown>): TeamPlanKept {
+    return {
+        employeeId:     row.employee_id as string,
+        name:           (row.name as string | null) ?? null,
+        rankCode:       (row.rank_code as string | null) ?? null,
+        rankName:       (row.rank_name as string | null) ?? null,
+        capacityRole:   (row.capacity_role as string | null) ?? null,
+        allocatedHours: Number(row.allocated_hours ?? 0),
+    };
+}
+
+function toTeamPlanProposed(row: Record<string, unknown>): TeamPlanProposed {
+    return {
+        ghostRoleId:    row.ghost_role_id as string,
+        employeeId:     row.employee_id as string,
+        employeeName:   (row.employee_name as string | null) ?? null,
+        employeeRank:   (row.employee_rank as string | null) ?? null,
+        capacityRole:   (row.capacity_role as string | null) ?? null,
+        roleType:       (row.role_type as string) ?? '',
+        neededRank:     (row.needed_rank as string | null) ?? null,
+        allocatedHours: Number(row.allocated_hours ?? 0),
+        rankMatch:      (row.rank_match as TeamPlanProposed['rankMatch']) ?? 'exact',
+    };
+}
+
+function toTeamPlanRoleToFill(row: Record<string, unknown>): TeamPlanRoleToFill {
+    return {
+        ghostRoleId:    row.ghost_role_id as string,
+        roleType:       (row.role_type as string) ?? '',
+        rankCode:       (row.rank_code as string | null) ?? null,
+        rankName:       (row.rank_name as string | null) ?? null,
+        quantityNeeded: Number(row.quantity_needed ?? 0),
+        minSalary:      Number(row.min_salary ?? 0),
+        avgSalary:      Number(row.avg_salary ?? 0),
+        maxSalary:      Number(row.max_salary ?? 0),
+        months:         Number(row.months ?? 0),
+    };
+}
+
+export function usePlanTeamPreview(projectId: string) {
+    return useMutation({
+        mutationFn: async (): Promise<TeamPlanPreview> => {
+            const { data } = await api.post(`/projects/${projectId}/plan-team`);
+            return {
+                kept:        ((data.kept ?? []) as Record<string, unknown>[]).map(toTeamPlanKept),
+                proposed:    ((data.proposed ?? []) as Record<string, unknown>[]).map(toTeamPlanProposed),
+                unfilled:    ((data.unfilled ?? []) as Record<string, unknown>[]).map((u) => ({
+                    ghostRoleId: u.ghost_role_id as string,
+                    reason:      (u.reason as string) ?? '',
+                })),
+                rolesToFill: ((data.roles_to_fill ?? []) as Record<string, unknown>[]).map(toTeamPlanRoleToFill),
+                message:     (data.message as string | undefined) ?? undefined,
+            };
+        },
+        onError: (err) => toast.error(`Team preview failed: ${normalizeError(err).message}`),
+    });
+}
+
+export interface ConfirmTeamPick {
+    employeeId: string;
+    allocatedHours?: number;
+}
+
+export function useConfirmTeamPlan(projectId: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (picks: ConfirmTeamPick[]) => {
+            const { data } = await api.post(`/projects/${projectId}/confirm-team`, {
+                picks: picks.map((p) => ({
+                    employee_id:     p.employeeId,
+                    allocated_hours: p.allocatedHours,
+                })),
+            });
+            return data as { inserted: number; data: unknown };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.team(projectId) });
+            queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+            queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+        },
+        onError: (err) => toast.error(`Confirm team failed: ${normalizeError(err).message}`),
+    });
+}
 
 export interface ProjectListParams {
     page?: number;
