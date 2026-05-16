@@ -262,10 +262,14 @@ function mapAIDraft(raw: Record<string, unknown>): AIEstimationDraft {
 export function useGenerateAIEstimationDraft() {
     const mutation = useMutation({
         mutationFn: async (params: { dealId: string; signal?: AbortSignal }): Promise<AIEstimationDraft> => {
+            // Backend EstimationAiService allows up to 180s for the Anthropic
+            // call (plus retry-on-JSON-shape). Frontend must outlast that or
+            // axios will abort mid-flight and the network panel shows the
+            // request as "cancelled" — masking a still-running backend job.
             const { data } = await api.post(
                 `/deals/${params.dealId}/estimation-versions/ai-draft`,
                 {},
-                { signal: params.signal, timeout: 60_000 },
+                { signal: params.signal, timeout: 210_000 },
             )
             return mapAIDraft(data.data as Record<string, unknown>)
         },
