@@ -9,6 +9,7 @@ import { RolesTable } from '@/components/tables/RolesTable';
 import { RoleForm } from '@/components/forms/RoleForm';
 import { OverheadsTable } from '@/components/tables/OverheadsTable';
 import { OverheadForm } from '@/components/forms/OverheadForm';
+import { CompanySettingsForm } from '@/components/forms/CompanySettingsForm';
 import { SkillsTable } from '@/components/tables/SkillsTable';
 import { SkillForm } from '@/components/forms/SkillForm';
 import { RanksTable } from '@/components/tables/RanksTable';
@@ -363,7 +364,7 @@ export default function EmployeesPage() {
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
-                <TabsList className="grid w-full grid-cols-6 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
+                <TabsList className="grid w-full grid-cols-8 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
                     <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
@@ -371,6 +372,7 @@ export default function EmployeesPage() {
                     <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Ranks</TabsTrigger>
                     <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
                     <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
+                    <TabsTrigger value="company" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Company</TabsTrigger>
                 </TabsList>
 
                 {/* DEPARTMENTS TAB */}
@@ -808,6 +810,18 @@ export default function EmployeesPage() {
                             )}
                         </DialogContent>
                     </Dialog>
+                </TabsContent>
+
+                {/* COMPANY TAB — name + logo that render on every contract PDF and customer email. */}
+                <TabsContent value="company" className="space-y-4">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <h3 className="text-xl font-bold tracking-tight text-[#171717]">Company Settings</h3>
+                        <p className="text-[#4a4a4a] text-sm mt-1">
+                            Your company name and logo appear at the top of every contract PDF
+                            and in the customer-facing email subject + body.
+                        </p>
+                    </div>
+                    <CompanySettingsForm />
                 </TabsContent>
             </Tabs>
         </div>

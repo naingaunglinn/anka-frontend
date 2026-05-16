@@ -22,7 +22,13 @@ const csp = [
     `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     ["connect-src 'self'", backendUrl, apiUrl].filter(Boolean).join(' '),
-    "img-src 'self' data: blob:",
+    // Allow images served by the backend (tenant logo lives at /storage/...
+    // on the API host). Both 127.0.0.1 and localhost are listed because env
+    // vars commonly mix these for the same backend, and they're distinct
+    // origins from the CSP perspective.
+    ["img-src 'self' data: blob:", backendUrl, apiUrl,
+        'http://127.0.0.1:8000', 'http://localhost:8000']
+        .filter(Boolean).join(' '),
     // next/font/google self-hosts fonts at build time — no external font origin needed.
     "font-src 'self' data:",
     "frame-ancestors 'none'",
