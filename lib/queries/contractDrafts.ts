@@ -282,6 +282,38 @@ export function useSendDraft() {
     });
 }
 
+export interface VerifySignedInput {
+    draftId: string;
+    signedPdf: File;
+}
+
+export interface VerifySignedResult {
+    match: boolean;
+    signature: boolean;
+    notes: string;
+}
+
+/**
+ * AI-backed pre-check on the customer's returned PDF. Compares against
+ * the original we sent and looks for a signature block. Read-only —
+ * does not mutate the draft. The wizard uses the verdict to gate
+ * mark-signed behind a passing check (with manual override).
+ */
+export function useVerifySignedDraft() {
+    return useMutation<VerifySignedResult, Error, VerifySignedInput>({
+        mutationFn: async ({ draftId, signedPdf }) => {
+            const form = new FormData();
+            form.append('signed_pdf', signedPdf);
+            const { data: body } = await api.post(
+                `/contract-drafts/${draftId}/verify-signed-pdf`,
+                form,
+                { headers: { 'Content-Type': 'multipart/form-data' } },
+            );
+            return body.data as VerifySignedResult;
+        },
+    });
+}
+
 export interface MarkSignedInput {
     draftId: string;
     signedPdf: File;

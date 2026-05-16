@@ -433,8 +433,9 @@ export function ContractDraftWizard({
                     </CardContent>
                 </Card>
 
-                {(isSent || isSigned) && (
+                {(isSent || isSigned) && draft && (
                     <SignedUpload
+                        draftId={draft.id}
                         onSubmit={handleMarkSigned}
                         isSubmitting={markSignedMutation.isPending}
                     />
