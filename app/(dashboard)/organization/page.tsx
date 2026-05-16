@@ -11,6 +11,8 @@ import { OverheadsTable } from '@/components/tables/OverheadsTable';
 import { OverheadForm } from '@/components/forms/OverheadForm';
 import { SkillsTable } from '@/components/tables/SkillsTable';
 import { SkillForm } from '@/components/forms/SkillForm';
+import { RanksTable } from '@/components/tables/RanksTable';
+import { RankForm } from '@/components/forms/RankForm';
 import {
     type DepartmentFormValues,
     type RoleFormValues,
@@ -18,7 +20,9 @@ import {
     type EmployeeCreateValues,
     type OverheadFormValues,
     type SkillFormValues,
+    type RankFormValues,
 } from '@/lib/schemas/organization.schema';
+import { useRanks, useRankMutations } from '@/lib/queries/ranks';
 import {
     Dialog,
     DialogContent,
@@ -34,7 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
-import { Employee, Department, Role, GlobalOverhead, Skill } from '@/types/business';
+import { Employee, Department, Role, GlobalOverhead, Skill, Rank } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 export default function EmployeesPage() {
@@ -95,6 +99,15 @@ export default function EmployeesPage() {
     // Skills State
     const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false);
     const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+
+    // Ranks State — ranks live outside the Zustand store (TanStack Query
+    // only). The Employee form's rank dropdown reads from this same hook,
+    // so adding/editing a rank here invalidates the cache and propagates.
+    const ranksQuery = useRanks();
+    const rankMutations = useRankMutations();
+    const ranks = ranksQuery.data ?? [];
+    const [isRankDialogOpen, setIsRankDialogOpen] = useState(false);
+    const [editingRank, setEditingRank] = useState<Rank | null>(null);
 
     const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
         taxes: store.companySettings.employerTaxPercentage,
@@ -168,6 +181,9 @@ export default function EmployeesPage() {
                 capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                     ? data.capacityRole as Employee['capacityRole']
                     : undefined,
+                // 'none' sentinel from the form's Select component is mapped to
+                // null by the store mutation; empty string also reads as null.
+                rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
                 monthlySalary: data.monthlySalary,
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
@@ -198,6 +214,7 @@ export default function EmployeesPage() {
                 capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                     ? data.capacityRole as Employee['capacityRole']
                     : undefined,
+                rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
                 monthlySalary: data.monthlySalary,
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
@@ -282,6 +299,20 @@ export default function EmployeesPage() {
         setEditingSkill(null);
     };
 
+    // --- Rank Handlers ---
+    const handleAddRank = async (data: RankFormValues) => {
+        await rankMutations.create.mutateAsync(data);
+        setIsRankDialogOpen(false);
+    };
+    const handleEditRank = async (data: RankFormValues) => {
+        if (!editingRank) return;
+        await rankMutations.update.mutateAsync({ id: editingRank.id, payload: data });
+        setEditingRank(null);
+    };
+    const handleDeleteRank = async (id: string) => {
+        await rankMutations.remove.mutateAsync(id);
+    };
+
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
@@ -337,6 +368,7 @@ export default function EmployeesPage() {
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
                     <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Skills</TabsTrigger>
+                    <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Ranks</TabsTrigger>
                     <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
                     <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
                 </TabsList>
@@ -451,7 +483,14 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm roles={store.roles} departments={store.departments} skills={store.skills} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm
+                                    roles={store.roles}
+                                    departments={store.departments}
+                                    skills={store.skills}
+                                    ranks={ranks}
+                                    onSubmit={handleAddEmployee}
+                                    onCancel={() => setIsEmpDialogOpen(false)}
+                                />
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -528,6 +567,7 @@ export default function EmployeesPage() {
                                     roles={store.roles}
                                     departments={store.departments}
                                     skills={store.skills}
+                                    ranks={ranks}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
                                 />
@@ -575,6 +615,56 @@ export default function EmployeesPage() {
                                     initialData={editingSkill}
                                     onSubmit={handleEditSkill}
                                     onCancel={() => setEditingSkill(null)}
+                                />
+                            )}
+                        </DialogContent>
+                    </Dialog>
+                </TabsContent>
+
+                {/* RANKS TAB */}
+                <TabsContent value="ranks" className="space-y-4">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <div>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Ranks</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">
+                                Seniority tiers used by the AI Team Builder. Defaults: Junior, Mid, Senior, Lead.
+                                Add custom ranks for your team (e.g. Principal, Staff Engineer).
+                            </p>
+                        </div>
+                        <Dialog open={isRankDialogOpen} onOpenChange={setIsRankDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
+                                    <Plus className="w-4 h-4" /> Add Rank
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                    <DialogTitle>Add New Rank</DialogTitle>
+                                    <DialogDescription>
+                                        Create a custom seniority rank. Higher level = more senior.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <RankForm onSubmit={handleAddRank} onCancel={() => setIsRankDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <RanksTable
+                        data={ranks}
+                        onEdit={setEditingRank}
+                        onDelete={handleDeleteRank}
+                    />
+
+                    <Dialog open={!!editingRank} onOpenChange={(open) => !open && setEditingRank(null)}>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle>Edit Rank</DialogTitle>
+                            </DialogHeader>
+                            {editingRank && (
+                                <RankForm
+                                    initialData={editingRank}
+                                    onSubmit={handleEditRank}
+                                    onCancel={() => setEditingRank(null)}
                                 />
                             )}
                         </DialogContent>

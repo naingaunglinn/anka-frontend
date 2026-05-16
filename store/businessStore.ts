@@ -115,18 +115,16 @@ export interface BusinessState {
     addDeal: (deal: Deal) => Promise<Deal>;
     updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
     deleteDeal: (id: string) => Promise<void>;
-    updateDealStage: (id: string, status: string, probability?: number) => Promise<void>;
+    dropDeal: (dealId: string, reason: string) => Promise<void>;
     assignEngineer: (dealId: string, employeeId: string, allocatedHours: number) => void;
 
-    // Actions — Cross-module trigger
-    winDeal: (dealId: string, winReason?: string) => Promise<{ contractId: string | null }>;
-    loseDeal: (dealId: string, lossReason: string) => Promise<void>;
-
-    // Actions — Contracts (routed through lib/api.ts; created only via winDeal)
+    // Actions — Contracts (routed through lib/api.ts; created only via the
+    // contract-draft mark-signed flow, which fires win_deal() server-side).
     updateContract: (id: string, updates: Partial<Contract>) => Promise<void>;
     deleteContract: (id: string) => Promise<void>;
 
-    // Actions — Projects (routed through lib/api.ts; created only via winDeal)
+    // Actions — Projects (routed through lib/api.ts; created server-side
+    // by the win_deal() stored procedure when a draft is marked signed).
     updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
     deleteProject: (id: string) => Promise<void>;
 
@@ -162,6 +160,7 @@ export const useBusinessStore = create<BusinessState>()(
                 overheadPercentage:           20,
                 bufferPercentage:             10,
                 yearlyFixedCost:              0,
+                annualInitialBudget:          1_000_000_000,
                 employerTaxPercentage:        8,
                 benefitsPercentage:           12,
                 costToBillRatio:              0.40,
@@ -414,103 +413,31 @@ export const useBusinessStore = create<BusinessState>()(
                     throw err;
                 }
             },
-            updateDealStage: async (id, status, probability) => {
-                const snapshot = get().deals;
-                set(s => ({
-                    deals: s.deals.map(d =>
-                        d.id === id
-                            ? { ...d, status: status as Deal['status'], winProbability: probability }
-                            : d
-                    ),
-                }));
-                try {
-                    await api.patch(`/deals/${id}/stage`, { status, win_probability: probability });
-                } catch (err) {
-                    set({ deals: snapshot });
-                    toast.error(`Failed to update deal stage: ${normalizeError(err).message}`);
-                    throw err;
-                }
-            },
-
-            winDeal: async (dealId, winReason) => {
-                const snapshotDeals     = get().deals;
-                const snapshotContracts = get().contracts;
-                const snapshotProjects  = get().projects;
-
-                // Optimistic: reflect the win immediately so the Kanban column moves
-                // before we hear back from the stored procedure
-                set(s => ({
-                    deals: s.deals.map(d =>
-                        d.id === dealId
-                            ? { ...d, status: 'won' as const, winProbability: 100, winReason }
-                            : d
-                    ),
-                }));
-
-                try {
-                    const body = winReason ? { win_reason: winReason } : {};
-                    const { data } = await api.post(`/deals/${dealId}/win`, body);
-
-                    const serverContract = data.contract ? toContract(data.contract) : null;
-                    const serverProject  = data.project ? toProject(data.project) : null;
-
-                    set(s => {
-                        const nextContracts = serverContract
-                            ? [...s.contracts.filter(c => c.id !== serverContract.id), serverContract]
-                            : s.contracts;
-                        const nextProjects = serverProject
-                            ? [...s.projects.filter(p => p.id !== serverProject.id), serverProject]
-                            : s.projects;
-
-                        return {
-                            // Merge server fields into the existing deal to preserve ghost roles and
-                            // hard assignments that the win endpoint may not eager-load
-                            deals: s.deals.map(d => d.id === dealId ? { ...d, ...toDeal(data.deal) } : d),
-                            // Filter-before-append keeps the operation idempotent on retry
-                            contracts: nextContracts,
-                            projects: nextProjects,
-                        };
-                    });
-
-                    if (serverContract) {
-                        toast.success(`Deal won! Contract ${serverContract.contractNumber ?? serverContract.id.slice(0, 8)} created.`);
-                    } else {
-                        // Don't double-toast (success + error simultaneously). Surface
-                        // the partial outcome as a single warning toast so the user
-                        // sees one clear message instead of two contradictory ones.
-                        toast(
-                            'Deal marked as won, but the win_deal() stored procedure did not return a contract. Check server logs.',
-                            { icon: '⚠️', duration: 6000 },
-                        );
-                    }
-                    return { contractId: serverContract?.id ?? null };
-                } catch (err) {
-                    set({ deals: snapshotDeals, contracts: snapshotContracts, projects: snapshotProjects });
-                    const { message } = normalizeError(err);
-                    // The stored proc raises a constraint violation on duplicate wins or
-                    // missing required data — surface the server's message directly
-                    toast.error(`Failed to win deal: ${message}`);
-                    throw err;
-                }
-            },
-
-            loseDeal: async (dealId, lossReason) => {
+            dropDeal: async (dealId, reason) => {
                 const snapshot = get().deals;
                 set(s => ({
                     deals: s.deals.map(d =>
                         d.id === dealId
-                            ? { ...d, status: 'lost' as const, winProbability: 0, lossReason }
+                            ? {
+                                ...d,
+                                lifecycleStatus: 'dropped' as const,
+                                droppedAtStage: (d.status === 'won' || !d.status)
+                                    ? null
+                                    : (d.status as 'lead' | 'qualified' | 'negotiation'),
+                                winProbability: 0,
+                                lossReason: reason,
+                            }
                             : d
                     ),
                 }));
                 try {
-                    const { data } = await api.post(`/deals/${dealId}/lose`, { loss_reason: lossReason });
+                    const { data } = await api.post(`/deals/${dealId}/drop`, { reason });
                     const updated = toDeal(data.data ?? data);
                     set(s => ({ deals: s.deals.map(d => d.id === dealId ? { ...d, ...updated } : d) }));
-                    toast.success('Deal marked as lost.');
+                    toast.success('Deal dropped.');
                 } catch (err) {
                     set({ deals: snapshot });
-                    toast.error(`Failed to mark deal as lost: ${normalizeError(err).message}`);
+                    toast.error(`Failed to drop deal: ${normalizeError(err).message}`);
                     throw err;
                 }
             },

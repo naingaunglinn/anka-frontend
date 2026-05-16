@@ -8,25 +8,32 @@ import { useProjectList } from '@/lib/queries/projects';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     ArrowLeft, Edit3, Users, FileText, DollarSign, Target, Calendar, Clock,
-    TrendingUp, Briefcase, Trophy, ChevronRight, Calculator, ExternalLink,
+    TrendingUp, Briefcase, ChevronRight, Calculator, ExternalLink,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { PermissionGuard } from '@/components/PermissionGuard';
+import { usePermission } from '@/hooks/usePermission';
+import { isContractEligible } from '@/lib/dealRanks';
+import { useContractDrafts } from '@/lib/queries/contractDrafts';
+import { Sparkles } from 'lucide-react';
+import { RequirementsChecklist } from '@/components/project-pipeline/RequirementsChecklist';
 
+// Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
+// The old "Proposal" stage was merged into Qualified — see
+// 2026_05_12_000001_collapse_proposal_into_qualified.php.
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-    lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    qualified:   { label: 'Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    proposal:    { label: 'Proposal',    color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    negotiation: { label: 'Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    won:         { label: 'Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    lost:        { label: 'Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
+    lead:        { label: 'C — Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
+    qualified:   { label: 'B — Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    negotiation: { label: 'A — Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    won:         { label: 'S — Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    lost:        { label: 'D — Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
 };
 
 // ── Workflow status bar ───────────────────────────────────────────────────────
@@ -68,7 +75,9 @@ export default function DealDetailPage() {
     const currency = useTenantCurrency();
 
     const dealQuery      = useDealDetail(dealId);
-    const { deleteDeal, winDeal } = useDealMutations();
+    // Win transition (A → S) fires when the customer's counter-signed PDF is
+    // uploaded inside the contract draft wizard's mark-signed step.
+    const { deleteDeal } = useDealMutations();
     const contractsQuery = useContractList();
     const projectsQuery  = useProjectList();
 
@@ -77,8 +86,15 @@ export default function DealDetailPage() {
     const projects   = useMemo(() => projectsQuery.data?.data  ?? [], [projectsQuery.data]);
 
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [winOpen,    setWinOpen]    = useState(false);
-    const [winReason,  setWinReason]  = useState('');
+    const { allowed: canManageCrm } = usePermission('manage_crm');
+
+    // chg-011 Phase C: AI contract drafting button + "open existing draft" link.
+    const draftsQuery = useContractDrafts(dealId);
+    const activeDraft = useMemo(() => {
+        const drafts = draftsQuery.data ?? [];
+        return drafts.find(d => d.status !== 'superseded') ?? null;
+    }, [draftsQuery.data]);
+    const canGenerateDraft = !!dealToEdit && isContractEligible(dealToEdit);
 
     // ── Use proper foreign-key matching ───────────────────────────────────────
     const linkedContract = useMemo(
@@ -146,6 +162,25 @@ export default function DealDetailPage() {
         if (current) return current;
         return isWon ? 'Created' : 'Pending';
     };
+
+    // Contract step surfaces the draft state when a contract record doesn't
+    // exist yet — gives the salesperson visible feedback that we're mid-flow
+    // (drafting / sent / awaiting countersign) instead of a flat "Pending".
+    let contractDetail: string;
+    if (isLost) {
+        contractDetail = 'N/A — Deal Lost';
+    } else if (linkedContract) {
+        contractDetail = `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`;
+    } else if (activeDraft?.status === 'sent_to_customer') {
+        contractDetail = `Draft v${activeDraft.version} · sent · awaiting signature`;
+    } else if (activeDraft?.status === 'signed') {
+        contractDetail = `Draft v${activeDraft.version} · signed · creating contract…`;
+    } else if (activeDraft?.status === 'draft') {
+        contractDetail = `Draft v${activeDraft.version} · in progress`;
+    } else {
+        contractDetail = isWon ? 'Created' : 'Pending';
+    }
+
     const workflowSteps: WorkflowStep[] = [
         {
             label: 'Deal',
@@ -155,13 +190,11 @@ export default function DealDetailPage() {
         },
         {
             label: 'Contract',
-            detail: downstreamLabel(
-                linkedContract
-                    ? `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`
-                    : undefined,
-            ),
+            detail: contractDetail,
             done:   !!linkedContract,
-            active: isWon && !linkedContract,
+            // "Active" lights up the moment a draft exists, not just when
+            // the deal is Won — drafting is real, visible work.
+            active: !isClosed && (!!activeDraft || (isWon && !linkedContract)),
         },
         {
             label: 'Project',
@@ -175,24 +208,12 @@ export default function DealDetailPage() {
         },
     ];
 
-    const handleWinDeal = async () => {
-        try {
-            const result = await winDeal.mutateAsync({ dealId, winReason: winReason.trim() || undefined });
-            setWinOpen(false);
-            setWinReason('');
-            // Redirect to the new contract for terms / milestones / sign-off setup.
-            if (result?.contractId) router.push(`/contracts/${result.contractId}`);
-        } catch {
-            // toast already shown in businessStore.winDeal
-        }
-    };
-
     return (
         <div className="container mx-auto p-6 max-w-6xl space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/crm')} className="hover:bg-slate-100">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/project-pipeline')} className="hover:bg-slate-100">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
@@ -204,15 +225,34 @@ export default function DealDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {!isClosed && (
-                        <PermissionGuard permission="manage_crm">
-                            <Button
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => setWinOpen(true)}
-                            >
-                                <Trophy className="h-4 w-4" /> Win Deal
-                            </Button>
-                        </PermissionGuard>
+                    {/* Generate Contract Draft shows once the deal reaches rank A
+                        (Estimation auto-advances B → A after the handoff fields
+                        land). If a draft already exists, surface "Open draft"
+                        instead so users don't generate duplicates. */}
+                    {stage === 'negotiation' && activeDraft ? (
+                        <Button
+                            variant="outline"
+                            className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                            onClick={() => router.push(`/project-pipeline/${dealId}/contract-draft/${activeDraft.id}`)}
+                        >
+                            <FileText className="h-4 w-4" /> Open contract draft
+                            {activeDraft.todo_count > 0 && (
+                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">
+                                    {activeDraft.todo_count} TODO
+                                </Badge>
+                            )}
+                        </Button>
+                    ) : (
+                        canGenerateDraft && (
+                            <PermissionGuard permission="manage_crm">
+                                <Button
+                                    className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    onClick={() => router.push(`/project-pipeline/${dealId}/contract-draft/new`)}
+                                >
+                                    <Sparkles className="h-4 w-4" /> Generate Contract Draft
+                                </Button>
+                            </PermissionGuard>
+                        )
                     )}
                     <Button
                         variant="outline"
@@ -222,15 +262,12 @@ export default function DealDetailPage() {
                         <Calculator className="h-4 w-4" /> Estimation
                     </Button>
                     <PermissionGuard permission="manage_crm">
-                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/edit/${dealId}`)}>
+                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/project-pipeline/edit/${dealId}`)}>
                             <Edit3 className="h-4 w-4" /> Edit Deal
                         </Button>
                     </PermissionGuard>
-                    <PermissionGuard permission="manage_crm">
-                        <Button variant="outline" className="gap-2" onClick={() => router.push(`/crm/${dealId}/staffing`)}>
-                            <Users className="h-4 w-4" /> Hard Booking
-                        </Button>
-                    </PermissionGuard>
+                    {/* Hard Booking lives in the Task Assign menu now —
+                        no button here. */}
                     <PermissionGuard permission="manage_crm">
                         <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                             Delete
@@ -338,14 +375,16 @@ export default function DealDetailPage() {
                                     </p>
                                 </div>
                             </div>
-                            {dealToEdit.workloadDescription && (
-                                <div className="mt-5 pt-5 border-t border-slate-100">
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Scope Description</p>
-                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{dealToEdit.workloadDescription}</p>
-                                </div>
-                            )}
                         </CardContent>
                     </Card>
+
+                    {/* chg-011: Customer Requirements checklist — see what's
+                        captured / missing at a glance. ④ Estimation reads
+                        these when pricing; ⑤ contract drafting renders them
+                        as clauses. Includes a "✓ N / M captured" summary so
+                        the salesperson knows when the deal is ready for the
+                        contract drafting wizard. */}
+                    <RequirementsChecklist deal={dealToEdit} dealId={dealId} canEdit={canManageCrm} />
 
                     {/* Ghost Roles */}
                     <Card className="shadow-sm border-slate-100">
@@ -504,40 +543,6 @@ export default function DealDetailPage() {
                 </div>
             </div>
 
-            {/* Win Deal Dialog */}
-            <Dialog open={winOpen} onOpenChange={open => { setWinOpen(open); if (!open) setWinReason(''); }}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Win Deal</DialogTitle>
-                        <DialogDescription>
-                            This will create a Contract and Project automatically. This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-2">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-700">Win Reason <span className="text-slate-400 text-xs font-normal">(optional)</span></label>
-                            <Input
-                                value={winReason}
-                                onChange={e => setWinReason(e.target.value)}
-                                placeholder="e.g. Best price and team fit"
-                                maxLength={500}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            <Button variant="outline" onClick={() => setWinOpen(false)}>Cancel</Button>
-                            <Button
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                                onClick={handleWinDeal}
-                                disabled={winDeal.isPending}
-                            >
-                                <Trophy className="h-4 w-4" />
-                                {winDeal.isPending ? 'Processing...' : 'Confirm Win'}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             {/* Delete Dialog */}
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent className="sm:max-w-md">
@@ -551,8 +556,9 @@ export default function DealDetailPage() {
                         <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
                         <Button variant="destructive" onClick={async () => {
                             await deleteDeal.mutateAsync(dealId);
+                            toast.success(`Deal "${dealToEdit.name}" deleted.`);
                             setDeleteOpen(false);
-                            router.push('/crm');
+                            router.push('/project-pipeline');
                         }} disabled={deleteDeal.isPending}>
                             {deleteDeal.isPending ? 'Deleting...' : 'Delete'}
                         </Button>

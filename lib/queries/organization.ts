@@ -42,6 +42,7 @@ function toRole(row: Record<string, unknown>): Role {
 }
 
 function toEmployee(row: Record<string, unknown>): Employee {
+    const rankRaw = row.rank as Record<string, unknown> | null | undefined;
     return {
         id:               row.id as string,
         name:             row.name as string,
@@ -53,6 +54,13 @@ function toEmployee(row: Record<string, unknown>): Employee {
         capacityRole:     optStr(row.capacity_role) as Employee['capacityRole'],
         capacityRoleId:   optStr(row.capacity_role_id),
         capacityRoleName: optStr(row.capacity_role_name),
+        rankId:           optStr(row.rank_id) ?? null,
+        rank:             rankRaw ? {
+            id:    rankRaw.id as string,
+            name:  rankRaw.name as string,
+            code:  rankRaw.code as string,
+            level: rankRaw.level as number,
+        } : null,
         monthlySalary:    row.monthly_salary as number,
         workableHours:    row.workable_hours as number,
         costPerHour:      row.cost_per_hour as number,
@@ -88,6 +96,7 @@ function toCompanySettings(row: Record<string, unknown>): CompanySettings {
         overheadPercentage:           row.overhead_percentage as number,
         bufferPercentage:             row.buffer_percentage as number,
         yearlyFixedCost:              row.yearly_fixed_cost as number,
+        annualInitialBudget:          (row.annual_initial_budget as number) ?? 1_000_000_000,
         employerTaxPercentage:        (row.employer_tax_percentage as number) ?? 0,
         benefitsPercentage:           (row.benefits_percentage as number) ?? 0,
         // New estimation defaults — fall back to the same baked-in numbers the
@@ -206,6 +215,7 @@ export async function insertEmployee(
         job_role_id:      e.jobRoleId ?? e.role ?? null,
         capacity_role:    e.capacityRole ?? null,
         capacity_role_id: e.capacityRoleId ?? null,
+        rank_id:          e.rankId ?? null,
         monthly_salary:   e.monthlySalary,
         workable_hours:   e.workableHours,
         status:           e.status,
@@ -230,6 +240,7 @@ export async function updateEmployeeDB(
         job_role_id:      e.jobRoleId ?? e.role ?? null,
         capacity_role:    e.capacityRole ?? null,
         capacity_role_id: e.capacityRoleId ?? null,
+        rank_id:          e.rankId ?? null,
         monthly_salary:   e.monthlySalary,
         workable_hours:   e.workableHours,
         status:           e.status,
@@ -279,6 +290,7 @@ export async function upsertCompanySettings(s: CompanySettings): Promise<void> {
         overhead_percentage:             s.overheadPercentage,
         buffer_percentage:               s.bufferPercentage,
         yearly_fixed_cost:               s.yearlyFixedCost,
+        annual_initial_budget:           s.annualInitialBudget,
         employer_tax_percentage:         s.employerTaxPercentage,
         benefits_percentage:             s.benefitsPercentage,
         cost_to_bill_ratio:              s.costToBillRatio,

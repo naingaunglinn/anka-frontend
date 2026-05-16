@@ -41,24 +41,6 @@ function toPhaseAssignment(row: Record<string, unknown>): ProjectTaskPhaseAssign
     };
 }
 
-function toTaskAssignment(row: Record<string, unknown>): ProjectTaskAssignment {
-    const phases = Array.isArray(row.phases)
-        ? (row.phases as Record<string, unknown>[]).map(toPhaseAssignment)
-        : [];
-    return {
-        id:           row.id as string,
-        projectId:    row.project_id as string,
-        rowNo:        Number(row.row_no ?? 0),
-        functionId:   (row.function_id as string | null) ?? null,
-        functionName: (row.function_name as string) ?? '',
-        category:     (row.category as string | null) ?? null,
-        offshore:     (row.offshore as string | null) ?? null,
-        difficulty:   (row.difficulty as ProjectTaskAssignment['difficulty']) ?? '普通',
-        totalHours:   Number(row.total_hours ?? 0),
-        phases,
-    };
-}
-
 function toActivePhase(row: Record<string, unknown>): ActivePhase {
     return {
         code:  row.code as PhaseCode,
@@ -80,6 +62,24 @@ function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
     };
 }
 
+function toTaskAssignment(row: Record<string, unknown>): ProjectTaskAssignment {
+    const phases = Array.isArray(row.phases)
+        ? (row.phases as Record<string, unknown>[]).map(toPhaseAssignment)
+        : [];
+    return {
+        id:           row.id as string,
+        projectId:    row.project_id as string,
+        rowNo:        Number(row.row_no ?? 0),
+        functionId:   (row.function_id as string | null) ?? null,
+        functionName: (row.function_name as string) ?? '',
+        category:     (row.category as string | null) ?? null,
+        offshore:     (row.offshore as string | null) ?? null,
+        difficulty:   (row.difficulty as ProjectTaskAssignment['difficulty']) ?? '',
+        totalHours:   Number(row.total_hours ?? 0),
+        phases,
+    };
+}
+
 // ── Query key factory ────────────────────────────────────────────────────────
 
 export const projectKeys = {
@@ -89,7 +89,7 @@ export const projectKeys = {
     details: () => [...projectKeys.all, 'detail'] as const,
     detail: (id: string) => [...projectKeys.details(), id] as const,
     team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
-    tasks: (id: string) => [...projectKeys.detail(id), 'tasks'] as const,
+    taskAssignments: (id: string) => [...projectKeys.detail(id), 'task-assignments'] as const,
 };
 
 export interface ProjectListParams {
@@ -154,6 +154,12 @@ export function useProjectTeam(id: string) {
         enabled: !!id,
         staleTime: 10_000,
     });
+}
+
+export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignment[]> {
+    const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
+    const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
+    return rows.map(toTaskAssignment);
 }
 
 /**
@@ -221,7 +227,7 @@ export function useProjectTeamMutations(projectId: string) {
  */
 export function useProjectTaskAssignments(projectId: string) {
     return useQuery<ProjectTaskAssignmentsPayload>({
-        queryKey: projectKeys.tasks(projectId),
+        queryKey: projectKeys.taskAssignments(projectId),
         queryFn: async () => {
             const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
             const rows = (body.data ?? []) as Record<string, unknown>[];
@@ -250,7 +256,7 @@ export function useProjectTaskMutations(projectId: string) {
     const queryClient = useQueryClient();
 
     const invalidate = () => {
-        queryClient.invalidateQueries({ queryKey: projectKeys.tasks(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectKeys.taskAssignments(projectId) });
         // AI re-assign destructively wipes project_task_phase_assignments,
         // which cascade-deletes phase_progress_logs via FK. Schedule-tracking
         // caches (master grid badges, drill-down drawer logs, summary KPIs)

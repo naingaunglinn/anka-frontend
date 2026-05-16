@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useBusinessStore } from '@/store/businessStore';
-import { contractKeys } from '@/lib/queries/contracts';
 import { toDeal } from '@/lib/dealsMapper';
 import type { Deal } from '@/types/business';
 import type { PaginatedResponse } from '@/types/api';
@@ -92,10 +91,14 @@ export function useDealDetail(id: string) {
  * 5. **On settled**: invalidate the TanStack Query cache so list/detail views
  *    reflect authoritative server state (even after an optimistic rollback)
  *
- * **`winDeal` note**: this triggers the `win_deal()` stored procedure which
- * atomically creates a Contract and a Project. It **cannot be undone** from the
- * frontend. Always present a confirmation dialog before calling
- * `winDeal.mutate(dealId)`.
+ * Removed in chg-009/chg-011 Phase B-breaking:
+ *   - `updateDealStage` — drag-to-rank is gone; rank changes are event-driven
+ *     (Estimation flips C→B; ContractDraftService flips B→A on draft generation
+ *     and A→S on counter-signed PDF upload).
+ *   - `winDeal` — there's no manual win path anymore; the only route to S
+ *     is uploading a counter-signed contract PDF.
+ *   - `loseDeal` — replaced by `dropDeal` which uses the orthogonal
+ *     `lifecycle_status` flag rather than overwriting `status` with 'lost'.
  */
 export function useDealMutations() {
     const queryClient = useQueryClient();
@@ -123,53 +126,20 @@ export function useDealMutations() {
             queryClient.invalidateQueries({ queryKey: dealKeys.all }),
     });
 
-    const updateDealStage = useMutation({
-        mutationFn: ({
-            id,
-            status,
-            probability,
-        }: {
-            id: string;
-            status: string;
-            probability?: number;
-        }) => useBusinessStore.getState().updateDealStage(id, status, probability),
-        onSettled: (_data, _err, { id }) => {
-            queryClient.invalidateQueries({ queryKey: dealKeys.detail(id) });
-            queryClient.invalidateQueries({ queryKey: dealKeys.lists() });
-        },
-    });
-
     /**
-     * Calls `POST /deals/:id/win`, which triggers the `win_deal()` stored procedure.
+     * Marks a deal Dropped. Replaces the old loseDeal mutation. Uses the
+     * orthogonal `lifecycle_status` flag so the deal's rank-at-drop is
+     * preserved for analytics ("dropped at A after burning estimation
+     * effort" vs "dropped at C, minimal investment").
      *
-     * On success, deals, contracts, AND projects caches are all invalidated because
-     * the procedure creates records in all three tables atomically.
-     *
-     * If the stored procedure raises a constraint violation the backend returns a
-     * 422 or 409, which `normalizeError` maps to a clear user-facing message.
-     *
-     * ⚠️  Confirm with the user before calling — this action cannot be undone.
+     * Backend refuses status='won' (S deals are final per spec).
      */
-    const winDeal = useMutation({
-        mutationFn: ({ dealId, winReason }: { dealId: string; winReason?: string }) =>
-            useBusinessStore.getState().winDeal(dealId, winReason),
-        onSettled: (_data, _err, { dealId }) => {
-            // The stored proc touches three tables — invalidate all three caches
-            queryClient.invalidateQueries({ queryKey: dealKeys.all });
-            queryClient.invalidateQueries({ queryKey: ['contracts'] });
-            queryClient.invalidateQueries({ queryKey: ['projects'] });
-            // Also invalidate the linked-contract query for this specific deal
-            queryClient.invalidateQueries({ queryKey: contractKeys.linked(dealId) });
-        },
-    });
-
-    /** Calls `POST /deals/:id/lose`. Requires a loss_reason. */
-    const loseDeal = useMutation({
-        mutationFn: ({ dealId, lossReason }: { dealId: string; lossReason: string }) =>
-            useBusinessStore.getState().loseDeal(dealId, lossReason),
+    const dropDeal = useMutation({
+        mutationFn: ({ dealId, reason }: { dealId: string; reason: string }) =>
+            useBusinessStore.getState().dropDeal(dealId, reason),
         onSettled: () =>
             queryClient.invalidateQueries({ queryKey: dealKeys.all }),
     });
 
-    return { createDeal, updateDeal, deleteDeal, updateDealStage, winDeal, loseDeal };
+    return { createDeal, updateDeal, deleteDeal, dropDeal };
 }

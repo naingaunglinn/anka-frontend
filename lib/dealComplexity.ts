@@ -106,3 +106,70 @@ export function computeDealComplexity(input: ComplexityInput): ComplexityResult 
         signals: { burnRate, skillBreadth, hardKeyword, mediumKeyword, ghostVariety, domainDepth },
     }
 }
+
+// ─── "Need Management" recommendation ────────────────────────────────────
+//
+// Drives the AI Team Builder's leadership toggle. Returns a recommended
+// boolean PLUS a short reasoning string the UI shows beside the toggle, so
+// the user understands WHY the AI is suggesting on/off and can override
+// with confidence. Pure derivation from existing complexity signals + ghost
+// roles + timeline — no extra Claude call needed.
+
+export interface ManagementRecommendation {
+    /** True = the team should include a leadership-level employee. */
+    recommended: boolean
+    /** 1-2 sentence explanation, surfaced in the UI next to the toggle. */
+    reasoning: string
+}
+
+export function recommendManagement(
+    complexity: ComplexityResult,
+    ghostRoleCount: number,
+    timelineMonths: number,
+): ManagementRecommendation {
+    const months = Math.max(1, timelineMonths || 0)
+
+    // Hard projects always benefit from leadership — coordination overhead
+    // and risk warrant a senior coordinator regardless of duration.
+    if (complexity.band === 'hard') {
+        return {
+            recommended: true,
+            reasoning: `Hard complexity (${complexity.score.toFixed(1)}/10) — coordination + risk warrant a Lead.`,
+        }
+    }
+
+    // Medium projects: lean on additional signals.
+    if (complexity.band === 'medium') {
+        if (ghostRoleCount >= 3) {
+            return {
+                recommended: true,
+                reasoning: `Medium complexity, ${ghostRoleCount} workstreams — multi-discipline coordination needs a Senior+.`,
+            }
+        }
+        if (months >= 4) {
+            return {
+                recommended: true,
+                reasoning: `Medium complexity, ${months}-month timeline — long enough that leadership pays off.`,
+            }
+        }
+        return {
+            recommended: false,
+            reasoning: `Medium complexity, single workstream and short timeline — small enough to skip leadership overhead.`,
+        }
+    }
+
+    // Easy projects: skip leadership unless the ghost-role variety hints
+    // otherwise (e.g. a "small" project that nonetheless touches design +
+    // backend + PM probably needs someone to own it).
+    if (ghostRoleCount >= 3) {
+        return {
+            recommended: true,
+            reasoning: `Easy band but ${ghostRoleCount} workstreams — coordination across disciplines warrants a Senior+.`,
+        }
+    }
+
+    return {
+        recommended: false,
+        reasoning: `Easy complexity (${complexity.score.toFixed(1)}/10) and lean scope — no need to spend budget on a Lead.`,
+    }
+}

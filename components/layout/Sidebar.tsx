@@ -32,7 +32,7 @@ import {
 const orgRoutes = [
     { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-[#00a7f4]' },
     { label: 'Organization',      icon: Users,           href: '/organization',  color: 'text-violet-500' },
-    { label: 'CRM & Pipeline',    icon: Briefcase,       href: '/crm',           color: 'text-pink-700' },
+    { label: 'Project Pipeline', icon: Briefcase,        href: '/project-pipeline', color: 'text-pink-700' },
     { label: 'Estimation',        icon: Calculator,      href: '/estimation',    color: 'text-orange-700' },
     { label: 'Contracts & Billing', icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
     { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },

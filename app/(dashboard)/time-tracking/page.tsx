@@ -13,6 +13,7 @@ import { TimeEntry } from '@/types/business';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
+import { scheduleTrackingKeys } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList, useTimeEntryMutations } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
@@ -62,7 +63,8 @@ export default function TimeTrackingPage() {
                 : 'Task assignment finished'
             );
             setTableProjectId(projectId);
-            queryClient.invalidateQueries({ queryKey: projectKeys.tasks(projectId) });
+            queryClient.invalidateQueries({ queryKey: projectKeys.taskAssignments(projectId) });
+            queryClient.invalidateQueries({ queryKey: scheduleTrackingKeys.all });
         } catch (err) {
             const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
                 ?? 'AI task assignment failed. Ensure the project has a team and Estimate.xlsx exists.';

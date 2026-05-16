@@ -1,0 +1,280 @@
+id: chg-009-project-pipeline-rewrite
+name: Rename CRM → Project Pipeline; narrow scope; build AI contract drafting wizard
+status: proposed
+created: 2026-05-14
+owners: [claude.max@brycenmyanmar.com.mm]
+paired_with: anka-api/openspec/changes/chg-011-project-pipeline-and-contract-drafting.yaml
+
+why: |
+  Manager delivered a new "System Flow — ANKA" spec on 2026-05-14 that
+  redrew the module boundaries. The eight numbered processes (① Master
+  Data → ⑧ Forecast) each get one module owner. The CRM menu had
+  accumulated work from three of them (③ Nego, ④ Estimation, ⑤ Contract)
+  and needs to be narrowed.
+
+  This menu now owns ③ Nego + ⑤ Contract Generation only. Everything
+  else moves to the menu that owns the matching numbered process.
+
+  The menu is also being renamed CRM & Pipeline → Project Pipeline so
+  the manager's vocabulary ("Project Nego", "Project Rank") reads 1-to-1
+  against the UI.
+
+  The new headline feature is AI-assisted contract drafting against the
+  Yazaki SES template. A salesperson on a B-rank deal clicks
+  [Generate Contract Draft], answers 5–10 structured questions, and the
+  AI produces a full English SES contract — marking gaps with
+  {{TODO: …}} tokens for any detail it can't infer. The deal then
+  transitions B→A and stays in A until a counter-signed PDF is uploaded
+  (A→S).
+
+scope_decisions:
+  menu_name: "Project Pipeline (was CRM & Pipeline)"
+  owns:
+    - "③ Project Nego — customer intake, deal record, Kanban, rank C set"
+    - "⑤ Contract Generation — AI draft, email send, mark-signed, ranks A and S set"
+  hands_off:
+    - to_estimation_menu:
+        - components/crm/AITeamBuilder.tsx
+        - components/crm/AITeamBuilderSummary.tsx
+        - lib/aiTeamBuilder.ts
+        - lib/dealComplexity.ts (recommendManagement)
+        - app/api/ai-team-builder/route.ts
+        - lib/queries — past-projects / context fetch hooks
+    - to_contract_review_menu:
+        - components/crm/ContractDocumentUploader.tsx
+        - components/crm/AnalysisResultCard.tsx
+        - components/tables/ContractReviewsTable.tsx
+        - app/(dashboard)/crm/contract-reviews/page.tsx
+        - app/(dashboard)/crm/contract-reviews/[id]/page.tsx
+        - lib/queries/contractDocuments.ts (whole file)
+  rank_rules:
+    - "Ranks reduced from 5 to 4: C / B / A / S. D removed."
+    - "Forecast weights: C=30, B=50, A=80, S=100"
+    - "Forward-only transitions. No backward (no A→B). No manual override."
+    - "C set on intake (this menu). B set externally (Estimation). A set on first contract draft generated. S set on mark-signed."
+    - "Field locking: requirement_description / target_timeline / estimate_budget / final_* are editable in C and B, locked in A and S."
+  dropped_status:
+    - "Dropped is an orthogonal status flag, NOT a rank."
+    - "deal.status: 'active' | 'dropped'; deal.dropped_at_rank: 'C' | 'B' | 'A' | null"
+    - "S deals cannot be dropped. Only C / B / A can."
+    - "Kanban shows 4 columns by default + a 'Show dropped (N)' chip that overlays greyed cards in their last-known column."
+
+what:
+  rename_and_routes:
+    - app/(dashboard)/project-pipeline/ — new route group; /crm/* migrates here.
+    - app/(dashboard)/crm/ — kept for one release with redirect components
+      that <Redirect to="/project-pipeline/..." /> on mount. Deleted in
+      the release after.
+    - components/Sidebar.tsx — entry renamed "Project Pipeline", icon
+      unchanged.
+    - components/crm/ → components/project-pipeline/ — wholesale
+      directory move, all imports updated by codemod (rg + sed).
+    - All page titles, breadcrumbs, document titles updated.
+    - lib/route-permissions.ts — /project-pipeline added; /crm kept
+      mapping to same permission for backward compat.
+
+  kanban_changes:
+    - components/project-pipeline/KanbanBoard.tsx
+      - Drops the D column. STAGE_ORDER reduced to ['C','B','A','S'].
+      - Drag-to-rank is removed. Cards are non-draggable; rank changes
+        only fire from event triggers (intake → C, draft generated →
+        B→A, mark-signed → A→S).
+      - New "Show dropped (N)" filter chip in the page header. When on,
+        renders dropped deals as greyed cards in their dropped_at_rank
+        column with a "Dropped" badge.
+      - Per-column "Drop deal" action surfaced from card menu (only for
+        C/B/A; not for S).
+    - lib/dealRanks.ts
+      - STAGE_ORDER, RANK_LABELS rewritten. Dropped removed from rank
+        unions, added as separate Status union.
+      - Probability map: { C: 30, B: 50, A: 80, S: 100 }.
+
+  deal_model_changes:
+    - types/business.ts
+      - Deal.rank type narrowed to 'C' | 'B' | 'A' | 'S'.
+      - New Deal.status: 'active' | 'dropped'.
+      - New Deal.droppedAtRank: 'C' | 'B' | 'A' | null.
+      - New Deal.finalMonthlyFee, finalInstallationFee, finalContractMonths,
+        finalOtPolicy, finalSupportHoursPerMonth, finalTeamSummary,
+        finalCurrency, finalConfirmedAt, suggestedTemplateVariant.
+        These are READ-ONLY in this menu; populated by the Estimation menu.
+    - lib/dealsMapper.ts — toDeal / dealToApiPayload mappers extended
+      for the new snake_case ↔ camelCase fields. final_* fields are
+      payload-out only when rank is C or B; suppressed in A/S to honour
+      the lock.
+    - lib/schemas/deal.schema.ts — final_* fields not editable here
+      (Estimation menu owns the schema for those).
+
+  new_contract_drafting_feature:
+    pages:
+      - app/(dashboard)/project-pipeline/[id]/contract-draft/new/page.tsx
+        - Three-step wizard. Step 1 = template-variant pick + structured
+          questions. Step 2 = side-by-side AI output editor with TODO
+          highlighting + per-section regenerate. Step 3 = preview +
+          finalise (renders DOCX) + send.
+      - app/(dashboard)/project-pipeline/[id]/contract-draft/[draftId]/page.tsx
+        - View existing draft. Status badge, regenerate-section,
+          send-to-customer, mark-signed (counter-signed PDF upload).
+    components:
+      - components/project-pipeline/contracts/ContractDraftWizard.tsx
+        (~500 LOC, three steps, TanStack Query mutations)
+      - components/project-pipeline/contracts/SectionEditor.tsx
+        - Per-section editor, AI output on right, user-editable on left.
+        - {{TODO: …}} markers highlighted amber and surfaced as a count
+          chip ("3 unresolved TODOs in this section").
+        - Per-section "Regenerate" button with the wizard inputs as
+          context.
+      - components/project-pipeline/contracts/TemplatePicker.tsx
+        - Lists active SES variants (Cloud Backup / Managed Hosting /
+          Engineer Dispatch). Defaults to suggested_template_variant
+          when set on the deal.
+      - components/project-pipeline/contracts/WizardQuestions.tsx
+        - Renders the structured Path C question set per template
+          variant. Each variant defines its own questions in the
+          template's sections JSON.
+      - components/project-pipeline/contracts/SignedUpload.tsx
+        - Drag-drop PDF, max 25MB, mark-signed mutation.
+      - components/project-pipeline/contracts/DraftStatusChip.tsx
+    queries:
+      - lib/queries/contractDrafts.ts (new)
+        - useContractTemplates() — list active variants
+        - useContractDrafts(dealId) — drafts for a deal
+        - useContractDraft(draftId) — single
+        - useGenerateDraft() — mutation, fires B→A
+        - useUpdateDraftSection() — patch single section content
+        - useRegenerateSection() — re-run AI for one section
+        - useFinaliseDraft() — render DOCX
+        - useSendDraft() — email mutation
+        - useMarkSigned() — multipart PDF upload mutation, fires A→S
+    deal_detail_additions:
+      - app/(dashboard)/project-pipeline/[id]/page.tsx
+        - When rank=B + final_confirmed_at set:
+          show [Generate Contract Draft] button → wizard /new page.
+        - When rank=A: show current draft summary card with status
+          (draft / sent / signed), generated_at, sent_at, [Open draft]
+          link, and (if status='sent_to_customer') a [Mark as signed]
+          quick action.
+
+  field_locking:
+    - components/project-pipeline/DealForm.tsx (used by /new and
+      /edit/[id]) — all fields disabled with a "Locked because the
+      deal is at rank A/S" banner when rank ∈ {A, S}.
+    - app/(dashboard)/project-pipeline/edit/[id]/page.tsx — guards the
+      route: redirect to detail page if rank ∈ {A, S}.
+
+  permissions_and_route_map:
+    - lib/rbac.ts
+      - New permission: send_contract_draft (Manager-level: Admin +
+        Executive only). Salespeople can generate + edit drafts but
+        only Executives can email customers.
+    - lib/route-permissions.ts
+      - /project-pipeline → view_crm (alias)
+      - /project-pipeline/[id]/contract-draft/* → view_crm
+      - Send-to-customer button gated additionally by send_contract_draft.
+
+  openspec_doc_updates:
+    - openspec/specs/app-routes.yaml — old /crm/* entries marked
+      deprecated; new /project-pipeline/* entries added with the new
+      contract-draft sub-routes.
+    - openspec/specs/components.yaml — moved KanbanBoard / DealForm /
+      etc. under project-pipeline namespace; added Wizard /
+      SectionEditor / TemplatePicker / WizardQuestions / SignedUpload /
+      DraftStatusChip entries.
+
+placeholders:
+  - The three SES template variants' wizard_questions arrays are
+    defined on the API side (chg-011). This change consumes whatever
+    the API exposes via GET /contract-templates — no hard-coded
+    questions live in the frontend.
+  - The AI-output structured-JSON schema is also defined on the API
+    side. This change just renders whatever the API returns.
+  - The receiving menu owners (Estimation, Contract Review) must
+    confirm they're ready to accept the moved files BEFORE the
+    relocation PR is merged. If they're not ready by the time
+    contract-drafting is built, leave the moved files in place as
+    orphan code (no UI entry point) until they take it.
+
+risk: |
+  - Renaming /crm/* → /project-pipeline/* with backward-compat
+    redirects is two release cycles of dual-existence. Bookmarked URLs
+    survive; copy-pasted Slack links survive. Risk is low if the
+    redirect components are the ONLY code under /crm/* in the second
+    release.
+  - The Kanban removal of drag-to-rank is a hard behaviour change. Any
+    user muscle memory needs a one-line release-notes mention. The
+    "Drop deal" action via card menu replaces the drag-to-D pattern.
+  - Field locking in A/S can surprise users who expect to edit a deal
+    after the contract is drafted. The locked-banner copy must be
+    explicit ("Locked because contract drafting has started — to
+    change scope, drop this deal and start a new one").
+  - Path A relocation PR is the highest-risk operation. Recommend a
+    feature-flag toggle ("/crm/* serves the new components") so we can
+    flip back if the receiving menus break on the moved imports.
+
+manual_steps:
+  - npm run build — verify the new route group compiles cleanly. Run
+    `npx tsc --noEmit` before pushing (per existing project rule).
+  - The first deploy after this lands MUST be coordinated with the
+    paired anka-api chg-011. The frontend's [Generate Contract Draft]
+    button calls API endpoints that don't exist until chg-011 ships.
+  - Coordinate Phase A relocation with the Estimation and Contract
+    Review menu owners. Best done as a separate PR after chg-009 +
+    chg-011 land.
+
+phasing:
+  - phase: B
+    description: "Additive deal-model + Kanban/Field-locking changes. No breaking changes. Ships first."
+    files:
+      - types/business.ts (new fields)
+      - lib/dealsMapper.ts (mapper extensions)
+      - lib/dealRanks.ts (probability map)
+      - components/crm/KanbanBoard.tsx (4 columns + dropped filter; drag removal)
+      - components/crm/DealForm.tsx (lock guards)
+      - app/(dashboard)/crm/edit/[id]/page.tsx (lock redirect)
+  - phase: C
+    description: "Build AI contract drafting feature. Additive — depends on anka-api chg-011 endpoints."
+    files:
+      - lib/queries/contractDrafts.ts
+      - components/project-pipeline/contracts/* (all new components)
+      - app/(dashboard)/project-pipeline/[id]/contract-draft/new/page.tsx
+      - app/(dashboard)/project-pipeline/[id]/contract-draft/[draftId]/page.tsx
+      - components/crm/[id]/page.tsx — add [Generate Contract Draft] button
+  - phase: A
+    description: "Atomic relocation PR. Move out-of-scope code to receiving menus. Coordinate before merge."
+    out_to_estimation:
+      - components/crm/AITeamBuilder.tsx → components/estimation/AITeamBuilder.tsx
+      - lib/aiTeamBuilder.ts (no move; estimation menu imports from current location)
+      - lib/dealComplexity.ts → lib/estimation/dealComplexity.ts
+      - app/api/ai-team-builder/route.ts (kept as Next.js route; ownership transfers)
+    out_to_contract_review:
+      - components/crm/ContractDocumentUploader.tsx → components/contracts/review/ContractDocumentUploader.tsx
+      - components/crm/AnalysisResultCard.tsx → components/contracts/review/AnalysisResultCard.tsx
+      - components/tables/ContractReviewsTable.tsx → components/contracts/review/ContractReviewsTable.tsx
+      - app/(dashboard)/crm/contract-reviews/* → app/(dashboard)/contracts/reviews/*
+      - lib/queries/contractDocuments.ts → lib/queries/contractDocuments.ts (kept; contract-review menu imports from same path)
+  - phase: D
+    description: "Rename /crm/* → /project-pipeline/*. Backward-compat redirect components stay one release."
+    files:
+      - app/(dashboard)/project-pipeline/** — all pages moved from /crm
+      - app/(dashboard)/crm/** — replaced with redirect-only pages
+      - components/Sidebar.tsx
+      - lib/route-permissions.ts
+      - All breadcrumb/page-title strings
+
+estimated_size: ~2000 LOC (frontend portion); ~5–7 days
+
+deferred_to_v2:
+  - Admin UI for editing contract templates (templates seeded via
+    migration only)
+  - Diff view between draft v1 and v2 when user regenerates
+  - Multi-language (Japanese contracts)
+  - E-sign integration (Adobe / DocuSign / etc.)
+  - "Copy fixes as customer email" follow-up from chg-010 — moves out
+    with the rest of contract review
+
+review_checklist:
+  - "Does the [Generate Contract Draft] button correctly enable only when rank=B AND all 8 required final_* fields are populated?"
+  - "Does field locking show the banner BEFORE the user clicks edit, not after they try to save?"
+  - "Does the Kanban 'Show dropped' chip render greyed cards in their dropped_at_rank column (not the rank field, which would still be C/B/A)?"
+  - "Does the relocation PR's codemod catch every import path? Run `rg 'components/crm/'` and `rg 'lib/queries/contractDocuments'` after the move."
+  - "Are the redirect components in /crm/* under feature-flag control so we can flip back?"
