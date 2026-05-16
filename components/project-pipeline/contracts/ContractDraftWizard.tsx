@@ -48,7 +48,17 @@ export function ContractDraftWizard({
     initialDraft?: DealContractDraft;
 }) {
     const router = useRouter();
-    const [step, setStep] = useState<Step>(initialDraft ? 'edit' : 'choose');
+    // When opening an existing draft that's already been sent (or signed),
+    // skip Edit and land on the Send step directly — that's where the
+    // user wants to be (re-send to a different email, or upload the
+    // counter-signed PDF). 'draft' status still starts on Edit.
+    const [step, setStep] = useState<Step>(() => {
+        if (!initialDraft) return 'choose';
+        if (initialDraft.status === 'sent_to_customer' || initialDraft.status === 'signed') {
+            return 'send';
+        }
+        return 'edit';
+    });
     const [draft, setDraft] = useState<DealContractDraft | null>(initialDraft ?? null);
 
     // ── Step 1 state ──
@@ -335,11 +345,11 @@ export function ContractDraftWizard({
                     {!isLocked && (
                         <Button
                             onClick={() => setStep('send')}
-                            disabled={!draft || draft.status !== 'draft'}
+                            disabled={!draft}
                             size="lg"
                             className="bg-indigo-600 hover:bg-indigo-700"
                         >
-                            Continue to send
+                            {draft?.status === 'sent_to_customer' ? 'Go to send / upload signed' : 'Continue to send'}
                             <ArrowRight className="h-4 w-4" />
                         </Button>
                     )}
