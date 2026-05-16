@@ -119,10 +119,11 @@ export function ContractDraftWizard({
     // ── Customer signer state ──
     // Captured per-draft (not on the deal — the deal's contact_* is the
     // day-to-day liaison, which is often not the authorised signer).
-    // All three optional; blank values render '____' on the PDF.
+    // Both optional; blank values render '____' on the PDF. No date —
+    // we never pre-fill the customer's signing date since we don't know
+    // when they'll sign; the PDF prints a blank Date line.
     const [customerSignerName, setCustomerSignerName] = useState('');
     const [customerSignerTitle, setCustomerSignerTitle] = useState('');
-    const [customerSignedDate, setCustomerSignedDate] = useState('');
 
     const todoCount = draft
         ? draft.sections.reduce((acc, s) => acc + (s.rendered.match(/\{\{TODO/g)?.length ?? 0), 0)
@@ -151,7 +152,6 @@ export function ContractDraftWizard({
                 signatory_title_override: sigTitleTrimmed !== tenantSigTitle.trim() ? (sigTitleTrimmed || null) : null,
                 customer_signatory_name: customerSignerName.trim() || null,
                 customer_signatory_title: customerSignerTitle.trim() || null,
-                customer_signed_date: customerSignedDate || null,
             });
             setDraft(result);
             setStep('edit');
@@ -347,7 +347,7 @@ export function ContractDraftWizard({
                             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Customer (their side)
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="wizard-customer-signer-name" className="text-xs">Name</Label>
                                     <Input
@@ -370,22 +370,13 @@ export function ContractDraftWizard({
                                         className="bg-white"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="wizard-customer-signed-date" className="text-xs">Date</Label>
-                                    <Input
-                                        id="wizard-customer-signed-date"
-                                        type="date"
-                                        value={customerSignedDate}
-                                        onChange={(e) => setCustomerSignedDate(e.target.value)}
-                                        className="bg-white"
-                                    />
-                                </div>
                             </div>
                             <p className="text-[11px] text-slate-500">
                                 Captured during negotiation. The deal contact ({deal.contactName ?? 'unset'})
                                 is the day-to-day liaison and is often <em>not</em> the authorised
-                                signer. Leave any field blank to print a blank line on the PDF for the
-                                customer to fill in by hand.
+                                signer. Leave a field blank to print a blank line on the PDF for the
+                                customer to fill in by hand. The signing date is always left blank —
+                                we don&apos;t know when they&apos;ll sign.
                             </p>
                         </div>
                         </CardContent>

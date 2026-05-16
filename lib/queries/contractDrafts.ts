@@ -176,10 +176,10 @@ export interface GenerateDraftInput {
     signatory_title_override?: string | null;
     /** Customer-side signer captured at draft time. Distinct from the
      *  deal's contact_* (day-to-day liaison). Blank values render '____'
-     *  on the PDF for the customer to hand-fill on signing. */
+     *  on the PDF for the customer to hand-fill on signing. No date —
+     *  we don't know when they'll sign; the PDF prints a blank Date line. */
     customer_signatory_name?: string | null;
     customer_signatory_title?: string | null;
-    customer_signed_date?: string | null;
 }
 
 /**
@@ -197,7 +197,6 @@ export function useGenerateDraft() {
             signatory_title_override,
             customer_signatory_name,
             customer_signatory_title,
-            customer_signed_date,
         }) => {
             const { data: body } = await api.post(`/deals/${dealId}/contract-drafts`, {
                 template_id,
@@ -206,7 +205,6 @@ export function useGenerateDraft() {
                 signatory_title_override,
                 customer_signatory_name,
                 customer_signatory_title,
-                customer_signed_date,
             });
             return body.data as DealContractDraft;
         },
