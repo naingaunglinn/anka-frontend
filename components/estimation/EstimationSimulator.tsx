@@ -25,10 +25,12 @@ import {
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
 import { EstimationRoleBuilder } from '@/components/estimation/EstimationRoleBuilder';
 import { ContractReadyDialog } from '@/components/estimation/ContractReadyDialog';
+import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
+import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
-import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
+import { calculateLaborOverhead, LABOR_OVERHEAD_PERCENTAGE } from '@/lib/calculations';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
@@ -206,6 +208,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [showHistory, setShowHistory] = useState(false);
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
     const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
+    const [suggestFromNotesOpen, setSuggestFromNotesOpen] = useState(false);
 
     // Version queries
     const versionsQuery = useEstimationVersions(selectedDealId || null);
@@ -600,21 +603,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         0,
     );
 
-    // Cost model aligned with the rest of the system (CRM ghost-role estimate,
-    // AI Team Builder). Three overhead components stack:
-    //   - companyOverheadCost  = labor × overheadPct   (settings %, on labor)
+    // Cost model: a single 15% markup on labor absorbs both the old company
+    // overhead and risk buffer. Project-level absolute overheads (deal_overheads)
+    // remain a separate line, untouched by the markup.
+    //   - laborOverhead        = laborCost × LABOR_OVERHEAD_PERCENTAGE / 100
     //   - projectOverheadTotal = Σ absolute project overheads
-    //   - bufferCost           = (labor + companyOverhead + projectOverhead) × bufferPct
-    // Buffer is applied to labor + both overheads via calculateRiskBuffer so a
-    // change in any input flows through deterministically.
+    //   - totalCost            = laborCost + laborOverhead + projectOverheadTotal
     const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-    const companyOverheadCost = calculateOverhead(laborCost, store.companySettings.overheadPercentage || 0);
-    const bufferCost = calculateRiskBuffer(
-        laborCost,
-        companyOverheadCost + projectOverheadTotal,
-        store.companySettings.bufferPercentage || 0,
-    );
-    const totalCost = laborCost + companyOverheadCost + projectOverheadTotal + bufferCost;
+    const laborOverhead = calculateLaborOverhead(laborCost);
+    const totalCost = laborCost + laborOverhead + projectOverheadTotal;
 
     // Slider is capped at 80% so margin/100 stays well below 1, but clamp
     // explicitly here so a future cap change can't silently produce price=0.
@@ -799,6 +796,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 {idx === 0 && (
                                                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">Latest</span>
                                                 )}
+                                                {v.hasContextNotes && (
+                                                    <span
+                                                        className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium inline-flex items-center gap-1"
+                                                        title={v.contextNotes ?? 'Has meeting notes attached'}
+                                                    >
+                                                        <MessageSquareText className="h-3 w-3" />
+                                                        notes
+                                                    </span>
+                                                )}
                                             </div>
                                             {v.notes && (
                                                 <p className="text-xs text-slate-500 mt-1">{v.notes}</p>
@@ -900,16 +906,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     }
                                 }}
                                 extraAction={
-                                    <Button
-                                        onClick={handleGenerateAi}
-                                        disabled={!selectedDealId || isGeneratingAi}
-                                        className="w-full h-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
-                                        size="lg"
-                                        title="Generate scope rows and predicted overheads from the deal context using Claude"
-                                    >
-                                        <Sparkles className="h-4 w-4" />
-                                        {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
-                                    </Button>
+                                    <div className="flex flex-col gap-2 h-full">
+                                        <Button
+                                            onClick={handleGenerateAi}
+                                            disabled={!selectedDealId || isGeneratingAi}
+                                            className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
+                                            size="lg"
+                                            title="Generate scope rows and predicted overheads from the deal context using Claude"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                            {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
+                                        </Button>
+                                        <Button
+                                            onClick={() => setSuggestFromNotesOpen(true)}
+                                            disabled={!selectedDealId || resources.length === 0}
+                                            className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 disabled:opacity-60"
+                                            size="lg"
+                                            title={resources.length === 0
+                                                ? 'Generate or add scope first, then come back here to apply meeting feedback.'
+                                                : 'Paste meeting minutes / chat — AI proposes scope and overhead changes for review.'}
+                                        >
+                                            <MessageSquareText className="h-4 w-4" />
+                                            Suggest changes from notes
+                                        </Button>
+                                    </div>
                                 }
                             />
                         </CardContent>
@@ -1126,24 +1146,18 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                         <div className="pt-4 border-t border-slate-100 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Total Labor Cost</span>
+                                <span className="text-slate-500">Direct Labor Cost</span>
                                 <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">
-                                    Company Overhead ({store.companySettings.overheadPercentage || 0}%)
+                                    Overhead &amp; Buffer ({LABOR_OVERHEAD_PERCENTAGE}% of labor)
                                 </span>
-                                <span className="font-medium text-slate-700">{formatMoney(companyOverheadCost, currency)}</span>
+                                <span className="font-medium text-amber-600">{formatMoney(laborOverhead, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Project Overhead</span>
                                 <span className="font-medium text-rose-500">{formatMoney(projectOverheadTotal, currency)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">
-                                    Risk Buffer ({store.companySettings.bufferPercentage || 0}%)
-                                </span>
-                                <span className="font-medium text-amber-600">{formatMoney(bufferCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
                                 <span className="text-slate-700">Total Project Cost</span>
@@ -1270,6 +1284,60 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 deal={selectedDeal}
                                 suggestedPrice={suggestedPrice}
                                 resources={resources}
+                            />
+                        )}
+
+                        {selectedDealId && (
+                            <SuggestChangesFromNotesDialog
+                                open={suggestFromNotesOpen}
+                                onOpenChange={setSuggestFromNotesOpen}
+                                dealId={selectedDealId}
+                                currentResources={resources}
+                                currentOverheads={overheads}
+                                currency={currency}
+                                onApply={async ({ resources: nextResources, overheads: nextOverheads, contextNotes }) => {
+                                    // 1. Persist applied changes to the deal so the auto-saved
+                                    //    state matches what the new version snapshot will hold.
+                                    //    Cancels the pending debounced auto-save (if any) since
+                                    //    we're writing the same fields right now.
+                                    if (autoSaveTimerRef.current) {
+                                        clearTimeout(autoSaveTimerRef.current);
+                                        autoSaveTimerRef.current = null;
+                                    }
+                                    await updateDeal.mutateAsync({
+                                        id: selectedDealId,
+                                        updates: {
+                                            estimationResources: nextResources,
+                                            projectOverheads: nextOverheads,
+                                            targetMargin: margin[0],
+                                        },
+                                    });
+                                    // Mirror locally so the UI doesn't flash old values while
+                                    // the deal query refetches.
+                                    setResources(nextResources);
+                                    setOverheads(nextOverheads);
+                                    setDirty(false);
+
+                                    // 2. Auto-save as the next version with the notes attached.
+                                    //    The user agreed to this in the AskUserQuestion flow —
+                                    //    Apply = locked record.
+                                    const nextVer = (currentVersion?.versionNumber ?? 0) + 1;
+                                    await saveVersion.mutateAsync({
+                                        dealId: selectedDealId,
+                                        resources: nextResources.map(r => ({
+                                            roleId: r.roleId,
+                                            employeeId: r.employeeId ?? null,
+                                            featureName: r.featureName,
+                                            hours: r.hours,
+                                        })),
+                                        overheads: nextOverheads,
+                                        targetMargin: margin[0],
+                                        notes: 'Applied AI suggestions from meeting notes',
+                                        contextNotes,
+                                    });
+                                    setLastSavedAt(new Date().toLocaleString());
+                                    toast.success(`Applied changes — saved as v${nextVer} with notes attached.`);
+                                }}
                             />
                         )}
 

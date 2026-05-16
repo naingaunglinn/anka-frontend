@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useContractList, useContractMutations } from '@/lib/queries/contracts';
 import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
 import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestones';
+import { MILESTONES_INVOICES_ENABLED } from '@/lib/featureFlags';
 import { useDealList } from '@/lib/queries/deals';
 import { useProjectList } from '@/lib/queries/projects';
 import { useBusinessStore } from '@/store/businessStore';
@@ -55,6 +56,15 @@ export default function ContractsPage() {
 
     const totalContractValue = contracts.reduce((sum, c) => sum + c.totalValue, 0);
     const totalRecognized = contracts.reduce((sum, c) => sum + c.revenueRecognized, 0);
+
+    // "Signed This Month" KPI replaces "Revenue Recognized" while billing
+    // features are gated. Uses contract.signedAt so contracts that became
+    // signed (regardless of current status) all count for the calendar month.
+    const signedThisMonth = useMemo(() => {
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        return contracts.filter(c => c.signedAt && c.signedAt.startsWith(ym)).length;
+    }, [contracts]);
 
     // Per-contract invoice rollup: powers the Invoiced / Outstanding / Overdue columns
     // without an extra round-trip — uses the invoices already loaded for the Invoices tab.
@@ -206,10 +216,14 @@ export default function ContractsPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Contracts & Billing</h1>
-                    <p className="text-[#8a8a8a] mt-1">Manage active contracts, milestones, and client invoices.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Contracts{MILESTONES_INVOICES_ENABLED ? ' & Billing' : ''}</h1>
+                    <p className="text-[#8a8a8a] mt-1">
+                        {MILESTONES_INVOICES_ENABLED
+                            ? 'Manage active contracts, milestones, and client invoices.'
+                            : 'Manage active contracts from won deals. Milestones and invoices ship in the next phase.'}
+                    </p>
                 </div>
-                <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
+                {MILESTONES_INVOICES_ENABLED && <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
                     <DialogTrigger asChild>
                         <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
                             <Plus className="h-4 w-4" /> Create Invoice
@@ -290,7 +304,7 @@ export default function ContractsPage() {
                             </Button>
                         </div>
                     </DialogContent>
-                </Dialog>
+                </Dialog>}
             </div>
 
             {isLoading && (
@@ -331,23 +345,38 @@ export default function ContractsPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Revenue Recognized</p>
-                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-emerald-600">{formatMoney(totalRecognized, currency)}</span>
-                            <span className="text-sm font-medium text-[#8a8a8a]">
-                                ({totalContractValue > 0 ? Math.round((totalRecognized / totalContractValue) * 100) : 0}%)
-                            </span>
-                        </div>
-                    </CardContent>
-                </Card>
+                {MILESTONES_INVOICES_ENABLED ? (
+                    <Card className="shadow-sm border-[#e6e9ee]">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium text-[#8a8a8a]">Revenue Recognized</p>
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                            </div>
+                            <div className="mt-2 flex items-baseline gap-2">
+                                <span className="text-3xl font-bold tracking-tight text-emerald-600">{formatMoney(totalRecognized, currency)}</span>
+                                <span className="text-sm font-medium text-[#8a8a8a]">
+                                    ({totalContractValue > 0 ? Math.round((totalRecognized / totalContractValue) * 100) : 0}%)
+                                </span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <Card className="shadow-sm border-[#e6e9ee]">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium text-[#8a8a8a]">Signed This Month</p>
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                            </div>
+                            <div className="mt-2 flex items-baseline gap-2">
+                                <span className="text-3xl font-bold tracking-tight text-[#171717]">{signedThisMonth}</span>
+                                <span className="text-sm font-medium text-[#8a8a8a]">contract{signedThisMonth === 1 ? '' : 's'}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>}
 
-            {!isLoading && !isError && <Tabs defaultValue="contracts" className="space-y-6">
+            {!isLoading && !isError && (MILESTONES_INVOICES_ENABLED ? <Tabs defaultValue="contracts" className="space-y-6">
                 <TabsList className="bg-slate-100/50 p-1 border border-slate-200/60">
                     <TabsTrigger value="contracts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Active Contracts</TabsTrigger>
                     <TabsTrigger value="milestones" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
@@ -687,7 +716,119 @@ export default function ContractsPage() {
                     </Card>
                 </TabsContent>
 
-            </Tabs>}
+            </Tabs> : (
+                /* Flag-off rendering: no tabs, no invoice-derived columns, just
+                 * the contracts list. Milestone + Invoice tabs come back when
+                 * MILESTONES_INVOICES_ENABLED flips to true. */
+                <Card className="shadow-sm border-[#e6e9ee]">
+                    <Table>
+                        <TableHeader className="bg-white">
+                            <TableRow>
+                                <TableHead>Contract ID</TableHead>
+                                <TableHead>Client</TableHead>
+                                <TableHead>Source Deal</TableHead>
+                                <TableHead>Linked Project</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Total Value</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {contracts.map((contract) => {
+                                const sourceDeal    = deals.find(d => d.id === contract.dealId);
+                                const linkedProject = projects.find(p => p.contractId === contract.id);
+                                return (
+                                    <TableRow key={contract.id}>
+                                        <TableCell className="font-medium">
+                                            <button
+                                                className="text-[#00a7f4] hover:underline text-left"
+                                                onClick={() => router.push(`/contracts/${contract.id}`)}
+                                            >
+                                                {contract.contractNumber ?? contract.id}
+                                            </button>
+                                        </TableCell>
+                                        <TableCell>{contract.client}</TableCell>
+                                        <TableCell>
+                                            {sourceDeal ? (
+                                                <button
+                                                    className="text-sm text-[#00a7f4] hover:underline text-left"
+                                                    onClick={() => router.push(`/crm/${sourceDeal.id}`)}
+                                                >
+                                                    {sourceDeal.name}
+                                                </button>
+                                            ) : (
+                                                <span className="text-[#8a8a8a] text-sm">—</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {linkedProject ? (
+                                                <button
+                                                    className="text-sm text-purple-600 hover:underline text-left"
+                                                    onClick={() => router.push(`/projects/${linkedProject.id}`)}
+                                                >
+                                                    {linkedProject.projectNumber ?? linkedProject.name}
+                                                </button>
+                                            ) : (
+                                                <span className="text-[#8a8a8a] text-sm">—</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className={
+                                                contract.status === 'Active' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
+                                                contract.status === 'Signed' ? 'bg-violet-50 text-violet-700 border-violet-200' :
+                                                contract.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                contract.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                    'bg-slate-100 text-slate-700 border-slate-200'
+                                            }>
+                                                {contract.status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">{formatMoney(contract.totalValue, currency)}</TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => router.push(`/contracts/${contract.id}`)}>
+                                                        Open Contract
+                                                    </DropdownMenuItem>
+                                                    {sourceDeal && (
+                                                        <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
+                                                            View Source Deal
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {linkedProject && (
+                                                        <DropdownMenuItem onClick={() => router.push(`/projects/${linkedProject.id}`)}>
+                                                            View Linked Project
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
+                                                        Edit Status / Notes
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="text-rose-600"
+                                                        onClick={() => openArchive(contract.id)}
+                                                    >
+                                                        Archive
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                            {contracts.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center py-6 text-[#8a8a8a]">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </Card>
+            ))}
 
             {/* Edit Contract Dialog */}
             <Dialog open={!!editContract} onOpenChange={open => !open && setEditContract(null)}>
@@ -745,41 +886,43 @@ export default function ContractsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* -- Delete Invoice Confirm Dialog ---------------------------------- */}
-            <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Delete Invoice</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-[#4a4a4a]">
-                        Are you sure you want to delete this invoice? This action cannot be undone.
-                    </p>
-                    <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeleteInvoiceOpen(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleDeleteInvoice} disabled={deleteInvoice.isPending}>
-                            {deleteInvoice.isPending ? 'Deleting...' : 'Delete'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {MILESTONES_INVOICES_ENABLED && <>
+                {/* -- Delete Invoice Confirm Dialog ---------------------------------- */}
+                <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Delete Invoice</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-[#4a4a4a]">
+                            Are you sure you want to delete this invoice? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <Button variant="outline" onClick={() => setDeleteInvoiceOpen(false)}>Cancel</Button>
+                            <Button variant="destructive" onClick={handleDeleteInvoice} disabled={deleteInvoice.isPending}>
+                                {deleteInvoice.isPending ? 'Deleting...' : 'Delete'}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
-            {/* -- Delete Milestone Confirm Dialog --------------------------------- */}
-            <Dialog open={deleteMilestoneOpen} onOpenChange={setDeleteMilestoneOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Delete Milestone</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-[#4a4a4a]">
-                        Are you sure you want to delete this milestone? This action cannot be undone.
-                    </p>
-                    <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeleteMilestoneOpen(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleDeleteMilestone} disabled={deleteMilestone.isPending}>
-                            {deleteMilestone.isPending ? 'Deleting...' : 'Delete'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                {/* -- Delete Milestone Confirm Dialog --------------------------------- */}
+                <Dialog open={deleteMilestoneOpen} onOpenChange={setDeleteMilestoneOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Delete Milestone</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-[#4a4a4a]">
+                            Are you sure you want to delete this milestone? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <Button variant="outline" onClick={() => setDeleteMilestoneOpen(false)}>Cancel</Button>
+                            <Button variant="destructive" onClick={handleDeleteMilestone} disabled={deleteMilestone.isPending}>
+                                {deleteMilestone.isPending ? 'Deleting...' : 'Delete'}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </>}
         </div>
     );
 }

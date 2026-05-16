@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Calendar, Users, Clock, FileWarning, ExternalLink, Briefcase, Sparkles, Plus, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Clock, FileWarning, ExternalLink, Briefcase, Sparkles, Plus, Trash2 } from 'lucide-react';
 import { useProjectDetail, useProjectMutations, useProjectTeam, useProjectTeamMutations } from '@/lib/queries/projects';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useContractList } from '@/lib/queries/contracts';
@@ -28,7 +28,7 @@ export default function ProjectDetailPage() {
     const contractsQuery = useContractList();
     const employees = useBusinessStore(s => s.employees);
     const { updateProject } = useProjectMutations();
-    const { assignMember, removeMember, autoAssignTeam } = useProjectTeamMutations(projectId);
+    const { assignMember, removeMember } = useProjectTeamMutations(projectId);
 
     const project = projectQuery.data;
     const team    = useMemo(() => teamQuery.data ?? [], [teamQuery.data]);
@@ -146,17 +146,6 @@ export default function ProjectDetailPage() {
             await removeMember.mutateAsync(removingAssignmentId);
         } finally {
             setRemovingAssignmentId(null);
-        }
-    };
-
-    // ── AI auto-assign confirm dialog ────────────────────────────────────────
-    const [autoAssignOpen, setAutoAssignOpen] = useState(false);
-
-    const handleAutoAssign = async () => {
-        try {
-            await autoAssignTeam.mutateAsync();
-        } finally {
-            setAutoAssignOpen(false);
         }
     };
 
@@ -311,17 +300,6 @@ export default function ProjectDetailPage() {
                                 size="sm"
                                 variant="outline"
                                 className="gap-1.5"
-                                onClick={() => setAutoAssignOpen(true)}
-                                disabled={autoAssignTeam.isPending}
-                                title="Rebuild the roster from AI suggestions based on the deal's required roles"
-                            >
-                                <Wand2 className="h-3.5 w-3.5" />
-                                {autoAssignTeam.isPending ? 'Rebuilding…' : 'AI auto-assign'}
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="gap-1.5"
                                 onClick={() => setAddOpen(true)}
                                 disabled={assignableEmployees.length === 0}
                                 title={assignableEmployees.length === 0 ? 'All active employees are already on this team' : 'Add a team member'}
@@ -333,7 +311,7 @@ export default function ProjectDetailPage() {
                     </div>
                     {team.length === 0 ? (
                         <div className="p-6 text-center text-sm text-[#8a8a8a]">
-                            No team members assigned. Click <span className="font-medium">Add member</span> or <span className="font-medium">AI auto-assign</span> above.
+                            No team members assigned. Click <span className="font-medium">Add member</span> above.
                         </div>
                     ) : (
                         <Table>
@@ -514,40 +492,6 @@ export default function ProjectDetailPage() {
                         <Button variant="destructive" onClick={handleRemoveMember} disabled={removeMember.isPending}>
                             {removeMember.isPending ? 'Removing…' : 'Remove'}
                         </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* ── AI auto-assign confirm dialog ─────────────────────────── */}
-            <Dialog open={autoAssignOpen} onOpenChange={setAutoAssignOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Wand2 className="h-4 w-4 text-[#00a7f4]" />
-                            Run AI auto-assign?
-                        </DialogTitle>
-                        <DialogDescription>
-                            This will <span className="font-medium text-rose-600">replace the current {team.length}-member roster</span> with
-                            an AI-suggested team built from the deal&apos;s required roles and the agency&apos;s active employees.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <div className="text-xs text-[#4a4a4a] bg-slate-50 border border-slate-200 rounded p-3 space-y-1">
-                            <p><span className="font-medium text-[#171717]">What stays:</span> time entries already logged.</p>
-                            <p><span className="font-medium text-[#171717]">What changes:</span> the team list + allocated hours per member.</p>
-                            <p className="text-[#8a8a8a]">If no AI key is configured, a demo distribution by capacity role runs instead.</p>
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>Cancel</Button>
-                            <Button
-                                className="bg-[#00a7f4] hover:bg-[#0086c4] gap-1.5"
-                                onClick={handleAutoAssign}
-                                disabled={autoAssignTeam.isPending}
-                            >
-                                <Wand2 className="h-3.5 w-3.5" />
-                                {autoAssignTeam.isPending ? 'Rebuilding…' : 'Yes, rebuild team'}
-                            </Button>
-                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

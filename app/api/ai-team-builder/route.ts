@@ -378,6 +378,13 @@ export async function POST(req: NextRequest) {
                 '  raw response from Claude (the prefilled "{" we sent is NOT included):\n' + preview,
             )
             logUsage('ai_team_builder', CLAUDE_MODEL, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
+            // Role mode and employee mode have different result shapes — the
+            // role-mode UI gates on `result.roles`, employee-mode on `result.team`.
+            // Falling back to the wrong demo silently breaks the UI ("I got a
+            // 200 but nothing rendered"). Pick the right shape for the input.
+            if (isRoleMode) {
+                return NextResponse.json(generateRoleDemoResult(input))
+            }
             const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
             return NextResponse.json(demoResult.result)
         }
@@ -409,7 +416,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(enforced.result)
     } catch (err) {
         console.error('AI Team Builder error:', err)
-        // Fallback to demo mode on any API error
+        // Fallback to demo mode on any API error — same shape branch as the
+        // parse-error fallback above; otherwise role-mode callers get an
+        // employee-shaped result and silently render nothing.
+        if (isRoleMode) {
+            return NextResponse.json(generateRoleDemoResult(input))
+        }
         const demoResult = enforceSkillCoverage(generateDemoResult(input), input)
         return NextResponse.json(demoResult.result)
     }
