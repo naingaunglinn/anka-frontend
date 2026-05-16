@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Users, Briefcase, Sparkles } from 'lucide-react';
+import { Clock, Users, Briefcase, Sparkles, FastForward } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBusinessStore } from '@/store/businessStore';
 import toast from 'react-hot-toast';
@@ -142,6 +142,7 @@ export default function TimeTrackingPage() {
                 <AutoAssignCard
                     projects={projects.filter(p => p.status === 'Not Started' || p.status === 'On Track')}
                     onAutoAssign={handleAutoAssign}
+                    onAssignTasksOnly={runAssignTasks}
                     autoAssignLoading={autoAssignLoading}
                 />
             )}
@@ -206,10 +207,12 @@ export default function TimeTrackingPage() {
 function AutoAssignCard({
     projects,
     onAutoAssign,
+    onAssignTasksOnly,
     autoAssignLoading,
 }: {
     projects: Project[];
     onAutoAssign: (projectId: string) => void;
+    onAssignTasksOnly: (projectId: string) => void;
     autoAssignLoading: string | null;
 }) {
     return (
@@ -220,8 +223,12 @@ function AutoAssignCard({
                     AI Task Assignment
                 </CardTitle>
                 <CardDescription>
-                    Distribute the tasks from <code>Estimate.xlsx</code> across each project&apos;s existing team
-                    based on difficulty and seniority.
+                    <span className="block">
+                        <strong>AI Task Assignment</strong> — preview the AI&apos;s proposed team additions, confirm, then schedule tasks.
+                    </span>
+                    <span className="block mt-1">
+                        <strong>Assign Tasks Only</strong> — skip team build and schedule tasks against the project&apos;s current team.
+                    </span>
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -231,6 +238,7 @@ function AutoAssignCard({
                             key={project.id}
                             project={project}
                             onAutoAssign={onAutoAssign}
+                            onAssignTasksOnly={onAssignTasksOnly}
                             autoAssignLoading={autoAssignLoading}
                         />
                     ))}
@@ -248,14 +256,17 @@ function AutoAssignCard({
 function AutoAssignProjectRow({
     project,
     onAutoAssign,
+    onAssignTasksOnly,
     autoAssignLoading,
 }: {
     project: Project;
     onAutoAssign: (projectId: string) => void;
+    onAssignTasksOnly: (projectId: string) => void;
     autoAssignLoading: string | null;
 }) {
     const teamQuery = useProjectTeam(project.id);
     const hasTeam = (teamQuery.data?.length ?? 0) > 0;
+    const isBusy = autoAssignLoading === project.id;
 
     return (
         <div className="flex items-center justify-between rounded-lg border border-[#e6e9ee] bg-white p-4">
@@ -270,20 +281,37 @@ function AutoAssignProjectRow({
                     )}
                 </p>
             </div>
-            <Button
-                size="sm"
-                className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
-                onClick={() => onAutoAssign(project.id)}
-                disabled={autoAssignLoading === project.id || teamQuery.isLoading || !hasTeam}
-                title={!hasTeam ? 'Add team members before assigning tasks' : undefined}
-            >
-                {autoAssignLoading === project.id ? (
-                    <Clock className="h-4 w-4 animate-spin" />
-                ) : (
-                    <Sparkles className="h-4 w-4" />
-                )}
-                AI Task Assignment
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => onAssignTasksOnly(project.id)}
+                    disabled={isBusy || teamQuery.isLoading || !hasTeam}
+                    title={!hasTeam ? 'Add team members before assigning tasks' : 'Skip team build and schedule tasks against the current team'}
+                >
+                    {isBusy ? (
+                        <Clock className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <FastForward className="h-4 w-4" />
+                    )}
+                    Assign Tasks Only
+                </Button>
+                <Button
+                    size="sm"
+                    className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
+                    onClick={() => onAutoAssign(project.id)}
+                    disabled={isBusy || teamQuery.isLoading}
+                    title="Preview AI team build, then assign tasks"
+                >
+                    {isBusy ? (
+                        <Clock className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <Sparkles className="h-4 w-4" />
+                    )}
+                    AI Task Assignment
+                </Button>
+            </div>
         </div>
     );
 }
