@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowRight, ArrowLeft, Sparkles, Mail, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Sparkles, Mail, CheckCircle2, AlertTriangle, Eye } from 'lucide-react';
 import { TemplatePicker } from './TemplatePicker';
 import { WizardQuestions } from './WizardQuestions';
 import { SectionEditor } from './SectionEditor';
@@ -26,6 +26,7 @@ import {
 } from '@/lib/queries/contractDrafts';
 import { useTenantSettings } from '@/lib/queries/tenant';
 import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
+import { PdfPreviewDialog } from './PdfPreviewDialog';
 import type { Deal } from '@/types/business';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
@@ -94,6 +95,7 @@ export function ContractDraftWizard({
     const [activeRegenerateKey, setActiveRegenerateKey] = useState<string | null>(null);
     const [activeSaveKey, setActiveSaveKey] = useState<string | null>(null);
     const [emailTo, setEmailTo] = useState(deal.contactEmail ?? '');
+    const [previewOpen, setPreviewOpen] = useState(false);
 
     // ── Provider signatory override state ──
     // Tenant has a default signatory (Org → Company); this wizard step lets
@@ -379,15 +381,26 @@ export function ContractDraftWizard({
                                     : <span className="text-emerald-700 font-medium">All sections complete.</span>}
                             </CardDescription>
                         </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setStep('choose')}
-                            disabled={isLocked}
-                        >
-                            <ArrowLeft className="h-3.5 w-3.5" /> Edit answers
-                        </Button>
+                        <div className="flex gap-2 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPreviewOpen(true)}
+                                className="gap-1.5"
+                            >
+                                <Eye className="h-3.5 w-3.5" /> Preview PDF
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setStep('choose')}
+                                disabled={isLocked}
+                            >
+                                <ArrowLeft className="h-3.5 w-3.5" /> Edit answers
+                            </Button>
+                        </div>
                     </CardHeader>
                 </Card>
 
@@ -449,6 +462,13 @@ export function ContractDraftWizard({
                         </Button>
                     )}
                 </div>
+
+                <PdfPreviewDialog
+                    open={previewOpen}
+                    onOpenChange={setPreviewOpen}
+                    draftId={draft.id}
+                    title={`${deal.name ?? 'Contract'} — Draft v${draft.version}`}
+                />
             </div>
         );
     }
@@ -462,15 +482,26 @@ export function ContractDraftWizard({
         return (
             <div className="space-y-6">
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            3 · Send to customer
-                            <DraftStatusChip status={draft.status} />
-                        </CardTitle>
-                        <CardDescription>
-                            Email the draft to your contact. v1 records the send; the actual SMTP delivery
-                            is wired in a follow-up.
-                        </CardDescription>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                3 · Send to customer
+                                <DraftStatusChip status={draft.status} />
+                            </CardTitle>
+                            <CardDescription>
+                                Email the draft to your contact. Preview the PDF first to sanity-check
+                                what they&apos;ll receive.
+                            </CardDescription>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPreviewOpen(true)}
+                            className="gap-1.5 shrink-0"
+                        >
+                            <Eye className="h-3.5 w-3.5" /> Preview PDF
+                        </Button>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {hasTodos && (
@@ -545,6 +576,13 @@ export function ContractDraftWizard({
                         Back to deal
                     </Button>
                 </div>
+
+                <PdfPreviewDialog
+                    open={previewOpen}
+                    onOpenChange={setPreviewOpen}
+                    draftId={draft.id}
+                    title={`${deal.name ?? 'Contract'} — Draft v${draft.version}`}
+                />
             </div>
         );
     }
