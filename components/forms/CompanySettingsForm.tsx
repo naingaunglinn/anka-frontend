@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Loader2, Trash2, Upload } from 'lucide-react';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
+import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
 
 const ALLOWED_LOGO_EXT = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -174,7 +175,15 @@ export function CompanySettingsForm() {
                         override on a per-contract basis during the draft wizard.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4">
+                    <SignatoryPicker
+                        id="signatory-picker-tenant"
+                        helper="Eligible employees: Manager rank or above. Picking auto-fills the fields below; manual edits still work."
+                        onSelect={({ name, title }) => {
+                            setSignatoryNameDraft(name);
+                            setSignatoryTitleDraft(title);
+                        }}
+                    />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="signatory-name">Name</Label>

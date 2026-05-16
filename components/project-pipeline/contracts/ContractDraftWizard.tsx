@@ -25,6 +25,7 @@ import {
     type RenderedSection,
 } from '@/lib/queries/contractDrafts';
 import { useTenantSettings } from '@/lib/queries/tenant';
+import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
 import type { Deal } from '@/types/business';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 
@@ -284,7 +285,16 @@ export function ContractDraftWizard({
                                 if a different person should sign.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-4">
+                            <SignatoryPicker
+                                id="wizard-signatory-picker"
+                                label="Override with a senior employee (optional)"
+                                helper="Picking auto-fills the fields below. Leave the fields blank to use the tenant default."
+                                onSelect={({ name, title }) => {
+                                    setSignatoryName(name);
+                                    setSignatoryTitle(title);
+                                }}
+                            />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="wizard-signatory-name" className="text-xs">Name</Label>
@@ -309,7 +319,7 @@ export function ContractDraftWizard({
                                     />
                                 </div>
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-2">
+                            <p className="text-[11px] text-slate-500">
                                 Leave blank to use the tenant default. The contract date is auto-set
                                 to today when the PDF is generated.
                             </p>
