@@ -104,14 +104,16 @@ export function ContractDraftWizard({
             setStep('edit');
             toast.success('Draft generated.');
         } catch (err) {
-            const normalized = normalizeError(err);
-            // Laravel's default 422 message is the generic "The given data was
-            // invalid." — useless on its own. Surface the first field-level
-            // error instead so the user sees the real reason (e.g. "Estimation
-            // handoff is incomplete. Missing: final_monthly_fee, ...").
-            const detail = firstFieldError(normalized);
-            toast.error(detail ?? normalized.message);
+            showError(err);
         }
+    }
+
+    // Helper: prefer the first field-level error from a 422 (since Laravel's
+    // default "The given data was invalid." message is uselessly generic).
+    function showError(err: unknown) {
+        const normalized = normalizeError(err);
+        const detail = firstFieldError(normalized);
+        toast.error(detail ?? normalized.message);
     }
 
     async function handleSaveSection(sectionKey: string, content: string) {
@@ -125,7 +127,7 @@ export function ContractDraftWizard({
             });
             setDraft(updated);
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            showError(err);
         } finally {
             setActiveSaveKey(null);
         }
@@ -143,7 +145,7 @@ export function ContractDraftWizard({
             setDraft(updated);
             toast.success(`Regenerated "${sectionKey}".`);
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            showError(err);
         } finally {
             setActiveRegenerateKey(null);
         }
@@ -159,7 +161,7 @@ export function ContractDraftWizard({
             setDraft(updated);
             toast.success(`Draft sent to ${emailTo}.`);
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            showError(err);
         }
     }
 
@@ -178,7 +180,7 @@ export function ContractDraftWizard({
                 toast.success('Draft marked signed.');
             }
         } catch (err) {
-            toast.error(normalizeError(err).message);
+            showError(err);
         }
     }
 
