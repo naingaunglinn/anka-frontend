@@ -37,7 +37,12 @@ const HEALTH_OPTIONS: Array<{ value: string; label: string }> = [
 
 export default function ScheduleTrackingPage() {
     const projectsQuery = useProjectList();
-    const projects = projectsQuery.data?.data ?? [];
+    const allProjects = projectsQuery.data?.data ?? [];
+    // Hide finished projects — schedule tracking is for live work.
+    const projects = useMemo(
+        () => allProjects.filter((p) => p.status !== 'Completed'),
+        [allProjects],
+    );
 
     const [projectId, setProjectId]   = useState<string>('');
     const [search, setSearch]         = useState('');
@@ -49,6 +54,12 @@ export default function ScheduleTrackingPage() {
     useEffect(() => {
         if (!projectId && projects.length > 0) {
             setProjectId(projects[0].id);
+        }
+    }, [projects, projectId]);
+    // Drop a stale selection if the picked project completed since last load.
+    useEffect(() => {
+        if (projectId && !projects.some((p) => p.id === projectId)) {
+            setProjectId(projects[0]?.id ?? '');
         }
     }, [projects, projectId]);
 
@@ -85,19 +96,27 @@ export default function ScheduleTrackingPage() {
 
             {/* Controls */}
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:max-w-3xl">
-                    <div className="space-y-1">
+                <div className="flex flex-wrap items-end gap-3 w-full md:max-w-4xl">
+                    <div className="space-y-1 max-w-full">
                         <label className="text-xs text-[#8a8a8a]">Project</label>
                         <Select value={projectId} onValueChange={setProjectId}>
-                            <SelectTrigger><SelectValue placeholder="Pick a project" /></SelectTrigger>
-                            <SelectContent>
+                            {/* w-auto grows the trigger to fit the selected
+                                project's name; max-w keeps it from running off
+                                the row on extreme cases. Search + Health below
+                                use flex-1 so they take whatever space is left. */}
+                            <SelectTrigger className="w-auto max-w-[min(100%,640px)]">
+                                <SelectValue placeholder="Pick a project" />
+                            </SelectTrigger>
+                            <SelectContent className="max-w-[640px]">
                                 {projects.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                    <SelectItem key={p.id} value={p.id}>
+                                        {p.name}
+                                    </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 flex-1 min-w-[220px]">
                         <label className="text-xs text-[#8a8a8a]">Search</label>
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
@@ -109,10 +128,10 @@ export default function ScheduleTrackingPage() {
                             />
                         </div>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-[160px]">
                         <label className="text-xs text-[#8a8a8a]">Health</label>
                         <Select value={healthFilter || 'all'} onValueChange={(v) => setHealthFilter(v === 'all' ? '' : v)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All</SelectItem>
                                 {HEALTH_OPTIONS.map((o) => (

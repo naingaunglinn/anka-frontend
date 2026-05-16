@@ -24,6 +24,7 @@ function toLog(row: Record<string, unknown>): PhaseProgressLog {
         logDate:           row.log_date as string,
         progressHours:     Number(row.progress_hours ?? 0),
         usedHours:         Number(row.used_hours ?? 0),
+        lateHours:         Number(row.late_hours ?? Math.max(0, Number(row.used_hours ?? 0) - Number(row.progress_hours ?? 0))),
         note:              (row.note as string | null) ?? null,
         lockedAt:          (row.locked_at as string | null) ?? null,
         isLocked:          Boolean(row.is_locked),
@@ -39,6 +40,7 @@ function toVariance(row: Record<string, unknown>): PhaseVariance {
         expectedProgressHours:   Number(row.expected_progress_hours ?? 0),
         varianceHours:           Number(row.variance_hours ?? 0),
         overDeliveredHours:      Number(row.over_delivered_hours ?? 0),
+        lateHours:               Number(row.late_hours ?? 0),
         scheduleState:           (row.schedule_state as ScheduleState) ?? 'pending',
         health:                  (row.health as ScheduleHealth) ?? 'on_track',
         isCompleted:             Boolean(row.is_completed),
@@ -79,6 +81,7 @@ function toSummary(row: Record<string, unknown>): ScheduleTrackingProjectSummary
         expectedProgressHours: Number(row.expected_progress_hours ?? 0),
         varianceHours:         Number(row.variance_hours ?? 0),
         overDeliveredHours:    Number(row.over_delivered_hours ?? 0),
+        lateHours:             Number(row.late_hours ?? 0),
         phaseCount:            Number(row.phase_count ?? 0),
         completedCount:        Number(row.completed_count ?? 0),
         health:                (row.health as ScheduleHealth) ?? 'on_track',
@@ -121,7 +124,106 @@ export const scheduleTrackingKeys = {
     summary: (projectId: string) => [...scheduleTrackingKeys.all, 'summary', projectId] as const,
     byAssignee: (projectId: string) => [...scheduleTrackingKeys.all, 'by-assignee', projectId] as const,
     logsFor: (phaseAssignmentId: string) => [...scheduleTrackingKeys.all, 'logs', phaseAssignmentId] as const,
+    lateHoursForProject: (projectId: string, asOf?: string) =>
+        [...scheduleTrackingKeys.all, 'late-hours', projectId, asOf ?? null] as const,
 };
+
+// ── Late hours (Finance + Schedule Tracking) ─────────────────────────────────
+
+export interface LateHourLogRow {
+    logDate: string;
+    employeeId: string;
+    employeeName: string | null;
+    rankCode: string | null;
+    capacityRole: string | null;
+    progressHours: number;
+    usedHours: number;
+    lateHours: number;
+    costPerHour: number;
+    lateCost: number;
+}
+
+export interface LateHourEmployeeRow {
+    employeeId: string;
+    employeeName: string | null;
+    rankCode: string | null;
+    capacityRole: string | null;
+    costPerHour: number;
+    totalProgressHours: number;
+    totalUsedHours: number;
+    totalLateHours: number;
+    totalLateCost: number;
+    daysCount: number;
+}
+
+export interface ProjectLateHoursResponse {
+    data: LateHourLogRow[];
+    byEmployee: LateHourEmployeeRow[];
+    meta: {
+        projectId: string;
+        projectName: string;
+        asOf: string | null;
+        totalLateHours: number;
+        totalLateCost: number;
+        logCount: number;
+    };
+}
+
+function toLateHourLog(row: Record<string, unknown>): LateHourLogRow {
+    return {
+        logDate:       (row.log_date as string) ?? '',
+        employeeId:    row.employee_id as string,
+        employeeName:  (row.employee_name as string | null) ?? null,
+        rankCode:      (row.rank_code as string | null) ?? null,
+        capacityRole:  (row.capacity_role as string | null) ?? null,
+        progressHours: Number(row.progress_hours ?? 0),
+        usedHours:     Number(row.used_hours ?? 0),
+        lateHours:     Number(row.late_hours ?? 0),
+        costPerHour:   Number(row.cost_per_hour ?? 0),
+        lateCost:      Number(row.late_cost ?? 0),
+    };
+}
+
+function toLateHourEmployee(row: Record<string, unknown>): LateHourEmployeeRow {
+    return {
+        employeeId:         row.employee_id as string,
+        employeeName:       (row.employee_name as string | null) ?? null,
+        rankCode:           (row.rank_code as string | null) ?? null,
+        capacityRole:       (row.capacity_role as string | null) ?? null,
+        costPerHour:        Number(row.cost_per_hour ?? 0),
+        totalProgressHours: Number(row.total_progress_hours ?? 0),
+        totalUsedHours:     Number(row.total_used_hours ?? 0),
+        totalLateHours:     Number(row.total_late_hours ?? 0),
+        totalLateCost:      Number(row.total_late_cost ?? 0),
+        daysCount:          Number(row.days_count ?? 0),
+    };
+}
+
+export function useProjectLateHours(projectId: string, asOf?: string) {
+    return useQuery<ProjectLateHoursResponse>({
+        queryKey: scheduleTrackingKeys.lateHoursForProject(projectId, asOf),
+        enabled: !!projectId,
+        staleTime: 30_000,
+        queryFn: async () => {
+            const { data } = await api.get(`/projects/${projectId}/late-hours-by-day`, {
+                params: asOf ? { as_of: asOf } : undefined,
+            });
+            const meta = (data.meta ?? {}) as Record<string, unknown>;
+            return {
+                data:       ((data.data ?? []) as Record<string, unknown>[]).map(toLateHourLog),
+                byEmployee: ((data.by_employee ?? []) as Record<string, unknown>[]).map(toLateHourEmployee),
+                meta: {
+                    projectId:      (meta.project_id as string) ?? projectId,
+                    projectName:    (meta.project_name as string) ?? '',
+                    asOf:           (meta.as_of as string | null) ?? null,
+                    totalLateHours: Number(meta.total_late_hours ?? 0),
+                    totalLateCost:  Number(meta.total_late_cost ?? 0),
+                    logCount:       Number(meta.log_count ?? 0),
+                },
+            };
+        },
+    });
+}
 
 export interface ScheduleTrackingListParams {
     phase_code?: string;

@@ -10,7 +10,7 @@ import { canAccessRoute, fallbackPathFor } from '@/lib/route-permissions';
  *
  * Renders nothing — its job is the side effect: when the auth user is loaded
  * and they don't have permission for the current path, replace the URL with
- * their role's fallback page (My Tasks for Delivery, Dashboard for everyone else).
+ * their role's fallback page (My Schedule for Delivery, Dashboard for everyone else).
  *
  * Why client-side and not middleware:
  *   The middleware-based version requires a third cookie (`__app_role`) carried
@@ -30,7 +30,7 @@ export function RouteGuard() {
     const user = useAuthStore((s) => s.user);
     const router = useRouter();
     // Avoid loops if the fallback path itself isn't accessible (shouldn't happen,
-    // since both /dashboard and /my-tasks are 'public', but defense in depth).
+    // since both /dashboard and /my-schedule are 'public', but defense in depth).
     const lastRedirected = useRef<string | null>(null);
 
     useEffect(() => {

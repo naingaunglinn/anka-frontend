@@ -17,10 +17,9 @@ import type { Role } from '@/lib/rbac';
  * page does not silently lock anyone out until you remember to map it.
  */
 export const ROUTE_PERMISSIONS: Record<string, Role[] | 'public'> = {
-    // My Tasks is the only working surface for Delivery employees, so it is
-    // public to every authenticated org user. /profile stays public so users
+    // My Schedule is the only working surface for Delivery employees, so it
+    // is public to every authenticated org user. /profile stays public so users
     // (including Delivery) can change their password and personal info.
-    '/my-tasks':         'public',
     '/my-schedule':      'public',
     '/profile':          'public',
 
@@ -65,8 +64,8 @@ export function canAccessRoute(role: Role | undefined | null, path: string): boo
 
 /**
  * The fallback path to redirect a non-permitted role to. Delivery users land
- * on My Tasks (their working surface); everyone else lands on the Dashboard.
+ * on My Schedule (their working surface); everyone else lands on the Dashboard.
  */
 export function fallbackPathFor(role: Role | undefined | null): string {
-    return role === 'Delivery' ? '/my-tasks' : '/dashboard';
+    return role === 'Delivery' ? '/my-schedule' : '/dashboard';
 }

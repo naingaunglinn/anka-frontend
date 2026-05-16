@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,13 +25,29 @@ export default function TimeTrackingPage() {
     const projects = projectsQuery.data?.data ?? [];
     const timeEntries = timeEntriesQuery.data?.data ?? [];
 
+    // This page is the manager's view of *currently running* work — projects
+    // whose budget can still drain and whose tasks still need scheduling.
+    // Completed projects belong on the historical reporting pages (Finance,
+    // archives) so they don't clutter the dropdown or the AI-assign card here.
+    const runningProjects = useMemo(
+        () => projects.filter((p) => p.status !== 'Completed'),
+        [projects],
+    );
+
     // Master Assign Table — which project's tasks to display
     const [tableProjectId, setTableProjectId] = useState<string>('');
     useEffect(() => {
-        if (!tableProjectId && projects.length > 0) {
-            setTableProjectId(projects[0].id);
+        if (!tableProjectId && runningProjects.length > 0) {
+            setTableProjectId(runningProjects[0].id);
         }
-    }, [projects, tableProjectId]);
+    }, [runningProjects, tableProjectId]);
+    // If the previously-selected project flipped to Completed since last load,
+    // drop it from the picker so we don't show a stale selection.
+    useEffect(() => {
+        if (tableProjectId && !runningProjects.some((p) => p.id === tableProjectId)) {
+            setTableProjectId(runningProjects[0]?.id ?? '');
+        }
+    }, [runningProjects, tableProjectId]);
 
     // AI Task Assignment — preview/confirm flow (per-project loading flag)
     const [autoAssignLoading, setAutoAssignLoading] = useState<string | null>(null);
@@ -73,12 +89,23 @@ export default function TimeTrackingPage() {
         }
     }
 
-    const totalHoursLogged = timeEntries.reduce((sum, e) => sum + e.hours, 0);
-    const activeProjectsCount = new Set(timeEntries.map(e => e.projectId)).size;
+    // KPIs scoped to currently-running projects only — completed projects
+    // belong on historical reporting (Finance), not on the live ops view.
+    const runningProjectIds = useMemo(
+        () => new Set(runningProjects.map((p) => p.id)),
+        [runningProjects],
+    );
+    const runningTimeEntries = useMemo(
+        () => timeEntries.filter((e) => runningProjectIds.has(e.projectId)),
+        [timeEntries, runningProjectIds],
+    );
+
+    const totalHoursLogged = runningTimeEntries.reduce((sum, e) => sum + e.hours, 0);
+    const activeProjectsCount = new Set(runningTimeEntries.map(e => e.projectId)).size;
     const totalCapacity = store.employees
         .filter((employee) => employee.status === 'Active')
         .reduce((sum, employee) => sum + employee.workableHours, 0);
-    const approvedHours = timeEntries
+    const approvedHours = runningTimeEntries
         .filter((entry) => entry.status === 'Approved')
         .reduce((sum, entry) => sum + entry.hours, 0);
     const utilization = totalCapacity > 0 ? Math.round((approvedHours / totalCapacity) * 100) : 0;
@@ -95,8 +122,6 @@ export default function TimeTrackingPage() {
                 <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Time Tracking & Utilization</h1>
                 <p className="text-[#8a8a8a] mt-1">Track budget consumption and labor costs across active projects.</p>
             </div>
-
-            <SimulatedDateBar />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="shadow-sm border-[#e6e9ee]">
@@ -137,10 +162,10 @@ export default function TimeTrackingPage() {
                 </Card>
             </div>
 
-            {/* AI Auto-Assign Section — only projects with NO team members yet */}
+            {/* AI Auto-Assign Section — currently running projects only */}
             {!isLoading && !isError && (
                 <AutoAssignCard
-                    projects={projects.filter(p => p.status === 'Not Started' || p.status === 'On Track')}
+                    projects={runningProjects}
                     onAutoAssign={handleAutoAssign}
                     onAssignTasksOnly={runAssignTasks}
                     autoAssignLoading={autoAssignLoading}
@@ -158,20 +183,28 @@ export default function TimeTrackingPage() {
                 </Card>
             ) : (
                 <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                        <label className="text-sm font-medium text-[#4a4a4a]">Project:</label>
-                        <Select value={tableProjectId} onValueChange={setTableProjectId}>
-                            <SelectTrigger className="w-[320px]">
-                                <SelectValue placeholder="Select a project to view its task assignments" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {projects.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                        {p.name} {p.client ? `· ${p.client}` : ''}
-                                    </SelectItem>
-                                ))}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                        <div className="flex items-center gap-3">
+                            <label className="text-sm font-medium text-[#4a4a4a]">Project:</label>
+                            <Select value={tableProjectId} onValueChange={setTableProjectId}>
+                                <SelectTrigger className="w-auto max-w-[min(100%,520px)]">
+                                    <SelectValue placeholder="Select a project to view its task assignments" />
+                                </SelectTrigger>
+                                <SelectContent className="max-w-[520px]">
+                                    {runningProjects.map((p) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.name} {p.client ? `· ${p.client}` : ''}
+                                        </SelectItem>
+                                    ))}
+                                    {runningProjects.length === 0 && (
+                                        <div className="px-2 py-3 text-sm text-[#8a8a8a]">No running projects.</div>
+                                    )}
                             </SelectContent>
                         </Select>
+                        </div>
+                        <div className="flex items-center">
+                            <SimulatedDateBar />
+                        </div>
                     </div>
                     {tableProjectId ? (
                         <MasterAssignTable projectId={tableProjectId} />
