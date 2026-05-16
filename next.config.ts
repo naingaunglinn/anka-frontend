@@ -53,6 +53,21 @@ const nextConfig: NextConfig = {
             },
         ];
     },
+    async redirects() {
+        return [
+            // /project-pipeline/[id]/staffing is orphaned — staffing belongs to
+            // the Task Assign menu now. Send bookmarks back to the deal detail.
+            {
+                source: '/project-pipeline/:id/staffing',
+                destination: '/project-pipeline/:id',
+                permanent: false,
+            },
+            // Legacy /crm/* routes renamed to /project-pipeline/* in chg-009 Phase D.
+            // Permanent so old bookmarks/emails get cached redirects.
+            { source: '/crm', destination: '/project-pipeline', permanent: true },
+            { source: '/crm/:path*', destination: '/project-pipeline/:path*', permanent: true },
+        ];
+    },
 };
 
 export default nextConfig;

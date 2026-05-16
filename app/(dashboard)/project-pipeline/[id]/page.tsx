@@ -162,6 +162,25 @@ export default function DealDetailPage() {
         if (current) return current;
         return isWon ? 'Created' : 'Pending';
     };
+
+    // Contract step surfaces the draft state when a contract record doesn't
+    // exist yet — gives the salesperson visible feedback that we're mid-flow
+    // (drafting / sent / awaiting countersign) instead of a flat "Pending".
+    let contractDetail: string;
+    if (isLost) {
+        contractDetail = 'N/A — Deal Lost';
+    } else if (linkedContract) {
+        contractDetail = `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`;
+    } else if (activeDraft?.status === 'sent_to_customer') {
+        contractDetail = `Draft v${activeDraft.version} · sent · awaiting signature`;
+    } else if (activeDraft?.status === 'signed') {
+        contractDetail = `Draft v${activeDraft.version} · signed · creating contract…`;
+    } else if (activeDraft?.status === 'draft') {
+        contractDetail = `Draft v${activeDraft.version} · in progress`;
+    } else {
+        contractDetail = isWon ? 'Created' : 'Pending';
+    }
+
     const workflowSteps: WorkflowStep[] = [
         {
             label: 'Deal',
@@ -171,13 +190,11 @@ export default function DealDetailPage() {
         },
         {
             label: 'Contract',
-            detail: downstreamLabel(
-                linkedContract
-                    ? `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`
-                    : undefined,
-            ),
+            detail: contractDetail,
             done:   !!linkedContract,
-            active: isWon && !linkedContract,
+            // "Active" lights up the moment a draft exists, not just when
+            // the deal is Won — drafting is real, visible work.
+            active: !isClosed && (!!activeDraft || (isWon && !linkedContract)),
         },
         {
             label: 'Project',
@@ -208,9 +225,9 @@ export default function DealDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {/* chg-011 Phase C: Generate Contract Draft (B → A trigger)
-                        when Estimation has handed off all required final_*
-                        fields. If a draft already exists, surface "Open draft"
+                    {/* Generate Contract Draft shows once the deal reaches rank A
+                        (Estimation auto-advances B → A after the handoff fields
+                        land). If a draft already exists, surface "Open draft"
                         instead so users don't generate duplicates. */}
                     {stage === 'negotiation' && activeDraft ? (
                         <Button
@@ -249,10 +266,8 @@ export default function DealDetailPage() {
                             <Edit3 className="h-4 w-4" /> Edit Deal
                         </Button>
                     </PermissionGuard>
-                    {/* "Hard Booking" button removed — staffing belongs to
-                        ⑥ Task Assign per the manager's spec. The page still
-                        works at /project-pipeline/[id]/staffing for direct
-                        URL access until Phase A relocates it. */}
+                    {/* Hard Booking lives in the Task Assign menu now —
+                        no button here. */}
                     <PermissionGuard permission="manage_crm">
                         <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                             Delete
