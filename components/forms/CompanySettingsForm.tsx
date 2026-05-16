@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Building2, Loader2, Trash2, Upload } from 'lucide-react';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
+import { useBusinessStore } from '@/store/businessStore';
+import { useTenantStore, type Currency } from '@/store/tenantStore';
+import { formatMoney } from '@/lib/currency';
 
 const ALLOWED_LOGO_EXT = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -26,9 +29,14 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 export function CompanySettingsForm() {
     const { data: tenant, isLoading, isError, refetch } = useTenantSettings();
     const { updateTenant, uploadLogo, deleteLogo } = useTenantMutations();
+    const store = useBusinessStore();
+    const { activeTenantId, currentTenant, tenants } = useTenantStore();
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [nameDraft, setNameDraft] = useState('');
+    const [annualBudgetDraft, setAnnualBudgetDraft] = useState('');
+    const [isSavingBudget, setIsSavingBudget] = useState(false);
 
     // Sync the draft name with whatever the server says once it loads.
     // We only reset when the tenant id changes (avoid clobbering an
@@ -40,7 +48,14 @@ export function CompanySettingsForm() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenant?.id]);
 
+    useEffect(() => {
+        setAnnualBudgetDraft(String(store.companySettings.annualInitialBudget ?? 1_000_000_000));
+    }, [store.companySettings.annualInitialBudget]);
+
     const nameDirty = tenant && nameDraft !== tenant.name && nameDraft.trim().length > 0;
+    const parsedAnnualBudget = Number(annualBudgetDraft);
+    const annualBudgetValid = Number.isFinite(parsedAnnualBudget) && parsedAnnualBudget >= 0;
+    const annualBudgetDirty = annualBudgetValid && parsedAnnualBudget !== (store.companySettings.annualInitialBudget ?? 1_000_000_000);
 
     const handleFileSelected = async (file: File) => {
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -80,6 +95,17 @@ export function CompanySettingsForm() {
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleSaveAnnualBudget = async () => {
+        if (!annualBudgetDirty || !annualBudgetValid) return;
+        setIsSavingBudget(true);
+        try {
+            await store.updateCompanySettings({ annualInitialBudget: parsedAnnualBudget });
+            toast.success('Initial annual budget updated.');
+        } finally {
+            setIsSavingBudget(false);
         }
     };
 
@@ -134,6 +160,43 @@ export function CompanySettingsForm() {
                             size="sm"
                         >
                             {updateTenant.isPending ? 'Saving…' : 'Save name'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Initial Annual Budget (12 months)</CardTitle>
+                    <CardDescription>
+                        This is the company&apos;s full-year target budget. Forecast uses this saved amount for all
+                        annual and prorated budget comparisons.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="annual-initial-budget">Annual budget</Label>
+                        <Input
+                            id="annual-initial-budget"
+                            type="number"
+                            min={0}
+                            step="1000"
+                            value={annualBudgetDraft}
+                            onChange={(e) => setAnnualBudgetDraft(e.target.value)}
+                            placeholder="e.g. 1000000000"
+                            className="bg-white"
+                        />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                        Current saved budget: {formatMoney(store.companySettings.annualInitialBudget ?? 1_000_000_000, currency)}
+                    </p>
+                    <div className="flex justify-end">
+                        <Button
+                            onClick={handleSaveAnnualBudget}
+                            disabled={!annualBudgetDirty || !annualBudgetValid || isSavingBudget}
+                            size="sm"
+                        >
+                            {isSavingBudget ? 'Saving…' : 'Save budget'}
                         </Button>
                     </div>
                 </CardContent>
