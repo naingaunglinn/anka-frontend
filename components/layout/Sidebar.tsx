@@ -32,7 +32,7 @@ const orgRoutes = [
     { label: 'Organization',      icon: Users,           href: '/organization',  color: 'text-violet-500' },
     { label: 'Project Pipeline', icon: Briefcase,        href: '/project-pipeline', color: 'text-pink-700' },
     { label: 'Estimation',        icon: Calculator,      href: '/estimation',    color: 'text-orange-700' },
-    { label: 'Contracts & Billing', icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
+    { label: 'Contracts',           icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
     { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },
     { label: 'Time Tracking',     icon: Clock,           href: '/time-tracking', color: 'text-amber-500' },
     { label: 'My Tasks',          icon: ClipboardList,   href: '/my-tasks',      color: 'text-[#00a7f4]' },

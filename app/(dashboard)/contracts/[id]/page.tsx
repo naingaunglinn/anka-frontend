@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, CheckCircle2, Clock, AlertTriangle, FileSignature, DollarSign, Calendar, Mail, Hash, ExternalLink, HandCoins, Send, Activity, Sparkles } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, FileSignature, DollarSign, Calendar, ExternalLink, HandCoins, Send, Activity, Sparkles } from 'lucide-react';
 import { useContractDetail, useContractMutations } from '@/lib/queries/contracts';
 import { useInvoiceList, useInvoiceMutations } from '@/lib/queries/invoices';
 import { useMilestoneList, useMilestoneMutations } from '@/lib/queries/milestones';
@@ -18,6 +18,8 @@ import { useDealList } from '@/lib/queries/deals';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney } from '@/lib/currency';
 import type { Contract, Invoice } from '@/types/business';
+import { MILESTONES_INVOICES_ENABLED } from '@/lib/featureFlags';
+import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
 
 export default function ContractDetailPage() {
     const params = useParams<{ id: string }>();
@@ -111,20 +113,27 @@ export default function ContractDetailPage() {
         const events: Event[] = [];
         if (contract?.createdAt) events.push({ ts: contract.createdAt, icon: 'created', label: 'Contract created' });
         if (contract?.signedAt)  events.push({ ts: contract.signedAt,  icon: 'signed',  label: 'Contract signed' });
-        milestones.forEach(m => {
-            if (m.acceptedAt) {
-                events.push({
-                    ts: m.acceptedAt,
-                    icon: 'accepted',
-                    label: `Milestone accepted: ${m.name}${m.acceptedByClient ? ` (${m.acceptedByClient})` : ''}`,
-                });
-            }
-        });
-        invoices.forEach(inv => {
-            const num = inv.invoiceNumber ?? inv.id.slice(0, 8);
-            if (inv.issuedAt) events.push({ ts: inv.issuedAt, icon: 'issued', label: `Invoice ${num} issued to ${inv.sentToEmail ?? 'client'}` });
-            if (inv.paidAt)   events.push({ ts: inv.paidAt,   icon: 'paid',   label: `Invoice ${num} paid in full` });
-        });
+        // Milestone + invoice events only contribute to the feed when the
+        // billing surfaces are enabled. With the flag off the feed is
+        // effectively a 2-event "created → signed" log; hidden entirely if
+        // neither timestamp exists yet (the `activityEvents.length > 0`
+        // guard at render time covers that case).
+        if (MILESTONES_INVOICES_ENABLED) {
+            milestones.forEach(m => {
+                if (m.acceptedAt) {
+                    events.push({
+                        ts: m.acceptedAt,
+                        icon: 'accepted',
+                        label: `Milestone accepted: ${m.name}${m.acceptedByClient ? ` (${m.acceptedByClient})` : ''}`,
+                    });
+                }
+            });
+            invoices.forEach(inv => {
+                const num = inv.invoiceNumber ?? inv.id.slice(0, 8);
+                if (inv.issuedAt) events.push({ ts: inv.issuedAt, icon: 'issued', label: `Invoice ${num} issued to ${inv.sentToEmail ?? 'client'}` });
+                if (inv.paidAt)   events.push({ ts: inv.paidAt,   icon: 'paid',   label: `Invoice ${num} paid in full` });
+            });
+        }
         return events.sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 12);
     }, [contract?.createdAt, contract?.signedAt, milestones, invoices]);
 
@@ -155,35 +164,10 @@ export default function ContractDetailPage() {
         setSignedBy('');
     };
 
-    // ── Edit Contract dialog (payment terms, billing) ─────────────────────────
-    const [editOpen, setEditOpen] = useState(false);
-    const [editPaymentTerms, setEditPaymentTerms] = useState(30);
-    const [editPo, setEditPo] = useState('');
-    const [editBillingEmail, setEditBillingEmail] = useState('');
-    const [editBillingName, setEditBillingName] = useState('');
-
-    const openEdit = () => {
-        if (!contract) return;
-        setEditPaymentTerms(contract.paymentTermsDays ?? 30);
-        setEditPo(contract.poNumber ?? '');
-        setEditBillingEmail(contract.billingEmail ?? '');
-        setEditBillingName(contract.billingContactName ?? '');
-        setEditOpen(true);
-    };
-
-    const handleSaveEdit = async () => {
-        if (!contract) return;
-        await updateContract.mutateAsync({
-            id: contract.id,
-            updates: {
-                paymentTermsDays: editPaymentTerms,
-                poNumber: editPo || undefined,
-                billingEmail: editBillingEmail || undefined,
-                billingContactName: editBillingName || undefined,
-            },
-        });
-        setEditOpen(false);
-    };
+    // Contract details (payment terms, billing, PO #, tax jurisdiction) are
+    // now derived from the won deal — no inline editing on the contract page.
+    // If you need to change those values, do it on the deal during the Mark
+    // Contract Ready flow before win_deal() materializes the contract.
 
     const handleActivate = () => {
         if (!contract) return;
@@ -301,6 +285,32 @@ export default function ContractDetailPage() {
         s === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                             'bg-slate-100 text-slate-700 border-slate-200';
 
+    // Workflow bar steps — shared with /project-pipeline/[id]. The Deal step
+    // is always done by the time a Contract exists. Contract is current.
+    // Project is done iff we have a linked Project row.
+    const workflowSteps: WorkflowStep[] = [
+        {
+            label: 'Deal',
+            detail: sourceDeal ? sourceDeal.name : 'Won',
+            active: false,
+            done: true,
+        },
+        {
+            label: 'Contract',
+            detail: contract.status,
+            active: true,
+            done: contract.status === 'Active' || contract.status === 'Completed',
+        },
+        {
+            label: 'Project',
+            detail: linkedProject
+                ? (linkedProject.projectNumber ?? linkedProject.name ?? 'Created')
+                : 'Not started',
+            active: false,
+            done: !!linkedProject,
+        },
+    ];
+
     return (
         <div className="p-6 space-y-6">
             {/* ── Header ─────────────────────────────────────────────────── */}
@@ -338,29 +348,27 @@ export default function ContractDetailPage() {
                             <CheckCircle2 className="h-4 w-4" /> Mark Completed
                         </Button>
                     )}
-                    <Button variant="outline" onClick={openEdit}>Edit details</Button>
                 </div>
             </div>
 
-            {/* ── Draft setup checklist (only when Draft) ────────────────── */}
-            {contract.status === 'Draft' && (
-                <Card className="border-violet-200 bg-violet-50/40 shadow-sm">
-                    <CardContent className="p-5">
-                        <p className="text-sm font-semibold text-violet-900 mb-3">Contract setup checklist</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                            <ChecklistItem done={!!contract.paymentTermsDays} label="Set payment terms" />
-                            <ChecklistItem done={!!contract.billingEmail} label="Add billing email" />
-                            <ChecklistItem done={milestones.length > 0} label="Add at least one milestone" />
-                            <ChecklistItem done={!!contract.signedAt} label="Mark contract as Signed" />
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+            {/* ── Workflow bar (Deal → Contract → Project) ───────────────── */}
+            <WorkflowBar steps={workflowSteps} />
+
+            {/* The Draft setup checklist used to live here, but every item it
+                tracked (payment terms, billing email, milestones, marking
+                signed) is either filled by the won deal or already surfaced
+                as a header button. Removed to avoid redundancy. */}
 
             {/* ── Contract metadata + financial summary ──────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-2 shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 space-y-4">
+                        {/* Only deal-derived fields are shown here. Contract-
+                            only fields (Payment Terms, PO #, Billing Email,
+                            Billing Contact, Tax Jurisdiction) used to live in
+                            this grid but had no entry path after the Edit
+                            Details dialog was removed — they'll come back when
+                            the deal flow captures them upstream. */}
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                             <MetaField icon={<Calendar className="h-4 w-4" />} label="Start date" value={contract.startDate ?? '—'} />
                             <MetaField icon={<Calendar className="h-4 w-4" />} label="End date" value={contract.endDate ?? '—'} />
@@ -369,12 +377,7 @@ export default function ContractDetailPage() {
                                 label="Signed at"
                                 value={contract.signedAt ? new Date(contract.signedAt).toISOString().slice(0, 10) : '—'}
                             />
-                            <MetaField icon={<Clock className="h-4 w-4" />} label="Payment terms" value={`Net ${contract.paymentTermsDays ?? 30}`} />
-                            <MetaField icon={<Hash className="h-4 w-4" />} label="PO number" value={contract.poNumber ?? '—'} />
                             <MetaField icon={<DollarSign className="h-4 w-4" />} label="Currency" value={contract.currency ?? `${currency} (tenant default)`} />
-                            <MetaField icon={<Mail className="h-4 w-4" />} label="Billing email" value={contract.billingEmail ?? '—'} />
-                            <MetaField icon={<Mail className="h-4 w-4" />} label="Billing contact" value={contract.billingContactName ?? '—'} />
-                            <MetaField icon={<Hash className="h-4 w-4" />} label="Tax jurisdiction" value={contract.taxJurisdiction ?? '—'} />
                         </div>
                         {(sourceDeal || linkedProject) && (
                             <div className="border-t border-[#e6e9ee] pt-4 flex flex-wrap gap-3 text-sm">
@@ -406,54 +409,90 @@ export default function ContractDetailPage() {
                             <p className="text-3xl font-bold tracking-tight text-[#171717]">{formatMoney(totalValue, currency)}</p>
                         </div>
 
-                        {/* Money flow — what's been billed and collected */}
-                        <div>
-                            <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Money flow</p>
-                            <StackedBar
-                                segments={[
-                                    { value: pctCashCollected,         color: 'bg-emerald-500', label: 'Cash collected' },
-                                    { value: pctInvoicedNotCollected,  color: 'bg-amber-400',   label: 'Invoiced, not collected' },
-                                    { value: pctRemaining,             color: 'bg-slate-200',   label: 'Not yet invoiced' },
-                                ]}
-                            />
-                            <div className="space-y-1 text-xs text-[#4a4a4a] pt-2">
-                                <LegendRow color="bg-emerald-500" label="Cash collected"          value={formatMoney(cashCollected, currency)} />
-                                <LegendRow color="bg-amber-400"   label="Invoiced, not collected" value={formatMoney(invoicedNotCollected, currency)} />
-                                <LegendRow color="bg-slate-200"   label="Not yet invoiced"        value={formatMoney(remainingToInvoice, currency)} />
-                            </div>
-                        </div>
+                        {MILESTONES_INVOICES_ENABLED ? (
+                            <>
+                                {/* Money flow — what's been billed and collected */}
+                                <div>
+                                    <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Money flow</p>
+                                    <StackedBar
+                                        segments={[
+                                            { value: pctCashCollected,         color: 'bg-emerald-500', label: 'Cash collected' },
+                                            { value: pctInvoicedNotCollected,  color: 'bg-amber-400',   label: 'Invoiced, not collected' },
+                                            { value: pctRemaining,             color: 'bg-slate-200',   label: 'Not yet invoiced' },
+                                        ]}
+                                    />
+                                    <div className="space-y-1 text-xs text-[#4a4a4a] pt-2">
+                                        <LegendRow color="bg-emerald-500" label="Cash collected"          value={formatMoney(cashCollected, currency)} />
+                                        <LegendRow color="bg-amber-400"   label="Invoiced, not collected" value={formatMoney(invoicedNotCollected, currency)} />
+                                        <LegendRow color="bg-slate-200"   label="Not yet invoiced"        value={formatMoney(remainingToInvoice, currency)} />
+                                    </div>
+                                </div>
 
-                        {/* Accrual revenue — earned, regardless of cash timing */}
-                        <div className="pt-3 border-t border-[#e6e9ee]">
-                            <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Revenue recognized <span className="font-normal lowercase text-[#8a8a8a]">(accrual)</span></p>
-                            <StackedBar
-                                segments={[
-                                    { value: pctRecognized,    color: 'bg-violet-500', label: 'Recognized' },
-                                    { value: pctNotRecognized, color: 'bg-slate-200',  label: 'Not yet earned' },
-                                ]}
-                            />
-                            <div className="flex items-center justify-between text-xs text-[#4a4a4a] pt-2">
-                                <span className="inline-flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-violet-500" />
-                                    Σ accepted milestones
-                                </span>
-                                <span className="font-medium text-[#171717]">{formatMoney(recognized, currency)}</span>
-                            </div>
-                        </div>
+                                {/* Accrual revenue — earned, regardless of cash timing */}
+                                <div className="pt-3 border-t border-[#e6e9ee]">
+                                    <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Revenue recognized <span className="font-normal lowercase text-[#8a8a8a]">(accrual)</span></p>
+                                    <StackedBar
+                                        segments={[
+                                            { value: pctRecognized,    color: 'bg-violet-500', label: 'Recognized' },
+                                            { value: pctNotRecognized, color: 'bg-slate-200',  label: 'Not yet earned' },
+                                        ]}
+                                    />
+                                    <div className="flex items-center justify-between text-xs text-[#4a4a4a] pt-2">
+                                        <span className="inline-flex items-center gap-2">
+                                            <span className="h-2 w-2 rounded-full bg-violet-500" />
+                                            Σ accepted milestones
+                                        </span>
+                                        <span className="font-medium text-[#171717]">{formatMoney(recognized, currency)}</span>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                {/* Slimmer status block when billing surfaces are gated.
+                                 * Source-of-truth for the contract draft + signed PDF is
+                                 * /project-pipeline/{dealId} — link out to it instead of
+                                 * duplicating that flow here. */}
+                                <div className="pt-2 border-t border-[#e6e9ee] space-y-3">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-[#8a8a8a]">Status</span>
+                                        <Badge variant="outline" className={statusBadgeClass(contract.status)}>
+                                            {contract.status}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-[#8a8a8a]">Signed at</span>
+                                        <span className="font-medium text-[#171717]">
+                                            {contract.signedAt ? new Date(contract.signedAt).toLocaleDateString() : 'Not signed yet'}
+                                        </span>
+                                    </div>
+                                    {contract.dealId && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full gap-2"
+                                            onClick={() => router.push(`/project-pipeline/${contract.dealId}`)}
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            View signed contract draft
+                                        </Button>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>
 
             {/* ── KPI strip ──────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {MILESTONES_INVOICES_ENABLED && <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Kpi label="Invoiced"       value={formatMoney(invoicedTotal, currency)} hint={`${invoices.filter(i => i.status !== 'Cancelled').length} invoices`} />
                 <Kpi label="Outstanding"    value={formatMoney(outstandingTotal, currency)} tone={outstandingTotal > 0 ? 'amber' : 'neutral'} />
                 <Kpi label="Overdue"        value={formatMoney(overdueTotal, currency)}     tone={overdueTotal > 0 ? 'rose' : 'neutral'} hint={`${overdueInvoices.length} invoices`} />
                 <Kpi label="Avg days-to-pay" value={avgDaysToPay !== null ? `${Math.round(avgDaysToPay)} d` : '—'} hint={`${paidInvoices.length} paid`} />
-            </div>
+            </div>}
 
             {/* ── Milestone timeline ─────────────────────────────────────── */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            {MILESTONES_INVOICES_ENABLED && <Card className="shadow-sm border-[#e6e9ee]">
                 <CardContent className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
@@ -539,7 +578,7 @@ export default function ContractDetailPage() {
                         </div>
                     )}
                 </CardContent>
-            </Card>
+            </Card>}
 
             {/* ── Activity timeline ─────────────────────────────────────── */}
             {activityEvents.length > 0 && (
@@ -582,7 +621,7 @@ export default function ContractDetailPage() {
             )}
 
             {/* ── Invoice ledger ─────────────────────────────────────────── */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            {MILESTONES_INVOICES_ENABLED && <Card className="shadow-sm border-[#e6e9ee]">
                 <CardContent className="p-0">
                     <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
                         <div>
@@ -690,7 +729,7 @@ export default function ContractDetailPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-            </Card>
+            </Card>}
 
             {/* ── Mark as Signed dialog ──────────────────────────────────── */}
             <Dialog open={signedOpen} onOpenChange={setSignedOpen}>
@@ -725,6 +764,7 @@ export default function ContractDetailPage() {
                 </DialogContent>
             </Dialog>
 
+            {MILESTONES_INVOICES_ENABLED && <>
             {/* ── Accept milestone dialog ─────────────────────────────────── */}
             <Dialog open={!!acceptingMilestoneId} onOpenChange={open => !open && setAcceptingMilestoneId(null)}>
                 <DialogContent>
@@ -846,52 +886,8 @@ export default function ContractDetailPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+            </>}
 
-            {/* ── Edit details dialog ────────────────────────────────────── */}
-            <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit contract details</DialogTitle>
-                        <DialogDescription>Payment terms and billing information used on invoices.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-2">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Payment terms (days)</label>
-                            <Select value={String(editPaymentTerms)} onValueChange={v => setEditPaymentTerms(Number(v))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="0">Due on receipt</SelectItem>
-                                    <SelectItem value="15">Net 15</SelectItem>
-                                    <SelectItem value="30">Net 30</SelectItem>
-                                    <SelectItem value="45">Net 45</SelectItem>
-                                    <SelectItem value="60">Net 60</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">PO number</label>
-                            <Input value={editPo} onChange={e => setEditPo(e.target.value)} placeholder="Client PO reference" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Billing contact</label>
-                                <Input value={editBillingName} onChange={e => setEditBillingName(e.target.value)} placeholder="Name" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Billing email</label>
-                                <Input type="email" value={editBillingEmail} onChange={e => setEditBillingEmail(e.target.value)} placeholder="ap@client.com" />
-                            </div>
-                        </div>
-                        <Button
-                            className="w-full bg-[#171717] hover:bg-[#00a7f4]"
-                            onClick={handleSaveEdit}
-                            disabled={updateContract.isPending}
-                        >
-                            {updateContract.isPending ? 'Saving…' : 'Save changes'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
