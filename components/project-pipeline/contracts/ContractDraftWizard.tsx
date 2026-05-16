@@ -116,6 +116,14 @@ export function ContractDraftWizard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenantQuery.data?.id]);
 
+    // ── Customer signer state ──
+    // Captured per-draft (not on the deal — the deal's contact_* is the
+    // day-to-day liaison, which is often not the authorised signer).
+    // All three optional; blank values render '____' on the PDF.
+    const [customerSignerName, setCustomerSignerName] = useState('');
+    const [customerSignerTitle, setCustomerSignerTitle] = useState('');
+    const [customerSignedDate, setCustomerSignedDate] = useState('');
+
     const todoCount = draft
         ? draft.sections.reduce((acc, s) => acc + (s.rendered.match(/\{\{TODO/g)?.length ?? 0), 0)
         : 0;
@@ -141,6 +149,9 @@ export function ContractDraftWizard({
                 wizard_inputs: wizardAnswers,
                 signatory_name_override: sigNameTrimmed !== tenantSigName.trim() ? (sigNameTrimmed || null) : null,
                 signatory_title_override: sigTitleTrimmed !== tenantSigTitle.trim() ? (sigTitleTrimmed || null) : null,
+                customer_signatory_name: customerSignerName.trim() || null,
+                customer_signatory_title: customerSignerTitle.trim() || null,
+                customer_signed_date: customerSignedDate || null,
             });
             setDraft(result);
             setStep('edit');
@@ -280,14 +291,19 @@ export function ContractDraftWizard({
                 {templateId && (
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">3 · Provider signatory</CardTitle>
+                            <CardTitle className="text-base">3 · Signatories</CardTitle>
                             <CardDescription>
-                                The person who signs on behalf of your company. Pre-filled from your
-                                tenant default (Org → Company); override here just for this contract
-                                if a different person should sign.
+                                The two people who will sign this contract. Provider side pre-fills
+                                from the tenant default; Customer side is captured at negotiation
+                                (different from the day-to-day deal contact).
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-6">
+
+                        <div className="space-y-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Provider (your side)
+                        </div>
                             <SignatoryPicker
                                 id="wizard-signatory-picker"
                                 label="Override with a senior employee (optional)"
@@ -325,6 +341,53 @@ export function ContractDraftWizard({
                                 Leave blank to use the tenant default. The contract date is auto-set
                                 to today when the PDF is generated.
                             </p>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Customer (their side)
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-customer-signer-name" className="text-xs">Name</Label>
+                                    <Input
+                                        id="wizard-customer-signer-name"
+                                        value={customerSignerName}
+                                        onChange={(e) => setCustomerSignerName(e.target.value)}
+                                        placeholder={`e.g. U Hla Min`}
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-customer-signer-title" className="text-xs">Title</Label>
+                                    <Input
+                                        id="wizard-customer-signer-title"
+                                        value={customerSignerTitle}
+                                        onChange={(e) => setCustomerSignerTitle(e.target.value)}
+                                        placeholder="e.g. CFO"
+                                        maxLength={255}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="wizard-customer-signed-date" className="text-xs">Date</Label>
+                                    <Input
+                                        id="wizard-customer-signed-date"
+                                        type="date"
+                                        value={customerSignedDate}
+                                        onChange={(e) => setCustomerSignedDate(e.target.value)}
+                                        className="bg-white"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                                Captured during negotiation. The deal contact ({deal.contactName ?? 'unset'})
+                                is the day-to-day liaison and is often <em>not</em> the authorised
+                                signer. Leave any field blank to print a blank line on the PDF for the
+                                customer to fill in by hand.
+                            </p>
+                        </div>
                         </CardContent>
                     </Card>
                 )}

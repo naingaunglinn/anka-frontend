@@ -174,6 +174,12 @@ export interface GenerateDraftInput {
      *  PDF falls back to the tenant's default signatory at render time. */
     signatory_name_override?: string | null;
     signatory_title_override?: string | null;
+    /** Customer-side signer captured at draft time. Distinct from the
+     *  deal's contact_* (day-to-day liaison). Blank values render '____'
+     *  on the PDF for the customer to hand-fill on signing. */
+    customer_signatory_name?: string | null;
+    customer_signatory_title?: string | null;
+    customer_signed_date?: string | null;
 }
 
 /**
@@ -183,12 +189,24 @@ export interface GenerateDraftInput {
 export function useGenerateDraft() {
     const queryClient = useQueryClient();
     return useMutation<DealContractDraft, Error, GenerateDraftInput>({
-        mutationFn: async ({ dealId, template_id, wizard_inputs, signatory_name_override, signatory_title_override }) => {
+        mutationFn: async ({
+            dealId,
+            template_id,
+            wizard_inputs,
+            signatory_name_override,
+            signatory_title_override,
+            customer_signatory_name,
+            customer_signatory_title,
+            customer_signed_date,
+        }) => {
             const { data: body } = await api.post(`/deals/${dealId}/contract-drafts`, {
                 template_id,
                 wizard_inputs,
                 signatory_name_override,
                 signatory_title_override,
+                customer_signatory_name,
+                customer_signatory_title,
+                customer_signed_date,
             });
             return body.data as DealContractDraft;
         },
