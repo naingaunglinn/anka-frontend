@@ -1,18 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Currency, CURRENCY_CONFIG } from '@/lib/currencyConfig';
 
-export type Currency = 'MMK' | 'JPY';
-
-export const CURRENCY_CONFIG: Record<Currency, { symbol: string; label: string; locale: string }> = {
-    MMK: { symbol: 'Ks', label: 'Myanmar Kyat', locale: 'my-MM' },
-    JPY: { symbol: '¥', label: 'Japanese Yen', locale: 'ja-JP' },
-};
+export type { Currency };
+export { CURRENCY_CONFIG };
 
 export interface Tenant {
     id: string;
     name: string;
     slug: string;
     currency?: Currency;
+    taxRate?: number;
+    deliveryLagMonths?: number;
+    paymentDaysLate?: number;
+    exchangeRates?: Record<string, number>;
 }
 
 interface TenantState {

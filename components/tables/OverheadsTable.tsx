@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import type { GlobalOverhead as Overhead } from '@/types/business';
+import { formatMoney } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 interface OverheadsTableProps {
     data: Overhead[];
@@ -40,6 +42,7 @@ interface OverheadsTableProps {
 
 export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) {
     const [sorting, setSorting] = useState<SortingState>([]);
+    const currency = useTenantCurrency();
 
     const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -58,7 +61,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('category')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('category')}</div>,
         },
         {
             accessorKey: 'description',
@@ -74,7 +77,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="text-muted-foreground">{row.getValue('description')}</div>,
+            cell: ({ row }) => <div className="text-[#4a4a4a]">{row.getValue('description')}</div>,
         },
         {
             id: 'period',
@@ -83,12 +86,12 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                 const oh = row.original;
                 if (oh.effectiveMonth && oh.effectiveYear) {
                     return (
-                        <div className="text-muted-foreground text-sm">
+                        <div className="text-[#4a4a4a] text-sm">
                             {MONTH_NAMES[oh.effectiveMonth]} {oh.effectiveYear}
                         </div>
                     );
                 }
-                return <div className="text-muted-foreground text-sm">All months</div>;
+                return <div className="text-[#4a4a4a] text-sm">All months</div>;
             },
         },
         {
@@ -107,11 +110,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
             },
             cell: ({ row }) => {
                 const amount = parseFloat(row.getValue('monthlyCost'));
-                const formatted = new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                }).format(amount);
-                return <div className="text-right font-medium text-rose-600">{formatted}</div>;
+                return <div className="text-right font-medium text-rose-600">{formatMoney(amount, currency)}</div>;
             },
         },
         {
@@ -187,7 +186,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No overheads found.
                                 </TableCell>
                             </TableRow>

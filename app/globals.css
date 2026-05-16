@@ -154,4 +154,17 @@
   .animate-glow-drift {
     animation: glow-drift 8s ease-in-out infinite;
   }
+
+  /* Kanban board smooth drag transitions */
+  [data-rbd-draggable-context-id] {
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-rbd-drag-handle-context-id] {
+    cursor: grab;
+  }
+
+  [data-rbd-drag-handle-context-id]:active {
+    cursor: grabbing;
+  }
 }

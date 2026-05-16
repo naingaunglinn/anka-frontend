@@ -1,8 +1,9 @@
 'use client'
 
 import type { AITeamBuilderResult } from '@/types/aiTeamBuilder'
-import { useBusinessStore } from '@/store/businessStore'
 import { Button } from '@/components/ui/button'
+import { formatMoney } from '@/lib/currency'
+import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     CheckCircle2,
@@ -16,45 +17,34 @@ import toast from 'react-hot-toast'
 
 interface Props {
     result: AITeamBuilderResult
+    /**
+     * Passed by the parent for legacy reasons (deal context). Not consumed
+     * here since the fallback path that wrote directly to the deal was
+     * removed in favour of the required `onAccept` callback below.
+     */
     dealId: string
     clientBudget: number
     onRegenerate: () => void
-    onAccept?: (result: AITeamBuilderResult) => void
-}
-
-function fmt(n: number): string {
-    return (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
+    /**
+     * Required. The caller is responsible for translating the AI result into
+     * a deal mutation. The wizard pages map this to ghostRoles + cost fields
+     * only — hard booking lives at /crm/[id]/staffing. Previously a fallback
+     * path here would write `hardAssignments` directly, which conflicted
+     * with that contract.
+     */
+    onAccept: (result: AITeamBuilderResult) => void
 }
 
 export function AITeamBuilderResultPanel({
     result,
-    dealId,
     clientBudget,
     onRegenerate,
     onAccept,
 }: Props) {
-    async function handleAccept() {
-        if (onAccept) {
-            onAccept(result)
-            toast.success('AI team recommendation accepted!')
-            return
-        }
-
-        const store = useBusinessStore.getState()
-
-        await store.updateDeal(dealId, {
-            baseLaborCost: result.baseLaborCost,
-            overheadCost: result.overheadCost,
-            bufferCost: result.bufferCost,
-            totalEstimatedCost: result.totalEstimatedCost,
-            estimatedGrossProfit: result.estimatedGrossProfit,
-            hardAssignments: result.team.map(m => ({
-                employeeId: m.employeeId,
-                allocatedHours: m.allocatedHours,
-            })),
-        })
-
-        toast.success('Team & estimate saved to deal!')
+    const currency = useTenantCurrency()
+    function handleAccept() {
+        onAccept(result)
+        toast.success('AI team recommendation accepted!')
     }
 
     const marginColor =
@@ -74,8 +64,8 @@ export function AITeamBuilderResultPanel({
     return (
         <div className="space-y-4 mt-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
             {/* — Recommended Team — */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3 bg-slate-50/80 border-b border-slate-100 rounded-t-xl">
+            <Card className="border-[#e6e9ee] shadow-sm">
+                <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
                         <User className="h-4 w-4 text-indigo-600" />
                         Recommended Team
@@ -86,7 +76,7 @@ export function AITeamBuilderResultPanel({
                         {result.team.map(member => (
                             <div
                                 key={member.employeeId}
-                                className="flex flex-col gap-1.5 p-3 rounded-lg border border-slate-100 bg-white shadow-sm hover:shadow-md transition-shadow"
+                                className="flex flex-col gap-1.5 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm hover:shadow-md transition-shadow"
                             >
                                 <div className="flex items-center gap-2">
                                     <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
@@ -100,13 +90,13 @@ export function AITeamBuilderResultPanel({
                                         <p className="text-sm font-semibold text-slate-800 truncate">
                                             {member.name}
                                         </p>
-                                        <p className="text-xs text-slate-500">{member.role}</p>
+                                        <p className="text-xs text-[#8a8a8a]">{member.role}</p>
                                     </div>
                                 </div>
-                                <div className="flex justify-between text-xs text-slate-500 mt-1 pt-1.5 border-t border-slate-50">
+                                <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
                                     <span>{member.allocatedHours}h allocated</span>
                                     <span className="font-medium text-slate-700">
-                                        ${fmt(member.totalCost)}
+                                        {formatMoney(member.totalCost, currency)}
                                     </span>
                                 </div>
                             </div>
@@ -116,41 +106,41 @@ export function AITeamBuilderResultPanel({
             </Card>
 
             {/* — P&L Estimate — */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3 bg-slate-50/80 border-b border-slate-100 rounded-t-xl">
+            <Card className="border-[#e6e9ee] shadow-sm">
+                <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base">P&amp;L Estimate</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 space-y-3">
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-slate-500">Labor Cost</span>
+                            <span className="text-[#8a8a8a]">Labor Cost</span>
                             <span className="font-medium text-slate-700">
-                                ${fmt(result.baseLaborCost)}
+                                {formatMoney(result.baseLaborCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-500">Overhead</span>
+                            <span className="text-[#8a8a8a]">Overhead</span>
                             <span className="font-medium text-red-500/80">
-                                +${fmt(result.overheadCost)}
+                                +{formatMoney(result.overheadCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-500">Risk Buffer</span>
+                            <span className="text-[#8a8a8a]">Risk Buffer</span>
                             <span className="font-medium text-red-500/80">
-                                +${fmt(result.bufferCost)}
+                                +{formatMoney(result.bufferCost, currency)}
                             </span>
                         </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-3 space-y-2">
+                    <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
                         <div className="flex justify-between font-bold text-slate-800">
                             <span>Total Cost</span>
-                            <span>${fmt(result.totalEstimatedCost)}</span>
+                            <span>{formatMoney(result.totalEstimatedCost, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Client Budget</span>
+                            <span className="text-[#8a8a8a]">Client Budget</span>
                             <span className="font-medium text-slate-700">
-                                ${fmt(clientBudget)}
+                                {formatMoney(clientBudget, currency)}
                             </span>
                         </div>
                     </div>
@@ -168,7 +158,7 @@ export function AITeamBuilderResultPanel({
                         </div>
                         <div className="flex flex-col items-end">
                             <span className={`font-bold text-lg ${marginColor}`}>
-                                ${fmt(result.estimatedGrossProfit)}
+                                {formatMoney(result.estimatedGrossProfit, currency)}
                             </span>
                             <span
                                 className={`text-xs font-semibold px-2 py-0.5 rounded-full ${marginColor}`}
@@ -187,15 +177,15 @@ export function AITeamBuilderResultPanel({
             </Card>
 
             {/* — AI Reasoning — */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3 bg-slate-50/80 border-b border-slate-100 rounded-t-xl">
+            <Card className="border-[#e6e9ee] shadow-sm">
+                <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
                         <MessageSquare className="h-4 w-4 text-purple-600" />
                         AI Reasoning
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
+                    <p className="text-sm text-[#4a4a4a] leading-relaxed">
                         {result.aiReasoning}
                     </p>
                 </CardContent>

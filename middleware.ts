@@ -4,12 +4,15 @@ import type { NextRequest } from 'next/server';
 // Routes only org users can access.
 const ORG_PREFIXES = [
     '/crm', '/organization', '/estimation', '/contracts',
-    '/projects', '/time-tracking', '/my-tasks', '/financial', '/forecast', '/dashboard',
+    '/projects', '/time-tracking', '/schedule-tracking', '/my-schedule',
+    '/financial', '/forecast', '/dashboard',
     '/profile',
 ];
 
 // Routes only super admins can access.
-const SUPER_ADMIN_PREFIXES = ['/tenant', '/admin'];
+// /tenant is shared: the page renders OrgTenantSettings vs SuperAdminTenantManagement
+// based on isSuperAdmin, so it is not listed here.
+const SUPER_ADMIN_PREFIXES = ['/admin'];
 
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
@@ -66,7 +69,8 @@ export const config = {
         '/contracts/:path*',
         '/projects/:path*',
         '/time-tracking/:path*',
-        '/my-tasks/:path*',
+        '/schedule-tracking/:path*',
+        '/my-schedule/:path*',
         '/financial/:path*',
         '/forecast/:path*',
         '/profile/:path*',

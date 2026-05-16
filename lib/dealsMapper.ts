@@ -1,18 +1,28 @@
 import type {
     Deal,
+    DealDroppedAtStage,
     DealLeadSource,
+    DealLifecycleStatus,
     GhostRole,
     HardAssignment,
     EstimationResource,
+    OtPolicyModel,
     ProjectOverhead,
     Contract,
     Project,
     Invoice,
     TimeEntry,
     RoleType,
+    SuggestedTemplateVariant,
 } from '@/types/business';
 
 // ─── API response → frontend types (snake_case → camelCase) ──────────────────
+
+/**
+ * Laravel returns decimals as strings to preserve precision; some endpoints
+ * return them as numbers. Resource transformers use Number() to coerce.
+ */
+type ApiDecimal = number | string | null;
 
 interface ApiGhostRole {
     id: string;
@@ -45,6 +55,7 @@ interface ApiEstimationResource {
     id: string;
     feature_name: string;
     role_id: string;
+    employee_id?: string | null;
     hours: number;
 }
 
@@ -64,12 +75,23 @@ interface ApiDeal {
     estimated_value?: number;
     win_probability?: number;
     status?: Deal['status'];
+    lifecycle_status?: DealLifecycleStatus;
+    dropped_at_stage?: DealDroppedAtStage | null;
+    dropped_at?: string | null;
     expected_close_date?: string;
     lead_source?: string;
     client_budget?: number;
     timeline_months?: number;
     workload_hours?: number;
     workload_description?: string;
+    ot_policy_model?: OtPolicyModel | null;
+    ot_rate_per_hour?: ApiDecimal;
+    ot_included_hours_per_month?: number | null;
+    ot_notes?: string | null;
+    customer_support_obligations?: string | null;
+    out_of_scope_policy?: string | null;
+    working_hours?: string | null;
+    testing_range?: string | null;
     wizard_step?: string;
     target_margin?: number;
     base_labor_cost?: number;
@@ -77,8 +99,19 @@ interface ApiDeal {
     buffer_cost?: number;
     total_estimated_cost?: number;
     estimated_gross_profit?: number;
+    final_monthly_fee?: ApiDecimal;
+    final_installation_fee?: ApiDecimal;
+    final_contract_months?: number | null;
+    final_ot_policy?: string | null;
+    final_support_hours_per_month?: number | null;
+    final_team_summary?: string | null;
+    final_currency?: string | null;
+    final_confirmed_at?: string | null;
+    suggested_template_variant?: SuggestedTemplateVariant | null;
     win_reason?: string;
     loss_reason?: string;
+    has_sent_contract_draft?: boolean;
+    active_contract_draft_id?: string | null;
     ghost_roles?: ApiGhostRole[];
     hard_assignments?: ApiHardAssignment[];
     estimation_resources?: ApiEstimationResource[];
@@ -92,10 +125,19 @@ interface ApiContract {
     client: string;
     total_value?: number;
     revenue_recognized?: number;
+    cash_collected?: number;
     status: Contract['status'];
     start_date?: string;
     end_date?: string;
+    signed_at?: string | null;
+    payment_terms_days?: number;
+    po_number?: string | null;
+    billing_contact_name?: string | null;
+    billing_email?: string | null;
+    currency?: string | null;
+    tax_jurisdiction?: string | null;
     notes?: string;
+    created_at?: string | null;
 }
 
 interface ApiProject {
@@ -109,6 +151,10 @@ interface ApiProject {
     status: Project['status'];
     start_date?: string;
     end_date?: string;
+    kickoff_date?: string | null;
+    project_manager_id?: string | null;
+    project_manager_name?: string | null;
+    team_size?: number;
 }
 
 interface ApiInvoice {
@@ -120,9 +166,13 @@ interface ApiInvoice {
     due_date?: string | null;
     amount?: number | string;
     tax?: number | string;
+    paid_amount?: number | string;
     total?: number | string | null;
     status: Invoice['status'];
     paid_at?: string | null;
+    issued_at?: string | null;
+    sent_to_email?: string | null;
+    reminder_sent_count?: number;
     notes?: string | null;
 }
 
@@ -152,6 +202,7 @@ function toEstimationResource(row: ApiEstimationResource): EstimationResource {
         id: row.id,
         featureName: row.feature_name,
         roleId: row.role_id,
+        employeeId: row.employee_id ?? null,
         hours: row.hours,
     };
 }
@@ -175,12 +226,23 @@ export function toDeal(row: ApiDeal): Deal {
         estimatedValue: row.estimated_value,
         winProbability: row.win_probability,
         status: row.status,
+        lifecycleStatus: row.lifecycle_status ?? 'active',
+        droppedAtStage: row.dropped_at_stage ?? null,
+        droppedAt: row.dropped_at ?? undefined,
         expectedCloseDate: row.expected_close_date,
-        leadSource: row.lead_source as DealLeadSource | undefined,
+        leadSource: row.lead_source ? (row.lead_source as DealLeadSource) : undefined,
         clientBudget: row.client_budget,
         timelineMonths: row.timeline_months,
         workloadHours: row.workload_hours,
         workloadDescription: row.workload_description,
+        otPolicyModel: row.ot_policy_model ?? null,
+        otRatePerHour: row.ot_rate_per_hour == null ? null : Number(row.ot_rate_per_hour),
+        otIncludedHoursPerMonth: row.ot_included_hours_per_month ?? null,
+        otNotes: row.ot_notes ?? null,
+        customerSupportObligations: row.customer_support_obligations ?? null,
+        outOfScopePolicy: row.out_of_scope_policy ?? null,
+        workingHours: row.working_hours ?? null,
+        testingRange: row.testing_range ?? null,
         wizardStep: row.wizard_step as Deal['wizardStep'],
         targetMargin: row.target_margin,
         baseLaborCost: row.base_labor_cost,
@@ -188,8 +250,19 @@ export function toDeal(row: ApiDeal): Deal {
         bufferCost: row.buffer_cost,
         totalEstimatedCost: row.total_estimated_cost,
         estimatedGrossProfit: row.estimated_gross_profit,
+        finalMonthlyFee: row.final_monthly_fee == null ? undefined : Number(row.final_monthly_fee),
+        finalInstallationFee: row.final_installation_fee == null ? null : Number(row.final_installation_fee),
+        finalContractMonths: row.final_contract_months ?? undefined,
+        finalOtPolicy: row.final_ot_policy ?? null,
+        finalSupportHoursPerMonth: row.final_support_hours_per_month ?? null,
+        finalTeamSummary: row.final_team_summary ?? undefined,
+        finalCurrency: row.final_currency ?? undefined,
+        finalConfirmedAt: row.final_confirmed_at ?? undefined,
+        suggestedTemplateVariant: row.suggested_template_variant ?? null,
         winReason: row.win_reason,
         lossReason: row.loss_reason,
+        hasSentContractDraft: row.has_sent_contract_draft ?? false,
+        activeContractDraftId: row.active_contract_draft_id ?? null,
         ghostRoles: (row.ghost_roles ?? []).map(toGhostRole),
         hardAssignments: (row.hard_assignments ?? []).map(toHardAssignment),
         estimationResources: (row.estimation_resources ?? []).map(toEstimationResource),
@@ -207,10 +280,19 @@ export function toContract(row: ApiContract): Contract {
         client: row.client,
         totalValue: row.total_value ?? 0,
         revenueRecognized: row.revenue_recognized ?? 0,
+        cashCollected: row.cash_collected ?? 0,
         status: row.status,
         startDate: row.start_date,
         endDate: row.end_date,
+        signedAt: row.signed_at ?? undefined,
+        paymentTermsDays: row.payment_terms_days ?? 30,
+        poNumber: row.po_number ?? undefined,
+        billingContactName: row.billing_contact_name ?? undefined,
+        billingEmail: row.billing_email ?? undefined,
+        currency: row.currency ?? undefined,
+        taxJurisdiction: row.tax_jurisdiction ?? undefined,
         notes: row.notes,
+        createdAt: row.created_at ?? undefined,
     };
 }
 
@@ -226,11 +308,17 @@ export function toProject(row: ApiProject): Project {
         status: row.status,
         startDate: row.start_date,
         endDate: row.end_date,
+        kickoffDate: row.kickoff_date ?? undefined,
+        projectManagerId: row.project_manager_id ?? undefined,
+        projectManagerName: row.project_manager_name ?? undefined,
+        teamSize: row.team_size ?? 0,
     };
 }
 
 export function toInvoice(row: ApiInvoice): Invoice {
-    // Compute overdue client-side: pending invoices whose due_date has passed
+    // Compute overdue client-side: pending or partially-paid invoices whose due_date has passed.
+    // Don't override Partially Paid → Overdue: partial payment is the more informative label,
+    // and the row will still be flagged as overdue separately by the UI's date check.
     const isOverdue =
         row.status === 'Pending' &&
         row.due_date &&
@@ -245,9 +333,13 @@ export function toInvoice(row: ApiInvoice): Invoice {
         dueDate: row.due_date ?? undefined,
         amount: Number(row.amount ?? 0),
         tax: Number(row.tax ?? 0),
+        paidAmount: row.paid_amount != null ? Number(row.paid_amount) : 0,
         total: row.total != null ? Number(row.total) : undefined,
         status: isOverdue ? 'Overdue' : row.status,
         paidAt: row.paid_at ?? undefined,
+        issuedAt: row.issued_at ?? undefined,
+        sentToEmail: row.sent_to_email ?? undefined,
+        reminderSentCount: row.reminder_sent_count ?? 0,
         notes: row.notes ?? undefined,
     };
 }
@@ -270,6 +362,30 @@ export function toTimeEntry(row: ApiTimeEntry): TimeEntry {
 
 // ─── Frontend types → API payload (camelCase → snake_case) ───────────────────
 
+/** [camelCase Deal field, snake_case payload key] tuples. */
+const ESTIMATION_HANDOFF_FIELDS: ReadonlyArray<[keyof Deal, string]> = [
+    ['finalMonthlyFee',           'final_monthly_fee'],
+    ['finalInstallationFee',      'final_installation_fee'],
+    ['finalContractMonths',       'final_contract_months'],
+    ['finalOtPolicy',             'final_ot_policy'],
+    ['finalSupportHoursPerMonth', 'final_support_hours_per_month'],
+    ['finalTeamSummary',          'final_team_summary'],
+    ['finalCurrency',             'final_currency'],
+    ['finalConfirmedAt',          'final_confirmed_at'],
+    ['suggestedTemplateVariant',  'suggested_template_variant'],
+];
+
+function copyDefined<T extends object>(
+    target: Record<string, unknown>,
+    source: T,
+    fields: ReadonlyArray<[keyof T, string]>,
+): void {
+    for (const [from, to] of fields) {
+        const value = source[from];
+        if (value !== undefined) target[to] = value;
+    }
+}
+
 export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
     if (deal.name !== undefined)          payload.name           = deal.name;
@@ -278,7 +394,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.contactEmail !== undefined)  payload.contact_email  = deal.contactEmail || null;
     if (deal.contactPhone !== undefined)  payload.contact_phone  = deal.contactPhone || null;
     if (deal.expectedCloseDate !== undefined) payload.expected_close_date = deal.expectedCloseDate || null;
-    if (deal.leadSource !== undefined)    payload.lead_source    = deal.leadSource || null;
+    if (deal.leadSource)                  payload.lead_source    = deal.leadSource;
     if (deal.winReason !== undefined)     payload.win_reason     = deal.winReason || null;
     if (deal.lossReason !== undefined)    payload.loss_reason    = deal.lossReason || null;
     if (deal.estimatedValue !== undefined) payload.estimated_value = deal.estimatedValue;
@@ -288,6 +404,14 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.timelineMonths !== undefined) payload.timeline_months = deal.timelineMonths;
     if (deal.workloadHours !== undefined) payload.workload_hours = deal.workloadHours;
     if (deal.workloadDescription !== undefined) payload.workload_description = deal.workloadDescription;
+    if (deal.otPolicyModel !== undefined) payload.ot_policy_model = deal.otPolicyModel;
+    if (deal.otRatePerHour !== undefined) payload.ot_rate_per_hour = deal.otRatePerHour;
+    if (deal.otIncludedHoursPerMonth !== undefined) payload.ot_included_hours_per_month = deal.otIncludedHoursPerMonth;
+    if (deal.otNotes !== undefined) payload.ot_notes = deal.otNotes;
+    if (deal.customerSupportObligations !== undefined) payload.customer_support_obligations = deal.customerSupportObligations;
+    if (deal.outOfScopePolicy !== undefined) payload.out_of_scope_policy = deal.outOfScopePolicy;
+    if (deal.workingHours !== undefined) payload.working_hours = deal.workingHours;
+    if (deal.testingRange !== undefined) payload.testing_range = deal.testingRange;
     if (deal.wizardStep !== undefined) payload.wizard_step = deal.wizardStep;
     if (deal.targetMargin !== undefined) payload.target_margin = deal.targetMargin;
     if (deal.baseLaborCost !== undefined) payload.base_labor_cost = deal.baseLaborCost;
@@ -295,8 +419,13 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.bufferCost !== undefined) payload.buffer_cost = deal.bufferCost;
     if (deal.totalEstimatedCost !== undefined) payload.total_estimated_cost = deal.totalEstimatedCost;
     if (deal.estimatedGrossProfit !== undefined) payload.estimated_gross_profit = deal.estimatedGrossProfit;
+    // ── Estimation handoff fields ────────────────────────────────────
+    // Owned by the Estimation menu (④); Project Pipeline forms don't
+    // surface them. Backend rejects writes when status ∈ {negotiation,won}.
+    copyDefined(payload, deal, ESTIMATION_HANDOFF_FIELDS);
     if (deal.ghostRoles !== undefined) {
         payload.ghost_roles = deal.ghostRoles.map((role) => ({
+            ...(role.id ? { id: role.id } : {}),
             role_type: role.roleType,
             quantity: role.quantity,
             months: role.months,
@@ -315,6 +444,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
         payload.estimation_resources = deal.estimationResources.map((resource) => ({
             feature_name: resource.featureName,
             role_id: resource.roleId,
+            employee_id: resource.employeeId ?? null,
             hours: resource.hours,
         }));
     }

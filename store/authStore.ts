@@ -14,6 +14,10 @@ export interface AuthUser {
         name: string;
         slug: string;
         currency?: string;
+        taxRate?: number;
+        deliveryLagMonths?: number;
+        paymentDaysLate?: number;
+        exchangeRates?: Record<string, number>;
     } | null;
 }
 

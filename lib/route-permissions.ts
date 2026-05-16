@@ -17,23 +17,28 @@ import type { Role } from '@/lib/rbac';
  * page does not silently lock anyone out until you remember to map it.
  */
 export const ROUTE_PERMISSIONS: Record<string, Role[] | 'public'> = {
-    // My Tasks is the only working surface for Delivery employees, so it is
-    // public to every authenticated org user. /profile stays public so users
+    // My Schedule is the only working surface for Delivery employees, so it
+    // is public to every authenticated org user. /profile stays public so users
     // (including Delivery) can change their password and personal info.
-    '/my-tasks':      'public',
-    '/profile':       'public',
+    '/my-schedule':      'public',
+    '/profile':          'public',
 
     // Dashboard and the manager pages exclude Delivery — they are pure
     // executors and shouldn't see organization-wide data.
-    '/dashboard':     ['Executive', 'Sales', 'HR'],
-    '/organization':  ['Executive', 'HR'],
-    '/crm':           ['Executive', 'Sales'],
-    '/estimation':    ['Executive', 'Sales'],
-    '/contracts':     ['Executive', 'Sales'],
-    '/projects':      ['Executive'],
-    '/time-tracking': ['Executive'],
-    '/financial':     ['Executive'],
-    '/forecast':      ['Executive'],
+    '/dashboard':        ['Executive', 'Sales', 'HR'],
+    '/organization':     ['Executive', 'HR'],
+    '/project-pipeline': ['Executive', 'Sales'],
+    // /crm/* kept for one release as a backward-compat redirect target.
+    // Phase D rename (chg-009) made /project-pipeline the canonical home.
+    '/crm':              ['Executive', 'Sales'],
+    '/estimation':       ['Executive', 'Sales'],
+    '/contracts':        ['Executive', 'Sales'],
+    '/projects':         ['Executive'],
+    '/time-tracking':    ['Executive'],
+    '/schedule-tracking':['Executive'],
+    '/financial':        ['Executive'],
+    '/forecast':         ['Executive'],
+    '/tenant':           ['Executive'],
 };
 
 /**
@@ -59,8 +64,8 @@ export function canAccessRoute(role: Role | undefined | null, path: string): boo
 
 /**
  * The fallback path to redirect a non-permitted role to. Delivery users land
- * on My Tasks (their working surface); everyone else lands on the Dashboard.
+ * on My Schedule (their working surface); everyone else lands on the Dashboard.
  */
 export function fallbackPathFor(role: Role | undefined | null): string {
-    return role === 'Delivery' ? '/my-tasks' : '/dashboard';
+    return role === 'Delivery' ? '/my-schedule' : '/dashboard';
 }

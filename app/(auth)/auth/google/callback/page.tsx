@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -85,13 +85,13 @@ function GoogleCallbackContent() {
 
     return (
         <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-6 text-[#171717]">
-            <div className="w-full max-w-lg rounded-2xl border border-[#00a6f4]/20 bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+            <div className="w-full max-w-lg rounded-2xl border border-[#00a7f4]/20 bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
                 <h1 className="text-2xl font-bold">ANKA Google Sign-In</h1>
                 <p className="mt-3 text-sm text-[#171717]/70">{status}</p>
                 <button
                     type="button"
                     onClick={() => router.replace('/login')}
-                    className="mt-6 rounded-full bg-[#00a6f4] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0599df]"
+                    className="mt-6 rounded-full bg-[#00a7f4] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0599df]"
                 >
                     Back to Login
                 </button>
@@ -104,7 +104,7 @@ export default function GoogleCallbackPage() {
     return (
         <Suspense fallback={
             <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-6 text-[#171717]">
-                <div className="w-full max-w-lg rounded-2xl border border-[#00a6f4]/20 bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+                <div className="w-full max-w-lg rounded-2xl border border-[#00a7f4]/20 bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
                     <h1 className="text-2xl font-bold">ANKA Google Sign-In</h1>
                     <p className="mt-3 text-sm text-[#171717]/70">Loading...</p>
                 </div>

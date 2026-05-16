@@ -22,6 +22,7 @@ import {
 import { DialogClose } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { globalOverheadSchema, type OverheadFormValues } from '@/lib/schemas/organization.schema';
+import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 const MONTHS = [
     { value: 1,  label: 'January'   },
@@ -48,6 +49,7 @@ interface OverheadFormProps {
 }
 
 export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormProps) {
+    const symbol = useCurrencySymbol();
     const form = useForm<OverheadFormValues>({
         resolver: zodResolver(globalOverheadSchema) as any,
         mode: 'onBlur',
@@ -122,7 +124,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="monthlyCost"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Monthly Cost ($) <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>Monthly Cost ({symbol}) <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                                 <Input type="number" placeholder="e.g. 500" {...field} />
                             </FormControl>
@@ -137,7 +139,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                         name="effectiveMonth"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Month <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                                <FormLabel>Month <span className="text-[#4a4a4a] font-normal">(optional)</span></FormLabel>
                                 <Select
                                     onValueChange={(v) => field.onChange(v === 'none' ? undefined : Number(v))}
                                     defaultValue={field.value !== undefined ? String(field.value) : 'none'}
@@ -163,7 +165,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                         name="effectiveYear"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Year <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                                <FormLabel>Year <span className="text-[#4a4a4a] font-normal">(optional)</span></FormLabel>
                                 <Select
                                     onValueChange={(v) => field.onChange(v === 'none' ? undefined : Number(v))}
                                     defaultValue={field.value !== undefined ? String(field.value) : 'none'}
@@ -186,7 +188,7 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     />
                 </div>
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a4a4a]">
                     Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">

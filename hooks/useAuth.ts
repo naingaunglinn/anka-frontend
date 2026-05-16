@@ -27,6 +27,18 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
                 name: (tenant.name as string) ?? '',
                 slug: (tenant.slug as string) ?? '',
                 currency: (tenant.currency as string) ?? 'MMK',
+                taxRate: typeof tenant.tax_rate === 'number'
+                    ? (tenant.tax_rate as number)
+                    : tenant.tax_rate != null
+                        ? Number(tenant.tax_rate)
+                        : 0.20,
+                deliveryLagMonths: tenant.avg_delivery_lag_months != null
+                    ? Number(tenant.avg_delivery_lag_months)
+                    : 1,
+                paymentDaysLate: tenant.avg_payment_days_late != null
+                    ? Number(tenant.avg_payment_days_late)
+                    : 0,
+                exchangeRates: (tenant.exchange_rates as Record<string, number>) ?? undefined,
             }
             : null,
     };
@@ -40,17 +52,19 @@ function setTenantContext(user: AuthUser) {
     if (user.tenant?.id) {
         const { activeTenantId, setActiveTenant, setCurrentTenant, setTenants, tenants } = useTenantStore.getState();
         const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!activeTenantId || !UUID_RE.test(activeTenantId)) {
+        if (!activeTenantId || !UUID_RE.test(activeTenantId) || activeTenantId !== user.tenant.id) {
             setActiveTenant(user.tenant.id);
         }
         setCurrentTenant({
             ...user.tenant,
             currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+            exchangeRates: user.tenant.exchangeRates,
         });
         // Ensure tenant is in the tenants array so currency lookups work
         const tenantWithCurrency = {
             ...user.tenant,
             currency: user.tenant.currency as import('@/store/tenantStore').Currency,
+            exchangeRates: user.tenant.exchangeRates,
         };
         const exists = tenants.some((t) => t.id === user.tenant!.id);
         if (!exists) {

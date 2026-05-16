@@ -9,35 +9,88 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, Building2, Plus, Users, ChevronDown, ChevronRight, PowerOff, Power, Pencil, Trash2, Search } from 'lucide-react';
+import { Save, Building2, Plus, Users, ChevronDown, ChevronRight, PowerOff, Power, Pencil, Trash2, Search, DollarSign } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
 import { useAdminTenantList, useAdminTenantUsers, useAdminMutations, type AdminTenant, type AdminUser } from '@/lib/queries/admin';
 import toast from 'react-hot-toast';
 import { useEffect } from 'react';
 
-// ── Org user view ─────────────────────────────────────────────────────────────
+// -- Org user view -------------------------------------------------------------
+
+const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
+    MMK: 4500,
+    JPY: 158,
+};
 
 function OrgTenantSettings() {
     const tenantQuery = useTenantSettings();
-    const { updateTenant } = useTenantMutations();
+    const { updateTenant, updateExchangeRate } = useTenantMutations();
 
-    const [name, setName] = useState('');
-    const [slug, setSlug] = useState('');
+    const [taxRatePct, setTaxRatePct] = useState('');
+    const [deliveryLag, setDeliveryLag] = useState('');
+    const [paymentDays, setPaymentDays] = useState('');
+    const [exchangeRates, setExchangeRates] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (tenantQuery.data) {
-            setName(tenantQuery.data.name);
-            setSlug(tenantQuery.data.slug);
+            setTaxRatePct((tenantQuery.data.taxRate * 100).toFixed(2));
+            setDeliveryLag(String(tenantQuery.data.deliveryLagMonths));
+            setPaymentDays(String(tenantQuery.data.paymentDaysLate));
+            const rates: Record<string, string> = {};
+            for (const currency of ['MMK', 'JPY']) {
+                const val = tenantQuery.data.exchangeRates?.[currency] ?? DEFAULT_EXCHANGE_RATES[currency];
+                rates[currency] = String(val);
+            }
+            setExchangeRates(rates);
         }
     }, [tenantQuery.data]);
 
     const handleSave = async () => {
+        const tax = parseFloat(taxRatePct);
+        if (isNaN(tax) || tax < 0 || tax > 100) {
+            toast.error('Tax rate must be a number between 0 and 100.');
+            return;
+        }
+        const lag = parseInt(deliveryLag, 10);
+        if (isNaN(lag) || lag < 0 || lag > 24) {
+            toast.error('Delivery lag must be 0–24 months.');
+            return;
+        }
+        const days = parseInt(paymentDays, 10);
+        if (isNaN(days) || days < 0 || days > 365) {
+            toast.error('Payment delay must be 0–365 days.');
+            return;
+        }
         try {
-            await updateTenant.mutateAsync({ name, slug });
+            await updateTenant.mutateAsync({
+                tax_rate: tax / 100,
+                avg_delivery_lag_months: lag,
+                avg_payment_days_late: days,
+            });
             toast.success('Tenant settings saved.');
         } catch {
             toast.error('Failed to save settings.');
+        }
+    };
+
+    const handleSaveExchangeRates = async () => {
+        try {
+            for (const [currency, rateStr] of Object.entries(exchangeRates)) {
+                const rate = parseFloat(rateStr);
+                if (isNaN(rate) || rate <= 0) {
+                    toast.error(`Exchange rate for ${currency} must be a positive number.`);
+                    return;
+                }
+                await updateExchangeRate.mutateAsync({
+                    from_currency: currency,
+                    to_currency: 'USD',
+                    rate,
+                });
+            }
+            toast.success('Exchange rates saved.');
+        } catch {
+            toast.error('Failed to save exchange rates.');
         }
     };
 
@@ -45,15 +98,15 @@ function OrgTenantSettings() {
         <div className="space-y-6">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Tenant Settings</h2>
-                <p className="text-muted-foreground mt-1">Manage your organization profile and plan details.</p>
+                <p className="text-[#4a4a4a] mt-1">Manage your organization profile and plan details.</p>
             </div>
 
             {tenantQuery.isLoading && <div className="h-48 animate-pulse bg-slate-100 rounded-xl" />}
 
             {tenantQuery.isError && (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-slate-600">Could not load tenant settings.</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load tenant settings.</p>
                         <Button variant="outline" onClick={() => tenantQuery.refetch()}>Retry</Button>
                     </CardContent>
                 </Card>
@@ -62,45 +115,135 @@ function OrgTenantSettings() {
             {tenantQuery.data && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-1 space-y-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
                                 <CardTitle className="text-lg flex items-center gap-2">
-                                    <Building2 className="w-5 h-5 text-slate-500" />
+                                    <Building2 className="w-5 h-5 text-[#8a8a8a]" />
                                     Organization Profile
                                 </CardTitle>
                                 <CardDescription>Manage your company core details.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="orgName">Organization Name</Label>
-                                    <Input id="orgName" value={name} onChange={e => setName(e.target.value)} />
+                                    <Label>Organization Name</Label>
+                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.name}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="subdomain">Tenant Slug</Label>
-                                    <div className="flex items-center">
-                                        <Input
-                                            id="subdomain"
-                                            value={slug}
-                                            onChange={e => setSlug(e.target.value)}
-                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                                        />
-                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-slate-500">.anka.app</div>
-                                    </div>
+                                    <Label>Tenant Slug</Label>
+                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.slug}.anka.app</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Plan</Label>
                                     <p className="text-sm font-medium text-slate-700">{tenantQuery.data.plan ?? 'Free'}</p>
                                 </div>
-                                <Button className="w-full mt-2 gap-2 bg-slate-900" onClick={handleSave} disabled={updateTenant.isPending}>
+                                <div className="space-y-2">
+                                    <Label htmlFor="taxRate">Income Tax Rate (%)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="taxRate"
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step="0.01"
+                                            value={taxRatePct}
+                                            onChange={e => setTaxRatePct(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">%</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Applied to operating profit on the Financials page to compute net profit.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="deliveryLag">Delivery Lag (months)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="deliveryLag"
+                                            type="number"
+                                            min={0}
+                                            max={24}
+                                            step="1"
+                                            value={deliveryLag}
+                                            onChange={e => setDeliveryLag(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">mo</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Forecast: months between a deal closing and revenue landing.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="paymentDays">Payment Delay Default (days)</Label>
+                                    <div className="flex items-center">
+                                        <Input
+                                            id="paymentDays"
+                                            type="number"
+                                            min={0}
+                                            max={365}
+                                            step="1"
+                                            value={paymentDays}
+                                            onChange={e => setPaymentDays(e.target.value)}
+                                            className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">days</div>
+                                    </div>
+                                    <p className="text-xs text-[#8a8a8a]">Fallback when a client has no paid-invoice history. Per-client averages override this.</p>
+                                </div>
+                                <Button className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSave} disabled={updateTenant.isPending}>
                                     <Save className="w-4 h-4" />
                                     {updateTenant.isPending ? 'Saving...' : 'Save Profile'}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border-[#e6e9ee]">
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <DollarSign className="w-5 h-5 text-[#8a8a8a]" />
+                                    Exchange Rates
+                                </CardTitle>
+                                <CardDescription>
+                                    Set exchange rates against USD for accurate AI budget calculations.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-xs text-[#8a8a8a]">
+                                    The AI Team Builder converts all budgets and costs to USD before analysis.
+                                    Default: 1 USD = 4,500 MMK, 1 USD = 158 JPY.
+                                </p>
+                                {Object.entries(DEFAULT_EXCHANGE_RATES).map(([currency, defaultRate]) => (
+                                    <div key={currency} className="space-y-2">
+                                        <Label htmlFor={`rate-${currency}`}>1 USD = ___ {currency}</Label>
+                                        <div className="flex items-center">
+                                            <Input
+                                                id={`rate-${currency}`}
+                                                type="number"
+                                                min={0.000001}
+                                                step="any"
+                                                value={exchangeRates[currency] ?? String(defaultRate)}
+                                                onChange={e => setExchangeRates(prev => ({ ...prev, [currency]: e.target.value }))}
+                                                className="focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-[#8a8a8a]">
+                                            {tenantQuery.data.exchangeRates?.[currency] != null
+                                                ? 'Custom rate set.'
+                                                : 'Using default rate.'}
+                                        </p>
+                                    </div>
+                                ))}
+                                <Button
+                                    className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]"
+                                    onClick={handleSaveExchangeRates}
+                                    disabled={updateExchangeRate.isPending}
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {updateExchangeRate.isPending ? 'Saving...' : 'Save Exchange Rates'}
                                 </Button>
                             </CardContent>
                         </Card>
                     </div>
 
                     <div className="lg:col-span-2">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
                                 <CardTitle className="text-lg">Tenant Information</CardTitle>
                                 <CardDescription>Read-only details about this tenant instance.</CardDescription>
@@ -108,11 +251,11 @@ function OrgTenantSettings() {
                             <CardContent className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="text-xs text-slate-500 uppercase tracking-wider">Tenant ID</Label>
+                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Tenant ID</Label>
                                         <p className="text-sm font-mono mt-1 text-slate-700 break-all">{tenantQuery.data.id}</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs text-slate-500 uppercase tracking-wider">Status</Label>
+                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Status</Label>
                                         <p className="text-sm mt-1 font-medium">
                                             <span className={`inline-flex items-center gap-1.5 ${tenantQuery.data.isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                 <span className={`w-2 h-2 rounded-full ${tenantQuery.data.isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
@@ -130,22 +273,22 @@ function OrgTenantSettings() {
     );
 }
 
-// ── Super admin: per-tenant user list ─────────────────────────────────────────
+// -- Super admin: per-tenant user list -----------------------------------------
 
 function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantName: string }) {
     const usersQuery = useAdminTenantUsers(tenantId);
     const { createUser, updateUser, deleteUser } = useAdminMutations();
 
-    // ── Create dialog state ────────────────────────────────────────────────────
+    // -- Create dialog state ----------------------------------------------------
     const [createOpen, setCreateOpen] = useState(false);
     const [createForm, setCreateForm] = useState({ first_name: '', last_name: '', email: '', app_role: 'Admin' });
 
-    // ── Edit dialog state ──────────────────────────────────────────────────────
+    // -- Edit dialog state ------------------------------------------------------
     const [editOpen, setEditOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
     const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', app_role: 'Admin' });
 
-    // ── Delete confirm dialog state ────────────────────────────────────────────
+    // -- Delete confirm dialog state --------------------------------------------
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
 
@@ -211,7 +354,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
             {usersQuery.data && usersQuery.data.length > 0 ? (
                 <table className="w-full text-sm">
                     <thead>
-                        <tr className="text-left text-xs text-slate-500 uppercase tracking-wider">
+                        <tr className="text-left text-xs text-[#8a8a8a] uppercase tracking-wider">
                             <th className="pb-1">Name</th>
                             <th className="pb-1">Email</th>
                             <th className="pb-1">Role</th>
@@ -220,9 +363,9 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                     </thead>
                     <tbody>
                         {usersQuery.data.map(u => (
-                            <tr key={u.id} className="border-t border-slate-100">
+                            <tr key={u.id} className="border-t border-[#e6e9ee]">
                                 <td className="py-1.5">{u.firstName} {u.lastName}</td>
-                                <td className="py-1.5 text-slate-500">{u.email}</td>
+                                <td className="py-1.5 text-[#8a8a8a]">{u.email}</td>
                                 <td className="py-1.5">
                                     <Badge variant="outline" className="text-xs">{u.appRole}</Badge>
                                 </td>
@@ -231,7 +374,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                            className="h-7 w-7 text-[#8a8a8a] hover:text-[#00a7f4]"
                                             onClick={() => openEdit(u)}
                                         >
                                             <Pencil className="w-3.5 h-3.5" />
@@ -239,7 +382,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                                            className="h-7 w-7 text-[#8a8a8a] hover:text-rose-600"
                                             onClick={() => openDelete(u)}
                                         >
                                             <Trash2 className="w-3.5 h-3.5" />
@@ -251,10 +394,10 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                     </tbody>
                 </table>
             ) : (
-                <p className="text-sm text-slate-500">No users yet.</p>
+                <p className="text-sm text-[#8a8a8a]">No users yet.</p>
             )}
 
-            {/* ── Create User Dialog ─────────────────────────────────────────────── */}
+            {/* -- Create User Dialog ----------------------------------------------- */}
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                     <Button size="sm" variant="outline" className="gap-1 mt-1">
@@ -298,7 +441,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                 </DialogContent>
             </Dialog>
 
-            {/* ── Edit User Dialog ───────────────────────────────────────────────── */}
+            {/* -- Edit User Dialog ------------------------------------------------- */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -337,13 +480,13 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
                 </DialogContent>
             </Dialog>
 
-            {/* ── Delete Confirm Dialog ──────────────────────────────────────────── */}
+            {/* -- Delete Confirm Dialog -------------------------------------------- */}
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete User</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to delete <strong>{deletingUser?.firstName} {deletingUser?.lastName}</strong>? This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -358,7 +501,7 @@ function TenantUsersPanel({ tenantId, tenantName }: { tenantId: string; tenantNa
     );
 }
 
-// ── Super admin view ──────────────────────────────────────────────────────────
+// -- Super admin view ----------------------------------------------------------
 
 function SuperAdminTenantManagement() {
     const tenantsQuery = useAdminTenantList();
@@ -380,12 +523,12 @@ function SuperAdminTenantManagement() {
     const inactiveCount = tenants.filter(t => !t.isActive).length;
     const totalUsers = tenants.reduce((sum, t) => sum + (t.usersCount ?? 0), 0);
 
-    // ── Edit dialog state ──────────────────────────────────────────────────────
+    // -- Edit dialog state ------------------------------------------------------
     const [editOpen, setEditOpen] = useState(false);
     const [editingTenant, setEditingTenant] = useState<AdminTenant | null>(null);
     const [editForm, setEditForm] = useState({ name: '', slug: '', plan: 'free', isActive: true });
 
-    // ── Deactivate confirm dialog state ────────────────────────────────────────
+    // -- Deactivate confirm dialog state ----------------------------------------
     const [deactivateOpen, setDeactivateOpen] = useState(false);
     const [deactivatingTenant, setDeactivatingTenant] = useState<{ id: string; name: string } | null>(null);
 
@@ -440,7 +583,7 @@ function SuperAdminTenantManagement() {
         setDeactivateOpen(true);
     };
 
-    // ── Reactivate handlers ────────────────────────────────────────────────────
+    // -- Reactivate handlers ----------------------------------------------------
     const [reactivateOpen, setReactivateOpen] = useState(false);
     const [reactivatingTenant, setReactivatingTenant] = useState<{ id: string; name: string } | null>(null);
 
@@ -483,11 +626,11 @@ function SuperAdminTenantManagement() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Tenant Management</h2>
-                    <p className="text-muted-foreground mt-1">Create and manage all organizations on the platform.</p>
+                    <p className="text-[#4a4a4a] mt-1">Create and manage all organizations on the platform.</p>
                 </div>
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button className="gap-2 bg-slate-900">
+                        <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                             <Plus className="w-4 h-4" /> New Tenant
                         </Button>
                     </DialogTrigger>
@@ -513,7 +656,7 @@ function SuperAdminTenantManagement() {
                                         onChange={e => setNewTenant(t => ({ ...t, slug: e.target.value }))}
                                         className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                     />
-                                    <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-slate-500">.anka.app</div>
+                                    <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">.anka.app</div>
                                 </div>
                             </div>
                             <div className="space-y-1">
@@ -537,35 +680,35 @@ function SuperAdminTenantManagement() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-5">
-                        <p className="text-sm text-slate-500">Total Tenants</p>
+                        <p className="text-sm text-[#8a8a8a]">Total Tenants</p>
                         <p className="text-3xl font-bold mt-1">{tenants.length}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-5">
-                        <p className="text-sm text-slate-500">Active</p>
+                        <p className="text-sm text-[#8a8a8a]">Active</p>
                         <p className="text-3xl font-bold mt-1 text-emerald-600">{activeCount}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-5">
-                        <p className="text-sm text-slate-500">Inactive</p>
+                        <p className="text-sm text-[#8a8a8a]">Inactive</p>
                         <p className="text-3xl font-bold mt-1 text-rose-600">{inactiveCount}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-5">
-                        <p className="text-sm text-slate-500">Total Users</p>
-                        <p className="text-3xl font-bold mt-1 text-blue-600">{totalUsers}</p>
+                        <p className="text-sm text-[#8a8a8a]">Total Users</p>
+                        <p className="text-3xl font-bold mt-1 text-[#00a7f4]">{totalUsers}</p>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Search */}
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8a8a]" />
                 <Input
                     placeholder="Search tenants by name or slug..."
                     value={searchQuery}
@@ -576,18 +719,18 @@ function SuperAdminTenantManagement() {
 
             {/* Tenant table */}
             {tenantsQuery.isLoading ? (
-                <Card className="h-48 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+                <Card className="h-48 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
             ) : tenantsQuery.isError ? (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-slate-600">Could not load tenants.</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load tenants.</p>
                         <Button variant="outline" onClick={() => tenantsQuery.refetch()}>Retry</Button>
                     </CardContent>
                 </Card>
             ) : (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <Table>
-                        <TableHeader className="bg-slate-50">
+                        <TableHeader className="bg-white">
                             <TableRow>
                                 <TableHead className="w-8"></TableHead>
                                 <TableHead>Organization</TableHead>
@@ -604,26 +747,26 @@ function SuperAdminTenantManagement() {
                                 <Fragment key={tenant.id}>
                                     <TableRow
                                         key={tenant.id}
-                                        className="cursor-pointer hover:bg-slate-50"
+                                        className="cursor-pointer hover:bg-white"
                                         onClick={() => setExpandedId(expandedId === tenant.id ? null : tenant.id)}
                                     >
                                         <TableCell>
                                             {expandedId === tenant.id
-                                                ? <ChevronDown className="w-4 h-4 text-slate-400" />
-                                                : <ChevronRight className="w-4 h-4 text-slate-400" />
+                                                ? <ChevronDown className="w-4 h-4 text-[#8a8a8a]" />
+                                                : <ChevronRight className="w-4 h-4 text-[#8a8a8a]" />
                                             }
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium">{tenant.name}</div>
-                                            <div className="text-xs text-slate-400 font-mono">{tenant.id.slice(0, 8)}...</div>
+                                            <div className="text-xs text-[#8a8a8a] font-mono">{tenant.id.slice(0, 8)}...</div>
                                         </TableCell>
-                                        <TableCell className="text-slate-500">{tenant.slug}</TableCell>
+                                        <TableCell className="text-[#8a8a8a]">{tenant.slug}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="capitalize">{tenant.plan ?? 'free'}</Badge>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <span className="inline-flex items-center gap-1 text-sm">
-                                                <Users className="w-3.5 h-3.5 text-slate-400" />
+                                                <Users className="w-3.5 h-3.5 text-[#8a8a8a]" />
                                                 <span className="font-medium">{tenant.usersCount ?? 0}</span>
                                             </span>
                                         </TableCell>
@@ -633,7 +776,7 @@ function SuperAdminTenantManagement() {
                                                 {tenant.isActive ? 'Active' : 'Inactive'}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-slate-400 text-sm">
+                                        <TableCell className="text-[#8a8a8a] text-sm">
                                             {tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : '—'}
                                         </TableCell>
                                         <TableCell onClick={e => e.stopPropagation()}>
@@ -641,7 +784,7 @@ function SuperAdminTenantManagement() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                                    className="h-8 w-8 text-[#8a8a8a] hover:text-[#00a7f4]"
                                                     title="Edit"
                                                     onClick={() => openEdit(tenant)}
                                                 >
@@ -651,7 +794,7 @@ function SuperAdminTenantManagement() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                                                        className="h-8 w-8 text-[#8a8a8a] hover:text-rose-600"
                                                         title="Deactivate"
                                                         onClick={() => openDeactivate(tenant.id, tenant.name)}
                                                     >
@@ -661,7 +804,7 @@ function SuperAdminTenantManagement() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-slate-400 hover:text-emerald-600"
+                                                        className="h-8 w-8 text-[#8a8a8a] hover:text-emerald-600"
                                                         title="Reactivate"
                                                         onClick={() => openReactivate(tenant.id, tenant.name)}
                                                     >
@@ -674,9 +817,9 @@ function SuperAdminTenantManagement() {
                                     {expandedId === tenant.id && (
                                         <TableRow key={`${tenant.id}-users`}>
                                             <TableCell />
-                                            <TableCell colSpan={7} className="bg-slate-50 py-4 px-6">
+                                            <TableCell colSpan={7} className="bg-white py-4 px-6">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <Users className="w-4 h-4 text-slate-500" />
+                                                    <Users className="w-4 h-4 text-[#8a8a8a]" />
                                                     <span className="text-sm font-medium text-slate-700">Users</span>
                                                 </div>
                                                 <TenantUsersPanel tenantId={tenant.id} tenantName={tenant.name} />
@@ -687,7 +830,7 @@ function SuperAdminTenantManagement() {
                             ))}
                             {filteredTenants.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-10 text-slate-500">
+                                    <TableCell colSpan={8} className="text-center py-10 text-[#8a8a8a]">
                                         {searchQuery ? 'No tenants match your search.' : 'No tenants yet. Create one to get started.'}
                                     </TableCell>
                                 </TableRow>
@@ -697,7 +840,7 @@ function SuperAdminTenantManagement() {
                 </Card>
             )}
 
-            {/* ── Edit Tenant Dialog ───────────────────────────────────────────── */}
+            {/* -- Edit Tenant Dialog --------------------------------------------- */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -719,7 +862,7 @@ function SuperAdminTenantManagement() {
                                     onChange={e => setEditForm(f => ({ ...f, slug: e.target.value }))}
                                     className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                 />
-                                <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-slate-500">.anka.app</div>
+                                <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">.anka.app</div>
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -750,13 +893,13 @@ function SuperAdminTenantManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Deactivate Tenant Confirm Dialog ─────────────────────────────── */}
+            {/* -- Deactivate Tenant Confirm Dialog ------------------------------- */}
             <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Deactivate Tenant</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Are you sure you want to deactivate <strong>{deactivatingTenant?.name}</strong>? Their users will be unable to log in.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -768,13 +911,13 @@ function SuperAdminTenantManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Reactivate Tenant Confirm Dialog ────────────────────────────── */}
+            {/* -- Reactivate Tenant Confirm Dialog ------------------------------ */}
             <Dialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Reactivate Tenant</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#4a4a4a]">
                         Reactivate <strong>{reactivatingTenant?.name}</strong>? Their users will be able to log in again.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
@@ -789,7 +932,7 @@ function SuperAdminTenantManagement() {
     );
 }
 
-// ── Page entry point ──────────────────────────────────────────────────────────
+// -- Page entry point ----------------------------------------------------------
 
 export default function TenantPage() {
     const isSuperAdmin = useAuthStore((s) => s.user?.isSuperAdmin ?? false);

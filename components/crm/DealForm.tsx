@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Deal } from '@/types/business';
+import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
 type DealFormErrors = { name?: string; winProbability?: string };
 
@@ -22,8 +23,9 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const [client, setClient] = useState('');
     const [estimatedValue, setEstimatedValue] = useState<number | ''>('');
     const [winProbability, setWinProbability] = useState<number | ''>('');
-    const [status, setStatus] = useState<Deal['status']>('inquiry');
+    const [status, setStatus] = useState<Deal['status']>('lead');
     const [errors, setErrors] = useState<DealFormErrors>({});
+    const symbol = useCurrencySymbol();
 
     useEffect(() => {
         if (initialData && isOpen) {
@@ -31,13 +33,13 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             setClient(initialData.client || '');
             setEstimatedValue(initialData.estimatedValue || 0);
             setWinProbability(initialData.winProbability || 0);
-            setStatus(initialData.status || 'inquiry');
+            setStatus(initialData.status || 'lead');
         } else if (isOpen) {
             setName('');
             setClient('');
             setEstimatedValue('');
             setWinProbability(20);
-            setStatus('inquiry');
+            setStatus('lead');
         }
         setErrors({});
     }, [initialData, isOpen]);
@@ -78,7 +80,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         <DialogTitle>{initialData ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <p className="text-xs text-muted-foreground col-span-4">
+                        <p className="text-xs text-[#4a4a4a] col-span-4">
                             Fields marked <span className="text-destructive">*</span> are required.
                         </p>
                         <div className="grid grid-cols-4 items-start gap-4">
@@ -99,12 +101,12 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="client" className="text-right">
-                                Client <span className="text-muted-foreground text-xs font-normal">(opt.)</span>
+                                Client <span className="text-[#4a4a4a] text-xs font-normal">(opt.)</span>
                             </Label>
                             <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder="e.g. Acme Corp" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="value" className="text-right">Value ($)</Label>
+                            <Label htmlFor="value" className="text-right">Value ({symbol})</Label>
                             <Input
                                 id="value"
                                 type="number"
@@ -140,11 +142,9 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="inquiry">Inquiry</SelectItem>
-                                        <SelectItem value="lead">Lead</SelectItem>
-                                        <SelectItem value="opportunity">Opportunity</SelectItem>
-                                        <SelectItem value="proposal">Proposal</SelectItem>
-                                        <SelectItem value="contract">Contract</SelectItem>
+                                        <SelectItem value="lead">C — Lead</SelectItem>
+                                        <SelectItem value="qualified">B — Qualified</SelectItem>
+                                        <SelectItem value="negotiation">A — Negotiation</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle2, Clock, AlertCircle, MoreVertical } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, MoreVertical, Users, Calendar, FileWarning } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -30,27 +30,27 @@ export default function ProjectsPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Project Delivery</h1>
-                    <p className="text-slate-500 mt-1">Track active project status, consumed hours, and budget burn rate.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Project Delivery</h1>
+                    <p className="text-[#8a8a8a] mt-1">Track active project status, consumed hours, and budget burn rate.</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Active Projects</p>
-                            <Clock className="h-5 w-5 text-blue-500" />
+                            <p className="text-sm font-medium text-[#8a8a8a]">Active Projects</p>
+                            <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-slate-900">{projects.length}</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{projects.length}</span>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Budgeted Hours</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Budgeted Hours</p>
                             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -60,10 +60,10 @@ export default function ProjectsPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Total Consumed Hours</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Total Consumed Hours</p>
                             <AlertCircle className="h-5 w-5 text-rose-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -76,27 +76,28 @@ export default function ProjectsPage() {
             </div>
 
             {projectsQuery.isLoading ? (
-                <Card className="h-64 animate-pulse border-slate-100 bg-slate-100 shadow-sm" />
+                <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
             ) : projectsQuery.isError ? (
-                <Card className="shadow-sm border-slate-100">
+                <Card className="shadow-sm border-[#e6e9ee]">
                     <div className="flex h-64 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-slate-600">Could not load projects.</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load projects.</p>
                         <Button variant="outline" onClick={() => projectsQuery.refetch()}>Retry</Button>
                     </div>
                 </Card>
             ) : (
-            <Card className="shadow-sm border-slate-100">
+            <Card className="shadow-sm border-[#e6e9ee]">
                 <Table>
-                    <TableHeader className="bg-slate-50">
+                    <TableHeader className="bg-white">
                         <TableRow>
                             <TableHead>Project</TableHead>
                             <TableHead>Client</TableHead>
                             <TableHead>Contract</TableHead>
-                            <TableHead>Source Deal</TableHead>
+                            <TableHead>Kickoff</TableHead>
+                            <TableHead>Team</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Budget Hours</TableHead>
                             <TableHead className="text-right">Consumed</TableHead>
-                            <TableHead className="w-[200px]">Burn Rate</TableHead>
+                            <TableHead className="w-[180px]">Burn Rate</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -106,7 +107,7 @@ export default function ProjectsPage() {
                                 ? Math.min(Math.round((project.consumedHours / project.budgetHours) * 100), 100)
                                 : 0;
 
-                            let progressColor = "bg-blue-500";
+                            let progressColor = "bg-[#00a7f4]/50";
                             if (burnPercentage > 85) progressColor = "bg-rose-500";
                             else if (burnPercentage > 70) progressColor = "bg-amber-500";
 
@@ -118,40 +119,63 @@ export default function ProjectsPage() {
                             return (
                                 <TableRow key={project.id}>
                                     <TableCell>
-                                        <div className="font-medium text-slate-900">{project.name}</div>
-                                        <div className="text-xs text-slate-500">
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                className="font-medium text-[#171717] hover:text-[#00a7f4] hover:underline text-left"
+                                                onClick={() => router.push(`/projects/${project.id}`)}
+                                            >
+                                                {project.name}
+                                            </button>
+                                            {linkedContract && linkedContract.status === 'Draft' && (
+                                                <FileWarning
+                                                    className="h-3.5 w-3.5 text-amber-600 flex-shrink-0"
+                                                    aria-label="Contract not yet signed — time logged here may not be invoiceable"
+                                                >
+                                                    <title>Contract not yet signed — time logged here may not be invoiceable</title>
+                                                </FileWarning>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-[#8a8a8a]">
                                             {project.projectNumber ?? project.id.slice(0, 8)}
+                                            {project.projectManagerName && <> · PM: {project.projectManagerName}</>}
                                         </div>
                                     </TableCell>
                                     <TableCell>{project.client}</TableCell>
                                     <TableCell>
                                         {linkedContract ? (
                                             <button
-                                                className="text-sm text-blue-600 hover:underline text-left"
-                                                onClick={() => router.push('/contracts')}
+                                                className="text-sm text-[#00a7f4] hover:underline text-left"
+                                                onClick={() => router.push(`/contracts/${linkedContract.id}`)}
                                             >
                                                 {linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)}
                                             </button>
                                         ) : (
-                                            <span className="text-slate-400 text-sm">—</span>
+                                            <span className="text-[#8a8a8a] text-sm">—</span>
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        {sourceDeal ? (
-                                            <button
-                                                className="text-sm text-emerald-600 hover:underline text-left"
-                                                onClick={() => router.push(`/crm/${sourceDeal.id}`)}
-                                            >
-                                                {sourceDeal.name}
-                                            </button>
+                                        {project.kickoffDate ? (
+                                            <span className="text-sm text-[#171717] inline-flex items-center gap-1">
+                                                <Calendar className="h-3.5 w-3.5 text-[#8a8a8a]" />
+                                                {project.kickoffDate}
+                                            </span>
                                         ) : (
-                                            <span className="text-slate-400 text-sm">—</span>
+                                            <span className="text-xs text-amber-600 inline-flex items-center gap-1">
+                                                <Calendar className="h-3.5 w-3.5" />
+                                                Not scheduled
+                                            </span>
                                         )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className={`text-sm inline-flex items-center gap-1 ${(project.teamSize ?? 0) === 0 ? 'text-rose-600' : 'text-[#171717]'}`}>
+                                            <Users className="h-3.5 w-3.5" />
+                                            {(project.teamSize ?? 0) === 0 ? 'Unstaffed' : `${project.teamSize} ${project.teamSize === 1 ? 'member' : 'members'}`}
+                                        </span>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className={
                                             project.status === 'Completed'   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                            project.status === 'On Track'    ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                            project.status === 'On Track'    ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
                                             project.status === 'At Risk'     ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                             project.status === 'Over Budget' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                                                'bg-slate-100 text-slate-700 border-slate-200'
@@ -160,7 +184,7 @@ export default function ProjectsPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right font-medium">{project.budgetHours}h</TableCell>
-                                    <TableCell className="text-right text-slate-600">{project.consumedHours}h</TableCell>
+                                    <TableCell className="text-right text-[#4a4a4a]">{project.consumedHours}h</TableCell>
                                     <TableCell>
                                         <div className="space-y-1 mt-1">
                                             <div className="flex justify-between text-xs">
@@ -183,7 +207,7 @@ export default function ProjectsPage() {
                                                     </DropdownMenuItem>
                                                 )}
                                                 {linkedContract && (
-                                                    <DropdownMenuItem onClick={() => router.push('/contracts')}>
+                                                    <DropdownMenuItem onClick={() => router.push(`/contracts/${linkedContract.id}`)}>
                                                         View Contract
                                                     </DropdownMenuItem>
                                                 )}
@@ -203,7 +227,7 @@ export default function ProjectsPage() {
                         })}
                         {projects.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center py-6 text-slate-500">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
+                                <TableCell colSpan={10} className="text-center py-6 text-[#8a8a8a]">No active projects yet. Win deals in the CRM to launch projects.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

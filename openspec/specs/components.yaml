@@ -1,0 +1,196 @@
+id: components
+name: Key Components & UI Architecture
+version: "1.0"
+
+summary: |
+  Components are organized by domain: crm/, estimation/, forms/, tables/, layout/.
+  All UI primitives come from components/ui/ (shadcn/ui, "new-york" style, neutral palette).
+  Icons from lucide-react only.
+
+component_groups:
+  - name: CRM Components
+    path: components/crm/
+    components:
+      - name: KanbanBoard
+        file: components/crm/KanbanBoard.tsx
+        purpose: Drag-and-drop sales pipeline
+        features:
+          - "5 columns with rank labels: C — Lead → B — Qualified → A — Negotiation → S — Won → D — Lost"
+          - "Qualified merges the old Proposal stage (migration 2026_05_12_000001)"
+          - "Manual A → S drag is blocked; users must upload an AI-approved contract document to win"
+          - "@hello-pangea/dnd for drag-and-drop"
+          - "Smart probability merge: preserves manual overrides within ±5pp on stage drag"
+          - "Stage rank / titles / probabilities sourced from lib/dealRanks.ts (single source of truth, mirrors backend DealController)"
+          - "RBAC-gated via usePermission('manage_crm')"
+          - "Card info: client name, staffing badge, est. cost, gross profit, budget, win probability bar, booking state"
+          - "Actions: Edit, Staffing, Upload Contract → Win, Mark as Lost, Delete"
+
+      - name: ContractDocumentUploader
+        file: components/crm/ContractDocumentUploader.tsx
+        purpose: Upload + AI-analyse the customer-signed contract that gates A → S
+        features:
+          - "Visible on the deal detail page only while stage = 'negotiation'"
+          - "Drag/drop or click-to-browse; accepts pdf, docx, txt up to 25 MB"
+          - "Renders a compact ContractDocumentSummaryRow per uploaded doc with status badge, score, executive summary, and an 'Open full review →' link to /crm/contract-reviews/[id] for the deep verdict (chg-010)"
+          - "Wrong-customer banner: when deal_match.is_match=false, the row shows a red 'wrong contract' chip — full reasoning lives on the deep page"
+          - "On approved, backend auto-fires win_deal(); component routes to /contracts/{id}"
+          - "Uses lib/queries/contractDocuments.ts (TanStack Query hooks)"
+
+      - name: ContractReviewsTable
+        file: components/tables/ContractReviewsTable.tsx
+        purpose: Tenant-wide queue of contract documents (chg-010)
+        features:
+          - "@tanstack/react-table with sortable Status / Score / Uploaded columns"
+          - "Default sort: created_at DESC (most-recent uploads first for triage)"
+          - "Score column: emerald 80+, amber 60-79, red <60; '—' for pending/analyzing/failed"
+          - "Deal column: name + client, links to /crm/[id]"
+          - "Each row: 'Review →' link to /crm/contract-reviews/[id]"
+
+      - name: AnalysisResultCard
+        file: components/crm/AnalysisResultCard.tsx
+        purpose: Renders the rich Claude verdict for a contract document
+        features:
+          - "Deal-mismatch banner (red, top of card): shown when deal_match.is_match=false — Claude detected the contract belongs to a different customer or project. Lists Claude's reasoning, the deal client vs detected doc parties, and specific discrepancies. Hard-blocks approval."
+          - "Top bar: status + filename + score gauge (0-100, severity-tier colour)"
+          - "Executive summary + payment-pattern chip + critical-issue count"
+          - "Diff banner on re-uploads: previous → current score, improvements/regressions list"
+          - "'Needs attention' section: failing critical/required fields, expanded by default with evidence quote + suggested fix"
+          - "Dispute risks section: free-form Claude flags with severity chips"
+          - "Expandable 'Show all 26 graded fields' grouped by severity (critical / required / recommended)"
+          - "Per-field row: status icon + chip + score + evidence-location, expand for verbatim evidence quote + reasoning + suggested fix"
+          - "Failure path (text extraction broke) collapses to a single red alert with the error + suggestion"
+
+      - name: DealForm
+        file: components/crm/DealForm.tsx
+        purpose: Quick deal add/edit dialog
+        fields: name, client, estimated value, win probability, stage
+        currency: uses useCurrencySymbol()
+
+      - name: AITeamBuilder
+        file: components/crm/AITeamBuilder.tsx
+        purpose: Orchestrates AI team build process
+        features:
+          - "Computes requiredSkills via extractRequiredSkills() from workload description"
+          - "Computes complexity via computeDealComplexity()"
+          - "Builds employeeAvailability map subtracting hard assignments from other deals"
+          - "Need Management toggle (default ON): forces the AI to include a leadership-level employee (rank.level ≥ 30) when ON; allows lean teams without a Senior/Lead when OFF (chg-009)"
+          - "Before building, fetches /deals/{deal}/ai-team-builder-context to enrich employees with rank + past_projects for the prompt (chg-009)"
+          - "Calls POST /api/ai-team-builder with full context"
+          - "On API failure, falls back to generateClientFallback() (deterministic keyword-based)"
+          - "Supports regeneration with feedback text"
+          - "Accept button passes result to parent (onAccept)"
+
+      - name: AITeamBuilderResult
+        file: components/crm/AITeamBuilderResult.tsx
+        purpose: Displays AI result in 4 cards
+        cards:
+          - Recommended Team (avatar, role, allocated hours, total cost)
+          - P&L Estimate (labor, overhead, buffer, total cost, client budget, gross profit, margin %)
+          - AI Reasoning (explanation text)
+          - Warnings (capacity conflicts, skill gaps)
+        actions: Accept & Save, Regenerate
+        margin_colors: "<0% red, <10% yellow, >=10% green"
+
+  - name: Estimation Components
+    path: components/estimation/
+    components:
+      - name: EstimationSimulator
+        file: components/estimation/EstimationSimulator.tsx
+        lines: "~892"
+        purpose: Full estimation engine with scope tables and margin simulator
+        layout: Two-column (scope left, simulator right)
+        features:
+          - "Scope & Labor table: add/remove resources (feature name, role, hours)"
+          - "Cost rate strategy: median employee costPerHour → role.rate × costToBillRatio → fallbackHourlyCost"
+          - "Project Overhead table: one-time expenses"
+          - "Margin Simulator: slider 10-80% target margin"
+          - "Computes totalCost = labor + company overhead + project overhead + buffer"
+          - "Suggested price = totalCost / (1 - margin%)"
+          - "Version history: save snapshots, restore, compare versions"
+          - "Budget reality check: flags if suggested price exceeds client budget by >5%"
+          - "Uses useTenantCurrency() and useCurrencySymbol()"
+
+  - name: Organization Components
+    path: components/tables/ + components/forms/
+    components:
+      - name: EmployeesTable
+        file: components/tables/EmployeesTable.tsx
+        purpose: Employee directory with availability calculation
+        features:
+          - "@tanstack/react-table with sorting, pagination"
+          - "Columns: Name, Role, Rank, Monthly Salary, Cost/Hr, Total Hours/Mo, Available Hours, Skills, Status, Actions"
+          - "Rank column shows the employee's seniority code (Junior/Mid/Senior/Lead or custom) with level-band colour; sortable by rank.level (chg-009)"
+          - "Available Hours = workableHours - sum(timeEntries.hours) for current month"
+          - "Overbooked employees highlighted in red"
+          - "Skills displayed as badges with overflow handling"
+
+      - name: EmployeeForm
+        file: components/forms/EmployeeForm.tsx
+        purpose: Create/edit employee with skills + rank assignment
+        features:
+          - "React Hook Form + Zod (employeeSchema / employeeCreateSchema)"
+          - "Fields: name, department, billing role, capacity pool, rank, monthly salary, workable hours, status"
+          - "Rank dropdown lists tenant ranks ordered by level; 'Unranked' sentinel maps to null on save (chg-009)"
+          - "Skills picker: popover with search, add/remove skills with proficiency (beginner/intermediate/expert)"
+          - "Login credentials: email + password (create requires both; edit treats blank as no change)"
+          - "blankToUndefined preprocessor for optional fields"
+
+      - name: RanksTable
+        file: components/tables/RanksTable.tsx
+        purpose: Tenant rank list with inline edit + delete (chg-009)
+        features:
+          - "@tanstack/react-table sorted by level (lowest first)"
+          - "Columns: Level (coloured chip), Name, Code, Actions"
+          - "Level colour bands: 40+ purple (Lead), 30+ blue (Senior), 20+ emerald (Mid), <20 slate (Junior)"
+
+      - name: RankForm
+        file: components/forms/RankForm.tsx
+        purpose: Create/edit a tenant rank (chg-009)
+        features:
+          - "Fields: name, code (regex-validated), level (0-100 integer)"
+          - "Level field hint suggests gaps between defaults so custom ranks (Principal 35, Staff 45) can be inserted later"
+
+  - name: Layout Components
+    path: components/layout/
+    components:
+      - name: DashboardShell
+        file: components/layout/DashboardShell.tsx
+        purpose: Wraps all dashboard routes with Sidebar + Header + Toaster
+
+      - name: Header
+        file: components/layout/Header.tsx
+        purpose: Top bar with tenant switcher, user menu, demo mode toggle
+
+      - name: Sidebar
+        file: components/layout/Sidebar.tsx
+        purpose: Navigation with collapsible groups, RBAC-gated links
+
+  - name: Permission & Guard Components
+    components:
+      - name: PermissionGuard
+        file: components/PermissionGuard.tsx
+        purpose: Conditionally renders children based on usePermission()
+        rule: "Never hide guarded controls; disable + tooltip the reason"
+
+      - name: OrgSyncErrorBanner
+        file: components/OrgSyncErrorBanner.tsx
+        purpose: Retryable error banner for useOrganizationSync failures
+
+ui_primitives:
+  source: components/ui/
+  style: shadcn/ui "new-york", neutral palette
+  examples: [button, card, dialog, input, select, table, badge, slider, toast]
+  composition: |
+    All className composition uses cn() from lib/utils.ts (clsx + tailwind-merge)
+
+icons:
+  source: lucide-react only
+  examples: [Plus, Trash2, Calculator, Save, Clock, History, TrendingUp, TrendingDown, DollarSign, AlertCircle]
+
+drag_and_drop:
+  library: "@hello-pangea/dnd"
+  usage: CRM Kanban board stage transitions
+
+toasts:
+  library: react-hot-toast
+  placement: <Toaster> in dashboard layout

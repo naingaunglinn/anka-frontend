@@ -1,0 +1,128 @@
+id: chg-010-ai-estimation-generation
+name: "Generate Estimation with AI" button + preview flow on Estimation Simulator
+status: proposed
+created: 2026-05-13
+owners: [claude.max@brycenmyanmar.com.mm]
+
+why: |
+  Pairs with anka-api chg-007. The backend now exposes a single Claude-powered
+  endpoint that returns a draft estimation structured per XLSX sheet. The
+  frontend needs to:
+    - Surface one button on the Estimation Simulator that calls it.
+    - Drop the response into the simulator's existing editable state so the
+      user reviews/edits like a normal estimation.
+    - Make Save work exactly as before — the existing POST estimation-versions
+      flow still creates the version and the XLSX (chg-006/chg-009).
+
+  Critically, NOTHING the user does between "click Generate" and "click Save"
+  hits the server. The AI call is one round-trip; everything after is local
+  state until Save. This keeps the UX snappy and reuses the simulator
+  exactly as it works today for hand-built estimations.
+
+what:
+  - types/business.ts
+    - Add AIEstimationDraft interface mirroring the backend per-sheet JSON:
+        sheet1Summary, sheet2Features[], sheet3Manhours[],
+        sheet4Milestone, sheet5TeamStack[], reasoning, confidence.
+    - Mapper handles snake_case→camelCase conversion (lib/dealsMapper.ts).
+
+  - lib/dealsMapper.ts
+    - Add `toAIEstimationDraft(payload)` mapper. Field-by-field rename;
+      preserves nested array shapes.
+
+  - lib/queries/estimationVersions.ts
+    - useGenerateAIEstimationDraft(): NEW mutation hook.
+      - POST `/deals/{dealId}/estimation-versions/ai-draft`.
+      - Returns `{ generate, isGenerating, lastDraft, error }`.
+      - On success: stores the parsed AIEstimationDraft, does NOT
+        invalidate any query (nothing was persisted server-side).
+      - On 422: shows the validation message via react-hot-toast
+        ("Deal needs a workload description or attached contract document
+        before AI can generate an estimation").
+      - On 503: shows "AI service unavailable, please try again later".
+      - All errors normalised via `lib/errorHandler.ts::normalizeError`.
+
+  - components/estimation/EstimationSimulator.tsx
+    - Adds a "Generate with AI" button in the header row next to the
+      existing Save button. Icon: lucide `Sparkles`.
+    - Visibility: only when a deal is selected.
+    - Disabled state: when `isGenerating === true` OR when the selected
+      deal has no workload_description AND no contract docs uploaded.
+      Tooltip explains why.
+    - Click handler: calls `generate(selectedDealId)`. On resolve:
+      - Maps the per-sheet draft into the simulator's existing local
+        state shapes (estimationResources from sheet2/sheet3 join by
+        function_id; deal_overheads inferred from sheet1 if present;
+        target_margin left untouched — AI does not propose margin).
+      - Shows a `<Toast>` summarising the draft: "AI generated N features
+        across M months — review and Save to persist."
+      - Surfaces the AI reasoning + confidence badge in a collapsible
+        info panel above the scope table. User can dismiss.
+    - The existing Save button continues to call the same
+      `POST /deals/{id}/estimation-versions` — no special "AI-save" path.
+      Once the AI draft is loaded into local state, it's indistinguishable
+      from a hand-built estimation from the simulator's point of view.
+
+  - components/estimation/AIDraftReviewPanel.tsx (NEW, small)
+    - Tiny presentational component shown after AI generation.
+    - Renders: confidence badge (green/yellow/red), reasoning text,
+      "Discard AI draft" button (resets local state to what was loaded
+      from the deal originally).
+    - Mounted by EstimationSimulator only when `lastDraft !== null`.
+
+  - components/PermissionGuard usage
+    - Wrap the Generate with AI button with `<PermissionGuard permission="manage_crm">`
+      to match the backend route's manage_crm gate. Disabled+tooltip
+      pattern (the project's convention).
+
+  - openspec/specs/components.yaml
+    - EstimationSimulator description updated to mention the AI draft
+      button and useGenerateAIEstimationDraft hook. Adds
+      AIDraftReviewPanel as a new entry.
+
+  - openspec/specs/api-layer.yaml
+    - Documents the new mutation hook under the estimation-versions
+      section. Notes that the response is read-only (no query invalidation
+      needed).
+
+  - specs/estimation.md
+    - Adds an "AI Generation" subsection covering the button, preview
+      flow, mapper, error states.
+
+placeholders:
+  - The AI reasoning panel is intentionally simple (text + confidence
+    chip). If the sales team wants per-feature reasoning ("why this
+    feature has 12 hours"), the backend prompt would need to return
+    per-row notes — out of scope for v1.
+  - "Discard AI draft" resets to whatever was loaded from the deal
+    when the simulator opened — it does NOT track a separate "pre-AI"
+    snapshot if the user had already edited rows manually before
+    clicking Generate. That edge case is rare and the user can always
+    re-select the deal to reload.
+
+risk: |
+  - Latency: a single Claude call with few-shot context can take
+    15–30 seconds. The button uses an animated `Sparkles` icon and a
+    disabled state; toast at 10s if still pending: "AI is thinking…
+    estimations with rich context can take up to 30 seconds." Beyond
+    45s, the mutation hook aborts with `AbortController` and shows
+    "Timed out — please try again."
+  - State mismatch: if the deal is edited in another tab while the AI
+    draft is open in this tab and not yet saved, the user's Save will
+    overwrite those edits (same as today's hand-edit flow). No new
+    risk; just documenting.
+  - Existing version comparison: the version-history Compare feature
+    diffs two saved versions. An AI draft is NOT saved until the user
+    clicks Save, so it doesn't appear in version history until then.
+    Intentional — keeps history clean.
+
+manual_steps:
+  - (backend) ANTHROPIC_API_KEY in anka-api .env. See chg-007.
+  - npm install (no new packages needed; uses existing axios + react-hot-toast).
+  - npm run dev — verify the Sparkles button appears on the Estimation
+    Simulator and that clicking it on a deal with workload_description
+    loads a draft into the simulator.
+
+affected_specs:
+  - components
+  - api-layer

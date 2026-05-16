@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -68,18 +68,18 @@ export default function RegisterPage() {
 
     return (
         <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(0,166,244,0.24),transparent_35%),radial-gradient(circle_at_85%_15%,rgba(56,189,248,0.22),transparent_34%),radial-gradient(circle_at_75%_85%,rgba(2,132,199,0.18),transparent_36%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(0,167,244,0.24),transparent_35%),radial-gradient(circle_at_85%_15%,rgba(56,189,248,0.22),transparent_34%),radial-gradient(circle_at_75%_85%,rgba(2,132,199,0.18),transparent_36%)]" />
 
             <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
                 <section>
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a6f4]/30 bg-white px-4 py-2 shadow-sm">
-                        <span className="h-2 w-2 rounded-full bg-[#00a6f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a6f4]">ANKA</span>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a7f4]/30 bg-white px-4 py-2 shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a7f4]">ANKA</span>
                     </div>
 
                     <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
                         Create Your
-                        <span className="block text-[#00a6f4]">Gross-Profit Workspace</span>
+                        <span className="block text-[#00a7f4]">Gross-Profit Workspace</span>
                     </h1>
 
                     <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
@@ -87,23 +87,23 @@ export default function RegisterPage() {
                     </p>
 
                     <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <UserPlus className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <UserPlus className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Fast Signup</p>
                         </article>
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <PhoneCall className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <PhoneCall className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Intl Phone Ready</p>
                         </article>
-                        <article className="rounded-xl border border-[#00a6f4]/25 bg-white/90 p-3 shadow-sm">
-                            <ShieldCheck className="mb-2 h-4 w-4 text-[#00a6f4]" />
+                        <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
+                            <ShieldCheck className="mb-2 h-4 w-4 text-[#00a7f4]" />
                             <p className="text-xs font-semibold">Secure Access</p>
                         </article>
                     </div>
                 </section>
 
                 <section>
-                    <Card className="mx-auto w-full max-w-md border-[#00a6f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                    <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
                         <CardHeader className="space-y-2 pb-5">
                             <CardTitle className="text-2xl font-bold">Sign Up</CardTitle>
                             <CardDescription className="text-[#171717]/65">
@@ -123,7 +123,7 @@ export default function RegisterPage() {
                                                     <Input
                                                         placeholder="name@company.com"
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -146,7 +146,7 @@ export default function RegisterPage() {
                                                         }}
                                                     >
                                                         <FormControl>
-                                                            <SelectTrigger className="h-11 w-full border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a6f4]">
+                                                            <SelectTrigger className="h-11 w-full border-[#171717]/20 bg-white focus:ring-2 focus:ring-[#00a7f4]">
                                                                 <div className="flex items-center gap-2">
                                                                     <FlagIcon iso={selectedCountry.iso} className="h-3.5 w-5 shrink-0 rounded-sm" />
                                                                     <SelectValue>{selectedCountry.dial}</SelectValue>
@@ -173,7 +173,7 @@ export default function RegisterPage() {
                                                             setPhoneLocal(nextLocal);
                                                             syncPhoneNumber(countryIso, nextLocal);
                                                         }}
-                                                        className="h-11 w-full border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 w-full border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
                                                 </div>
                                                 <FormMessage />
@@ -192,7 +192,7 @@ export default function RegisterPage() {
                                                         type="password"
                                                         placeholder="At least 8 characters"
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a6f4]"
+                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -208,7 +208,7 @@ export default function RegisterPage() {
 
                                     <Button
                                         type="submit"
-                                        className="h-11 w-full bg-[#00a6f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,166,244,0.35)] hover:bg-[#0599df]"
+                                        className="h-11 w-full bg-[#00a7f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,167,244,0.35)] hover:bg-[#0599df]"
                                         disabled={form.formState.isSubmitting}
                                     >
                                         {form.formState.isSubmitting ? 'Creating account...' : 'Sign Up'}
@@ -219,8 +219,13 @@ export default function RegisterPage() {
 
                             <p className="mt-5 text-center text-sm text-[#171717]/70">
                                 Already have an account?{' '}
-                                <Link href="/login" className="font-semibold text-[#00a6f4] hover:underline">
+                                <Link href="/login" className="font-semibold text-[#00a7f4] hover:underline">
                                     Sign In
+                                </Link>
+                            </p>
+                            <p className="mt-3 text-center text-sm text-[#171717]/70">
+                                <Link href="/" className="font-semibold text-[#00a7f4] hover:underline">
+                                    ← Back to Home
                                 </Link>
                             </p>
                         </CardContent>

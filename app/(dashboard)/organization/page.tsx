@@ -9,13 +9,21 @@ import { RolesTable } from '@/components/tables/RolesTable';
 import { RoleForm } from '@/components/forms/RoleForm';
 import { OverheadsTable } from '@/components/tables/OverheadsTable';
 import { OverheadForm } from '@/components/forms/OverheadForm';
+import { CompanySettingsForm } from '@/components/forms/CompanySettingsForm';
+import { SkillsTable } from '@/components/tables/SkillsTable';
+import { SkillForm } from '@/components/forms/SkillForm';
+import { RanksTable } from '@/components/tables/RanksTable';
+import { RankForm } from '@/components/forms/RankForm';
 import {
     type DepartmentFormValues,
     type RoleFormValues,
     type EmployeeFormValues,
     type EmployeeCreateValues,
     type OverheadFormValues,
+    type SkillFormValues,
+    type RankFormValues,
 } from '@/lib/schemas/organization.schema';
+import { useRanks, useRankMutations } from '@/lib/queries/ranks';
 import {
     Dialog,
     DialogContent,
@@ -31,7 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBusinessStore } from '@/store/businessStore';
-import { Employee, Department, Role, GlobalOverhead } from '@/types/business';
+import { Employee, Department, Role, GlobalOverhead, Skill, Rank } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 export default function EmployeesPage() {
@@ -89,11 +97,34 @@ export default function EmployeesPage() {
     const [isOverheadDialogOpen, setIsOverheadDialogOpen] = useState(false);
     const [editingOverhead, setEditingOverhead] = useState<GlobalOverhead | null>(null);
 
+    // Skills State
+    const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false);
+    const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+
+    // Ranks State — ranks live outside the Zustand store (TanStack Query
+    // only). The Employee form's rank dropdown reads from this same hook,
+    // so adding/editing a rank here invalidates the cache and propagates.
+    const ranksQuery = useRanks();
+    const rankMutations = useRankMutations();
+    const ranks = ranksQuery.data ?? [];
+    const [isRankDialogOpen, setIsRankDialogOpen] = useState(false);
+    const [editingRank, setEditingRank] = useState<Rank | null>(null);
+
     const [salaryMultiplier, setSalaryMultiplier] = useState(() => ({
         taxes: store.companySettings.employerTaxPercentage,
         benefits: store.companySettings.benefitsPercentage,
     }));
     const [isSavingSalary, setIsSavingSalary] = useState(false);
+
+    // Estimation defaults — drive cost calculations on /estimation when no
+    // concrete signal is available. Editable here so each tenant can set
+    // their own assumptions instead of inheriting hardcoded literals.
+    const [estimationDefaults, setEstimationDefaults] = useState(() => ({
+        costToBillRatio:             store.companySettings.costToBillRatio,
+        defaultMonthlyCapacityHours: store.companySettings.defaultMonthlyCapacityHours,
+        fallbackHourlyCost:          store.companySettings.fallbackHourlyCost,
+    }));
+    const [isSavingDefaults, setIsSavingDefaults] = useState(false);
 
     useEffect(() => {
         setSalaryMultiplier({
@@ -105,10 +136,42 @@ export default function EmployeesPage() {
         store.companySettings.benefitsPercentage,
     ]);
 
+    useEffect(() => {
+        setEstimationDefaults({
+            costToBillRatio:             store.companySettings.costToBillRatio,
+            defaultMonthlyCapacityHours: store.companySettings.defaultMonthlyCapacityHours,
+            fallbackHourlyCost:          store.companySettings.fallbackHourlyCost,
+        });
+    }, [
+        store.companySettings.costToBillRatio,
+        store.companySettings.defaultMonthlyCapacityHours,
+        store.companySettings.fallbackHourlyCost,
+    ]);
+
     // --- Employee Handlers ---
+    // Build the EmployeeSkillWithName[] the store/API expects from the form
+    // payload by joining each picked skillId against the catalog. Unknown ids
+    // are dropped — the schema validates uuids but a skill could have been
+    // deleted in another tab between picker open and submit.
+    const buildSkills = (
+        picked: EmployeeCreateValues['skills'],
+    ): Employee['skills'] =>
+        picked
+            .map(p => {
+                const skill = store.skills.find(s => s.id === p.skillId);
+                return skill
+                    ? {
+                          skillId:     skill.id,
+                          name:        skill.name,
+                          category:    skill.category,
+                          proficiency: p.proficiency,
+                      }
+                    : null;
+            })
+            .filter((s): s is NonNullable<typeof s> => s !== null);
+
     const handleAddEmployee = async (data: EmployeeCreateValues) => {
         const role = store.roles.find(r => r.id === data.role);
-        const dept = store.departments.find(d => d.id === data.departmentId);
         await store.addEmployee(
             {
                 id: crypto.randomUUID(),
@@ -119,10 +182,14 @@ export default function EmployeesPage() {
                 capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                     ? data.capacityRole as Employee['capacityRole']
                     : undefined,
+                // 'none' sentinel from the form's Select component is mapped to
+                // null by the store mutation; empty string also reads as null.
+                rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
                 monthlySalary: data.monthlySalary,
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             { email: data.email, password: data.password },
         );
@@ -148,10 +215,12 @@ export default function EmployeesPage() {
                 capacityRole: (data.capacityRole && data.capacityRole !== 'none')
                     ? data.capacityRole as Employee['capacityRole']
                     : undefined,
+                rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
                 monthlySalary: data.monthlySalary,
                 workableHours: data.workableHours,
                 costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
+                skills: buildSkills(data.skills),
             },
             credentials,
         );
@@ -219,6 +288,32 @@ export default function EmployeesPage() {
         setEditingOverhead(null);
     };
 
+    // --- Skill Handlers ---
+    const handleAddSkill = async (data: SkillFormValues) => {
+        await store.addSkill({ id: crypto.randomUUID(), ...data });
+        setIsSkillDialogOpen(false);
+    };
+
+    const handleEditSkill = async (data: SkillFormValues) => {
+        if (!editingSkill) return;
+        await store.updateSkill(editingSkill.id, data);
+        setEditingSkill(null);
+    };
+
+    // --- Rank Handlers ---
+    const handleAddRank = async (data: RankFormValues) => {
+        await rankMutations.create.mutateAsync(data);
+        setIsRankDialogOpen(false);
+    };
+    const handleEditRank = async (data: RankFormValues) => {
+        if (!editingRank) return;
+        await rankMutations.update.mutateAsync({ id: editingRank.id, payload: data });
+        setEditingRank(null);
+    };
+    const handleDeleteRank = async (id: string) => {
+        await rankMutations.remove.mutateAsync(id);
+    };
+
     // --- Salary Handlers ---
     const handleSaveSalary = async () => {
         setIsSavingSalary(true);
@@ -229,10 +324,20 @@ export default function EmployeesPage() {
         setIsSavingSalary(false);
     };
 
+    const handleSaveEstimationDefaults = async () => {
+        setIsSavingDefaults(true);
+        await store.updateCompanySettings({
+            costToBillRatio:             estimationDefaults.costToBillRatio,
+            defaultMonthlyCapacityHours: estimationDefaults.defaultMonthlyCapacityHours,
+            fallbackHourlyCost:          estimationDefaults.fallbackHourlyCost,
+        });
+        setIsSavingDefaults(false);
+    };
+
     if (syncing) {
         return (
             <div className="flex items-center justify-center h-64">
-                <p className="text-sm text-muted-foreground animate-pulse">
+                <p className="text-sm text-[#4a4a4a] animate-pulse">
                     Loading organization data...
                 </p>
             </div>
@@ -253,30 +358,33 @@ export default function EmployeesPage() {
         <div className="space-y-6">
             <div>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Organization Settings</h2>
-                    <p className="text-muted-foreground mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Organization Settings</h2>
+                    <p className="text-[#4a4a4a] mt-1">Manage your departments, roles, employees, and cost structures.</p>
                 </div>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
+                <TabsList className="grid w-full grid-cols-8 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
                     <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
+                    <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Skills</TabsTrigger>
+                    <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Ranks</TabsTrigger>
                     <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
                     <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
+                    <TabsTrigger value="company" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Company</TabsTrigger>
                 </TabsList>
 
                 {/* DEPARTMENTS TAB */}
                 <TabsContent value="departments" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Departments</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organizational departments.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Departments</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organizational departments.</p>
                         </div>
                         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Department
                                 </Button>
                             </DialogTrigger>
@@ -315,14 +423,14 @@ export default function EmployeesPage() {
 
                 {/* ROLES TAB */}
                 <TabsContent value="roles" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Roles & Rates</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define roles and standard billable rates.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Roles & Rates</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define roles and standard billable rates.</p>
                         </div>
                         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Role
                                 </Button>
                             </DialogTrigger>
@@ -361,14 +469,14 @@ export default function EmployeesPage() {
 
                 {/* EMPLOYEES TAB */}
                 <TabsContent value="employees" className="mt-0 space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Employees List</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Employees List</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
@@ -377,15 +485,22 @@ export default function EmployeesPage() {
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
                                 </DialogHeader>
-                                <EmployeeForm roles={store.roles} departments={store.departments} onSubmit={handleAddEmployee} onCancel={() => setIsEmpDialogOpen(false)} />
+                                <EmployeeForm
+                                    roles={store.roles}
+                                    departments={store.departments}
+                                    skills={store.skills}
+                                    ranks={ranks}
+                                    onSubmit={handleAddEmployee}
+                                    onCancel={() => setIsEmpDialogOpen(false)}
+                                />
                             </DialogContent>
                         </Dialog>
                     </div>
 
-                    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-[#e6e9ee] bg-white p-4 shadow-sm">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center">
                             <div className="relative md:flex-1">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
                                 <Input
                                     value={empSearchName}
                                     onChange={(e) => setEmpSearchName(e.target.value)}
@@ -421,7 +536,7 @@ export default function EmployeesPage() {
                             </div>
                         </div>
                         {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-[#8a8a8a]">
                                 Showing {filteredEmployees.length} of {store.employees.length} employees.
                                 <button
                                     type="button"
@@ -453,8 +568,105 @@ export default function EmployeesPage() {
                                     initialData={editingEmployee}
                                     roles={store.roles}
                                     departments={store.departments}
+                                    skills={store.skills}
+                                    ranks={ranks}
                                     onSubmit={handleEditEmployee}
                                     onCancel={() => setEditingEmployee(null)}
+                                />
+                            )}
+                        </DialogContent>
+                    </Dialog>
+                </TabsContent>
+
+                {/* SKILLS TAB */}
+                <TabsContent value="skills" className="space-y-4">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <div>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Skills</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Manage skills that can be assigned to employees.</p>
+                        </div>
+                        <Dialog open={isSkillDialogOpen} onOpenChange={setIsSkillDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
+                                    <Plus className="w-4 h-4" /> Add Skill
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                    <DialogTitle>Add New Skill</DialogTitle>
+                                    <DialogDescription>Create a skill to assign to employees.</DialogDescription>
+                                </DialogHeader>
+                                <SkillForm onSubmit={handleAddSkill} onCancel={() => setIsSkillDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <SkillsTable
+                        data={store.skills}
+                        onEdit={setEditingSkill}
+                        onDelete={(id) => store.deleteSkill(id)}
+                    />
+
+                    <Dialog open={!!editingSkill} onOpenChange={(open) => !open && setEditingSkill(null)}>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle>Edit Skill</DialogTitle>
+                            </DialogHeader>
+                            {editingSkill && (
+                                <SkillForm
+                                    initialData={editingSkill}
+                                    onSubmit={handleEditSkill}
+                                    onCancel={() => setEditingSkill(null)}
+                                />
+                            )}
+                        </DialogContent>
+                    </Dialog>
+                </TabsContent>
+
+                {/* RANKS TAB */}
+                <TabsContent value="ranks" className="space-y-4">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <div>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Ranks</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">
+                                Seniority tiers used by the AI Team Builder. Defaults: Junior, Mid, Senior, Lead.
+                                Add custom ranks for your team (e.g. Principal, Staff Engineer).
+                            </p>
+                        </div>
+                        <Dialog open={isRankDialogOpen} onOpenChange={setIsRankDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
+                                    <Plus className="w-4 h-4" /> Add Rank
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                    <DialogTitle>Add New Rank</DialogTitle>
+                                    <DialogDescription>
+                                        Create a custom seniority rank. Higher level = more senior.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <RankForm onSubmit={handleAddRank} onCancel={() => setIsRankDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <RanksTable
+                        data={ranks}
+                        onEdit={setEditingRank}
+                        onDelete={handleDeleteRank}
+                    />
+
+                    <Dialog open={!!editingRank} onOpenChange={(open) => !open && setEditingRank(null)}>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle>Edit Rank</DialogTitle>
+                            </DialogHeader>
+                            {editingRank && (
+                                <RankForm
+                                    initialData={editingRank}
+                                    onSubmit={handleEditRank}
+                                    onCancel={() => setEditingRank(null)}
                                 />
                             )}
                         </DialogContent>
@@ -464,7 +676,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -495,19 +707,76 @@ export default function EmployeesPage() {
                                 </Button>
                             </CardContent>
                         </Card>
+
+                        <Card className="shadow-sm border-[#e6e9ee]">
+                            <CardHeader>
+                                <CardTitle>Estimation Defaults</CardTitle>
+                                <CardDescription>
+                                    Fallback assumptions used by the Estimation Engine when a deal or role doesn&apos;t supply concrete data.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Cost-to-Bill Ratio
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(0–1; e.g. 0.40 = cost is 40% of billable rate)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        value={estimationDefaults.costToBillRatio}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, costToBillRatio: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Default Monthly Capacity (hours)
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(per employee; typical 160)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max="744"
+                                        value={estimationDefaults.defaultMonthlyCapacityHours}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, defaultMonthlyCapacityHours: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        Fallback Hourly Cost
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(used when no employee or role rate is available)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={estimationDefaults.fallbackHourlyCost}
+                                        onChange={(e) => setEstimationDefaults({ ...estimationDefaults, fallbackHourlyCost: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <Button
+                                    className="w-full mt-2"
+                                    onClick={handleSaveEstimationDefaults}
+                                    disabled={isSavingDefaults}
+                                >
+                                    {isSavingDefaults ? "Saving..." : "Save Defaults"}
+                                </Button>
+                            </CardContent>
+                        </Card>
                     </div>
                 </TabsContent>
 
                 {/* OVERHEAD TAB */}
                 <TabsContent value="overhead" className="space-y-4">
-                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-slate-900">Global Overhead Categories</h3>
-                            <p className="text-muted-foreground text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Global Overhead Categories</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
                         </div>
                         <Dialog open={isOverheadDialogOpen} onOpenChange={setIsOverheadDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                                <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
                                     <Plus className="w-4 h-4" /> Add Overhead
                                 </Button>
                             </DialogTrigger>
@@ -541,6 +810,18 @@ export default function EmployeesPage() {
                             )}
                         </DialogContent>
                     </Dialog>
+                </TabsContent>
+
+                {/* COMPANY TAB — name + logo that render on every contract PDF and customer email. */}
+                <TabsContent value="company" className="space-y-4">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+                        <h3 className="text-xl font-bold tracking-tight text-[#171717]">Company Settings</h3>
+                        <p className="text-[#4a4a4a] text-sm mt-1">
+                            Your company name and logo appear at the top of every contract PDF
+                            and in the customer-facing email subject + body.
+                        </p>
+                    </div>
+                    <CompanySettingsForm />
                 </TabsContent>
             </Tabs>
         </div>

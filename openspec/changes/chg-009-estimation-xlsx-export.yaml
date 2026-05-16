@@ -1,0 +1,106 @@
+id: chg-009-estimation-xlsx-export
+name: Estimation XLSX export button + download hook
+status: proposed
+created: 2026-05-13
+owners: [claude.max@brycenmyanmar.com.mm]
+
+why: |
+  Pairs with anka-api chg-006-estimation-xlsx-export. The backend now
+  auto-generates a pixel-perfect copy of the agency's reference Excel workbook
+  for every saved EstimationVersion and serves it via
+  GET /api/estimation-versions/{id}/download/xlsx. The Estimation Simulator UI
+  needs to surface this: a download button per version row in the version
+  history list, with proper loading/error states so users don't double-click,
+  and a sensible filename in the Save-As dialog driven by the
+  Content-Disposition header the backend sends.
+
+what:
+  - types/business.ts
+    - EstimationVersion: add `xlsxPath?: string | null` and
+      `xlsxAvailable?: boolean` to match the new API resource fields.
+
+  - lib/queries/estimationVersions.ts
+    - useDownloadEstimationXlsx(): NEW hook returning an async
+      `downloadVersion(versionId, fallbackFilename)` function plus
+      `isDownloading` state map keyed by version id.
+    - Internally calls `apiClient.get('/estimation-versions/{id}/download/xlsx',
+      { responseType: 'blob' })`.
+    - Extracts the filename from the Content-Disposition response header when
+      present; otherwise uses `fallbackFilename` argument (or
+      `estimation_v{n}.xlsx` built from version metadata).
+    - Uses URL.createObjectURL + a synthetic <a> click to trigger the browser
+      download, then URL.revokeObjectURL on the next tick. Cleanup in a
+      finally block.
+    - Errors normalised through `lib/errorHandler.ts::normalizeError` and
+      surfaced via react-hot-toast. 404 maps to "Estimation export not
+      available yet — try saving again." 403 falls through to the global
+      interceptor's permission toast.
+
+  - components/estimation/EstimationSimulator.tsx
+    - Version history list (the existing table/row component near the bottom
+      of the simulator): add a trailing actions column with a small
+      "Export XLSX" button per row (icon: lucide `Download`).
+    - The button:
+      - Renders disabled with a tooltip "Export not available — re-save
+        version" when `xlsxAvailable === false`. Still callable when
+        `xlsxAvailable === undefined` (older versions pre-deploy) — the
+        backend lazy-generates.
+      - Uses the per-version `isDownloading[versionId]` flag from the hook
+        for a spinner + disabled state during the request.
+      - Calls `downloadVersion(version.id, \`${dealClientName || 'deal'}_estimation_v${version.versionNumber}.xlsx\`)`.
+    - Mutation-store wiring: imports the hook at the top of the simulator;
+      no Zustand store changes needed (download is a one-shot side effect,
+      not persisted state).
+    - On success, a small react-hot-toast confirmation ("Estimation v{n}
+      exported").
+
+  - components/ui/tooltip.tsx
+    - No changes; this change uses the existing shadcn Tooltip primitive
+      already vendored under components/ui.
+
+  - openspec/specs/components.yaml
+    - Updates EstimationSimulator description: append "exposes per-version
+      Export XLSX download via useDownloadEstimationXlsx hook."
+
+  - openspec/specs/api-layer.yaml
+    - Documents the new download hook under the estimation-versions section
+      and notes the blob responseType + Content-Disposition filename
+      handling (the existing axios interceptor's JSON-parse error toast
+      must not fire for blob responses — verify the interceptor skips blob
+      bodies, otherwise patch `lib/api.ts` to bail on response.config.responseType === 'blob').
+
+placeholders:
+  - The fallback filename uses the deal client name when available. If the
+    sales team wants the file to always carry the agency-side project code
+    even pre-win, hook into the Deal resource's `prospective_project_number`
+    once that field exists.
+  - "Export not available" tooltip copy is provisional — replace with a
+    finalised string after UX review.
+
+risk: |
+  - The existing axios response interceptor in `lib/api.ts` may attempt to
+    parse a blob error body as JSON and emit an unhelpful toast. Mitigation
+    in this change: when the request config has `responseType: 'blob'`,
+    short-circuit error handling in the interceptor and let the hook handle
+    the error itself with FileReader.readAsText on the blob to extract a
+    JSON message.
+  - Browser file-download cleanup leaks: forgetting URL.revokeObjectURL on
+    the created blob URL retains the file in memory for the session. The
+    hook's finally block prevents this — covered by a unit test on the
+    hook.
+  - Concurrent downloads of the same version: the isDownloading map prevents
+    duplicate requests from the same client, but the backend handles
+    concurrent generation safely (lazy-regen writes to a temp file then
+    Storage::move()), so accidental double-click is harmless.
+
+manual_steps:
+  - (backend) composer require phpoffice/phpspreadsheet && php artisan migrate
+    (see anka-api chg-006).
+  - npm install (no new packages — the existing axios+react-hot-toast stack
+    handles blob downloads).
+  - npm run dev — verify Export button appears in the version history list
+    on the Estimation Simulator page.
+
+affected_specs:
+  - components
+  - api-layer

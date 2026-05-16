@@ -92,7 +92,7 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     name="managerId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Manager <span className="text-muted-foreground text-xs font-normal">(optional — assign after adding employees)</span></FormLabel>
+                            <FormLabel>Manager <span className="text-[#4a4a4a] text-xs font-normal">(optional — assign after adding employees)</span></FormLabel>
                             <Select
                                 onValueChange={(v) => field.onChange(v === 'none' ? undefined : v)}
                                 defaultValue={field.value ?? 'none'}
@@ -114,7 +114,7 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     )}
                 />
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a4a4a]">
                     Fields marked <span className="text-destructive">*</span> are required.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">

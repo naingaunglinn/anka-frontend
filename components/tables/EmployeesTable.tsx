@@ -33,6 +33,8 @@ import {
 
 import type { Employee, Role, TimeEntry } from '@/types/business';
 import { useBusinessStore } from '@/store/businessStore';
+import { formatMoney } from '@/lib/currency';
+import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 
 // "Assigned" against monthly capacity = anything currently consuming the
 // employee's time this month: still-to-do (Draft), submitted-pending-review
@@ -40,23 +42,18 @@ import { useBusinessStore } from '@/store/businessStore';
 // are bounced back, so they no longer represent an obligation.
 const ASSIGNED_STATUSES = new Set(['Draft', 'Pending', 'Approved']);
 
-const USD_FORMATTER = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-});
-
 /**
  * Format a money value as USD, or render an em-dash for missing/invalid input
  * (NaN, null, undefined, negative). Used by Cost/Hr and Monthly Salary —
  * Cost/Hr in particular is a Postgres GENERATED column that is NULL until the
  * DB recomputes it, and parseFloat(undefined) returns NaN → "$NaN".
  */
-function formatMoneyOrDash(raw: unknown): ReactNode {
+function formatMoneyOrDash(raw: unknown, currency: import('@/lib/currencyConfig').Currency): ReactNode {
     const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
     if (!Number.isFinite(n) || n < 0) {
-        return <span className="text-slate-400">—</span>;
+        return <span className="text-[#8a8a8a]">—</span>;
     }
-    return USD_FORMATTER.format(n);
+    return formatMoney(n, currency);
 }
 
 interface EmployeesTableProps {
@@ -75,6 +72,7 @@ interface EmployeesTableProps {
 
 export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp, onEdit, onDelete }: EmployeesTableProps) {
     const [sorting, setSorting] = useState<SortingState>([]);
+    const currency = useTenantCurrency();
     const storeEntries = useBusinessStore((s) => s.timeEntries);
     const timeEntries = timeEntriesProp ?? storeEntries;
 
@@ -107,7 +105,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
+            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('name')}</div>,
         },
         {
             accessorKey: 'role',
@@ -132,9 +130,37 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                 // roles list hadn't loaded yet.
                 const label = roles?.find(r => r.id === roleId)?.title || row.original.roleName?.trim();
                 if (!label) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 return <Badge variant="secondary">{label}</Badge>;
+            },
+        },
+        {
+            // Sort by rank.level (numeric) so column ordering is meaningful:
+            // unranked → Junior → Mid → Senior → Lead. Custom ranks are placed
+            // by their level, not their position in the array.
+            id: 'rank',
+            accessorFn: (row) => row.rank?.level ?? -1,
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                    className="-ml-4 h-8 px-4"
+                >
+                    Rank
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => {
+                const rank = row.original.rank;
+                if (!rank) return <span className="text-[#8a8a8a]">—</span>;
+                // Same colour bands as the Ranks tab table for consistency.
+                const cls =
+                    rank.level >= 40 ? 'bg-purple-100 text-purple-700' :
+                    rank.level >= 30 ? 'bg-blue-100 text-blue-700' :
+                    rank.level >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                                       'bg-slate-100 text-slate-700';
+                return <Badge className={`${cls} hover:${cls}`}>{rank.code}</Badge>;
             },
         },
         {
@@ -151,7 +177,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'))}</div>,
+            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'), currency)}</div>,
         },
         {
             accessorKey: 'costPerHour',
@@ -167,7 +193,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     </Button>
                 )
             },
-            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('costPerHour'))}</div>,
+            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('costPerHour'), currency)}</div>,
         },
         {
             accessorKey: 'workableHours',
@@ -184,7 +210,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => {
                 const raw = Number(row.getValue('workableHours'));
                 if (!Number.isFinite(raw) || raw <= 0) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 return <div className="font-medium">{raw}h</div>;
             },
@@ -208,7 +234,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => {
                 const total = Number(row.original.workableHours);
                 if (!Number.isFinite(total) || total <= 0) {
-                    return <span className="text-slate-400">—</span>;
+                    return <span className="text-[#8a8a8a]">—</span>;
                 }
                 const assigned   = assignedByEmployee.get(row.original.id) ?? 0;
                 const available  = total - assigned;
@@ -217,9 +243,44 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     <div className={overbooked ? 'text-rose-600 font-medium' : ''}>
                         {available}h
                         {assigned > 0 && (
-                            <span className="ml-1 text-xs text-slate-500">
+                            <span className="ml-1 text-xs text-[#8a8a8a]">
                                 ({assigned}h assigned)
                             </span>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            id: 'skills',
+            header: 'Skills',
+            cell: ({ row }) => {
+                const list = row.original.skills ?? [];
+                if (list.length === 0) {
+                    return <span className="text-[#8a8a8a]">—</span>;
+                }
+                const visible = list.slice(0, 2);
+                const overflow = list.length - visible.length;
+                return (
+                    <div className="flex flex-wrap items-center gap-1">
+                        {visible.map(s => (
+                            <Badge
+                                key={s.skillId}
+                                variant="outline"
+                                className="font-normal"
+                                title={s.proficiency ? `${s.name} • ${s.proficiency}` : s.name}
+                            >
+                                {s.name}
+                            </Badge>
+                        ))}
+                        {overflow > 0 && (
+                            <Badge
+                                variant="secondary"
+                                className="font-normal"
+                                title={list.slice(2).map(s => s.name).join(', ')}
+                            >
+                                +{overflow}
+                            </Badge>
                         )}
                     </div>
                 );
@@ -311,7 +372,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
                                     No employees found.
                                 </TableCell>
                             </TableRow>

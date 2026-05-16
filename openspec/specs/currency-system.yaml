@@ -1,0 +1,129 @@
+id: currency-system
+name: Currency System
+version: "2.0"
+
+summary: |
+  Currency is tenant-scoped (MMK, JPY, USD). The system uses shared hooks and
+  config to ensure currency symbols are never hardcoded. Server-side formatting
+  avoids React imports for API routes.
+
+  **Exchange rates (v2.0):** Tenants can configure per-currency exchange rates
+  against USD. The AI Team Builder normalizes all monetary values to USD before
+  sending to the AI, ensuring accurate cross-currency budget feasibility checks.
+  Fallback defaults: MMK=4500, JPY=158.
+
+currency_config:
+  file: lib/currencyConfig.ts
+  type: pure module (no React)
+  safe_for: both client and server
+  currencies:
+    - code: MMK
+      symbol: Ks
+      locale: en-US
+      label: Myanmar Kyat
+    - code: JPY
+      symbol: ¥
+      locale: ja-JP
+      label: Japanese Yen
+    - code: USD
+      symbol: $
+      locale: en-US
+      label: US Dollar
+
+server_formatting:
+  file: lib/currencyServer.ts
+  safe_for: server only
+  exports:
+    - formatMoney(amount, currency): string
+    - formatMoneyShort(amount, currency): string
+  purpose: |
+    Used in Next.js API routes (e.g., /api/ai-team-builder) where React hooks
+    cannot be imported. Uses Intl.NumberFormat with the currency's locale.
+
+client_formatting:
+  file: lib/currency.ts
+  exports:
+    - formatMoney(amount, currency): string
+  purpose: |
+    Client-side currency formatting for UI display.
+
+exchange_rate_conversion:
+  file: lib/currencyConverter.ts
+  type: pure module (no React)
+  safe_for: both client and server
+  exports:
+    - getExchangeRate(currency, tenantRates?): number
+    - toUSD(amount, currency, tenantRates?): number
+    - fromUSD(amount, currency, tenantRates?): number
+  default_rates:
+    MMK: 4500
+    JPY: 158
+    USD: 1
+  logic: |
+    toUSD divides amount by rate (e.g. 5,000,000 MMK / 4500 = $1,111.11).
+    fromUSD multiplies amount by rate (e.g. $1,111.11 * 4500 = 5,000,000 MMK).
+    Tenant overrides take precedence over defaults.
+  backend_store:
+    table: exchange_rates
+    columns: tenant_id, from_currency, to_currency, rate
+    unique: tenant_id + from_currency + to_currency
+  backend_api:
+    - GET /api/exchange-rates
+    - PUT /api/exchange-rates (upsert)
+    - DELETE /api/exchange-rates/{rate}
+
+hooks:
+  - name: useTenantCurrency
+    file: hooks/useTenantCurrency.ts
+    returns: "{ currency: Currency, symbol: string }"
+    logic: |
+      Looks up current tenant's currency from tenantStore. Falls back to 'MMK'
+      if no tenant is active.
+  - name: useCurrencySymbol
+    file: hooks/useTenantCurrency.ts
+    returns: string
+    logic: "Convenience hook returning CURRENCY_CONFIG[currency].symbol"
+
+currency_symbol_component:
+  name: CurrencySymbol
+  file: components/CurrencySymbol.tsx (if exists)
+  purpose: Render the current tenant's currency symbol
+
+rules:
+  - "NEVER hardcode '$', 'Ks', or '¥' in display text or labels"
+  - "ALWAYS use formatMoney() + CURRENCY_CONFIG[currency].symbol"
+  - "ALWAYS use useTenantCurrency() or useCurrencySymbol() in React components"
+  - "ALWAYS use lib/currencyServer.ts in API routes"
+  - "AI budget calculations MUST normalize to USD via toUSD() before AI call"
+  - "AI results MUST convert back to tenant currency via fromUSD() for display"
+  - "AIUsageDashboard.tsx is the ONLY exception — it stays in USD because it tracks actual API spend"
+
+migration_history:
+  - |
+    Previously, many components hardcoded '$' for all currency displays.
+    A systematic fix replaced hardcoded symbols across 15+ files using
+    useCurrencySymbol() and formatMoney().
+  - |
+    Currency type and CURRENCY_CONFIG were extracted from tenantStore.ts
+    into pure lib/currencyConfig.ts to avoid React imports in server files.
+  - |
+    Exchange rate system added (v2.0). Tenants can set custom rates per
+    currency against USD. AI Team Builder normalizes to USD for accurate
+    cross-currency budget feasibility.
+
+files_using_currency:
+  components:
+    - components/crm/KanbanBoard.tsx
+    - components/crm/DealForm.tsx
+    - components/crm/AITeamBuilderResult.tsx
+    - components/estimation/EstimationSimulator.tsx
+    - components/tables/EmployeesTable.tsx
+    - components/forms/EmployeeForm.tsx
+    - components/forms/OverheadForm.tsx
+    - app/(dashboard)/financial/page.tsx
+    - app/(dashboard)/contracts/page.tsx
+  api_routes:
+    - app/api/ai-team-builder/route.ts
+  server:
+    - lib/currencyServer.ts
+    - lib/currencyConverter.ts
