@@ -18,6 +18,8 @@ import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { fetchProjectTaskAssignments, projectKeys, useProjectList } from '@/lib/queries/projects';
+import { scheduleTrackingKeys, type LateHourEmployeeRow, type ProjectLateHoursResponse } from '@/lib/queries/scheduleTracking';
+import api from '@/lib/api';
 import type { Contract, Deal, Employee, Project, ProjectTaskAssignment, TimeEntry } from '@/types/business';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -38,6 +40,9 @@ interface ProjectProfitRow {
     actualLaborCost: number;
     overtimeImpact: number;
     overtimeHours: number;
+    /** True when overtimeHours/overtimeCost came from phase_progress_logs
+     *  (preferred) vs. the legacy time_entries-derived estimate. */
+    overtimeSource: 'progress_logs' | 'time_entries';
     plannedProgress: number;
     actualProgress: number;
     progressDelta: number;
@@ -118,17 +123,48 @@ function estimateProjectCost(planRevenue: number, deal?: Deal): number {
     return 0;
 }
 
+// Task-level fields (status / dates) live on phases[] — aggregate across them
+// so the financial page can keep treating a task as a single timeline.
+function taskPlannedStart(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.plannedStart)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskPlannedEnd(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.plannedEnd)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskActualStart(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.actualStart)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskActualEnd(task: ProjectTaskAssignment): string | null {
+    if (task.phases.length === 0 || task.phases.some((p) => !p.actualEnd)) return null;
+    const dates = task.phases.map((p) => parseDate(p.actualEnd)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskStatus(task: ProjectTaskAssignment): '未着手' | '進行中' | '完了' {
+    if (task.phases.length > 0 && task.phases.every((p) => p.status === '完了')) return '完了';
+    if (task.phases.some((p) => p.status === '進行中' || p.status === '完了' || !!p.actualStart)) return '進行中';
+    return '未着手';
+}
+
 function getTaskProgress(task: ProjectTaskAssignment, today: Date): number {
-    const status = (task.status ?? '').trim();
-    if (status === '完了' || status.toLowerCase() === 'completed' || !!task.actualEnd) {
+    const status = taskStatus(task);
+    const actualEnd = taskActualEnd(task);
+    if (status === '完了' || !!actualEnd) {
         return 1;
     }
 
-    const started = status === '進行中' || status.toLowerCase() === 'in progress' || !!task.actualStart;
+    const actualStart = taskActualStart(task);
+    const started = status === '進行中' || !!actualStart;
     if (!started) return 0;
 
-    const start = parseDate(task.actualStart) ?? parseDate(task.plannedStart);
-    const end = parseDate(task.actualEnd) ?? parseDate(task.plannedEnd);
+    const start = parseDate(actualStart) ?? parseDate(taskPlannedStart(task));
+    const end = parseDate(actualEnd) ?? parseDate(taskPlannedEnd(task));
     if (start && end) {
         const totalDays = diffDays(start, end);
         const elapsedDays = diffDays(start, today < end ? today : end);
@@ -159,23 +195,23 @@ function getActualProgress(project: Project, tasks: ProjectTaskAssignment[], act
 }
 
 function getPlannedTimeline(project: Project, deal?: Deal, tasks: ProjectTaskAssignment[] = []): { plannedStart: Date | null; plannedEnd: Date | null } {
-    const taskPlannedStart = getEarlierDate(...tasks.map((task) => parseDate(task.plannedStart)));
-    const taskPlannedEnd = getLaterDate(...tasks.map((task) => parseDate(task.plannedEnd)));
+    const aggregatedPlannedStart = getEarlierDate(...tasks.map((task) => parseDate(taskPlannedStart(task))));
+    const aggregatedPlannedEnd = getLaterDate(...tasks.map((task) => parseDate(taskPlannedEnd(task))));
     const projectStart = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
     const projectEnd = parseDate(project.endDate);
 
-    const plannedStart = projectStart ?? taskPlannedStart;
+    const plannedStart = projectStart ?? aggregatedPlannedStart;
     const timelineMonths = positiveNumber(deal?.timelineMonths || deal?.finalContractMonths);
-    const plannedEnd = projectEnd ?? taskPlannedEnd ?? (plannedStart && timelineMonths > 0 ? addMonths(plannedStart, timelineMonths) : null);
+    const plannedEnd = projectEnd ?? aggregatedPlannedEnd ?? (plannedStart && timelineMonths > 0 ? addMonths(plannedStart, timelineMonths) : null);
 
     return { plannedStart, plannedEnd };
 }
 
 function getActualStart(project: Project, tasks: ProjectTaskAssignment[], projectEntries: TimeEntry[]): Date | null {
-    const taskActualStart = getEarlierDate(...tasks.map((task) => parseDate(task.actualStart)));
+    const aggregatedActualStart = getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))));
     const firstEntryDate = getEarlierDate(...projectEntries.map((entry) => parseDate(entry.date)));
     const kickoff = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
-    return taskActualStart ?? firstEntryDate ?? kickoff;
+    return aggregatedActualStart ?? firstEntryDate ?? kickoff;
 }
 
 function getOvertimeMetrics(
@@ -261,6 +297,64 @@ export default function FinancialPage() {
         })),
     });
 
+    // Per-project late-hours pulled from phase_progress_logs. Preferred over
+    // the legacy time_entries-derived overtime calc because employees self-
+    // report progress vs used hours daily on /my-schedule, while time_entries
+    // require manager approval and skip the daily inefficiency signal.
+    const lateHoursQueries = useQueries({
+        queries: projects.map((project) => ({
+            queryKey: scheduleTrackingKeys.lateHoursForProject(project.id),
+            queryFn: async (): Promise<ProjectLateHoursResponse> => {
+                const { data } = await api.get(`/projects/${project.id}/late-hours-by-day`);
+                const meta = (data.meta ?? {}) as Record<string, unknown>;
+                return {
+                    data: ((data.data ?? []) as Record<string, unknown>[]).map((r) => ({
+                        logDate:       (r.log_date as string) ?? '',
+                        employeeId:    r.employee_id as string,
+                        employeeName:  (r.employee_name as string | null) ?? null,
+                        rankCode:      (r.rank_code as string | null) ?? null,
+                        capacityRole:  (r.capacity_role as string | null) ?? null,
+                        progressHours: Number(r.progress_hours ?? 0),
+                        usedHours:     Number(r.used_hours ?? 0),
+                        lateHours:     Number(r.late_hours ?? 0),
+                        costPerHour:   Number(r.cost_per_hour ?? 0),
+                        lateCost:      Number(r.late_cost ?? 0),
+                    })),
+                    byEmployee: ((data.by_employee ?? []) as Record<string, unknown>[]).map((r) => ({
+                        employeeId:         r.employee_id as string,
+                        employeeName:       (r.employee_name as string | null) ?? null,
+                        rankCode:           (r.rank_code as string | null) ?? null,
+                        capacityRole:       (r.capacity_role as string | null) ?? null,
+                        costPerHour:        Number(r.cost_per_hour ?? 0),
+                        totalProgressHours: Number(r.total_progress_hours ?? 0),
+                        totalUsedHours:     Number(r.total_used_hours ?? 0),
+                        totalLateHours:     Number(r.total_late_hours ?? 0),
+                        totalLateCost:      Number(r.total_late_cost ?? 0),
+                        daysCount:          Number(r.days_count ?? 0),
+                    })),
+                    meta: {
+                        projectId:      (meta.project_id as string) ?? project.id,
+                        projectName:    (meta.project_name as string) ?? project.name,
+                        asOf:           (meta.as_of as string | null) ?? null,
+                        totalLateHours: Number(meta.total_late_hours ?? 0),
+                        totalLateCost:  Number(meta.total_late_cost ?? 0),
+                        logCount:       Number(meta.log_count ?? 0),
+                    },
+                };
+            },
+            enabled: !!project.id,
+            staleTime: 30_000,
+        })),
+    });
+
+    const lateHoursByProject = useMemo(() => {
+        const map = new Map<string, ProjectLateHoursResponse | undefined>();
+        projects.forEach((project, index) => {
+            map.set(project.id, lateHoursQueries[index]?.data);
+        });
+        return map;
+    }, [projects, lateHoursQueries]);
+
     const taskAssignmentsByProject = useMemo(() => {
         const map = new Map<string, ProjectTaskAssignment[]>();
         projects.forEach((project, index) => {
@@ -337,10 +431,24 @@ export default function FinancialPage() {
                 const plannedCostToDate = planCost * plannedProgress;
                 const plannedProfitToDate = planProfit * plannedProgress;
 
-                const plannedHoursToDate = positiveNumber(project.budgetHours) * plannedProgress;
-                const overtimeHours = Math.max(0, actualHours - plannedHoursToDate);
+                // Prefer phase_progress_logs-derived overtime (employees' self-
+                // reported "used > progress" per day, multiplied by their real
+                // cost_per_hour). Falls back to the time_entries estimate when
+                // no logs exist for the project yet.
+                const lateHoursData = lateHoursByProject.get(project.id);
+                const hasLogData = !!lateHoursData && lateHoursData.meta.logCount > 0;
+
                 const averageActualCostPerHour = actualHours > 0 ? actualLaborCost / actualHours : positiveNumber(store.companySettings.fallbackHourlyCost);
-                const overtimeCost = overtimeHours * averageActualCostPerHour;
+                const plannedHoursToDate = positiveNumber(project.budgetHours) * plannedProgress;
+
+                const overtimeHours = hasLogData
+                    ? lateHoursData!.meta.totalLateHours
+                    : Math.max(0, actualHours - plannedHoursToDate);
+                const overtimeCost = hasLogData
+                    ? lateHoursData!.meta.totalLateCost
+                    : overtimeHours * averageActualCostPerHour;
+                const overtimeSource: 'progress_logs' | 'time_entries' = hasLogData ? 'progress_logs' : 'time_entries';
+
                 const runningMonths = Math.max(1, Math.ceil(elapsedDays / 30));
                 const { overtimeImpact, overtimeRevenue } = getOvertimeMetrics(deal, overtimeHours, overtimeCost, runningMonths);
 
@@ -364,6 +472,7 @@ export default function FinancialPage() {
                     actualLaborCost,
                     overtimeImpact,
                     overtimeHours,
+                    overtimeSource,
                     plannedProgress,
                     actualProgress,
                     progressDelta,
@@ -383,8 +492,60 @@ export default function FinancialPage() {
         projects,
         store.companySettings.fallbackHourlyCost,
         taskAssignmentsByProject,
+        lateHoursByProject,
         today,
     ]);
+
+    // Cross-project Late Hours by Member rollup. Sums each employee's
+    // total_late_hours / total_late_cost across every project they appear in.
+    interface LateHoursMemberRow extends LateHourEmployeeRow {
+        projectCount: number;
+        projectNames: string[];
+    }
+
+    const lateHoursByMember = useMemo<LateHoursMemberRow[]>(() => {
+        const bucket = new Map<string, LateHoursMemberRow>();
+        projects.forEach((project) => {
+            const data = lateHoursByProject.get(project.id);
+            if (!data) return;
+            data.byEmployee.forEach((row) => {
+                const existing = bucket.get(row.employeeId);
+                if (!existing) {
+                    bucket.set(row.employeeId, {
+                        ...row,
+                        projectCount: 1,
+                        projectNames: [project.name],
+                    });
+                    return;
+                }
+                existing.totalProgressHours += row.totalProgressHours;
+                existing.totalUsedHours     += row.totalUsedHours;
+                existing.totalLateHours     += row.totalLateHours;
+                existing.totalLateCost      += row.totalLateCost;
+                existing.daysCount          += row.daysCount;
+                existing.projectCount       += 1;
+                existing.projectNames.push(project.name);
+            });
+        });
+        return Array.from(bucket.values())
+            .map((r) => ({
+                ...r,
+                totalProgressHours: Math.round(r.totalProgressHours * 100) / 100,
+                totalUsedHours:     Math.round(r.totalUsedHours * 100) / 100,
+                totalLateHours:     Math.round(r.totalLateHours * 100) / 100,
+                totalLateCost:      Math.round(r.totalLateCost * 100) / 100,
+            }))
+            .sort((a, b) => b.totalLateHours - a.totalLateHours);
+    }, [projects, lateHoursByProject]);
+
+    const lateHoursTotal = useMemo(
+        () => ({
+            hours:   lateHoursByMember.reduce((s, r) => s + r.totalLateHours, 0),
+            cost:    lateHoursByMember.reduce((s, r) => s + r.totalLateCost, 0),
+            members: lateHoursByMember.length,
+        }),
+        [lateHoursByMember],
+    );
 
     const projectSummary = useMemo(() => {
         const totals = projectProfitRows.reduce((acc, row) => {
@@ -640,6 +801,84 @@ export default function FinancialPage() {
                                     </TableCell>
                                 </TableRow>
                             )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </section>
+
+            {/* Late Hours by Members — sourced from phase_progress_logs daily
+                self-reports (used_hours − progress_hours, clamped ≥0). Feeds the
+                overtime cost column above when log data is present. */}
+            <section className="space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                    <div>
+                        <h3 className="text-lg font-semibold text-[#171717]">Late Hours by Members</h3>
+                        <p className="text-sm text-[#8a8a8a]">
+                            Daily inefficiency surfaced from My Schedule progress logs. Hours spent beyond delivered work,
+                            multiplied by each member&apos;s cost per hour.
+                        </p>
+                    </div>
+                    <div className="flex gap-6 text-right">
+                        <div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Members</div>
+                            <div className="text-lg font-semibold text-[#171717]">{lateHoursTotal.members}</div>
+                        </div>
+                        <div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late hrs</div>
+                            <div className="text-lg font-semibold text-rose-700">{lateHoursTotal.hours.toFixed(1)}h</div>
+                        </div>
+                        <div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late cost</div>
+                            <div className="text-lg font-semibold text-rose-700">{formatMoney(lateHoursTotal.cost, currency)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div className="overflow-x-auto rounded-md border border-[#e6e9ee] bg-white">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Member</TableHead>
+                                <TableHead>Rank</TableHead>
+                                <TableHead>Capacity role</TableHead>
+                                <TableHead className="text-right">Cost / hr</TableHead>
+                                <TableHead className="text-right">Days logged</TableHead>
+                                <TableHead className="text-right">Progress (h)</TableHead>
+                                <TableHead className="text-right">Used (h)</TableHead>
+                                <TableHead className="text-right">Late (h)</TableHead>
+                                <TableHead className="text-right">Late cost</TableHead>
+                                <TableHead>Projects</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {lateHoursByMember.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={10} className="py-8 text-center text-sm text-[#8a8a8a]">
+                                        No daily progress logs yet. Once members log progress vs. used hours on My Schedule,
+                                        their late hours will surface here.
+                                    </TableCell>
+                                </TableRow>
+                            ) : lateHoursByMember.map((row) => (
+                                <TableRow key={row.employeeId}>
+                                    <TableCell className="font-medium text-[#171717]">{row.employeeName ?? row.employeeId}</TableCell>
+                                    <TableCell>{row.rankCode ?? '—'}</TableCell>
+                                    <TableCell>{row.capacityRole ?? '—'}</TableCell>
+                                    <TableCell className="text-right">{formatMoney(row.costPerHour, currency)}</TableCell>
+                                    <TableCell className="text-right">{row.daysCount}</TableCell>
+                                    <TableCell className="text-right">{row.totalProgressHours.toFixed(1)}</TableCell>
+                                    <TableCell className="text-right">{row.totalUsedHours.toFixed(1)}</TableCell>
+                                    <TableCell className={`text-right font-medium ${row.totalLateHours > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                        {row.totalLateHours > 0 ? '+' : ''}{row.totalLateHours.toFixed(1)}h
+                                    </TableCell>
+                                    <TableCell className={`text-right font-medium ${row.totalLateCost > 0 ? 'text-rose-700' : 'text-[#8a8a8a]'}`}>
+                                        {formatMoney(row.totalLateCost, currency)}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-[#8a8a8a]">
+                                        {row.projectCount === 1
+                                            ? row.projectNames[0]
+                                            : `${row.projectCount} projects`}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
                         </TableBody>
                     </Table>
                 </div>
