@@ -276,6 +276,7 @@ export function ContractDraftWizard({
     // ─── Step 2: edit ─────────────────────────────────────────────────────
 
     if (step === 'edit' && draft) {
+        const isSentDraft = draft.status === 'sent_to_customer';
         return (
             <div className="space-y-6">
                 <Card>
@@ -307,6 +308,18 @@ export function ContractDraftWizard({
                         </Button>
                     </CardHeader>
                 </Card>
+
+                {isSentDraft && (
+                    <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-sm text-blue-900">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+                        <div>
+                            <span className="font-medium">This draft has already been sent.</span>{' '}
+                            Any edits you make here won&apos;t reach the customer until you re-send
+                            from the next step. The PDF re-renders automatically on re-send so the
+                            customer gets the updated content.
+                        </div>
+                    </div>
+                )}
 
                 {hasTodos && !isLocked && (
                     <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-sm text-amber-900">
