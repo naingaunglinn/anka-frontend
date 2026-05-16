@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     ArrowLeft, Edit3, Users, FileText, DollarSign, Target, Calendar, Clock,
-    TrendingUp, Briefcase, ChevronRight, Calculator, ExternalLink,
+    TrendingUp, Briefcase, Calculator, ExternalLink,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -24,6 +24,7 @@ import { isContractEligible } from '@/lib/dealRanks';
 import { useContractDrafts } from '@/lib/queries/contractDrafts';
 import { Sparkles } from 'lucide-react';
 import { RequirementsChecklist } from '@/components/project-pipeline/RequirementsChecklist';
+import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
 
 // Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
 // The old "Proposal" stage was merged into Qualified — see
@@ -35,37 +36,6 @@ const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
     won:         { label: 'S — Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     lost:        { label: 'D — Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
 };
-
-// ── Workflow status bar ───────────────────────────────────────────────────────
-
-interface WorkflowStep {
-    label: string;
-    detail: string;
-    active: boolean;
-    done: boolean;
-}
-
-function WorkflowBar({ steps }: { steps: WorkflowStep[] }) {
-    return (
-        <div className="flex items-center gap-0 rounded-lg border border-slate-200 bg-white overflow-hidden">
-            {steps.map((step, i) => (
-                <div key={step.label} className="flex items-center flex-1">
-                    <div className={`flex-1 px-4 py-3 ${step.done ? 'bg-emerald-50' : step.active ? 'bg-blue-50' : 'bg-slate-50'}`}>
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${step.done ? 'text-emerald-700' : step.active ? 'text-blue-700' : 'text-slate-400'}`}>
-                            {step.label}
-                        </p>
-                        <p className={`text-xs mt-0.5 ${step.done ? 'text-emerald-600' : step.active ? 'text-blue-600' : 'text-slate-400'}`}>
-                            {step.detail}
-                        </p>
-                    </div>
-                    {i < steps.length - 1 && (
-                        <ChevronRight className={`h-4 w-4 flex-shrink-0 ${step.done ? 'text-emerald-400' : 'text-slate-300'}`} />
-                    )}
-                </div>
-            ))}
-        </div>
-    );
-}
 
 export default function DealDetailPage() {
     const params  = useParams();
