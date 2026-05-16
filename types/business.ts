@@ -46,6 +46,8 @@ export interface Employee {
     status: 'Active' | 'On Leave' | 'Terminated';
     email?: string;         // pulled from the linked users row; absent if no login account exists
     skills?: EmployeeSkillWithName[]; // employee's skills (NEW)
+    rankCode?: 'Junior' | 'Mid' | 'Senior' | 'Lead' | string | null;
+    rankName?: string | null;
 }
 
 /**
@@ -377,33 +379,152 @@ export interface ProjectTeamAssignment {
     monthlySalary?: number;
 }
 
+export type TaskDifficulty = '簡単' | '普通' | '難しい' | '';
+export type TaskStatus = '未着手' | '進行中' | '完了';
+
+export type PhaseCode =
+    | 'development'
+    | 'requirement'
+    | 'system_arch'
+    | 'basic_doc'
+    | 'detail_doc'
+    | 'unit_test'
+    | 'combine_test'
+    | 'system_test';
+
+export interface ProjectTaskPhaseAssignment {
+    id: string;
+    taskAssignmentId: string;
+    phaseCode: PhaseCode;
+    phaseName: string;
+    phaseOrder: number;
+    estimatedHours: number;
+    startDayHours: number | null;
+    assigneeId: string | null;
+    assigneeName: string | null;
+    assigneeRankId: string | null;
+    assigneeRankCode: 'Junior' | 'Mid' | 'Senior' | 'Lead' | string | null;
+    assigneeRankName: string | null;
+    assignmentSource: 'ai' | 'manual';
+    plannedStart: string | null;
+    plannedEnd: string | null;
+    actualStart: string | null;
+    actualEnd: string | null;
+    status: TaskStatus;
+}
+
 export interface ProjectTaskAssignment {
     id: string;
     projectId: string;
     rowNo: number;
-    functionId?: string;
+    functionId: string | null;
     functionName: string;
-    category?: string | null;
-    offshore?: string | null;
-    difficulty?: string | null;
+    category: string | null;
+    offshore: string | null;
+    difficulty: TaskDifficulty;
     totalHours: number;
-    assigneeId?: string | null;
-    assigneeName?: string;
-    assigneeRankId?: string | null;
-    assigneeRankCode?: string | null;
-    assigneeRankName?: string | null;
-    assignmentSource?: string | null;
-    plannedStart?: string;
-    plannedEnd?: string;
-    actualStart?: string;
-    actualEnd?: string;
-    status?: string | null;
+    phases: ProjectTaskPhaseAssignment[];
 }
 
-// --- Dashboard Capacity (Derived or Legacy) ---
-export interface DepartmentCapacity {
-    role: RoleType;
-    totalMonthlyHours: number;
-    softBookedHours: number;
-    hardBookedHours: number;
+export interface ActivePhase {
+    code: PhaseCode;
+    name: string;
+    order: number;
 }
+
+export interface ProjectTaskAssignmentsPayload {
+    data: ProjectTaskAssignment[];
+    meta: { activePhases: ActivePhase[] };
+}
+
+// --- Schedule Tracking (per-day progress logs + variance) ---
+export type ScheduleHealth = 'on_track' | 'at_risk' | 'slipping';
+export type ScheduleState =
+    | 'pending'
+    | 'on_track'
+    | 'ahead'
+    | 'late'
+    | 'completed_on_time'
+    | 'completed_early'
+    | 'completed_over_budget';
+
+export interface PhaseProgressLog {
+    id: string;
+    phaseAssignmentId: string;
+    employeeId: string;
+    employeeName: string | null;
+    logDate: string;
+    progressHours: number;
+    usedHours: number;
+    note: string | null;
+    lockedAt: string | null;
+    isLocked: boolean;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+}
+
+export interface PhaseVariance {
+    cumulativeProgressHours: number;
+    cumulativeUsedHours: number;
+    expectedProgressHours: number;
+    varianceHours: number;
+    overDeliveredHours: number;
+    scheduleState: ScheduleState;
+    health: ScheduleHealth;
+    isCompleted: boolean;
+}
+
+export interface ScheduleTrackingRow {
+    id: string;
+    taskAssignmentId: string;
+    functionId: string | null;
+    functionName: string;
+    difficulty: TaskDifficulty;
+    phaseCode: PhaseCode;
+    phaseName: string;
+    phaseOrder: number;
+    estimatedHours: number;
+    plannedStart: string | null;
+    plannedEnd: string | null;
+    actualStart: string | null;
+    actualEnd: string | null;
+    assigneeId: string | null;
+    assigneeName: string | null;
+    status: TaskStatus;
+    progressLogs: PhaseProgressLog[];
+    variance: PhaseVariance;
+}
+
+export interface ScheduleTrackingProjectSummary {
+    totalEstimatedHours: number;
+    totalProgressHours: number;
+    totalUsedHours: number;
+    expectedProgressHours: number;
+    varianceHours: number;
+    overDeliveredHours: number;
+    phaseCount: number;
+    completedCount: number;
+    health: ScheduleHealth;
+}
+
+export interface ScheduleTrackingByAssignee extends ScheduleTrackingProjectSummary {
+    assigneeId: string;
+    assigneeName: string | null;
+}
+
+export interface MyScheduleTodayItem {
+    phaseAssignmentId: string;
+    taskAssignmentId: string;
+    phaseCode: PhaseCode;
+    phaseName: string;
+    estimatedHours: number;
+    plannedStart: string | null;
+    plannedEnd: string | null;
+    status: TaskStatus;
+    functionName: string | null;
+    functionId: string | null;
+    projectId: string | null;
+    projectName: string | null;
+    todayLog: PhaseProgressLog | null;
+}
+

@@ -20,24 +20,26 @@ export const ROUTE_PERMISSIONS: Record<string, Role[] | 'public'> = {
     // My Tasks is the only working surface for Delivery employees, so it is
     // public to every authenticated org user. /profile stays public so users
     // (including Delivery) can change their password and personal info.
-    '/my-tasks':      'public',
-    '/profile':       'public',
+    '/my-tasks':         'public',
+    '/my-schedule':      'public',
+    '/profile':          'public',
 
     // Dashboard and the manager pages exclude Delivery — they are pure
     // executors and shouldn't see organization-wide data.
-    '/dashboard':     ['Executive', 'Sales', 'HR'],
-    '/organization':  ['Executive', 'HR'],
+    '/dashboard':        ['Executive', 'Sales', 'HR'],
+    '/organization':     ['Executive', 'HR'],
     '/project-pipeline': ['Executive', 'Sales'],
     // /crm/* kept for one release as a backward-compat redirect target.
     // Phase D rename (chg-009) made /project-pipeline the canonical home.
-    '/crm':           ['Executive', 'Sales'],
-    '/estimation':    ['Executive', 'Sales'],
-    '/contracts':     ['Executive', 'Sales'],
-    '/projects':      ['Executive'],
-    '/time-tracking': ['Executive'],
-    '/financial':     ['Executive'],
-    '/forecast':      ['Executive'],
-    '/tenant':        ['Executive'],
+    '/crm':              ['Executive', 'Sales'],
+    '/estimation':       ['Executive', 'Sales'],
+    '/contracts':        ['Executive', 'Sales'],
+    '/projects':         ['Executive'],
+    '/time-tracking':    ['Executive'],
+    '/schedule-tracking':['Executive'],
+    '/financial':        ['Executive'],
+    '/forecast':         ['Executive'],
+    '/tenant':           ['Executive'],
 };
 
 /**

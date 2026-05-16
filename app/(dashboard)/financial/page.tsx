@@ -118,17 +118,48 @@ function estimateProjectCost(planRevenue: number, deal?: Deal): number {
     return 0;
 }
 
+// Task-level fields (status / dates) live on phases[] — aggregate across them
+// so the financial page can keep treating a task as a single timeline.
+function taskPlannedStart(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.plannedStart)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskPlannedEnd(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.plannedEnd)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskActualStart(task: ProjectTaskAssignment): string | null {
+    const dates = task.phases.map((p) => parseDate(p.actualStart)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskActualEnd(task: ProjectTaskAssignment): string | null {
+    if (task.phases.length === 0 || task.phases.some((p) => !p.actualEnd)) return null;
+    const dates = task.phases.map((p) => parseDate(p.actualEnd)).filter((d): d is Date => !!d);
+    return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString() : null;
+}
+
+function taskStatus(task: ProjectTaskAssignment): '未着手' | '進行中' | '完了' {
+    if (task.phases.length > 0 && task.phases.every((p) => p.status === '完了')) return '完了';
+    if (task.phases.some((p) => p.status === '進行中' || p.status === '完了' || !!p.actualStart)) return '進行中';
+    return '未着手';
+}
+
 function getTaskProgress(task: ProjectTaskAssignment, today: Date): number {
-    const status = (task.status ?? '').trim();
-    if (status === '完了' || status.toLowerCase() === 'completed' || !!task.actualEnd) {
+    const status = taskStatus(task);
+    const actualEnd = taskActualEnd(task);
+    if (status === '完了' || !!actualEnd) {
         return 1;
     }
 
-    const started = status === '進行中' || status.toLowerCase() === 'in progress' || !!task.actualStart;
+    const actualStart = taskActualStart(task);
+    const started = status === '進行中' || !!actualStart;
     if (!started) return 0;
 
-    const start = parseDate(task.actualStart) ?? parseDate(task.plannedStart);
-    const end = parseDate(task.actualEnd) ?? parseDate(task.plannedEnd);
+    const start = parseDate(actualStart) ?? parseDate(taskPlannedStart(task));
+    const end = parseDate(actualEnd) ?? parseDate(taskPlannedEnd(task));
     if (start && end) {
         const totalDays = diffDays(start, end);
         const elapsedDays = diffDays(start, today < end ? today : end);
@@ -159,23 +190,23 @@ function getActualProgress(project: Project, tasks: ProjectTaskAssignment[], act
 }
 
 function getPlannedTimeline(project: Project, deal?: Deal, tasks: ProjectTaskAssignment[] = []): { plannedStart: Date | null; plannedEnd: Date | null } {
-    const taskPlannedStart = getEarlierDate(...tasks.map((task) => parseDate(task.plannedStart)));
-    const taskPlannedEnd = getLaterDate(...tasks.map((task) => parseDate(task.plannedEnd)));
+    const aggregatedPlannedStart = getEarlierDate(...tasks.map((task) => parseDate(taskPlannedStart(task))));
+    const aggregatedPlannedEnd = getLaterDate(...tasks.map((task) => parseDate(taskPlannedEnd(task))));
     const projectStart = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
     const projectEnd = parseDate(project.endDate);
 
-    const plannedStart = projectStart ?? taskPlannedStart;
+    const plannedStart = projectStart ?? aggregatedPlannedStart;
     const timelineMonths = positiveNumber(deal?.timelineMonths || deal?.finalContractMonths);
-    const plannedEnd = projectEnd ?? taskPlannedEnd ?? (plannedStart && timelineMonths > 0 ? addMonths(plannedStart, timelineMonths) : null);
+    const plannedEnd = projectEnd ?? aggregatedPlannedEnd ?? (plannedStart && timelineMonths > 0 ? addMonths(plannedStart, timelineMonths) : null);
 
     return { plannedStart, plannedEnd };
 }
 
 function getActualStart(project: Project, tasks: ProjectTaskAssignment[], projectEntries: TimeEntry[]): Date | null {
-    const taskActualStart = getEarlierDate(...tasks.map((task) => parseDate(task.actualStart)));
+    const aggregatedActualStart = getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))));
     const firstEntryDate = getEarlierDate(...projectEntries.map((entry) => parseDate(entry.date)));
     const kickoff = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
-    return taskActualStart ?? firstEntryDate ?? kickoff;
+    return aggregatedActualStart ?? firstEntryDate ?? kickoff;
 }
 
 function getOvertimeMetrics(
