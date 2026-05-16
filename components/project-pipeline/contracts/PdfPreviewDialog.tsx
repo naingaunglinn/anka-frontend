@@ -104,7 +104,7 @@ export function PdfPreviewDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
+            <DialogContent className="w-[95vw] sm:max-w-[1200px] h-[92vh] flex flex-col p-0">
                 <DialogHeader className="px-6 py-4 border-b flex flex-row items-start justify-between gap-4 shrink-0">
                     <div>
                         <DialogTitle className="flex items-center gap-2 text-base">
