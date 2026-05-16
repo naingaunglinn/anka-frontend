@@ -132,8 +132,9 @@ export default function NewContractDraftPage() {
                         New contract draft
                     </h1>
                     <p className="text-sm text-slate-600 mt-1">
-                        AI-generates an SES contract from the deal&apos;s Requirement Description and
-                        Estimation handoff. Generation fires the rank transition to A.
+                        AI-generates an SES contract from the deal&apos;s Requirement Description
+                        and Estimation handoff. The deal is already at rank A; this drafts the
+                        contract you&apos;ll send to the customer for signature.
                     </p>
                 </div>
             </div>
