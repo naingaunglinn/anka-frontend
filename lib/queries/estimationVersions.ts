@@ -13,6 +13,10 @@ export interface EstimationVersion {
     resourceCount: number
     overheadCount: number
     notes?: string
+    /** Customer meeting minutes / chat snippet that produced this version. */
+    contextNotes?: string | null
+    /** True when contextNotes is non-empty — surfaced in the version list. */
+    hasContextNotes?: boolean
     createdAt?: string
     xlsxPath?: string | null
     xlsxAvailable?: boolean
@@ -45,6 +49,8 @@ function mapVersion(v: Record<string, unknown>): EstimationVersion {
         resourceCount: v.resource_count as number,
         overheadCount: v.overhead_count as number,
         notes: v.notes as string | undefined,
+        contextNotes: (v.context_notes as string | null | undefined) ?? null,
+        hasContextNotes: Boolean(v.has_context_notes ?? (v.context_notes && String(v.context_notes).trim().length > 0)),
         createdAt: v.created_at as string | undefined,
         xlsxPath: (v.xlsx_path as string | null | undefined) ?? null,
         xlsxAvailable: v.xlsx_available as boolean | undefined,
@@ -96,6 +102,10 @@ export function useEstimationVersionMutations() {
             overheads: Array<{ name: string; cost: number }>
             targetMargin: number
             notes?: string
+            /** Meeting minutes / chat that informed this version. Frozen
+             *  with the snapshot — written when the user accepts an AI delta
+             *  or types into the optional context-notes field. */
+            contextNotes?: string
         }) => {
             const { data } = await api.post(
                 `/deals/${params.dealId}/estimation-versions`,
@@ -115,6 +125,7 @@ export function useEstimationVersionMutations() {
                     overheads: params.overheads,
                     target_margin: params.targetMargin,
                     notes: params.notes,
+                    context_notes: params.contextNotes,
                 }
             )
             return data.data as EstimationVersion
@@ -262,10 +273,14 @@ function mapAIDraft(raw: Record<string, unknown>): AIEstimationDraft {
 export function useGenerateAIEstimationDraft() {
     const mutation = useMutation({
         mutationFn: async (params: { dealId: string; signal?: AbortSignal }): Promise<AIEstimationDraft> => {
+            // Backend EstimationAiService allows up to 180s for the Anthropic
+            // call (plus retry-on-JSON-shape). Frontend must outlast that or
+            // axios will abort mid-flight and the network panel shows the
+            // request as "cancelled" — masking a still-running backend job.
             const { data } = await api.post(
                 `/deals/${params.dealId}/estimation-versions/ai-draft`,
                 {},
-                { signal: params.signal, timeout: 60_000 },
+                { signal: params.signal, timeout: 210_000 },
             )
             return mapAIDraft(data.data as Record<string, unknown>)
         },
@@ -286,6 +301,129 @@ export function useGenerateAIEstimationDraft() {
         generate: (dealId: string, signal?: AbortSignal) => mutation.mutateAsync({ dealId, signal }),
         isGenerating: mutation.isPending,
         lastDraft: mutation.data ?? null,
+        error: mutation.error,
+        reset: () => mutation.reset(),
+    }
+}
+
+// ─── AI delta (Suggest Changes from Notes) ───────────────────────────────────
+
+/**
+ * Structured diff returned by POST /deals/{id}/estimation-versions/ai-delta.
+ * Each section's add/remove/modify arrays are independent — the user accepts
+ * per-item via checkboxes in the review panel.
+ */
+export interface AIEstimationDelta {
+    resources: {
+        add: Array<{ featureName: string; role: string; hours: number; reason: string }>
+        remove: Array<{ featureName: string; reason: string }>
+        modify: Array<{ featureName: string; newHours: number; reason: string }>
+    }
+    overheads: {
+        add: Array<{ name: string; cost: number; reason: string }>
+        remove: Array<{ name: string; reason: string }>
+        modify: Array<{ name: string; newCost: number; reason: string }>
+    }
+    summary: string
+    confidence: 'high' | 'medium' | 'low' | string
+}
+
+function mapAIDelta(raw: Record<string, unknown>): AIEstimationDelta {
+    const r = (raw.resources ?? {}) as Record<string, unknown>
+    const o = (raw.overheads ?? {}) as Record<string, unknown>
+    const arr = (v: unknown): Array<Record<string, unknown>> =>
+        Array.isArray(v) ? (v as Array<Record<string, unknown>>) : []
+    return {
+        resources: {
+            add: arr(r.add).map(x => ({
+                featureName: String(x.feature_name ?? '').trim(),
+                role: String(x.role ?? '').trim(),
+                hours: Number(x.hours ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            remove: arr(r.remove).map(x => ({
+                featureName: String(x.feature_name ?? '').trim(),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            modify: arr(r.modify).map(x => ({
+                featureName: String(x.feature_name ?? '').trim(),
+                newHours: Number(x.new_hours ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+        },
+        overheads: {
+            add: arr(o.add).map(x => ({
+                name: String(x.name ?? '').trim(),
+                cost: Number(x.cost ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            remove: arr(o.remove).map(x => ({
+                name: String(x.name ?? '').trim(),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            modify: arr(o.modify).map(x => ({
+                name: String(x.name ?? '').trim(),
+                newCost: Number(x.new_cost ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+        },
+        summary: String(raw.summary ?? '').trim(),
+        confidence: String(raw.confidence ?? 'medium'),
+    }
+}
+
+/**
+ * Calls POST /deals/{id}/estimation-versions/ai-delta. Returns a structured
+ * add/remove/modify diff that the caller renders in a review panel.
+ */
+export function useGenerateAIEstimationDelta() {
+    const mutation = useMutation({
+        mutationFn: async (params: {
+            dealId: string
+            contextNotes: string
+            currentResources: Array<{ featureName: string; role?: string; hours: number }>
+            currentOverheads: Array<{ name: string; cost: number }>
+        }): Promise<AIEstimationDelta> => {
+            const { data } = await api.post(
+                `/deals/${params.dealId}/estimation-versions/ai-delta`,
+                {
+                    context_notes: params.contextNotes,
+                    current_resources: params.currentResources.map(r => ({
+                        feature_name: r.featureName,
+                        role: r.role ?? '',
+                        hours: r.hours,
+                    })),
+                    current_overheads: params.currentOverheads.map(o => ({
+                        name: o.name,
+                        cost: o.cost,
+                    })),
+                },
+                { timeout: 210_000 },
+            )
+            return mapAIDelta(data.data as Record<string, unknown>)
+        },
+        onError: (err) => {
+            const norm = normalizeError(err)
+            const status = (err as { response?: { status?: number } })?.response?.status
+            if (status === 422) {
+                toast.error(norm.message || 'Notes are required and must be at least 5 characters.')
+            } else if (status === 503) {
+                toast.error('AI service unavailable, please try again later.')
+            } else {
+                toast.error(norm.message || 'AI delta failed — please try again.')
+            }
+        },
+    })
+
+    return {
+        suggest: (
+            dealId: string,
+            contextNotes: string,
+            currentResources: Array<{ featureName: string; role?: string; hours: number }>,
+            currentOverheads: Array<{ name: string; cost: number }>,
+        ) => mutation.mutateAsync({ dealId, contextNotes, currentResources, currentOverheads }),
+        isSuggesting: mutation.isPending,
+        lastDelta: mutation.data ?? null,
         error: mutation.error,
         reset: () => mutation.reset(),
     }

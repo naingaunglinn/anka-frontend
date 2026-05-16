@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles, FileCheck2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal, EstimationResource, ProjectOverhead } from '@/types/business';
 import type { Currency } from '@/lib/currencyConfig';
@@ -23,10 +24,13 @@ import {
 } from '@/lib/queries/estimationVersions';
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
 import { EstimationRoleBuilder } from '@/components/estimation/EstimationRoleBuilder';
+import { ContractReadyDialog } from '@/components/estimation/ContractReadyDialog';
+import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
+import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
-import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
+import { calculateLaborOverhead, LABOR_OVERHEAD_PERCENTAGE } from '@/lib/calculations';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
@@ -202,6 +206,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [compareWithId, setCompareWithId] = useState<string | null>(null);
     const [versionNotes, setVersionNotes] = useState('');
     const [showHistory, setShowHistory] = useState(false);
+    const [contractReadyOpen, setContractReadyOpen] = useState(false);
+    const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
+    const [suggestFromNotesOpen, setSuggestFromNotesOpen] = useState(false);
 
     // Version queries
     const versionsQuery = useEstimationVersions(selectedDealId || null);
@@ -354,17 +361,20 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
     const handleGenerateAi = async () => {
         if (!selectedDealId) return;
-
-        // Regenerate guard: if there's already scope/overhead data on the
-        // deal, ask before clobbering it. AI generation now persists straight
-        // to the DB so a second click overwrites whatever the user had.
+        // Regenerate guard: if there's already scope/overhead data on the deal,
+        // open the confirm modal instead of clobbering it. AI generation persists
+        // straight to the DB, so a second click would overwrite whatever the user
+        // had. The modal's confirm handler calls runAiGeneration() directly.
         const hasExistingData = resources.length > 0 || overheads.length > 0;
         if (hasExistingData) {
-            const ok = window.confirm(
-                'This will replace the current scope and overhead with a fresh AI suggestion, and save it to the deal. Continue?',
-            );
-            if (!ok) return;
+            setRegenerateConfirmOpen(true);
+            return;
         }
+        await runAiGeneration();
+    };
+
+    const runAiGeneration = async () => {
+        if (!selectedDealId) return;
 
         // Snapshot pre-AI state in case the persist step fails — we restore
         // these so the user doesn't end up with AI output in the UI that
@@ -593,21 +603,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         0,
     );
 
-    // Cost model aligned with the rest of the system (CRM ghost-role estimate,
-    // AI Team Builder). Three overhead components stack:
-    //   - companyOverheadCost  = labor × overheadPct   (settings %, on labor)
+    // Cost model: a single 15% markup on labor absorbs both the old company
+    // overhead and risk buffer. Project-level absolute overheads (deal_overheads)
+    // remain a separate line, untouched by the markup.
+    //   - laborOverhead        = laborCost × LABOR_OVERHEAD_PERCENTAGE / 100
     //   - projectOverheadTotal = Σ absolute project overheads
-    //   - bufferCost           = (labor + companyOverhead + projectOverhead) × bufferPct
-    // Buffer is applied to labor + both overheads via calculateRiskBuffer so a
-    // change in any input flows through deterministically.
+    //   - totalCost            = laborCost + laborOverhead + projectOverheadTotal
     const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-    const companyOverheadCost = calculateOverhead(laborCost, store.companySettings.overheadPercentage || 0);
-    const bufferCost = calculateRiskBuffer(
-        laborCost,
-        companyOverheadCost + projectOverheadTotal,
-        store.companySettings.bufferPercentage || 0,
-    );
-    const totalCost = laborCost + companyOverheadCost + projectOverheadTotal + bufferCost;
+    const laborOverhead = calculateLaborOverhead(laborCost);
+    const totalCost = laborCost + laborOverhead + projectOverheadTotal;
 
     // Slider is capped at 80% so margin/100 stays well below 1, but clamp
     // explicitly here so a future cap change can't silently produce price=0.
@@ -792,6 +796,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 {idx === 0 && (
                                                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">Latest</span>
                                                 )}
+                                                {v.hasContextNotes && (
+                                                    <span
+                                                        className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium inline-flex items-center gap-1"
+                                                        title={v.contextNotes ?? 'Has meeting notes attached'}
+                                                    >
+                                                        <MessageSquareText className="h-3 w-3" />
+                                                        notes
+                                                    </span>
+                                                )}
                                             </div>
                                             {v.notes && (
                                                 <p className="text-xs text-slate-500 mt-1">{v.notes}</p>
@@ -893,16 +906,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     }
                                 }}
                                 extraAction={
-                                    <Button
-                                        onClick={handleGenerateAi}
-                                        disabled={!selectedDealId || isGeneratingAi}
-                                        className="w-full h-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
-                                        size="lg"
-                                        title="Generate scope rows and predicted overheads from the deal context using Claude"
-                                    >
-                                        <Sparkles className="h-4 w-4" />
-                                        {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
-                                    </Button>
+                                    <div className="flex flex-col gap-2 h-full">
+                                        <Button
+                                            onClick={handleGenerateAi}
+                                            disabled={!selectedDealId || isGeneratingAi}
+                                            className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
+                                            size="lg"
+                                            title="Generate scope rows and predicted overheads from the deal context using Claude"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                            {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
+                                        </Button>
+                                        <Button
+                                            onClick={() => setSuggestFromNotesOpen(true)}
+                                            disabled={!selectedDealId || resources.length === 0}
+                                            className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 disabled:opacity-60"
+                                            size="lg"
+                                            title={resources.length === 0
+                                                ? 'Generate or add scope first, then come back here to apply meeting feedback.'
+                                                : 'Paste meeting minutes / chat — AI proposes scope and overhead changes for review.'}
+                                        >
+                                            <MessageSquareText className="h-4 w-4" />
+                                            Suggest changes from notes
+                                        </Button>
+                                    </div>
                                 }
                             />
                         </CardContent>
@@ -1119,24 +1146,18 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                         <div className="pt-4 border-t border-slate-100 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Total Labor Cost</span>
+                                <span className="text-slate-500">Direct Labor Cost</span>
                                 <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">
-                                    Company Overhead ({store.companySettings.overheadPercentage || 0}%)
+                                    Overhead &amp; Buffer ({LABOR_OVERHEAD_PERCENTAGE}% of labor)
                                 </span>
-                                <span className="font-medium text-slate-700">{formatMoney(companyOverheadCost, currency)}</span>
+                                <span className="font-medium text-amber-600">{formatMoney(laborOverhead, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Project Overhead</span>
                                 <span className="font-medium text-rose-500">{formatMoney(projectOverheadTotal, currency)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">
-                                    Risk Buffer ({store.companySettings.bufferPercentage || 0}%)
-                                </span>
-                                <span className="font-medium text-amber-600">{formatMoney(bufferCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
                                 <span className="text-slate-700">Total Project Cost</span>
@@ -1200,6 +1221,171 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <p className="text-[10px] text-slate-400 text-center -mt-1">
                             Edits auto-save to the deal as you type. Save Version creates a checkpoint with XLSX.
                         </p>
+
+                        {/* Contract Ready — manual B→A trigger. Pressed only when the
+                            customer has agreed to a specific number. Independent of
+                            Save Version (which can be pressed as often as needed).
+                            Shows as enabled at qualified (B), disabled with tooltip
+                            at lead (C), and replaced by a confirmed badge at
+                            negotiation/won (A/S). */}
+                        {selectedDeal && (
+                            <div className="pt-3 border-t border-slate-100 space-y-1.5">
+                                {selectedDeal.status === 'qualified' && (
+                                    <>
+                                        <Button
+                                            onClick={() => setContractReadyOpen(true)}
+                                            disabled={!selectedDealId}
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                                        >
+                                            <FileCheck2 className="h-4 w-4" />
+                                            Mark Contract Ready
+                                        </Button>
+                                        <p className="text-[10px] text-slate-400 text-center">
+                                            Press this when the customer has agreed. Locks the terms and advances the deal to Rank A.
+                                        </p>
+                                    </>
+                                )}
+                                {selectedDeal.status === 'lead' && (
+                                    <Button
+                                        disabled
+                                        className="w-full gap-2"
+                                        title="Move the deal to Qualified (Rank B) before marking contract ready."
+                                    >
+                                        <FileCheck2 className="h-4 w-4" />
+                                        Mark Contract Ready (Rank B required)
+                                    </Button>
+                                )}
+                                {(selectedDeal.status === 'negotiation' || selectedDeal.status === 'won') && (
+                                    <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-emerald-800">
+                                                Contract terms confirmed
+                                                {selectedDeal.finalConfirmedAt && (
+                                                    <span className="font-normal text-emerald-700">
+                                                        {' '}· {new Date(selectedDeal.finalConfirmedAt).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-[11px] text-emerald-700 mt-0.5">
+                                                Deal is at Rank {selectedDeal.status === 'won' ? 'S' : 'A'}. The agreed terms
+                                                are locked; you can still save more versions for the record.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {selectedDeal && (
+                            <ContractReadyDialog
+                                open={contractReadyOpen}
+                                onOpenChange={setContractReadyOpen}
+                                deal={selectedDeal}
+                                suggestedPrice={suggestedPrice}
+                                resources={resources}
+                            />
+                        )}
+
+                        {selectedDealId && (
+                            <SuggestChangesFromNotesDialog
+                                open={suggestFromNotesOpen}
+                                onOpenChange={setSuggestFromNotesOpen}
+                                dealId={selectedDealId}
+                                currentResources={resources}
+                                currentOverheads={overheads}
+                                currency={currency}
+                                onApply={async ({ resources: nextResources, overheads: nextOverheads, contextNotes }) => {
+                                    // 1. Persist applied changes to the deal so the auto-saved
+                                    //    state matches what the new version snapshot will hold.
+                                    //    Cancels the pending debounced auto-save (if any) since
+                                    //    we're writing the same fields right now.
+                                    if (autoSaveTimerRef.current) {
+                                        clearTimeout(autoSaveTimerRef.current);
+                                        autoSaveTimerRef.current = null;
+                                    }
+                                    await updateDeal.mutateAsync({
+                                        id: selectedDealId,
+                                        updates: {
+                                            estimationResources: nextResources,
+                                            projectOverheads: nextOverheads,
+                                            targetMargin: margin[0],
+                                        },
+                                    });
+                                    // Mirror locally so the UI doesn't flash old values while
+                                    // the deal query refetches.
+                                    setResources(nextResources);
+                                    setOverheads(nextOverheads);
+                                    setDirty(false);
+
+                                    // 2. Auto-save as the next version with the notes attached.
+                                    //    The user agreed to this in the AskUserQuestion flow —
+                                    //    Apply = locked record.
+                                    const nextVer = (currentVersion?.versionNumber ?? 0) + 1;
+                                    await saveVersion.mutateAsync({
+                                        dealId: selectedDealId,
+                                        resources: nextResources.map(r => ({
+                                            roleId: r.roleId,
+                                            employeeId: r.employeeId ?? null,
+                                            featureName: r.featureName,
+                                            hours: r.hours,
+                                        })),
+                                        overheads: nextOverheads,
+                                        targetMargin: margin[0],
+                                        notes: 'Applied AI suggestions from meeting notes',
+                                        contextNotes,
+                                    });
+                                    setLastSavedAt(new Date().toLocaleString());
+                                    toast.success(`Applied changes — saved as v${nextVer} with notes attached.`);
+                                }}
+                            />
+                        )}
+
+                        {/* Replaces the native window.confirm that used to gate AI
+                            regeneration. Lives inside the right-hand summary card so
+                            the modal anchor mounts only when there's a selected deal. */}
+                        <Dialog open={regenerateConfirmOpen} onOpenChange={setRegenerateConfirmOpen}>
+                            <DialogContent className="sm:max-w-[460px]">
+                                <DialogHeader>
+                                    <div className="flex items-start gap-3">
+                                        <div className="rounded-full bg-amber-100 p-2 mt-0.5">
+                                            <AlertTriangle className="h-5 w-5 text-amber-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <DialogTitle>Replace current estimate?</DialogTitle>
+                                            <DialogDescription className="mt-1.5">
+                                                A fresh AI suggestion will replace the {resources.length} scope row{resources.length === 1 ? '' : 's'}
+                                                {overheads.length > 0 && ` and ${overheads.length} overhead${overheads.length === 1 ? '' : 's'}`}
+                                                {' '}currently on this deal, and save the new version to the database.
+                                            </DialogDescription>
+                                        </div>
+                                    </div>
+                                </DialogHeader>
+                                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                    Tip: save a version first if you want to compare the AI&rsquo;s new draft against the current scope side-by-side.
+                                </div>
+                                <DialogFooter className="gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setRegenerateConfirmOpen(false)}
+                                        disabled={isGeneratingAi}
+                                    >
+                                        Keep current estimate
+                                    </Button>
+                                    <Button
+                                        className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
+                                        disabled={isGeneratingAi}
+                                        onClick={async () => {
+                                            setRegenerateConfirmOpen(false);
+                                            await runAiGeneration();
+                                        }}
+                                    >
+                                        <Sparkles className="h-4 w-4" />
+                                        Replace &amp; regenerate
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </CardContent>
                 </Card>
             </div>
