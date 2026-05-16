@@ -456,6 +456,7 @@ export interface PhaseProgressLog {
     logDate: string;
     progressHours: number;
     usedHours: number;
+    lateHours: number;
     note: string | null;
     lockedAt: string | null;
     isLocked: boolean;
@@ -469,6 +470,7 @@ export interface PhaseVariance {
     expectedProgressHours: number;
     varianceHours: number;
     overDeliveredHours: number;
+    lateHours: number;
     scheduleState: ScheduleState;
     health: ScheduleHealth;
     isCompleted: boolean;
@@ -502,6 +504,7 @@ export interface ScheduleTrackingProjectSummary {
     expectedProgressHours: number;
     varianceHours: number;
     overDeliveredHours: number;
+    lateHours: number;
     phaseCount: number;
     completedCount: number;
     health: ScheduleHealth;

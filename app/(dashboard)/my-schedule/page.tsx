@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { LoadingState } from '@/components/LoadingState';
@@ -14,12 +14,22 @@ export default function MySchedulePage() {
     const employeeId = user?.employeeId;
 
     const projectsQuery = useProjectList();
-    const projects = projectsQuery.data?.data ?? [];
+    const allProjects = projectsQuery.data?.data ?? [];
+    // Hide finished projects — employees only log progress against running work.
+    const projects = useMemo(
+        () => allProjects.filter((p) => p.status !== 'Completed'),
+        [allProjects],
+    );
 
     const [projectId, setProjectId] = useState<string>('');
     useEffect(() => {
         if (!projectId && projects.length > 0) {
             setProjectId(projects[0].id);
+        }
+    }, [projects, projectId]);
+    useEffect(() => {
+        if (projectId && !projects.some((p) => p.id === projectId)) {
+            setProjectId(projects[0]?.id ?? '');
         }
     }, [projects, projectId]);
 
@@ -46,14 +56,23 @@ export default function MySchedulePage() {
 
             {employeeId && (
                 <>
-                    <div className="max-w-md space-y-1">
+                    <div className="space-y-1 max-w-full">
                         <label className="text-xs text-[#8a8a8a]">Project</label>
                         <Select value={projectId} onValueChange={setProjectId}>
-                            <SelectTrigger><SelectValue placeholder="Pick a project" /></SelectTrigger>
-                            <SelectContent>
+                            {/* w-auto = trigger grows to fit the selected
+                                project's name; max-w caps it on extreme cases
+                                so a 80-char project name doesn't stretch the
+                                row off-screen. */}
+                            <SelectTrigger className="w-auto max-w-[min(100%,640px)]">
+                                <SelectValue placeholder="Pick a project" />
+                            </SelectTrigger>
+                            <SelectContent className="max-w-[640px]">
                                 {projects.map((p) => (
                                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                 ))}
+                                {projects.length === 0 && (
+                                    <div className="px-2 py-3 text-sm text-[#8a8a8a]">No running projects.</div>
+                                )}
                             </SelectContent>
                         </Select>
                     </div>

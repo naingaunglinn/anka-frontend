@@ -64,8 +64,8 @@ export function SimulatedDateBar() {
     return (
         <div className="space-y-2">
             <div className="flex items-center gap-3">
-                <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
-                    <CalendarClock className="h-3.5 w-3.5" />
+                <label className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                    <CalendarClock className="h-4 w-4" />
                     Treat as today:
                 </label>
                 <Input
