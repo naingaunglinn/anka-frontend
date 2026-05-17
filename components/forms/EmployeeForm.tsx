@@ -296,9 +296,14 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         name="basicSalary"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Basic Salary ({symbol}) <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>
+                                    Basic Salary ({symbol})
+                                    {!isEdit && <span className="text-destructive"> *</span>}
+                                </FormLabel>
                                 <FormControl>
-                                    <Input type="number" placeholder="e.g. 3000" {...field} />
+                                    <Input type="number" placeholder="e.g. 3000" {...field}
+                                        disabled={isEdit}
+                                        title={isEdit ? 'Edit on the employee profile page → Salary History' : undefined} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -311,13 +316,20 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                             <FormItem>
                                 <FormLabel>Allowance ({symbol})</FormLabel>
                                 <FormControl>
-                                    <Input type="number" placeholder="e.g. 500 (optional)" {...field} />
+                                    <Input type="number" placeholder="e.g. 500 (optional)" {...field}
+                                        disabled={isEdit}
+                                        title={isEdit ? 'Edit on the employee profile page → Salary History' : undefined} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
                 </div>
+                {isEdit && (
+                    <p className="text-xs text-slate-500 -mt-2">
+                        Salary is managed per month on the employee profile page. Open <span className="font-medium">View profile → Salary History</span> to schedule a raise or correct the current month.
+                    </p>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
