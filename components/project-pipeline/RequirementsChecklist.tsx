@@ -176,7 +176,7 @@ function buildChecklistItems(deal: Deal): ChecklistItem[] {
     ];
 }
 
-function formatOtSummary(deal: Deal): string {
+export function formatOtSummary(deal: Deal): string {
     const labels: Record<string, string> = {
         customer_pays_per_hour: 'Customer pays per hour',
         capped_then_customer_pays: 'Capped — first N hours included',

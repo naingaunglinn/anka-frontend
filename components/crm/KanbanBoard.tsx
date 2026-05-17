@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Edit2, Trash2, Ban, FileText } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Ban, FileText, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -228,6 +228,12 @@ export function KanbanBoard({
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-[180px]">
+                                                            <DropdownMenuItem
+                                                                onClick={() => router.push(`/project-pipeline/${deal.id}`)}
+                                                            >
+                                                                <Eye className="mr-2 h-4 w-4" />
+                                                                Deal Detail
+                                                            </DropdownMenuItem>
                                                             <DropdownMenuItem
                                                                 onClick={() => router.push(`/project-pipeline/edit/${deal.id}`)}
                                                                 disabled={!canManageCrm}
