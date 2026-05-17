@@ -10,7 +10,7 @@ import { useBusinessStore } from '@/store/businessStore';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
-import { scheduleTrackingKeys } from '@/lib/queries/scheduleTracking';
+import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
@@ -100,7 +100,19 @@ export default function TimeTrackingPage() {
         [timeEntries, runningProjectIds],
     );
 
-    const totalHoursLogged = runningTimeEntries.reduce((sum, e) => sum + e.hours, 0);
+    // Total Hours Logged is now sourced from phase_progress_logs (new schedule
+    // tracking system), not the legacy time_entries table. Filterable by date
+    // range + phase status via the controls inside the KPI card itself.
+    const [hoursDateFrom, setHoursDateFrom] = useState<string>('');
+    const [hoursDateTo,   setHoursDateTo]   = useState<string>('');
+    const [hoursPhaseStatus, setHoursPhaseStatus] = useState<'all' | '未着手' | '進行中' | '完了'>('all');
+    const hoursSummaryQuery = useProgressLogSummary({
+        dateFrom:    hoursDateFrom || undefined,
+        dateTo:      hoursDateTo   || undefined,
+        phaseStatus: hoursPhaseStatus === 'all' ? undefined : hoursPhaseStatus,
+    });
+    const totalHoursLogged = hoursSummaryQuery.data?.totalUsedHours ?? 0;
+
     const activeProjectsCount = new Set(runningTimeEntries.map(e => e.projectId)).size;
     const totalCapacity = store.employees
         .filter((employee) => employee.status === 'Active')
@@ -131,7 +143,42 @@ export default function TimeTrackingPage() {
                             <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{totalHoursLogged}h</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
+                                {hoursSummaryQuery.isLoading ? '—' : `${totalHoursLogged}h`}
+                            </span>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={hoursDateFrom}
+                                    onChange={(e) => setHoursDateFrom(e.target.value)}
+                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
+                                    aria-label="From date"
+                                />
+                                <span className="text-xs text-[#8a8a8a]">to</span>
+                                <input
+                                    type="date"
+                                    value={hoursDateTo}
+                                    onChange={(e) => setHoursDateTo(e.target.value)}
+                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
+                                    aria-label="To date"
+                                />
+                            </div>
+                            <Select
+                                value={hoursPhaseStatus}
+                                onValueChange={(v) => setHoursPhaseStatus(v as 'all' | '未着手' | '進行中' | '完了')}
+                            >
+                                <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All phase statuses</SelectItem>
+                                    <SelectItem value="未着手">未着手 (Not started)</SelectItem>
+                                    <SelectItem value="進行中">進行中 (In progress)</SelectItem>
+                                    <SelectItem value="完了">完了 (Done)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </CardContent>
                 </Card>

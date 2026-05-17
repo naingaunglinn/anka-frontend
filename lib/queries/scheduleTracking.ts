@@ -126,7 +126,50 @@ export const scheduleTrackingKeys = {
     logsFor: (phaseAssignmentId: string) => [...scheduleTrackingKeys.all, 'logs', phaseAssignmentId] as const,
     lateHoursForProject: (projectId: string, asOf?: string) =>
         [...scheduleTrackingKeys.all, 'late-hours', projectId, asOf ?? null] as const,
+    progressSummary: (params: ProgressLogSummaryParams) =>
+        [...scheduleTrackingKeys.all, 'progress-summary', params] as const,
 };
+
+// ── Tenant-wide progress-log summary (Time Tracking page KPI) ────────────────
+
+export interface ProgressLogSummaryParams {
+    dateFrom?: string;
+    dateTo?: string;
+    phaseStatus?: '未着手' | '進行中' | '完了';
+}
+
+export interface ProgressLogSummary {
+    totalProgressHours: number;
+    totalUsedHours: number;
+    logCount: number;
+}
+
+/**
+ * Aggregated stats for the Time Tracking page's "Total Hours Logged" KPI.
+ * Hits `GET /phase-progress-logs/summary` with optional date_from / date_to /
+ * phase_status filters. Returns SUM(progress_hours), SUM(used_hours), COUNT.
+ *
+ * The card displays `totalUsedHours` (labor time), not `totalProgressHours`
+ * (completion units) — change here if you flip that decision.
+ */
+export function useProgressLogSummary(params: ProgressLogSummaryParams = {}) {
+    return useQuery<ProgressLogSummary>({
+        queryKey: scheduleTrackingKeys.progressSummary(params),
+        queryFn: async () => {
+            const query: Record<string, string> = {};
+            if (params.dateFrom)    query.date_from    = params.dateFrom;
+            if (params.dateTo)      query.date_to      = params.dateTo;
+            if (params.phaseStatus) query.phase_status = params.phaseStatus;
+            const { data: body } = await api.get('/phase-progress-logs/summary', { params: query });
+            const d = body.data ?? {};
+            return {
+                totalProgressHours: Number(d.total_progress_hours ?? 0),
+                totalUsedHours:     Number(d.total_used_hours     ?? 0),
+                logCount:           Number(d.log_count            ?? 0),
+            };
+        },
+    });
+}
 
 // ── Late hours (Finance + Schedule Tracking) ─────────────────────────────────
 
