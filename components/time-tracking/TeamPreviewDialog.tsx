@@ -84,18 +84,27 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
     const proposed = preview?.proposed ?? [];
     const kept = preview?.kept ?? [];
     const unfilled = preview?.unfilled ?? [];
+    const capacityCheck = preview?.capacityCheck ?? [];
     const nothingToDo = preview && proposed.length === 0 && unfilled.length === 0;
+
+    const formatMoney = (n: number) =>
+        n >= 1_000_000
+            ? `${(n / 1_000_000).toFixed(2)}M`
+            : n >= 1_000
+                ? `${(n / 1_000).toFixed(0)}K`
+                : `${Math.round(n)}`;
 
     const handleConfirm = () => {
         if (!projectId || !preview) return;
 
-        // Send only employeeId — the backend recomputes allocated_hours
-        // from the project's xlsx in the same transaction, so any number we
-        // pass would be discarded. Empty picks are intentional and valid:
-        // they trigger a refresh-only flow that re-runs the allocator
-        // against the latest xlsx (e.g. after a v2 estimation upload).
+        // ghostRoleId is sent so the backend can store
+        // allocated_hours = workable_hours × ghost_role.months for each pick
+        // (engagement-window capacity). Empty picks are valid: they trigger
+        // a refresh-only flow that re-runs the allocator against the latest
+        // xlsx (e.g. after a v2 estimation upload).
         const picks = proposed.map((p) => ({
-            employeeId: p.employeeId,
+            employeeId:  p.employeeId,
+            ghostRoleId: p.ghostRoleId,
         }));
 
         confirmTeam.mutate(picks, {
@@ -171,20 +180,89 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                                 <TableHead>Employee</TableHead>
                                                 <TableHead>Rank</TableHead>
                                                 <TableHead>Capacity role</TableHead>
+                                                <TableHead className="text-right">Months</TableHead>
                                                 <TableHead className="text-right">Allocated (h)</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {kept.map((k) => (
                                                 <TableRow key={k.employeeId}>
-                                                    <TableCell>{k.name ?? k.employeeId}</TableCell>
+                                                    <TableCell>
+                                                        {k.name ?? k.employeeId}
+                                                        {k.unmatched && (
+                                                            <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
+                                                                no matching role
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell>{k.rankCode ?? '—'}</TableCell>
                                                     <TableCell>{k.capacityRole ?? '—'}</TableCell>
-                                                    <TableCell className="text-right">{k.allocatedHours}</TableCell>
+                                                    <TableCell className="text-right tabular-nums">{k.months || '—'}</TableCell>
+                                                    <TableCell className="text-right tabular-nums">{Math.round(k.allocatedHours)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
                                     </Table>
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-500">
+                                    Hours = workable_hours × engagement months from the matched ghost role. A member marked &quot;no matching role&quot; stays on the team but the planned structure has no slot for their capacity_role on this project.
+                                </div>
+                            </section>
+                        )}
+
+                        {capacityCheck.length > 0 && (
+                            <section>
+                                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    Capacity check (per planned role)
+                                </div>
+                                <div className="rounded-md border border-slate-200">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Role</TableHead>
+                                                <TableHead className="text-right">Hours budget</TableHead>
+                                                <TableHead className="text-right">Hours supply</TableHead>
+                                                <TableHead className="text-right">Cost budget</TableHead>
+                                                <TableHead className="text-right">Cost used</TableHead>
+                                                <TableHead>Status</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {capacityCheck.map((c) => {
+                                                const shortHours = c.hoursShortfall > 0;
+                                                const overCost   = c.costOverrun > 0;
+                                                const ok         = !shortHours && !overCost;
+                                                return (
+                                                    <TableRow key={c.roleType}>
+                                                        <TableCell>
+                                                            <div className="font-medium">{c.roleType}</div>
+                                                            <div className="text-xs text-slate-500">
+                                                                {c.quantity}× / up to {c.monthsMax} mo
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right tabular-nums">{Math.round(c.hoursBudget)}h</TableCell>
+                                                        <TableCell className={`text-right tabular-nums ${shortHours ? 'text-amber-700 font-semibold' : ''}`}>
+                                                            {Math.round(c.hoursSupply)}h
+                                                            {shortHours && <span className="ml-1 text-xs">(−{Math.round(c.hoursShortfall)})</span>}
+                                                        </TableCell>
+                                                        <TableCell className="text-right tabular-nums">Ks{formatMoney(c.costBudget)}</TableCell>
+                                                        <TableCell className={`text-right tabular-nums ${overCost ? 'text-rose-700 font-semibold' : ''}`}>
+                                                            Ks{formatMoney(c.costUsed)}
+                                                            {overCost && <span className="ml-1 text-xs">(+{formatMoney(c.costOverrun)})</span>}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {ok && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">ok</Badge>}
+                                                            {shortHours && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">short</Badge>}
+                                                            {overCost && <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs ml-1">over budget</Badge>}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-500">
+                                    Hours supply = Σ(workable_hours × engagement months) across kept + proposed. Cost used counts proposed picks only (kept members keep their original allocation).
                                 </div>
                             </section>
                         )}
