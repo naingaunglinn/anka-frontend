@@ -52,7 +52,7 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
     const trackingQuery = useScheduleTrackingList(projectId, { per_page: 200, assignee_id: employeeId, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks        = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
-    const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
+    const activePhases = useMemo(() => tasksQuery.data?.meta?.activePhases ?? [], [tasksQuery.data]);
 
     const trackingByPhaseId = useMemo(() => {
         const m = new Map<string, ScheduleTrackingRow>();

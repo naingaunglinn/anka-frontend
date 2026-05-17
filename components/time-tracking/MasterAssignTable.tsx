@@ -53,7 +53,7 @@ export function MasterAssignTable({ projectId }: Props) {
     const trackingQuery = useScheduleTrackingList(projectId, { per_page: 100, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
-    const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
+    const activePhases = useMemo(() => tasksQuery.data?.meta?.activePhases ?? [], [tasksQuery.data]);
     const team = teamQuery.data ?? [];
 
     const trackingByPhaseId = useMemo(() => {
