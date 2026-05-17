@@ -17,6 +17,7 @@ import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useProjectList } from '@/lib/queries/projects';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
+import { useInitialBudget } from '@/lib/queries/initialBudgets';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
 import type { Contract, Deal, Project } from '@/types/business';
@@ -148,6 +149,14 @@ export default function ForecastPage() {
         return Array.from({ length: 6 }, (_, index) => addUtcMonths(base, index));
     }, []);
 
+    // Process ①.3 / ⑧: the year of the first displayed month is the fiscal year
+    // we're forecasting against. If the user has declared a budget for that
+    // year it drives the budget-vs-actual comparison; if not, the UI shows a
+    // "no budget set" notice instead of silently using a stale value.
+    const forecastFiscalYear = monthRange[0]?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const { data: fiscalYearBudget } = useInitialBudget(forecastFiscalYear);
+    const hasFiscalYearBudget = fiscalYearBudget !== undefined;
+
     const selectedRanks = useMemo(
         () => RANK_SCOPE_OPTIONS.find((option) => option.value === rankScope)?.ranks ?? ['S'],
         [rankScope]
@@ -230,7 +239,10 @@ export default function ForecastPage() {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
         const cost = chartData.reduce((sum, item) => sum + item.cost, 0);
         const profit = income - cost;
-        const annualInitialBudget = positiveNumber(store.companySettings.annualInitialBudget) || 1_000_000_000;
+        // Year-scoped initial budget (process ①.3). Falls back to 0 — and a
+        // missing-year notice in the UI — when no row has been declared for
+        // the forecast fiscal year.
+        const annualInitialBudget = positiveNumber(fiscalYearBudget?.amount) ?? 0;
         const comparisonMonth = monthRange[5] ?? monthRange[monthRange.length - 1] ?? startOfUtcMonth(new Date());
         const comparisonMonthNumber = comparisonMonth.getUTCMonth() + 1;
         const comparisonMonthLabel = comparisonMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -247,7 +259,7 @@ export default function ForecastPage() {
             variance: profit - comparisonBudgetTarget,
             budgetCoveragePercent: comparisonBudgetTarget > 0 ? (profit / comparisonBudgetTarget) * 100 : 0,
         };
-    }, [chartData, monthRange, store.companySettings.annualInitialBudget]);
+    }, [chartData, monthRange, fiscalYearBudget]);
 
     const sourceCounts = useMemo(() => {
         return forecastSources.reduce<Record<ForecastRank, number>>(
@@ -515,10 +527,24 @@ export default function ForecastPage() {
 
                             <div className="rounded-md border border-slate-200 p-4">
                                 <p className="text-xs font-semibold uppercase text-slate-500">6-Month Budget Comparison</p>
+                                {!hasFiscalYearBudget && (
+                                    <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
+                                        <p className="text-sm font-medium text-amber-800">
+                                            No budget set for {forecastFiscalYear}
+                                        </p>
+                                        <p className="text-xs text-amber-700 mt-1">
+                                            Declare an Initial Budget for {forecastFiscalYear} on the
+                                            Company Settings page (Organization → Company) to enable
+                                            budget-vs-actual comparison for this forecast.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="mt-3 space-y-3 text-sm">
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">Annual Initial Budget</span>
-                                        <span className="font-semibold text-slate-900">{formatMoney(totals.annualInitialBudget, currency)}</span>
+                                        <span className="text-slate-500">Annual Initial Budget ({forecastFiscalYear})</span>
+                                        <span className="font-semibold text-slate-900">
+                                            {hasFiscalYearBudget ? formatMoney(totals.annualInitialBudget, currency) : '—'}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <span className="text-slate-500">{totals.comparisonMonthLabel} Budget Target</span>
@@ -658,8 +684,12 @@ export default function ForecastPage() {
                             </Card>
                             <Card className="shadow-sm border-slate-100">
                                 <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">Annual Initial Budget</p>
-                                    <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">{formatMoney(totals.annualInitialBudget, currency)}</span>
+                                    <p className="text-sm font-medium text-slate-500">Annual Initial Budget ({forecastFiscalYear})</p>
+                                    {hasFiscalYearBudget ? (
+                                        <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">{formatMoney(totals.annualInitialBudget, currency)}</span>
+                                    ) : (
+                                        <span className="text-sm text-amber-700 block mt-2">Not set for {forecastFiscalYear}</span>
+                                    )}
                                 </CardContent>
                             </Card>
                             <Card className="shadow-sm border-slate-100">

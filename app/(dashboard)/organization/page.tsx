@@ -185,9 +185,14 @@ export default function EmployeesPage() {
                 // 'none' sentinel from the form's Select component is mapped to
                 // null by the store mutation; empty string also reads as null.
                 rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
-                monthlySalary: data.monthlySalary,
+                // Spec ①.2 — basicSalary + allowance instead of monthlySalary.
+                // monthlySalary is derived (basic + allowance) so legacy readers
+                // keep working; the backend recomputes on save.
+                basicSalary: data.basicSalary,
+                allowance: data.allowance ?? 0,
+                monthlySalary: data.basicSalary + (data.allowance ?? 0),
                 workableHours: data.workableHours,
-                costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
+                costPerHour: Number(((data.basicSalary + (data.allowance ?? 0)) / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
                 skills: buildSkills(data.skills),
             },
@@ -216,9 +221,14 @@ export default function EmployeesPage() {
                     ? data.capacityRole as Employee['capacityRole']
                     : undefined,
                 rankId: data.rankId && data.rankId !== 'none' ? data.rankId : null,
-                monthlySalary: data.monthlySalary,
+                // Spec ①.2 — basicSalary + allowance instead of monthlySalary.
+                // monthlySalary is derived (basic + allowance) so legacy readers
+                // keep working; the backend recomputes on save.
+                basicSalary: data.basicSalary,
+                allowance: data.allowance ?? 0,
+                monthlySalary: data.basicSalary + (data.allowance ?? 0),
                 workableHours: data.workableHours,
-                costPerHour: Number((data.monthlySalary / data.workableHours).toFixed(2)),
+                costPerHour: Number(((data.basicSalary + (data.allowance ?? 0)) / data.workableHours).toFixed(2)),
                 status: data.status as 'Active' | 'On Leave' | 'Terminated',
                 skills: buildSkills(data.skills),
             },
