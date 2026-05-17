@@ -223,7 +223,15 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                 type="date"
                                                                 className="h-7 text-xs px-1"
                                                                 value={cell.actualEnd ?? ''}
-                                                                onChange={(e) => update(cell.id, { actualEnd: e.target.value || null })}
+                                                                onChange={(e) => {
+                                                                    const value = e.target.value || null;
+                                                                    // Picking an actual_end means the phase is done —
+                                                                    // auto-flip status to 完了 in the same PATCH so the
+                                                                    // user doesn't have to update two cells.
+                                                                    update(cell.id, value
+                                                                        ? { actualEnd: value, status: '完了' }
+                                                                        : { actualEnd: null });
+                                                                }}
                                                             />
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-slate-100 w-[110px]">
