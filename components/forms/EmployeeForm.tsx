@@ -53,6 +53,10 @@ interface EmployeeFormInitialData {
     departmentId?: string;
     capacityRole?: string;
     rankId?: string | null;
+    // Spec ①.2 — basicSalary + allowance entered separately. Old monthlySalary
+    // is accepted for backward compat and migrated to basicSalary at form init.
+    basicSalary?: number;
+    allowance?: number;
     monthlySalary?: number;
     workableHours?: number;
     status?: 'Active' | 'On Leave' | 'Terminated';
@@ -96,7 +100,11 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
             departmentId:  initialData?.departmentId ?? '',
             capacityRole:  initialData?.capacityRole ?? '',
             rankId:        initialData?.rankId ?? '',
-            monthlySalary: initialData?.monthlySalary ?? 0,
+            // Initial values: prefer the new split fields when present;
+            // fall back to monthlySalary→basic for legacy callers that still
+            // pre-fill the old single field.
+            basicSalary:   initialData?.basicSalary ?? initialData?.monthlySalary ?? 0,
+            allowance:     initialData?.allowance ?? 0,
             workableHours: initialData?.workableHours ?? 160,
             status:        initialData?.status ?? 'Active',
             skills:        (initialData?.skills ?? []).map(s => ({
@@ -285,17 +293,44 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
-                        name="monthlySalary"
+                        name="basicSalary"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Monthly Salary ({symbol}) <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>
+                                    Basic Salary ({symbol})
+                                    {!isEdit && <span className="text-destructive"> *</span>}
+                                </FormLabel>
                                 <FormControl>
-                                    <Input type="number" placeholder="e.g. 3500" {...field} />
+                                    <Input type="number" placeholder="e.g. 3000" {...field}
+                                        disabled={isEdit}
+                                        title={isEdit ? 'Edit on the employee profile page → Salary History' : undefined} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="allowance"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Allowance ({symbol})</FormLabel>
+                                <FormControl>
+                                    <Input type="number" placeholder="e.g. 500 (optional)" {...field}
+                                        disabled={isEdit}
+                                        title={isEdit ? 'Edit on the employee profile page → Salary History' : undefined} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                {isEdit && (
+                    <p className="text-xs text-slate-500 -mt-2">
+                        Salary is managed per month on the employee profile page. Open <span className="font-medium">View profile → Salary History</span> to schedule a raise or correct the current month.
+                    </p>
+                )}
+                <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
                         name="workableHours"

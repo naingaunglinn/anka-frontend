@@ -382,10 +382,25 @@ export function useProjectTeam(id: string) {
     });
 }
 
-export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignment[]> {
+/**
+ * Fetches persisted per-phase task assignments for a project.
+ *
+ * Returns the full `{ data, meta: { activePhases } }` payload so every caller
+ * shares one cache slot under `projectKeys.taskAssignments(projectId)`. If
+ * different callers wrote different shapes to the same key, whichever mounted
+ * second would corrupt the cache for the other (`tasks.map is not a function`
+ * vs `cannot read meta.activePhases`).
+ *
+ * Callers that only need the rows should read `.data` off the payload.
+ */
+export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignmentsPayload> {
     const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
-    const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
-    return rows.map(toTaskAssignment);
+    const rows = (body.data ?? []) as Record<string, unknown>[];
+    const phases = ((body.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
+    return {
+        data: rows.map(toTaskAssignment),
+        meta: { activePhases: phases },
+    };
 }
 
 /**
@@ -454,15 +469,7 @@ export function useProjectTeamMutations(projectId: string) {
 export function useProjectTaskAssignments(projectId: string) {
     return useQuery<ProjectTaskAssignmentsPayload>({
         queryKey: projectKeys.taskAssignments(projectId),
-        queryFn: async () => {
-            const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
-            const rows = (body.data ?? []) as Record<string, unknown>[];
-            const phases = ((body.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
-            return {
-                data: rows.map(toTaskAssignment),
-                meta: { activePhases: phases },
-            };
-        },
+        queryFn: () => fetchProjectTaskAssignments(projectId),
         enabled: !!projectId,
         staleTime: 10_000,
     });

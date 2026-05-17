@@ -6,7 +6,14 @@ export interface AuthUser {
     firstName: string;
     lastName: string;
     email: string;
-    appRole: 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR';
+    // Free-string app role — tenant admins can create roles beyond the
+    // 5 seeded defaults (Admin/Executive/Sales/Delivery/HR). Effective
+    // gating happens via `permissions`, not the role name.
+    appRole: string;
+    // Effective permission keys for this user, populated by /auth/me from
+    // tenant_app_role_permissions. ['all'] for super admins. Empty array if
+    // the user's role row was deleted server-side.
+    permissions: string[];
     systemRole: string;
     isSuperAdmin: boolean;
     tenant: {
