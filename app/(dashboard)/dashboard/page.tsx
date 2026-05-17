@@ -286,7 +286,7 @@ export default function DashboardPage() {
     const taskAssignmentsByProject = useMemo(() => {
         const map = new Map<string, ProfitTaskAssignment[]>();
         store.projects.forEach((project, index) => {
-            map.set(project.id, (taskAssignmentQueries[index]?.data ?? []) as ProfitTaskAssignment[]);
+            map.set(project.id, (taskAssignmentQueries[index]?.data?.data ?? []) as ProfitTaskAssignment[]);
         });
         return map;
     }, [store.projects, taskAssignmentQueries]);
