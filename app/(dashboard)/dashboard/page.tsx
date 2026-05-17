@@ -11,6 +11,7 @@ import { useProjectList, fetchProjectTaskAssignments, projectKeys } from '@/lib/
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useContractList } from '@/lib/queries/contracts';
+import { useInitialBudget } from '@/lib/queries/initialBudgets';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -259,6 +260,13 @@ export default function DashboardPage() {
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
     const today = useMemo(() => new Date(), []);
 
+    // Year-scoped Initial Budget (spec ①.3). Dashboard always compares
+    // against the current fiscal year's target. Missing-year case shows a
+    // "no budget set" placeholder instead of a stale value.
+    const currentFiscalYear = today.getFullYear();
+    const { data: currentYearBudget } = useInitialBudget(currentFiscalYear);
+    const hasCurrentYearBudget = currentYearBudget !== undefined;
+
     useOrganizationSync();
     useDealList({ per_page: 500 });
     useProjectList({ per_page: 500 });
@@ -381,9 +389,11 @@ export default function DashboardPage() {
 
         return {
             ...totals,
-            annualInitialBudget: positiveNumber(store.companySettings.annualInitialBudget) || 1_000_000_000,
+            // Year-scoped budget (spec ①.3). Falls back to 0 — UI surfaces a
+            // "no budget set for {year}" placeholder when this is absent.
+            annualInitialBudget: positiveNumber(currentYearBudget?.amount) ?? 0,
         };
-    }, [projectProfitRows, store.companySettings.annualInitialBudget]);
+    }, [projectProfitRows, currentYearBudget]);
 
     const annualTargetGap = projectSummary.actualProfit - projectSummary.annualInitialBudget;
     const annualTargetCoverage = projectSummary.annualInitialBudget > 0
@@ -482,14 +492,22 @@ export default function DashboardPage() {
                             </p>
                         </div>
                         <div className="min-w-[240px] rounded-lg border border-border bg-muted/50 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Annual Initial Budget</p>
-                            <div className="mt-2 text-2xl font-bold text-foreground">{formatMoney(projectSummary.annualInitialBudget, currency)}</div>
-                            <div className="mt-3 flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Gap to target</span>
-                                <span className={annualTargetGap >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-rose-600 dark:text-rose-400'}>
-                                    {annualTargetGap >= 0 ? '+' : '-'}{formatMoney(Math.abs(annualTargetGap), currency)}
-                                </span>
-                            </div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Annual Initial Budget ({currentFiscalYear})</p>
+                            {hasCurrentYearBudget ? (
+                                <>
+                                    <div className="mt-2 text-2xl font-bold text-foreground">{formatMoney(projectSummary.annualInitialBudget, currency)}</div>
+                                    <div className="mt-3 flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Gap to target</span>
+                                        <span className={annualTargetGap >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-rose-600 dark:text-rose-400'}>
+                                            {annualTargetGap >= 0 ? '+' : '-'}{formatMoney(Math.abs(annualTargetGap), currency)}
+                                        </span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="mt-2 text-sm text-amber-700 dark:text-amber-400">
+                                    Not set for {currentFiscalYear}. Declare one on Organization → Company Settings.
+                                </div>
+                            )}
                         </div>
                     </div>
 

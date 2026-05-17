@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Edit, Trash2, ArrowUpDown } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ArrowUpDown, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -72,6 +73,7 @@ interface EmployeesTableProps {
 }
 
 export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp, onEdit, onDelete }: EmployeesTableProps) {
+    const router = useRouter();
     const [sorting, setSorting] = useState<SortingState>([]);
     const currency = useTenantCurrency();
     const storeEntries = useBusinessStore((s) => s.timeEntries);
@@ -344,6 +346,9 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => router.push(`/organization/employees/${employee.id}`)}>
+                                <Eye className="mr-2 h-4 w-4" /> View profile
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onEdit(employee)}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
