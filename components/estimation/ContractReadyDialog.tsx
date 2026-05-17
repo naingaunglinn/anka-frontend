@@ -67,6 +67,9 @@ interface ContractReadyDialogProps {
     deal: Deal;
     suggestedPrice: number;
     resources: EstimationResource[];
+    /** Fired once after a successful confirm. Parent uses it to open the
+     *  follow-up "Send estimate to customer?" dialog (spec ④.G). */
+    onConfirmed?: () => void;
 }
 
 export function ContractReadyDialog({
@@ -75,6 +78,7 @@ export function ContractReadyDialog({
     deal,
     suggestedPrice,
     resources,
+    onConfirmed,
 }: ContractReadyDialogProps) {
     const { updateDeal } = useDealMutations();
     const tenantCurrency = useTenantCurrency();
@@ -171,6 +175,10 @@ export function ContractReadyDialog({
             });
             toast.success('Contract terms locked — deal advanced to Rank A.');
             onOpenChange(false);
+            // Spec ④.G — auto-prompt the user to send the estimate XLSX
+            // to the customer once terms are confirmed. Parent decides
+            // when/how to open the SendEstimateDialog.
+            onConfirmed?.();
         } catch (err) {
             const normalized = normalizeError(err);
             if (normalized.fields) {
