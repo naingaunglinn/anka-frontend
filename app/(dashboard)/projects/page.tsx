@@ -8,23 +8,19 @@ import { CheckCircle2, Clock, AlertCircle, MoreVertical, Users, Calendar, FileWa
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useProjectList, useProjectMutations } from '@/lib/queries/projects';
+import { useProjectList } from '@/lib/queries/projects';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
-import type { Project } from '@/types/business';
 
 export default function ProjectsPage() {
     const router = useRouter();
     const projectsQuery  = useProjectList();
     const contractsQuery = useContractList();
     const dealsQuery     = useDealList();
-    const { updateProject } = useProjectMutations();
 
     const projects  = projectsQuery.data?.data  ?? [];
     const contracts = contractsQuery.data?.data ?? [];
     const deals     = dealsQuery.data?.data     ?? [];
-
-    const statusOptions: Project['status'][] = ['Not Started', 'On Track', 'At Risk', 'Over Budget', 'Completed'];
 
     return (
         <div className="p-6 space-y-6">
@@ -194,33 +190,32 @@ export default function ProjectsPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                {sourceDeal && (
-                                                    <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
-                                                        View Source Deal
-                                                    </DropdownMenuItem>
-                                                )}
-                                                {linkedContract && (
-                                                    <DropdownMenuItem onClick={() => router.push(`/contracts/${linkedContract.id}`)}>
-                                                        View Contract
-                                                    </DropdownMenuItem>
-                                                )}
-                                                {statusOptions.filter(s => s !== project.status).map(s => (
-                                                    <DropdownMenuItem
-                                                        key={s}
-                                                        onClick={() => updateProject.mutate({ id: project.id, updates: { status: s } })}
-                                                    >
-                                                        Mark as {s}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        {/* Status is computed automatically from time-tracking data
+                                            via Project::maybeAutoTransition — no manual "Mark as …" here.
+                                            Backend rejects status writes on PATCH /projects/{id}.
+                                            The dropdown is only rendered when there's at least one
+                                            cross-link to show, so we don't get an empty popover. */}
+                                        {(sourceDeal || linkedContract) && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    {sourceDeal && (
+                                                        <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
+                                                            View Source Deal
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {linkedContract && (
+                                                        <DropdownMenuItem onClick={() => router.push(`/contracts/${linkedContract.id}`)}>
+                                                            View Contract
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             );
