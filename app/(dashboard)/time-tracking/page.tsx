@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useBusinessStore } from '@/store/businessStore';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { normalizeError } from '@/lib/errorHandler';
 import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
 import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
@@ -81,9 +82,11 @@ export default function TimeTrackingPage() {
             queryClient.invalidateQueries({ queryKey: projectKeys.taskAssignments(projectId) });
             queryClient.invalidateQueries({ queryKey: scheduleTrackingKeys.all });
         } catch (err) {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-                ?? 'AI task assignment failed. Ensure the project has a team and an Estimate file exists.';
-            toast.error(msg);
+            // Show the backend's actual message (e.g. "Upload an estimation
+            // (xlsx) for this project before building the team.") instead of
+            // a generic fallback. normalizeError reads `response.data.message`
+            // which matches the Laravel API convention used across the app.
+            toast.error(normalizeError(err).message);
         } finally {
             setAutoAssignLoading(null);
         }

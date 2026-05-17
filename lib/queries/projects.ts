@@ -133,12 +133,26 @@ export interface TeamPlanRoleToFill {
     months: number;
 }
 
+export interface TeamPlanAllocationMeta {
+    /** Xlsx grand total (sum of all task-phase hours in the project's estimation file). */
+    grandTotal: number;
+    /** Sum of allocated_hours across the entire team. Should equal grandTotal (±rounding). */
+    sumOfAllocations: number;
+    /** Basename of the xlsx the calculator read from. Display-only. */
+    xlsxPath?: string;
+}
+
 export interface TeamPlanPreview {
     kept: TeamPlanKept[];
     proposed: TeamPlanProposed[];
     unfilled: TeamPlanUnfilled[];
     rolesToFill: TeamPlanRoleToFill[];
     message?: string;
+    /**
+     * Server-side allocation meta. Present when the backend computed
+     * xlsx-driven allocations (which is now always required for plan-team).
+     */
+    allocation?: TeamPlanAllocationMeta;
 }
 
 function toTeamPlanKept(row: Record<string, unknown>): TeamPlanKept {
@@ -180,10 +194,25 @@ function toTeamPlanRoleToFill(row: Record<string, unknown>): TeamPlanRoleToFill 
     };
 }
 
+/**
+ * Optional payload for the Regenerate flow. Pass the IDs of employees the AI
+ * already suggested in earlier runs of this preview session so the next call
+ * picks from a different (or smaller) pool. The backend enforces the exclusion
+ * at the pool level — those employees won't even reach the AI prompt.
+ */
+export interface PlanTeamPreviewArgs {
+    excludeEmployeeIds?: string[];
+}
+
 export function usePlanTeamPreview(projectId: string) {
     return useMutation({
-        mutationFn: async (): Promise<TeamPlanPreview> => {
-            const { data } = await api.post(`/projects/${projectId}/plan-team`);
+        mutationFn: async (args?: PlanTeamPreviewArgs): Promise<TeamPlanPreview> => {
+            const body: Record<string, unknown> = {};
+            if (args?.excludeEmployeeIds && args.excludeEmployeeIds.length > 0) {
+                body.exclude_employee_ids = args.excludeEmployeeIds;
+            }
+            const { data } = await api.post(`/projects/${projectId}/plan-team`, body);
+            const allocation = data.allocation as Record<string, unknown> | undefined;
             return {
                 kept:        ((data.kept ?? []) as Record<string, unknown>[]).map(toTeamPlanKept),
                 proposed:    ((data.proposed ?? []) as Record<string, unknown>[]).map(toTeamPlanProposed),
@@ -193,15 +222,27 @@ export function usePlanTeamPreview(projectId: string) {
                 })),
                 rolesToFill: ((data.roles_to_fill ?? []) as Record<string, unknown>[]).map(toTeamPlanRoleToFill),
                 message:     (data.message as string | undefined) ?? undefined,
+                allocation:  allocation
+                    ? {
+                        grandTotal:       Number(allocation.grand_total ?? 0),
+                        sumOfAllocations: Number(allocation.sum_of_allocations ?? 0),
+                        xlsxPath:         (allocation.xlsx_path as string | undefined) ?? undefined,
+                    }
+                    : undefined,
             };
         },
         onError: (err) => toast.error(`Team preview failed: ${normalizeError(err).message}`),
     });
 }
 
+/**
+ * Confirm-team payload — only `employeeId` is needed. The backend recomputes
+ * `allocated_hours` for the whole team from the project's xlsx, so passing it
+ * from the frontend would just be ignored. Kept as a list of objects (not a
+ * bare string[]) so we can extend it later without a breaking change.
+ */
 export interface ConfirmTeamPick {
     employeeId: string;
-    allocatedHours?: number;
 }
 
 export function useConfirmTeamPlan(projectId: string) {
@@ -209,10 +250,7 @@ export function useConfirmTeamPlan(projectId: string) {
     return useMutation({
         mutationFn: async (picks: ConfirmTeamPick[]) => {
             const { data } = await api.post(`/projects/${projectId}/confirm-team`, {
-                picks: picks.map((p) => ({
-                    employee_id:     p.employeeId,
-                    allocated_hours: p.allocatedHours,
-                })),
+                picks: picks.map((p) => ({ employee_id: p.employeeId })),
             });
             return data as { inserted: number; data: unknown };
         },
