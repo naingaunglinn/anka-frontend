@@ -24,6 +24,7 @@ import {
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
 import { EstimationRoleBuilder } from '@/components/estimation/EstimationRoleBuilder';
 import { ContractReadyDialog } from '@/components/estimation/ContractReadyDialog';
+import { SendEstimateDialog } from '@/components/estimation/SendEstimateDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
@@ -211,6 +212,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [versionNotes, setVersionNotes] = useState('');
     const [showHistory, setShowHistory] = useState(false);
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
+    const [sendEstimateOpen, setSendEstimateOpen] = useState(false);
     const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
     const [suggestFromNotesOpen, setSuggestFromNotesOpen] = useState(false);
 
@@ -1302,6 +1304,16 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 deal={selectedDeal}
                                 suggestedPrice={suggestedPrice}
                                 resources={resources}
+                                onConfirmed={() => setSendEstimateOpen(true)}
+                            />
+                        )}
+
+                        {selectedDeal && (
+                            <SendEstimateDialog
+                                open={sendEstimateOpen}
+                                onOpenChange={setSendEstimateOpen}
+                                deal={selectedDeal}
+                                versionId={versionsQuery.data?.[0]?.id ?? null}
                             />
                         )}
 
