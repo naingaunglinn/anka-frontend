@@ -37,13 +37,15 @@ function extractFirstJsonObject(text: string): string | null {
 export interface AIForecastInput {
     currency: string;
     currentMonth: string;            // e.g. "May 2026"
+    forecastWindowLabel: string;     // e.g. "8-Month"
+    forecastMonthCount: number;      // count of months from current month to year end
     rankScopeLabel: string;
     regenerateCount?: number;
     headcount: number;               // active employees count
     avgMonthlySalary: number;        // mean across active employees
     trailingMonthlyRevenue: number;  // avg of last 3 paid months
     trailingMonthlyProfit: number;   // avg operating profit of last 3 months
-    sixMonthForecastProfit: number;
+    forecastProfit: number;
     comparisonMonthLabel: string;
     comparisonBudgetTarget: number;
     gapToComparisonTarget: number;
@@ -106,11 +108,11 @@ export interface AIForecastResult {
 
 const SYSTEM_PROMPT = `You are a financial forecasting assistant for a software agency SaaS.
 
-Given a snapshot of the agency's current business state, predict three forward-looking risk values for the next 6 months and produce a short action summary.
+Given a snapshot of the agency's current business state, predict three forward-looking risk values for the current-month-to-year-end forecast window and produce a short action summary.
 
 1. utilizationDrop (0-50, integer, percent) — how much delivery revenue is at risk from idle staff / bench time. Anchor on the gap between actual and target utilization. If actual ≥ target, suggest 0-5. If actual is 60-70% of target, suggest 20-30. Cap at 50.
 
-2. delayedDeals (currency amount, rounded to nearest 25000) — how much pipeline cash will slip from months 1-3 into months 4-6. Anchor on slippingValue. Never exceed pipeline.totalWeightedValue. If no deals are slipping, suggest 0.
+2. delayedDeals (currency amount, rounded to nearest 25000) — how much pipeline cash will slip from the earlier part of the remaining year into later months of the remaining year. Anchor on slippingValue. Never exceed pipeline.totalWeightedValue. If no deals are slipping, suggest 0.
 
 3. newHires (0-10, integer) — how many new staff the agency should add to absorb projected workload. Anchor on whether trailing revenue and pipeline justify more headcount. If trailing revenue per employee is high and pipeline is growing, suggest 1-3 hires. If profit margin is thin or pipeline is shrinking, suggest 0.
 
@@ -166,8 +168,9 @@ function buildUserPrompt(input: AIForecastInput): string {
     return `Agency snapshot as of ${input.currentMonth} (currency: ${input.currency}):
 
 Scope:
+  Forecast window: ${input.forecastWindowLabel} (${input.forecastMonthCount} month(s), current month through ${input.comparisonMonthLabel})
   Rank filter: ${input.rankScopeLabel}
-  6-month forecast profit: ${input.sixMonthForecastProfit.toFixed(0)}
+  Forecast profit through ${input.comparisonMonthLabel}: ${input.forecastProfit.toFixed(0)}
   ${input.comparisonMonthLabel} target profit: ${input.comparisonBudgetTarget.toFixed(0)}
   Gap to ${input.comparisonMonthLabel} target: ${input.gapToComparisonTarget.toFixed(0)}
   Annual Initial Budget target: ${input.annualInitialBudget.toFixed(0)}
@@ -194,7 +197,7 @@ Invoices:
   Overdue value: ${input.invoices.overdueValue.toFixed(0)} (${input.invoices.overdueCount} invoices)
   Historical mean lateness: ${input.invoices.meanLateDays.toFixed(1)} days
 
-Monthly 6-month forecast:
+Monthly forecast through ${input.comparisonMonthLabel}:
 ${input.monthlyForecast.map((row) => `  - ${row.monthLabel}: income ${row.income.toFixed(0)}, cost ${row.cost.toFixed(0)}, profit ${row.profit.toFixed(0)}`).join('\n')}
 
 Previous summary to improve on:
@@ -204,7 +207,7 @@ ${input.previousSummary
   Previous action titles: ${(input.previousSummary.recommendedActionTitles ?? []).join(', ') || 'n/a'}`
         : '  None'}
 
-Predict utilizationDrop, delayedDeals, and newHires for the next 6 months, then produce a short summary plus 3 recommendedActions that help the agency either close the comparison target gap or finish the year at the full annual target.`;
+Predict utilizationDrop, delayedDeals, and newHires for this current-month-to-year-end window, then produce a short summary plus 3 recommendedActions that help the agency either close the comparison target gap or finish the year at the full annual target.`;
 }
 
 function clampResult(result: AIForecastResult, pipelineTotal: number): AIForecastResult {
