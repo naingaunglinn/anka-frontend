@@ -1,5 +1,6 @@
 import type { AITeamBuilderInput, AITeamBuilderResult, AITeamMember, AITeamBuilderEmployeeContext } from '@/types/aiTeamBuilder'
 import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
+import { applySellMarkup, applyBillingMarkup } from '@/lib/calculations'
 
 // ── Role-mode prompt (outputMode === 'roles') ──────────────────────────────
 //
@@ -47,17 +48,28 @@ For each chosen bucket, output:
 
 **Quantity guidance:** for software projects, quantities are usually 1 per bucket. Only suggest quantity ≥ 2 when the workload is genuinely too heavy for one person at the chosen seniority (e.g. 1500h of backend work over 3 months → 2 backend engineers).
 
+**Cost & Pricing Model — read carefully, this REPLACES the old overhead+buffer math.**
+
+The agency uses a fixed pricing rule:
+  - **Loaded monthly salary** = raw monthly salary × 1.15 (raw + 15% absorbed company overhead). Use this as the cost basis.
+  - **Sell rate** = Loaded cost × 3 (what we bill the client for that labor).
+
 **Cost rules:**
-  - baseLaborCost = sum over roles of (quantity × months × avgMonthlySalary), where avgMonthlySalary = (min + max) / 2 × hoursWeight. **Use the simple formula quantity × months × avgMonthlySalary** for baseLaborCost — the rest of the system reconstitutes the per-hour view from allocatedHours.
-  - overheadCost = baseLaborCost × overheadPercentage
-  - bufferCost = (baseLaborCost + overheadCost) × bufferPercentage
-  - totalEstimatedCost = baseLaborCost + overheadCost + bufferCost
-  - estimatedGrossProfit = clientBudget − totalEstimatedCost
-  - profitMarginPercent = (estimatedGrossProfit / clientBudget) × 100
-  - isFeasible = totalEstimatedCost ≤ clientBudget
-  - feasibilityNote: if feasible say "Project is within budget"; else state the overage amount
-  - aiReasoning: 2–4 sentences on the role mix, seniority choices, and how the total stacks up to budget
-  - warnings: margin < 10%, budget overage, missing critical bucket the project description implies but you couldn't fit
+  - rawAvgMonthlySalary = (min + max) / 2 — pulled straight from the bracket.
+  - loadedAvgMonthlySalary = rawAvgMonthlySalary × 1.15
+  - **baseLaborCost = sum over roles of (quantity × months × loadedAvgMonthlySalary)** — the agency's labor cost basis.
+  - overheadCost = 0  (the 15% is already absorbed into Loaded cost above; do NOT add it twice)
+  - bufferCost = 0   (margin comes from the 3× sell markup, not a buffer line)
+  - totalEstimatedCost = baseLaborCost  (cost basis, NOT the quoted price)
+  - **suggestedQuote = baseLaborCost × 3** — the price we'd quote the client.
+  - estimatedGrossProfit = suggestedQuote − totalEstimatedCost
+  - profitMarginPercent = (estimatedGrossProfit / suggestedQuote) × 100   (under this fixed model this is always ~66.7%)
+  - isFeasible = **suggestedQuote ≤ clientBudget**  (compare the QUOTE to the budget, not the cost basis)
+  - feasibilityNote: if feasible say "Quote ($X) fits client budget"; else state how much the QUOTE exceeds the budget by
+  - aiReasoning: 2–4 sentences on the role mix, seniority choices, and how the **quoted price** stacks up to budget
+  - warnings: budget overage on the quote, missing critical bucket the project description implies but you couldn't fit
+
+Note: each role's \`estimatedCost\` field stays at the cost-basis level: quantity × months × loadedAvgMonthlySalary. Do NOT multiply per-role estimatedCost by 3.
 
 **Output schema (return ONLY this JSON, no prose):**
 {
@@ -90,9 +102,6 @@ For each chosen bucket, output:
 \`team\` MUST be an empty array — role mode does not pick employees. The frontend renders \`roles\` only.`
 
 export function buildRoleUserPrompt(input: AITeamBuilderInput): string {
-    const overheadDecimal = (input.companySettings.overheadPercentage ?? 0) / 100
-    const bufferDecimal   = (input.companySettings.bufferPercentage ?? 0) / 100
-
     // Brackets, grouped by role bucket. Claude reads this to pick min/max for each
     // suggested role. Empty bucket = no bracket exists for that role; Claude can
     // either skip the bucket or warn about the missing bracket.
@@ -143,10 +152,10 @@ ${complexitySection}
 
 ${JSON.stringify(brackets, null, 2)}
 
-## Company Financial Settings
+## Pricing Model
 
-Overhead Percentage: ${input.companySettings.overheadPercentage}% (decimal ${overheadDecimal})
-Risk Buffer Percentage: ${input.companySettings.bufferPercentage}% (decimal ${bufferDecimal})
+Loaded cost markup: 15% (raw salary × 1.15 = cost basis)
+Sell markup: ×3 on loaded cost (cost basis × 3 = quoted price)
 
 ---
 
@@ -226,7 +235,7 @@ Each employee in the pool has these fields you should weigh during selection:
 
 Selection priorities — weigh these together to produce the best feasible team. They are NOT strict tiers; trade off as needed.
 
-  1. **Budget feasibility (HARD CONSTRAINT).** totalEstimatedCost must stay ≤ clientBudget. If satisfying the priorities below would blow the budget, hold the budget and explain in warnings + gapSkills which factors were sacrificed and why.
+  1. **Budget feasibility (HARD CONSTRAINT).** The **suggestedQuote** (cost basis × 3) must stay ≤ clientBudget. If satisfying the priorities below would blow the budget, hold the budget and explain in warnings + gapSkills which factors were sacrificed and why.
 
   2. **Required skills.** For every entry in requiredSkills, include a carrier when budget allows, preferring higher proficiency (expert > intermediate > beginner). When budget can't afford to include a carrier, list the skill in gapSkills with a hire/contract recommendation rather than forcing the team over budget.
 
@@ -248,14 +257,24 @@ Allocation realism (apply per team member):
   - A leader spends time on guidance and reviews; typical lead allocation is 30-60% of their maxProjectHours.
   - Junior employees can be fully utilized on routine workstreams.
 
-- baseLaborCost = sum of (allocatedHours × costPerHour) for all team members
-- overheadCost = baseLaborCost × overheadPercentage
-- bufferCost = (baseLaborCost + overheadCost) × bufferPercentage
-- totalEstimatedCost = baseLaborCost + overheadCost + bufferCost
-- estimatedGrossProfit = clientBudget - totalEstimatedCost
-- profitMarginPercent = (estimatedGrossProfit / clientBudget) × 100
-- isFeasible = totalEstimatedCost <= clientBudget
-- feasibilityNote: if feasible write "Project is within budget", otherwise state the amount it exceeds by
+**Cost & Pricing Model — read carefully, this REPLACES the old overhead+buffer math.**
+
+Each input employee's \`costPerHour\` is the RAW hourly rate (monthly_salary / workable_hours). The agency applies a fixed pricing rule:
+  - **Loaded cost per hour** = costPerHour × 1.15 (raw + 15% absorbed company overhead). This is the cost basis.
+  - **Sell rate per hour** = Loaded cost × 3 (what we bill the client per hour of that employee's time).
+
+For each team member you return, set \`costPerHour\` to the **Loaded** value (raw × 1.15), and set \`totalCost\` to \`allocatedHours × loadedCostPerHour\`.
+
+Then aggregate:
+- baseLaborCost = sum of (allocatedHours × loadedCostPerHour) for all team members  (== Σ totalCost)
+- overheadCost = 0  (the 15% is already absorbed into Loaded cost above; do NOT add it twice)
+- bufferCost = 0   (margin comes from the 3× sell markup, not a buffer line)
+- totalEstimatedCost = baseLaborCost  (cost basis, NOT the quoted price)
+- **suggestedQuote = baseLaborCost × 3** — the price we'd quote the client.
+- estimatedGrossProfit = suggestedQuote − totalEstimatedCost
+- profitMarginPercent = (estimatedGrossProfit / suggestedQuote) × 100   (under this fixed model this is always ~66.7%)
+- isFeasible = **suggestedQuote ≤ clientBudget**  (compare the QUOTE to the budget, not the cost basis)
+- feasibilityNote: if feasible write "Quote ($X) fits client budget", otherwise state how much the QUOTE exceeds the budget by
 - aiReasoning: 3–5 sentences explaining team selection, balancing skill coverage, leadership, seniority mix, and cost. When a niche-skill specialist was included, say so explicitly and note their allocation rationale.
 - warnings: list capacity issues, margins below 10%, budget risks, skill gaps that couldn't fit, or missing leadership.
 - skillGapAnalysis: for each team member include matchedSkills and skillMatchScore (percentage of required skills they cover, 0-100). coveredSkills = required skills at least one selected team member has. gapSkills = required skills nobody on the team covers, either because no carrier exists in the pool OR including the carrier would have violated budget feasibility. recommendations = actionable suggestions to fill genuine gaps.
@@ -327,9 +346,6 @@ export function buildUserPrompt(input: AITeamBuilderInput): string {
         })
         // Exclude employees with no available capacity — they can't contribute and waste Claude's context.
         .filter(e => e.maxProjectHours > 0)
-
-    const overheadDecimal = input.companySettings.overheadPercentage / 100
-    const bufferDecimal = input.companySettings.bufferPercentage / 100
 
     const complexitySection = input.complexity
         ? `## Project Complexity (deterministic — use this to size the team)
@@ -419,10 +435,10 @@ ${input.requiredSkills && input.requiredSkills.length > 0
 ${JSON.stringify(activeEmployees, null, 2)}
 
 ---
-## Company Financial Settings
+## Pricing Model
 
-Overhead Percentage: ${input.companySettings.overheadPercentage}% (use decimal ${overheadDecimal} for calculations)
-Risk Buffer Percentage: ${input.companySettings.bufferPercentage}% (use decimal ${bufferDecimal} for calculations)
+Loaded cost markup: 15% (raw hourly × 1.15 = cost basis per hour)
+Sell markup: ×3 on loaded cost (loaded cost × 3 = quoted hourly rate)
 Yearly Fixed Cost: $${input.companySettings.yearlyFixedCost.toLocaleString()} (USD)
 
 ## Monthly Overhead Items (USD)
@@ -440,7 +456,7 @@ ${JSON.stringify(
   - For each entry in "Required Skills": is some pool employee a carrier? If yes and budget allows, include them. If yes but inclusion would violate budget feasibility, list the skill in gapSkills with a hire/contract recommendation.
   - Does the team have at least one leadership-level employee (roleTitle marks them Lead/Senior/Head/Master/Principal/Manager) when any exist in the pool? If not, fix it before returning.
   - Are allocations realistic? A specialist's allocatedHours should reflect their actual contribution scope, not full project capacity. A leader is typically 30-60% of their maxProjectHours.
-  - Does totalEstimatedCost ≤ clientBudget? If not, drop the lowest-impact additions until it does, and explain the trade-offs in warnings.
+  - Does the suggestedQuote (baseLaborCost × 3) ≤ clientBudget? If not, drop the lowest-impact additions until it does, and explain the trade-offs in warnings.
 
 Build the optimal team and return ONLY the AITeamBuilderResult JSON object.`
 }
@@ -453,8 +469,8 @@ Build the optimal team and return ONLY the AITeamBuilderResult JSON object.`
 // on the team but IS held by some pool employee, consider force-adding the
 // cheapest expert/intermediate/beginner carrier with a small specialist
 // allocation. Budget-aware: only adds the carrier when doing so keeps
-// totalEstimatedCost ≤ clientBudget. If the addition would violate the
-// budget, the skill stays in gapSkills.
+// the suggested QUOTE (baseLaborCost × 3) ≤ clientBudget. If the addition
+// would violate the budget, the skill stays in gapSkills.
 
 const PROFICIENCY_RANK: Record<string, number> = {
     expert: 3,
@@ -554,17 +570,15 @@ export function enforceSkillCoverage(
     const addedNames: string[] = []
     const skippedForBudget: string[] = []
 
-    // Track running base labor cost so we can budget-check each candidate
-    // addition without recomputing the whole team's costs every iteration.
+    // Track running labor cost basis (sum of loaded costs) so we can
+    // budget-check each candidate addition without recomputing the whole
+    // team's costs every iteration. Team-member totalCost values arrive from
+    // Gemini already at loaded cost (raw × 1.15) per the new prompt rules.
     let runningBaseLabor = result.team.reduce((sum, m) => sum + (m.totalCost ?? 0), 0)
-    const overheadPct = (input.companySettings?.overheadPercentage ?? 20) / 100
-    const bufferPct   = (input.companySettings?.bufferPercentage ?? 10) / 100
 
-    const projectTotalCost = (baseLabor: number) => {
-        const overhead = baseLabor * overheadPct
-        const buffer   = (baseLabor + overhead) * bufferPct
-        return baseLabor + overhead + buffer
-    }
+    // Feasibility check compares the QUOTE (cost basis × BILLING_MARKUP_MULTIPLIER)
+    // to the budget, matching the new pricing model.
+    const projectQuotedPrice = (baseLabor: number) => applyBillingMarkup(baseLabor)
 
     for (const skill of required) {
         if (teamCovers.has(skill.toLowerCase())) continue
@@ -578,14 +592,16 @@ export function enforceSkillCoverage(
         // meaningful contribution, small enough that adding the carrier
         // rarely blows the budget. User can edit allocations after.
         const allocatedHours = Math.max(8, Math.min(40, Math.round(maxProjectHours * 0.25)))
-        const totalCost = allocatedHours * (emp.costPerHour ?? 0)
+        // Loaded cost = raw × 1.15 (matches the new pricing model).
+        const loadedCostPerHour = applySellMarkup(emp.costPerHour ?? 0)
+        const totalCost = allocatedHours * loadedCostPerHour
 
         // Budget-aware skip: if including this carrier (even at the small
-        // specialist allocation) would push the project over clientBudget,
+        // specialist allocation) would push the QUOTE over clientBudget,
         // leave the skill in gapSkills with whatever recommendation Claude
         // already produced. Holds the "budget is a hard constraint" rule.
-        const projectedTotal = projectTotalCost(runningBaseLabor + totalCost)
-        if (input.clientBudget > 0 && projectedTotal > input.clientBudget) {
+        const projectedQuote = projectQuotedPrice(runningBaseLabor + totalCost)
+        if (input.clientBudget > 0 && projectedQuote > input.clientBudget) {
             skippedForBudget.push(`${emp.name} (${skill})`)
             continue
         }
@@ -596,7 +612,7 @@ export function enforceSkillCoverage(
             role:            emp.capacityRole ?? 'specialist',
             allocatedHours,
             monthlySalary:   emp.monthlySalary ?? 0,
-            costPerHour:     emp.costPerHour ?? 0,
+            costPerHour:     loadedCostPerHour,
             totalCost,
             reasoning:       `Auto-included to cover required skill "${skill}" — held at ${carrier.proficiency} proficiency. Specialist allocation (${allocatedHours}h) sized to fit the budget.`,
             matchedSkills:   [skill],
@@ -610,19 +626,17 @@ export function enforceSkillCoverage(
 
     if (additions.length === 0) return { result, addedNames: [], skippedForBudget }
 
-    // Recompute financials with the added members. overheadPct/bufferPct
-    // were declared above and reused here so the budget-check math and the
-    // final-result math always agree.
+    // Recompute financials with the added members using the new pricing
+    // model: cost basis = loaded labor; quoted price = cost basis × 3.
     const updatedTeam = [...result.team, ...additions]
     const baseLaborCost        = runningBaseLabor
-    const overheadCost         = baseLaborCost * overheadPct
-    const bufferCost           = (baseLaborCost + overheadCost) * bufferPct
-    const totalEstimatedCost   = baseLaborCost + overheadCost + bufferCost
-    const estimatedGrossProfit = input.clientBudget - totalEstimatedCost
-    const profitMarginPercent  = input.clientBudget > 0
-        ? (estimatedGrossProfit / input.clientBudget) * 100
+    const totalEstimatedCost   = baseLaborCost  // cost basis
+    const suggestedQuote       = projectQuotedPrice(baseLaborCost)
+    const estimatedGrossProfit = suggestedQuote - totalEstimatedCost
+    const profitMarginPercent  = suggestedQuote > 0
+        ? (estimatedGrossProfit / suggestedQuote) * 100
         : 0
-    const isFeasible = totalEstimatedCost <= input.clientBudget
+    const isFeasible = input.clientBudget > 0 ? suggestedQuote <= input.clientBudget : true
 
     // Update gap analysis to reflect the new coverage.
     const newCovered = new Set(result.skillGapAnalysis?.coveredSkills ?? [])
@@ -634,15 +648,15 @@ export function enforceSkillCoverage(
             ...result,
             team:                  updatedTeam,
             baseLaborCost:         Math.round(baseLaborCost),
-            overheadCost:          Math.round(overheadCost),
-            bufferCost:            Math.round(bufferCost),
+            overheadCost:          0,
+            bufferCost:            0,
             totalEstimatedCost:    Math.round(totalEstimatedCost),
             estimatedGrossProfit:  Math.round(estimatedGrossProfit),
             profitMarginPercent:   Math.round(profitMarginPercent * 100) / 100,
             isFeasible,
             feasibilityNote:       isFeasible
-                ? 'Project is within budget'
-                : `Project exceeds budget by ${Math.round(totalEstimatedCost - input.clientBudget).toLocaleString()}`,
+                ? `Quote ($${Math.round(suggestedQuote).toLocaleString()}) fits client budget`
+                : `Quote ($${Math.round(suggestedQuote).toLocaleString()}) exceeds budget by ${Math.round(suggestedQuote - input.clientBudget).toLocaleString()}`,
             skillGapAnalysis: {
                 coveredSkills:   Array.from(newCovered),
                 gapSkills:       newGaps,

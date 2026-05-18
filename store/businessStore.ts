@@ -35,6 +35,10 @@ import toast from 'react-hot-toast';
 // ── Payload serialisers (frontend camelCase → API snake_case) ─────────────────
 // Kept private to this module; only the fields the backend accepts as writable.
 
+// Returns the RAW monthly salary (basic + allowance, no overhead loading).
+// Downstream consumers (CRM AI Team Builder, /estimation rate helpers) apply
+// the loaded-cost markup (×1.15) and sell markup (×3) themselves, so this
+// passes through the unadjusted payroll figure.
 function employeeToEngineer(employee: Employee): Engineer | null {
     if (!employee.capacityRole || employee.status !== 'Active') return null;
 
@@ -756,6 +760,11 @@ export const useBusinessStore = create<BusinessState>()(
                 // Active + On Leave staff. Schema has no contractor flag, so all employees
                 // are salaried. Historical months reflect today's headcount — hire/termination
                 // history is not yet tracked.
+                //
+                // Uses RAW monthlySalary (basic + allowance), NOT the loaded ×1.15 cost
+                // used on /organization + /estimation. The 15% absorbed-overhead markup
+                // is a quoting concept (covers shared costs already booked into
+                // globalOverheads); adding it to directLabor here would double-count.
                 const monthlyPayroll = state.employees
                     .filter(e => e.status === 'Active' || e.status === 'On Leave')
                     .reduce((sum, e) => sum + e.monthlySalary, 0);
