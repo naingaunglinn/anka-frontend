@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type JSX } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,8 +35,8 @@ type ForecastPoint = {
 };
 
 type ProfitLinePoint = {
-    x: number;
-    y: number;
+    x: number | null;
+    y: number | null;
     payload?: ForecastPoint;
 };
 
@@ -115,8 +115,10 @@ function priorityBadgeClass(priority: AIForecastResult['recommendedActions'][num
     return 'bg-amber-50 text-amber-700 border-amber-200';
 }
 
-function ProfitLineShape(props: { points?: ProfitLinePoint[] }) {
-    const points = props.points ?? [];
+function ProfitLineShape(props: { points?: readonly ProfitLinePoint[] }) {
+    const points = (props.points ?? []).filter(
+        (p): p is { x: number; y: number; payload?: ForecastPoint } => p.x != null && p.y != null,
+    );
     if (points.length < 2) return null;
 
     const segments: JSX.Element[] = [];
