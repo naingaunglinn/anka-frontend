@@ -2,6 +2,7 @@
 
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -32,6 +33,7 @@ interface DepartmentFormProps {
 }
 
 export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel }: DepartmentFormProps) {
+    const t = useTranslations();
     const form = useForm<DepartmentFormValues>({
         resolver: zodResolver(departmentSchema) as any,
         mode: 'onBlur',
@@ -69,8 +71,8 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                             {errorCount === 1
-                                ? 'Please fix the highlighted field before saving.'
-                                : `Please fill in ${errorCount} required fields before saving.`}
+                                ? t('please_fix_highlighted')
+                                : t('please_fill_required_fields', { count: errorCount })}
                         </span>
                     </div>
                 )}
@@ -79,9 +81,9 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Department Name <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('department_name')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Engineering" {...field} />
+                                <Input placeholder={t('placeholder_engineering')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -92,18 +94,18 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                     name="managerId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Manager <span className="text-[#4a4a4a] text-xs font-normal">(optional — assign after adding employees)</span></FormLabel>
+                            <FormLabel>{t('manager_label')} <span className="text-[#4a4a4a] text-xs font-normal">{t('manager_optional_hint')}</span></FormLabel>
                             <Select
                                 onValueChange={(v) => field.onChange(v === 'none' ? undefined : v)}
                                 defaultValue={field.value ?? 'none'}
                             >
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Assign later" />
+                                        <SelectValue placeholder={t('assign_later')} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="none">— Unassigned —</SelectItem>
+                                    <SelectItem value="none">{t('unassigned_dash')}</SelectItem>
                                     {activeEmployees.map(e => (
                                         <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                                     ))}
@@ -115,22 +117,22 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                 />
 
                 <p className="text-xs text-[#4a4a4a]">
-                    Fields marked <span className="text-destructive">*</span> are required.
+                    {t('fields_required_explainer')} <span className="text-destructive">*</span> {t('are_required_short')}
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     ) : (
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
-                                Cancel
+                                {t('cancel')}
                             </Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? "Saving..." : "Save Department"}
+                        {form.formState.isSubmitting ? t('saving') : t('save_department')}
                     </Button>
                 </div>
             </form>

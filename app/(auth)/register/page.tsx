@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { ArrowRight, PhoneCall, ShieldCheck, UserPlus } from 'lucide-react';
 
 import api from '@/lib/axios';
@@ -25,6 +26,7 @@ import { PHONE_COUNTRIES } from '@/lib/phoneCountries';
 import { FlagIcon } from '@/components/FlagIcon';
 
 export default function RegisterPage() {
+    const t = useTranslations();
     const router = useRouter();
     const [serverMessage, setServerMessage] = useState<string | null>(null);
     const [countryIso, setCountryIso] = useState('US');
@@ -51,7 +53,7 @@ export default function RegisterPage() {
             router.push('/login');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
-            setServerMessage(axiosErr.response?.data?.message ?? 'Sign up failed. Please try again.');
+            setServerMessage(axiosErr.response?.data?.message ?? t('sign_up_failed'));
         }
     };
 
@@ -78,26 +80,26 @@ export default function RegisterPage() {
                     </div>
 
                     <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
-                        Create Your
-                        <span className="block text-[#00a7f4]">Gross-Profit Workspace</span>
+                        {t('create_your')}
+                        <span className="block text-[#00a7f4]">{t('gross_profit_workspace')}</span>
                     </h1>
 
                     <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
-                        Start with ANKA to forecast project margins, compare financial scenarios, and unlock practical profit suggestions.
+                        {t('register_subtitle')}
                     </p>
 
                     <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <UserPlus className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Fast Signup</p>
+                            <p className="text-xs font-semibold">{t('fast_signup')}</p>
                         </article>
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <PhoneCall className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Intl Phone Ready</p>
+                            <p className="text-xs font-semibold">{t('intl_phone_ready')}</p>
                         </article>
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <ShieldCheck className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Secure Access</p>
+                            <p className="text-xs font-semibold">{t('secure_access')}</p>
                         </article>
                     </div>
                 </section>
@@ -105,9 +107,9 @@ export default function RegisterPage() {
                 <section>
                     <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
                         <CardHeader className="space-y-2 pb-5">
-                            <CardTitle className="text-2xl font-bold">Sign Up</CardTitle>
+                            <CardTitle className="text-2xl font-bold">{t('sign_up')}</CardTitle>
                             <CardDescription className="text-[#171717]/65">
-                                Create a free ANKA account to get started.
+                                {t('create_free_account')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -118,10 +120,10 @@ export default function RegisterPage() {
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">Email</FormLabel>
+                                                <FormLabel className="text-[#171717]/90">{t('email')}</FormLabel>
                                                 <FormControl>
                                                     <Input
-                                                        placeholder="name@company.com"
+                                                        placeholder={t('placeholder_email_co')}
                                                         {...field}
                                                         className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
@@ -136,7 +138,7 @@ export default function RegisterPage() {
                                         name="phoneNumber"
                                         render={() => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">Phone Number (International)</FormLabel>
+                                                <FormLabel className="text-[#171717]/90">{t('phone_number_intl')}</FormLabel>
                                                 <div className="grid grid-cols-[110px_1fr] gap-2">
                                                     <Select
                                                         value={countryIso}
@@ -166,7 +168,7 @@ export default function RegisterPage() {
                                                     </Select>
 
                                                     <Input
-                                                        placeholder="(201) 555-0123"
+                                                        placeholder={t('placeholder_phone')}
                                                         value={phoneLocal}
                                                         onChange={(event) => {
                                                             const nextLocal = event.target.value;
@@ -186,11 +188,11 @@ export default function RegisterPage() {
                                         name="password"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">Password</FormLabel>
+                                                <FormLabel className="text-[#171717]/90">{t('password')}</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="password"
-                                                        placeholder="At least 8 characters"
+                                                        placeholder={t('at_least_8_characters')}
                                                         {...field}
                                                         className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
@@ -211,21 +213,21 @@ export default function RegisterPage() {
                                         className="h-11 w-full bg-[#00a7f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,167,244,0.35)] hover:bg-[#0599df]"
                                         disabled={form.formState.isSubmitting}
                                     >
-                                        {form.formState.isSubmitting ? 'Creating account...' : 'Sign Up'}
+                                        {form.formState.isSubmitting ? t('creating_account') : t('sign_up')}
                                         {!form.formState.isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
                                     </Button>
                                 </form>
                             </Form>
 
                             <p className="mt-5 text-center text-sm text-[#171717]/70">
-                                Already have an account?{' '}
+                                {t('already_have_account')}{' '}
                                 <Link href="/login" className="font-semibold text-[#00a7f4] hover:underline">
-                                    Sign In
+                                    {t('sign_in_link')}
                                 </Link>
                             </p>
                             <p className="mt-3 text-center text-sm text-[#171717]/70">
                                 <Link href="/" className="font-semibold text-[#00a7f4] hover:underline">
-                                    ← Back to Home
+                                    {t('back_to_home')}
                                 </Link>
                             </p>
                         </CardContent>

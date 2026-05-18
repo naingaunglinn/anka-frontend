@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function ChatBot({ className }: Props) {
+    const t = useTranslations()
     const isOpen = useUIStore(s => s.chatbotOpen)
     const toggleChatbot = useUIStore(s => s.toggleChatbot)
     const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -108,21 +110,21 @@ What would you like to know?`
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Bot className="h-5 w-5 text-indigo-600" />
-                                <CardTitle className="text-base">ANKA Assistant</CardTitle>
+                                <CardTitle className="text-base">{t('anka_assistant')}</CardTitle>
                             </div>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleChatbot}>
                                 <ChevronDown className="h-4 w-4" />
                             </Button>
                         </div>
-                        <p className="text-xs text-indigo-600/70">Ask about CRM, estimation, contracts, projects, time tracking, and organization.</p>
+                        <p className="text-xs text-indigo-600/70">{t('anka_assistant_subtitle')}</p>
                     </CardHeader>
 
                     <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
                         {messages.length === 0 && (
                             <div className="text-center py-6 text-slate-500">
                                 <Bot className="h-8 w-8 mx-auto mb-2 text-indigo-300" />
-                                <p className="text-sm">Ask me anything about ANKA!</p>
-                                <p className="text-xs mt-1">Examples: "How do I win a deal?", "How does estimation work?", "How does auto-assign work?"</p>
+                                <p className="text-sm">{t('ask_me_anything')}</p>
+                                <p className="text-xs mt-1">{t('chatbot_examples')}</p>
                             </div>
                         )}
 
@@ -151,7 +153,7 @@ What would you like to know?`
                             <div className="flex justify-start">
                                 <div className="bg-slate-100 rounded-xl px-3 py-2 text-sm flex items-center gap-2 text-slate-500">
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    Thinking...
+                                    {t('thinking')}
                                 </div>
                             </div>
                         )}
@@ -165,7 +167,7 @@ What would you like to know?`
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Ask about ANKA..."
+                                placeholder={t('ask_about_anka')}
                                 disabled={loading}
                                 className="flex-1"
                             />

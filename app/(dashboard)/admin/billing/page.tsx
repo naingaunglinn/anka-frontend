@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminTenantList, useAdminMutations } from '@/lib/queries/admin';
 import { useTenantStore, type Currency, CURRENCY_CONFIG } from '@/store/tenantStore';
 import { Building2, Check, X, Loader2 } from 'lucide-react';
 
-const PLANS = ['free', 'starter', 'pro', 'enterprise'];
+const PLANS = ['free', 'starter', 'pro', 'enterprise'] as const;
+const PLAN_KEY: Record<string, string> = {
+    free: 'plan_free',
+    starter: 'plan_starter',
+    pro: 'plan_pro',
+    enterprise: 'plan_enterprise',
+};
 
 const CURRENCIES: Currency[] = ['MMK', 'JPY'];
 
 export default function AdminBillingPage() {
+    const t = useTranslations();
     const { data: tenants, isLoading } = useAdminTenantList();
     const { updateTenant } = useAdminMutations();
     const { setTenantCurrency, tenants: storedTenants } = useTenantStore();
@@ -22,8 +30,8 @@ export default function AdminBillingPage() {
     useEffect(() => {
         if (!tenants) return;
         const initial: Record<string, Currency> = {};
-        tenants.forEach((t) => {
-            initial[t.id] = (t.currency as Currency) ?? 'MMK';
+        tenants.forEach((tenant) => {
+            initial[tenant.id] = (tenant.currency as Currency) ?? 'MMK';
         });
         setCurrencyMap(initial);
     }, [tenants]);
@@ -55,7 +63,7 @@ export default function AdminBillingPage() {
     // Simple plan stats
     const planStats = PLANS.map((plan) => ({
         plan,
-        count: tenants?.filter((t) => (t.plan ?? 'free').toLowerCase() === plan).length ?? 0,
+        count: tenants?.filter((tenant) => (tenant.plan ?? 'free').toLowerCase() === plan).length ?? 0,
     })).filter((s) => s.count > 0);
 
     if (isLoading) {
@@ -73,8 +81,8 @@ export default function AdminBillingPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Billing & Plans</h1>
-                <p className="text-[#8a8a8a] mt-1">Manage tenant subscription plans and billing status.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('billing_plans_title')}</h1>
+                <p className="text-[#8a8a8a] mt-1">{t('billing_plans_subtitle')}</p>
             </div>
 
             {/* Plan Distribution Stats */}
@@ -82,7 +90,7 @@ export default function AdminBillingPage() {
                 {planStats.map((stat) => (
                     <Card key={stat.plan} className="shadow-sm border-[#e6e9ee]">
                         <CardContent className="p-4">
-                            <p className="text-xs font-medium text-[#8a8a8a] uppercase">{stat.plan}</p>
+                            <p className="text-xs font-medium text-[#8a8a8a] uppercase">{t(PLAN_KEY[stat.plan])}</p>
                             <p className="text-2xl font-bold text-[#171717] mt-1">{stat.count}</p>
                         </CardContent>
                     </Card>
@@ -90,7 +98,7 @@ export default function AdminBillingPage() {
                 {planStats.length === 0 && (
                     <Card className="shadow-sm border-[#e6e9ee] col-span-full">
                         <CardContent className="p-4 text-center text-[#8a8a8a] text-sm">
-                            No tenant data
+                            {t('no_tenant_data')}
                         </CardContent>
                     </Card>
                 )}
@@ -99,21 +107,21 @@ export default function AdminBillingPage() {
             {/* Tenant Billing Table */}
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
-                    <CardTitle className="text-lg">Tenant Plans</CardTitle>
+                    <CardTitle className="text-lg">{t('tenant_plans_title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Slug</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Plan</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Currency</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Users</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Created</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Actions</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('tenant_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('slug_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('plan')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('currency_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('status')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('users_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('created_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -133,7 +141,7 @@ export default function AdminBillingPage() {
                                             >
                                                 {PLANS.map((plan) => (
                                                     <option key={plan} value={plan}>
-                                                        {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                                                        {t(PLAN_KEY[plan])}
                                                     </option>
                                                 ))}
                                             </select>
@@ -158,7 +166,7 @@ export default function AdminBillingPage() {
                                                     ? 'bg-emerald-50 text-emerald-700'
                                                     : 'bg-rose-50 text-rose-700'
                                             }`}>
-                                                {tenant.isActive ? 'Active' : 'Inactive'}
+                                                {tenant.isActive ? t('active') : t('inactive')}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-[#8a8a8a]">{tenant.usersCount}</td>
@@ -178,12 +186,12 @@ export default function AdminBillingPage() {
                                                 ) : tenant.isActive ? (
                                                     <>
                                                         <X className="h-4 w-4 mr-1" />
-                                                        Deactivate
+                                                        {t('deactivate')}
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Check className="h-4 w-4 mr-1" />
-                                                        Activate
+                                                        {t('activate')}
                                                     </>
                                                 )}
                                             </Button>
@@ -193,7 +201,7 @@ export default function AdminBillingPage() {
                                 {(!tenants || tenants.length === 0) && (
                                     <tr>
                                         <td colSpan={8} className="py-8 text-center text-[#8a8a8a]">
-                                            No tenants found
+                                            {t('no_tenants_found')}
                                         </td>
                                     </tr>
                                 )}

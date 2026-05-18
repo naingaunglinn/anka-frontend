@@ -2,6 +2,7 @@
 
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -24,19 +25,19 @@ import { AlertCircle } from 'lucide-react';
 import { globalOverheadSchema, type OverheadFormValues } from '@/lib/schemas/organization.schema';
 import { useCurrencySymbol } from '@/hooks/useTenantCurrency';
 
-const MONTHS = [
-    { value: 1,  label: 'January'   },
-    { value: 2,  label: 'February'  },
-    { value: 3,  label: 'March'     },
-    { value: 4,  label: 'April'     },
-    { value: 5,  label: 'May'       },
-    { value: 6,  label: 'June'      },
-    { value: 7,  label: 'July'      },
-    { value: 8,  label: 'August'    },
-    { value: 9,  label: 'September' },
-    { value: 10, label: 'October'   },
-    { value: 11, label: 'November'  },
-    { value: 12, label: 'December'  },
+const MONTHS: Array<{ value: number; labelKey: string }> = [
+    { value: 1,  labelKey: 'month_january'   },
+    { value: 2,  labelKey: 'month_february'  },
+    { value: 3,  labelKey: 'month_march'     },
+    { value: 4,  labelKey: 'month_april'     },
+    { value: 5,  labelKey: 'month_may'       },
+    { value: 6,  labelKey: 'month_june'      },
+    { value: 7,  labelKey: 'month_july'      },
+    { value: 8,  labelKey: 'month_august'    },
+    { value: 9,  labelKey: 'month_september' },
+    { value: 10, labelKey: 'month_october'   },
+    { value: 11, labelKey: 'month_november'  },
+    { value: 12, labelKey: 'month_december'  },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -49,6 +50,7 @@ interface OverheadFormProps {
 }
 
 export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormProps) {
+    const t = useTranslations();
     const symbol = useCurrencySymbol();
     const form = useForm<OverheadFormValues>({
         resolver: zodResolver(globalOverheadSchema) as any,
@@ -88,8 +90,8 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                             {errorCount === 1
-                                ? 'Please fix the highlighted field before saving.'
-                                : `Please fill in ${errorCount} required fields before saving.`}
+                                ? t('please_fix_highlighted')
+                                : t('please_fill_required_fields', { count: errorCount })}
                         </span>
                     </div>
                 )}
@@ -98,9 +100,9 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="category"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Category Name <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('category_name')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="Software Licenses" {...field} />
+                                <Input placeholder={t('placeholder_software_licenses')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -111,9 +113,9 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="description"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('description_label')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="AWS, GitHub, Slack" {...field} />
+                                <Input placeholder={t('placeholder_aws_github')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -124,9 +126,9 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                     name="monthlyCost"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Monthly Cost ({symbol}) <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('monthly_cost_with_symbol', { symbol })} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input type="number" placeholder="e.g. 500" {...field} />
+                                <Input type="number" placeholder={t('placeholder_cost_500')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -139,20 +141,20 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                         name="effectiveMonth"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Month <span className="text-[#4a4a4a] font-normal">(optional)</span></FormLabel>
+                                <FormLabel>{t('month_label')} <span className="text-[#4a4a4a] font-normal">{t('optional_lowercase')}</span></FormLabel>
                                 <Select
                                     onValueChange={(v) => field.onChange(v === 'none' ? undefined : Number(v))}
                                     defaultValue={field.value !== undefined ? String(field.value) : 'none'}
                                 >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="All months" />
+                                            <SelectValue placeholder={t('all_months')} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="none">All months</SelectItem>
+                                        <SelectItem value="none">{t('all_months')}</SelectItem>
                                         {MONTHS.map(m => (
-                                            <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                                            <SelectItem key={m.value} value={String(m.value)}>{t(m.labelKey)}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -165,18 +167,18 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                         name="effectiveYear"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Year <span className="text-[#4a4a4a] font-normal">(optional)</span></FormLabel>
+                                <FormLabel>{t('year_label')} <span className="text-[#4a4a4a] font-normal">{t('optional_lowercase')}</span></FormLabel>
                                 <Select
                                     onValueChange={(v) => field.onChange(v === 'none' ? undefined : Number(v))}
                                     defaultValue={field.value !== undefined ? String(field.value) : 'none'}
                                 >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="All years" />
+                                            <SelectValue placeholder={t('all_years')} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="none">All years</SelectItem>
+                                        <SelectItem value="none">{t('all_years')}</SelectItem>
                                         {YEARS.map(y => (
                                             <SelectItem key={y} value={String(y)}>{y}</SelectItem>
                                         ))}
@@ -189,22 +191,22 @@ export function OverheadForm({ initialData, onSubmit, onCancel }: OverheadFormPr
                 </div>
 
                 <p className="text-xs text-[#4a4a4a]">
-                    Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                    {t('fields_required_full')}
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     ) : (
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
-                                Cancel
+                                {t('cancel')}
                             </Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? "Saving..." : "Save Overhead"}
+                        {form.formState.isSubmitting ? t('saving') : t('save_overhead')}
                     </Button>
                 </div>
             </form>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,10 +24,20 @@ import { formatMoney } from '@/lib/currency';
 import { CURRENCY_CONFIG } from '@/lib/currencyConfig';
 import { useRouter } from 'next/navigation';
 
+// Map contract status enum (kept English internally) to translation keys.
+const CONTRACT_STATUS_KEY: Record<string, string> = {
+    Draft:     'contract_status_draft',
+    Signed:    'contract_status_signed',
+    Active:    'contract_status_active',
+    Completed: 'contract_status_completed',
+    Cancelled: 'contract_status_cancelled',
+};
+
 export default function ContractsPage() {
+    const t = useTranslations();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
-    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
     const contractsQuery = useContractList();
     const invoicesQuery = useInvoiceList();
     const milestonesQuery = useMilestoneList();
@@ -216,23 +227,23 @@ export default function ContractsPage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Contracts{MILESTONES_INVOICES_ENABLED ? ' & Billing' : ''}</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{MILESTONES_INVOICES_ENABLED ? t('contracts_amp_billing') : t('contracts_title')}</h1>
                     <p className="text-[#8a8a8a] mt-1">
                         {MILESTONES_INVOICES_ENABLED
-                            ? 'Manage active contracts, milestones, and client invoices.'
-                            : 'Manage active contracts from won deals. Milestones and invoices ship in the next phase.'}
+                            ? t('contracts_subtitle_enabled')
+                            : t('contracts_subtitle_disabled')}
                     </p>
                 </div>
                 {MILESTONES_INVOICES_ENABLED && <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
                     <DialogTrigger asChild>
                         <Button className="bg-[#171717] hover:bg-[#00a7f4] gap-2">
-                            <Plus className="h-4 w-4" /> Create Invoice
+                            <Plus className="h-4 w-4" /> {t('create_invoice_button')}
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Create Invoice</DialogTitle>
-                            <DialogDescription>Issue an invoice against an active contract.</DialogDescription>
+                            <DialogTitle>{t('create_invoice_button')}</DialogTitle>
+                            <DialogDescription>{t('create_invoice_dialog_desc')}</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-2">
                             <p className="text-xs text-[#4a4a4a]">Fields marked <span className="text-destructive">*</span> are required.</p>
@@ -314,8 +325,8 @@ export default function ContractsPage() {
             {isError && (
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-[#4a4a4a]">Could not load contracts or invoices.</p>
-                        <Button variant="outline" onClick={retry}>Retry</Button>
+                        <p className="text-sm text-[#4a4a4a]">{t('could_not_load_contracts')}</p>
+                        <Button variant="outline" onClick={retry}>{t('retry')}</Button>
                     </CardContent>
                 </Card>
             )}
@@ -324,7 +335,7 @@ export default function ContractsPage() {
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Active Contracts</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('active_contracts_kpi')}</p>
                             <FileText className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -335,7 +346,7 @@ export default function ContractsPage() {
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Total Contract Value</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_contract_value')}</p>
                             <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
                                 <span className="text-emerald-600 font-bold text-xs">{currency}</span>
                             </div>
@@ -349,7 +360,7 @@ export default function ContractsPage() {
                     <Card className="shadow-sm border-[#e6e9ee]">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium text-[#8a8a8a]">Revenue Recognized</p>
+                                <p className="text-sm font-medium text-[#8a8a8a]">{t('revenue_recognized')}</p>
                                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             </div>
                             <div className="mt-2 flex items-baseline gap-2">
@@ -364,12 +375,12 @@ export default function ContractsPage() {
                     <Card className="shadow-sm border-[#e6e9ee]">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium text-[#8a8a8a]">Signed This Month</p>
+                                <p className="text-sm font-medium text-[#8a8a8a]">{t('signed_this_month')}</p>
                                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             </div>
                             <div className="mt-2 flex items-baseline gap-2">
                                 <span className="text-3xl font-bold tracking-tight text-[#171717]">{signedThisMonth}</span>
-                                <span className="text-sm font-medium text-[#8a8a8a]">contract{signedThisMonth === 1 ? '' : 's'}</span>
+                                <span className="text-sm font-medium text-[#8a8a8a]">{t('contracts_count', { count: signedThisMonth })}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -378,9 +389,9 @@ export default function ContractsPage() {
 
             {!isLoading && !isError && (MILESTONES_INVOICES_ENABLED ? <Tabs defaultValue="contracts" className="space-y-6">
                 <TabsList className="bg-slate-100/50 p-1 border border-slate-200/60">
-                    <TabsTrigger value="contracts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Active Contracts</TabsTrigger>
-                    <TabsTrigger value="milestones" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
-                    <TabsTrigger value="invoices" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Invoices</TabsTrigger>
+                    <TabsTrigger value="contracts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('active_contracts_tab')}</TabsTrigger>
+                    <TabsTrigger value="milestones" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('milestones_tab')}</TabsTrigger>
+                    <TabsTrigger value="invoices" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('invoices_tab')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="contracts">
@@ -388,16 +399,16 @@ export default function ContractsPage() {
                         <Table>
                             <TableHeader className="bg-white">
                                 <TableRow>
-                                    <TableHead>Contract ID</TableHead>
-                                    <TableHead>Client</TableHead>
-                                    <TableHead>Source Deal</TableHead>
-                                    <TableHead>Linked Project</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Total Value</TableHead>
-                                    <TableHead className="text-right">Invoiced</TableHead>
-                                    <TableHead className="text-right">Outstanding</TableHead>
-                                    <TableHead className="text-right">Overdue</TableHead>
-                                    <TableHead className="text-right">Recognized</TableHead>
+                                    <TableHead>{t('contract_id')}</TableHead>
+                                    <TableHead>{t('client')}</TableHead>
+                                    <TableHead>{t('source_deal')}</TableHead>
+                                    <TableHead>{t('linked_project')}</TableHead>
+                                    <TableHead>{t('status')}</TableHead>
+                                    <TableHead className="text-right">{t('total_value_col')}</TableHead>
+                                    <TableHead className="text-right">{t('invoiced')}</TableHead>
+                                    <TableHead className="text-right">{t('outstanding')}</TableHead>
+                                    <TableHead className="text-right">{t('overdue')}</TableHead>
+                                    <TableHead className="text-right">{t('recognized')}</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -449,7 +460,7 @@ export default function ContractsPage() {
                                                     contract.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
-                                                    {contract.status}
+                                                    {CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(contract.totalValue, currency)}</TableCell>
@@ -724,12 +735,12 @@ export default function ContractsPage() {
                     <Table>
                         <TableHeader className="bg-white">
                             <TableRow>
-                                <TableHead>Contract ID</TableHead>
-                                <TableHead>Client</TableHead>
-                                <TableHead>Source Deal</TableHead>
-                                <TableHead>Linked Project</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Total Value</TableHead>
+                                <TableHead>{t('contract_id')}</TableHead>
+                                <TableHead>{t('client')}</TableHead>
+                                <TableHead>{t('source_deal')}</TableHead>
+                                <TableHead>{t('linked_project')}</TableHead>
+                                <TableHead>{t('status')}</TableHead>
+                                <TableHead className="text-right">{t('total_value_col')}</TableHead>
                                 <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -793,26 +804,26 @@ export default function ContractsPage() {
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem onClick={() => router.push(`/contracts/${contract.id}`)}>
-                                                        Open Contract
+                                                        {t('open_contract_menu')}
                                                     </DropdownMenuItem>
                                                     {sourceDeal && (
                                                         <DropdownMenuItem onClick={() => router.push(`/crm/${sourceDeal.id}`)}>
-                                                            View Source Deal
+                                                            {t('view_source_deal')}
                                                         </DropdownMenuItem>
                                                     )}
                                                     {linkedProject && (
                                                         <DropdownMenuItem onClick={() => router.push(`/projects/${linkedProject.id}`)}>
-                                                            View Linked Project
+                                                            {t('view_linked_project')}
                                                         </DropdownMenuItem>
                                                     )}
                                                     <DropdownMenuItem onClick={() => setEditContract({ id: contract.id, status: contract.status, notes: contract.notes ?? '' })}>
-                                                        Edit Status / Notes
+                                                        {t('edit_status_notes')}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         className="text-rose-600"
                                                         onClick={() => openArchive(contract.id)}
                                                     >
-                                                        Archive
+                                                        {t('archive')}
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
@@ -822,7 +833,7 @@ export default function ContractsPage() {
                             })}
                             {contracts.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-6 text-[#8a8a8a]">No active contracts found. Win a deal in the CRM to auto-generate a contract.</TableCell>
+                                    <TableCell colSpan={7} className="text-center py-6 text-[#8a8a8a]">{t('no_active_contracts_found')}</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -834,34 +845,34 @@ export default function ContractsPage() {
             <Dialog open={!!editContract} onOpenChange={open => !open && setEditContract(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit Contract</DialogTitle>
-                        <DialogDescription>Update contract status or notes.</DialogDescription>
+                        <DialogTitle>{t('edit_contract')}</DialogTitle>
+                        <DialogDescription>{t('edit_contract_desc')}</DialogDescription>
                     </DialogHeader>
                     {editContract && (
                         <div className="space-y-4 py-2">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Status</label>
+                                <label className="text-sm font-medium">{t('status')}</label>
                                 <Select value={editContract.status} onValueChange={v => setEditContract({ ...editContract, status: v })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Draft">Draft</SelectItem>
-                                        <SelectItem value="Signed">Signed</SelectItem>
-                                        <SelectItem value="Active">Active</SelectItem>
-                                        <SelectItem value="Completed">Completed</SelectItem>
-                                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                        <SelectItem value="Draft">{t('contract_status_draft')}</SelectItem>
+                                        <SelectItem value="Signed">{t('contract_status_signed')}</SelectItem>
+                                        <SelectItem value="Active">{t('contract_status_active')}</SelectItem>
+                                        <SelectItem value="Completed">{t('contract_status_completed')}</SelectItem>
+                                        <SelectItem value="Cancelled">{t('contract_status_cancelled')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Notes</label>
-                                <Input value={editContract.notes} onChange={e => setEditContract({ ...editContract, notes: e.target.value })} placeholder="Optional notes..." />
+                                <label className="text-sm font-medium">{t('notes')}</label>
+                                <Input value={editContract.notes} onChange={e => setEditContract({ ...editContract, notes: e.target.value })} placeholder={t('optional_notes_placeholder')} />
                             </div>
                             <Button
                                 className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                                 onClick={handleUpdateContract}
                                 disabled={updateContract.isPending}
                             >
-                                {updateContract.isPending ? 'Saving...' : 'Save Changes'}
+                                {updateContract.isPending ? t('saving') : t('save_changes')}
                             </Button>
                         </div>
                     )}
@@ -872,15 +883,15 @@ export default function ContractsPage() {
             <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Archive Contract</DialogTitle>
+                        <DialogTitle>{t('archive_contract')}</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-[#4a4a4a]">
-                        Are you sure you want to archive this contract? This action cannot be undone.
+                        {t('archive_contract_confirm')}
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setArchiveOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setArchiveOpen(false)}>{t('cancel')}</Button>
                         <Button variant="destructive" onClick={handleArchive} disabled={deleteContract.isPending}>
-                            {deleteContract.isPending ? 'Archiving...' : 'Archive'}
+                            {deleteContract.isPending ? t('archiving') : t('archive')}
                         </Button>
                     </div>
                 </DialogContent>

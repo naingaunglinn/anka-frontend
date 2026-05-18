@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useForm, useFieldArray, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -77,6 +78,7 @@ interface EmployeeFormProps {
 }
 
 export function EmployeeForm({ initialData, roles, departments = [], skills = [], ranks = [], onSubmit, onCancel }: EmployeeFormProps) {
+    const t = useTranslations();
     const symbol = useCurrencySymbol();
     const isEdit = !!initialData;
 
@@ -169,8 +171,8 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                             {errorCount === 1
-                                ? 'Please fix the highlighted field before saving.'
-                                : `Please fill in ${errorCount} required fields before saving.`}
+                                ? t('please_fix_highlighted')
+                                : t('please_fill_required_fields', { count: errorCount })}
                         </span>
                     </div>
                 )}
@@ -179,9 +181,9 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('full_name')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Jane Smith" {...field} />
+                                <Input placeholder={t('placeholder_jane_smith')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -193,15 +195,15 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         name="departmentId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Department <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
+                                <FormLabel>{t('department_label')} <span className="text-[#4a4a4a] text-xs font-normal">{t('optional_lowercase')}</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select department" />
+                                            <SelectValue placeholder={t('select_department')} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="none">{t('none')}</SelectItem>
                                         {departments.map(d => (
                                             <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                                         ))}
@@ -216,11 +218,11 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         name="role"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Billing Role <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>{t('billing_role')} <span className="text-destructive">*</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select a role" />
+                                            <SelectValue placeholder={t('select_a_role')} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
@@ -238,15 +240,15 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         name="capacityRole"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Capacity Pool <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></FormLabel>
+                                <FormLabel>{t('capacity_pool')} <span className="text-[#4a4a4a] text-xs font-normal">{t('optional_lowercase')}</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="None" />
+                                            <SelectValue placeholder={t('none')} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="none">{t('none')}</SelectItem>
                                         {CAPACITY_ROLES.map(r => (
                                             <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
                                         ))}
@@ -262,7 +264,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                     name="rankId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Rank <span className="text-[#4a4a4a] text-xs font-normal">(optional — used by AI Team Builder)</span></FormLabel>
+                            <FormLabel>{t('rank_label_form')} <span className="text-[#4a4a4a] text-xs font-normal">{t('rank_optional_ai_hint')}</span></FormLabel>
                             {/* "none" sentinel — Select can't represent undefined; the
                                 store mutation maps 'none' → null before persisting. */}
                             <Select
@@ -271,17 +273,17 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                             >
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Unranked" />
+                                        <SelectValue placeholder={t('unranked')} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="none">Unranked</SelectItem>
+                                    <SelectItem value="none">{t('unranked')}</SelectItem>
                                     {ranks
                                         .slice()
                                         .sort((a, b) => a.level - b.level)
                                         .map(r => (
                                             <SelectItem key={r.id} value={r.id}>
-                                                {r.name} <span className="text-muted-foreground ml-1 text-xs">(level {r.level})</span>
+                                                {r.name} <span className="text-muted-foreground ml-1 text-xs">{t('rank_level_hint', { level: r.level })}</span>
                                             </SelectItem>
                                         ))}
                                 </SelectContent>
@@ -336,7 +338,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                         name="workableHours"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Workable Hours/Mo <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>{t('workable_hours_mo')} <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                     <Input type="number" placeholder="160" {...field} />
                                 </FormControl>
@@ -350,17 +352,17 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                     name="status"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Status <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('status_label')} <span className="text-destructive">*</span></FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select status" />
+                                        <SelectValue placeholder={t('select_status')} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="Active">Active</SelectItem>
-                                    <SelectItem value="On Leave">On Leave</SelectItem>
-                                    <SelectItem value="Terminated">Terminated</SelectItem>
+                                    <SelectItem value="Active">{t('status_active')}</SelectItem>
+                                    <SelectItem value="On Leave">{t('status_on_leave')}</SelectItem>
+                                    <SelectItem value="Terminated">{t('status_terminated')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -377,7 +379,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                     render={() => (
                         <FormItem>
                             <FormLabel>
-                                Skills <span className="text-[#4a4a4a] text-xs font-normal">(used by AI team builder)</span>
+                                {t('skills')} <span className="text-[#4a4a4a] text-xs font-normal">{t('skills_ai_hint')}</span>
                             </FormLabel>
                             <Popover open={skillPickerOpen} onOpenChange={setSkillPickerOpen}>
                                 <PopoverTrigger asChild>
@@ -388,8 +390,8 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                                     >
                                         <span className="text-[#4a4a4a]">
                                             {selectedSkills.length === 0
-                                                ? 'Search & add skills...'
-                                                : `${selectedSkills.length} skill${selectedSkills.length === 1 ? '' : 's'} selected`}
+                                                ? t('search_and_add_skills')
+                                                : t('n_skills_selected', { count: selectedSkills.length })}
                                         </span>
                                         <ChevronsUpDown className="h-4 w-4 opacity-50" />
                                     </Button>
@@ -401,7 +403,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                                             <Input
                                                 value={skillSearch}
                                                 onChange={(e) => setSkillSearch(e.target.value)}
-                                                placeholder="Search by name or category..."
+                                                placeholder={t('search_by_name_or_category')}
                                                 className="h-8 pl-8"
                                                 autoFocus
                                             />
@@ -410,13 +412,13 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                                     <div className="max-h-60 overflow-y-auto p-1">
                                         {skills.length === 0 ? (
                                             <p className="px-2 py-3 text-center text-xs text-[#8a8a8a]">
-                                                No skills exist yet. Create some on the Skills tab first.
+                                                {t('no_skills_exist')}
                                             </p>
                                         ) : filteredSkills.length === 0 ? (
                                             <p className="px-2 py-3 text-center text-xs text-[#8a8a8a]">
                                                 {selectedIds.size === skills.length
-                                                    ? 'All skills already added.'
-                                                    : 'No matching skills.'}
+                                                    ? t('all_skills_added')
+                                                    : t('no_matching_skills')}
                                             </p>
                                         ) : (
                                             filteredSkills.map((skill) => (
@@ -452,7 +454,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                                             >
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-medium text-[#171717] truncate">
-                                                        {skill?.name ?? 'Unknown skill'}
+                                                        {skill?.name ?? t('unknown_skill')}
                                                     </p>
                                                     {skill?.category && (
                                                         <p className="text-xs text-[#8a8a8a] truncate">{skill.category}</p>
@@ -484,7 +486,7 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                                                     onClick={() => skillsField.remove(index)}
                                                 >
                                                     <X className="h-4 w-4" />
-                                                    <span className="sr-only">Remove</span>
+                                                    <span className="sr-only">{t('remove_short')}</span>
                                                 </Button>
                                             </div>
                                         );
@@ -498,14 +500,14 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
 
                 <div className="rounded-md border border-[#e6e9ee] bg-white p-3 space-y-3">
                     <p className="text-xs font-medium text-slate-700">
-                        Login Credentials
+                        {t('login_credentials')}
                     </p>
                     <p className="-mt-2 text-xs text-[#8a8a8a]">
                         {!isEdit
-                            ? 'The employee will use these to sign in and view their assigned tasks.'
+                            ? t('login_credentials_create_hint')
                             : initialData?.email
-                                ? 'Update the employee’s sign-in details. Leave the password blank to keep the current one.'
-                                : 'This employee has no login yet. Set both an email and a password to create one.'}
+                                ? t('login_credentials_edit_hint')
+                                : t('login_credentials_no_login_hint')}
                     </p>
                     <div className="grid grid-cols-2 gap-4">
                         <FormField
@@ -514,12 +516,12 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>
-                                        Email {!isEdit && <span className="text-destructive">*</span>}
+                                        {t('email')} {!isEdit && <span className="text-destructive">*</span>}
                                     </FormLabel>
                                     <FormControl>
                                         <Input
                                             type="email"
-                                            placeholder="jane@company.com"
+                                            placeholder={t('placeholder_email_company')}
                                             {...field}
                                             value={field.value ?? ''}
                                         />
@@ -534,14 +536,14 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>
-                                        {isEdit ? 'New Password' : (
-                                            <>Password <span className="text-destructive">*</span></>
+                                        {isEdit ? t('new_password_label') : (
+                                            <>{t('password')} <span className="text-destructive">*</span></>
                                         )}
                                     </FormLabel>
                                     <FormControl>
                                         <Input
                                             type="password"
-                                            placeholder={isEdit ? 'Leave blank to keep current' : 'At least 6 characters'}
+                                            placeholder={isEdit ? t('leave_blank_to_keep_current') : t('at_least_6_characters')}
                                             {...field}
                                             value={field.value ?? ''}
                                         />
@@ -553,22 +555,22 @@ export function EmployeeForm({ initialData, roles, departments = [], skills = []
                     </div>
                 </div>
                 <p className="text-xs text-[#4a4a4a]">
-                    Fields marked <span className="text-destructive">*</span> are required. Everything else can be filled in later.
+                    {t('fields_required_full')}
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     ) : (
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
-                                Cancel
+                                {t('cancel')}
                             </Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? "Saving..." : "Save Employee"}
+                        {form.formState.isSubmitting ? t('saving') : t('save_employee')}
                     </Button>
                 </div>
             </form>

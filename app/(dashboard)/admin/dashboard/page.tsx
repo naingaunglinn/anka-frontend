@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminDashboardStats } from '@/lib/queries/adminDashboard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -10,6 +11,7 @@ import { formatMoney } from '@/lib/currency';
 const COLORS = ['#10B981', '#00a7f4', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 export default function AdminDashboardPage() {
+    const t = useTranslations();
     const { data: stats, isLoading } = useAdminDashboardStats();
 
     if (isLoading) {
@@ -19,8 +21,8 @@ export default function AdminDashboardPage() {
     if (!stats) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-bold text-[#171717]">Platform Dashboard</h1>
-                <p className="text-[#8a8a8a] mt-2">Unable to load dashboard data.</p>
+                <h1 className="text-2xl font-bold text-[#171717]">{t('platform_dashboard_title')}</h1>
+                <p className="text-[#8a8a8a] mt-2">{t('unable_to_load_dashboard')}</p>
             </div>
         );
     }
@@ -32,39 +34,39 @@ export default function AdminDashboardPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Platform Dashboard</h1>
-                <p className="text-[#8a8a8a] mt-1">Overview of all tenants, users, and platform activity.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('platform_dashboard_title')}</h1>
+                <p className="text-[#8a8a8a] mt-1">{t('platform_dashboard_subtitle')}</p>
             </div>
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KpiCard
-                    title="Total Tenants"
+                    title={t('total_tenants_kpi')}
                     value={stats.total_tenants}
-                    subValue={`${stats.active_tenants} active`}
+                    subValue={t('n_active', { count: stats.active_tenants })}
                     icon={Building2}
                     iconColor="text-violet-500"
                     trend={activeRate >= 80 ? 'up' : 'down'}
-                    trendValue={`${activeRate}% active`}
+                    trendValue={t('active_rate_suffix', { rate: activeRate })}
                 />
                 <KpiCard
-                    title="Total Users"
+                    title={t('total_users_kpi')}
                     value={stats.total_users}
-                    subValue="Across all tenants"
+                    subValue={t('across_all_tenants')}
                     icon={Users}
                     iconColor="text-[#00a7f4]"
                 />
                 <KpiCard
-                    title="AI Calls"
+                    title={t('ai_calls_kpi')}
                     value={stats.ai_usage.total_calls.toLocaleString()}
-                    subValue={`${stats.ai_usage.total_tokens.toLocaleString()} tokens`}
+                    subValue={t('n_tokens', { tokens: stats.ai_usage.total_tokens.toLocaleString() })}
                     icon={BrainCircuit}
                     iconColor="text-pink-500"
                 />
                 <KpiCard
-                    title="AI Cost"
+                    title={t('ai_cost_kpi')}
                     value={formatMoney(stats.ai_usage.total_cost)}
-                    subValue="Estimated"
+                    subValue={t('estimated_value')}
                     icon={Activity}
                     iconColor="text-emerald-500"
                 />
@@ -75,7 +77,7 @@ export default function AdminDashboardPage() {
                 {/* Signups Over Time */}
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Tenant Signups (Last 6 Months)</CardTitle>
+                        <CardTitle className="text-lg">{t('tenant_signups_6mo')}</CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4 h-[300px]">
                         {stats.signups_over_time.length > 0 ? (
@@ -85,7 +87,7 @@ export default function AdminDashboardPage() {
                                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                                     <Tooltip
-                                        formatter={(value: any) => [value, 'Signups']}
+                                        formatter={(value: any) => [value, t('signups_tooltip')]}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     />
                                     <Bar dataKey="count" fill="#00a7f4" radius={[4, 4, 0, 0]} />
@@ -93,7 +95,7 @@ export default function AdminDashboardPage() {
                             </ResponsiveContainer>
                         ) : (
                             <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
-                                No signup data yet
+                                {t('no_signup_data')}
                             </div>
                         )}
                     </CardContent>
@@ -102,7 +104,7 @@ export default function AdminDashboardPage() {
                 {/* Plan Distribution */}
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Plan Distribution</CardTitle>
+                        <CardTitle className="text-lg">{t('plan_distribution')}</CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4 h-[300px]">
                         {stats.plan_distribution.length > 0 ? (
@@ -131,7 +133,7 @@ export default function AdminDashboardPage() {
                             </ResponsiveContainer>
                         ) : (
                             <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
-                                No plan data yet
+                                {t('no_plan_data')}
                             </div>
                         )}
                     </CardContent>
@@ -141,18 +143,18 @@ export default function AdminDashboardPage() {
             {/* Recent Signups Table */}
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
-                    <CardTitle className="text-lg">Recent Signups</CardTitle>
+                    <CardTitle className="text-lg">{t('recent_signups')}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Slug</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Plan</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Created</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('tenant_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('slug_col')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('plan')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('status')}</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('created_col')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,7 +173,7 @@ export default function AdminDashboardPage() {
                                                     ? 'bg-emerald-50 text-emerald-700'
                                                     : 'bg-rose-50 text-rose-700'
                                             }`}>
-                                                {tenant.is_active ? 'Active' : 'Inactive'}
+                                                {tenant.is_active ? t('active') : t('inactive')}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-[#8a8a8a]">
@@ -182,7 +184,7 @@ export default function AdminDashboardPage() {
                                 {stats.recent_signups.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="py-8 text-center text-[#8a8a8a]">
-                                            No tenants yet
+                                            {t('no_tenants_yet')}
                                         </td>
                                     </tr>
                                 )}

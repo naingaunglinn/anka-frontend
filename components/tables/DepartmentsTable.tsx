@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     ColumnDef,
     flexRender,
@@ -39,6 +40,7 @@ interface DepartmentsTableProps {
 }
 
 export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTableProps) {
+    const t = useTranslations();
     const [sorting, setSorting] = useState<SortingState>([]);
 
     const columns: ColumnDef<Department>[] = [
@@ -51,7 +53,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Department Name
+                        {t('department_name_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -67,7 +69,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Manager
+                        {t('manager_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -87,7 +89,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Headcount
+                        {t('headcount')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -103,18 +105,18 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('open_menu')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => onEdit(department)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onDelete(department.id)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_action')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -168,7 +170,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
-                                    No departments found.
+                                    {t('no_departments_found')}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -182,7 +184,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
-                    Previous
+                    {t('previous')}
                 </Button>
                 <Button
                     variant="outline"
@@ -190,7 +192,7 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >
-                    Next
+                    {t('next')}
                 </Button>
             </div>
         </div>

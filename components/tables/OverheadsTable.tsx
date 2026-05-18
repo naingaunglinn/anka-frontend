@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     ColumnDef,
     flexRender,
@@ -41,10 +42,11 @@ interface OverheadsTableProps {
 }
 
 export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) {
+    const t = useTranslations();
     const [sorting, setSorting] = useState<SortingState>([]);
     const currency = useTenantCurrency();
 
-    const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MONTH_KEYS = ['', 'month_jan', 'month_feb', 'month_mar', 'month_apr', 'month_may_short', 'month_jun', 'month_jul', 'month_aug', 'month_sep', 'month_oct', 'month_nov', 'month_dec'];
 
     const columns: ColumnDef<Overhead>[] = [
         {
@@ -56,7 +58,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Category
+                        {t('category_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -72,7 +74,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Description
+                        {t('description_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -81,17 +83,17 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
         },
         {
             id: 'period',
-            header: 'Period',
+            header: t('period'),
             cell: ({ row }) => {
                 const oh = row.original;
                 if (oh.effectiveMonth && oh.effectiveYear) {
                     return (
                         <div className="text-[#4a4a4a] text-sm">
-                            {MONTH_NAMES[oh.effectiveMonth]} {oh.effectiveYear}
+                            {t(MONTH_KEYS[oh.effectiveMonth])} {oh.effectiveYear}
                         </div>
                     );
                 }
-                return <div className="text-[#4a4a4a] text-sm">All months</div>;
+                return <div className="text-[#4a4a4a] text-sm">{t('all_months')}</div>;
             },
         },
         {
@@ -103,7 +105,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Monthly Cost
+                        {t('monthly_cost_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -122,18 +124,18 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('open_menu')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => onEdit(overhead)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onDelete(overhead.id)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_action')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -187,7 +189,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
-                                    No overheads found.
+                                    {t('no_overheads_found')}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -201,7 +203,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
-                    Previous
+                    {t('previous')}
                 </Button>
                 <Button
                     variant="outline"
@@ -209,7 +211,7 @@ export function OverheadsTable({ data, onEdit, onDelete }: OverheadsTableProps) 
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >
-                    Next
+                    {t('next')}
                 </Button>
             </div>
         </div>

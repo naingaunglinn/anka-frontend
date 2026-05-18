@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import toast from 'react-hot-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ const RANK_MATCH_VARIANTS: Record<TeamPlanProposed['rankMatch'], string> = {
 };
 
 export function TeamPreviewDialog({ open, onClose, projectId, projectName, onConfirmed }: Props) {
+    const t = useTranslations();
     const planPreview = usePlanTeamPreview(projectId ?? '');
     const confirmTeam = useConfirmTeamPlan(projectId ?? '');
     const [preview, setPreview] = useState<TeamPlanPreview | null>(null);
@@ -84,34 +86,25 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
     const proposed = preview?.proposed ?? [];
     const kept = preview?.kept ?? [];
     const unfilled = preview?.unfilled ?? [];
-    const capacityCheck = preview?.capacityCheck ?? [];
     const nothingToDo = preview && proposed.length === 0 && unfilled.length === 0;
-
-    const formatMoney = (n: number) =>
-        n >= 1_000_000
-            ? `${(n / 1_000_000).toFixed(2)}M`
-            : n >= 1_000
-                ? `${(n / 1_000).toFixed(0)}K`
-                : `${Math.round(n)}`;
 
     const handleConfirm = () => {
         if (!projectId || !preview) return;
 
-        // ghostRoleId is sent so the backend can store
-        // allocated_hours = workable_hours × ghost_role.months for each pick
-        // (engagement-window capacity). Empty picks are valid: they trigger
-        // a refresh-only flow that re-runs the allocator against the latest
-        // xlsx (e.g. after a v2 estimation upload).
+        // Send only employeeId — the backend recomputes allocated_hours
+        // from the project's xlsx in the same transaction, so any number we
+        // pass would be discarded. Empty picks are intentional and valid:
+        // they trigger a refresh-only flow that re-runs the allocator
+        // against the latest xlsx (e.g. after a v2 estimation upload).
         const picks = proposed.map((p) => ({
-            employeeId:  p.employeeId,
-            ghostRoleId: p.ghostRoleId,
+            employeeId: p.employeeId,
         }));
 
         confirmTeam.mutate(picks, {
             onSuccess: (res) => {
                 const msg = res.inserted > 0
-                    ? `Team confirmed — ${res.inserted} ${res.inserted === 1 ? 'member' : 'members'} added.`
-                    : 'Allocations refreshed from the latest xlsx.';
+                    ? t(res.inserted === 1 ? 'team_confirmed_singular' : 'team_confirmed_plural', { count: res.inserted })
+                    : t('allocations_refreshed');
                 toast.success(msg);
                 onConfirmed();
                 onClose();
@@ -127,7 +120,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-indigo-500" />
-                        AI Team Preview
+                        {t('ai_team_preview')}
                         {projectName && <span className="text-sm font-normal text-slate-500">— {projectName}</span>}
                     </DialogTitle>
                 </DialogHeader>
@@ -135,7 +128,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                 {loading && (
                     <div className="py-8 text-center text-sm text-slate-500">
                         <div className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500 mb-3" />
-                        <div>Asking the AI to fit the team…</div>
+                        <div>{t('asking_ai_to_fit_team')}</div>
                     </div>
                 )}
 
@@ -145,124 +138,55 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     <span>
-                                        <span className="text-slate-500">Project work (xlsx):</span>{' '}
+                                        <span className="text-slate-500">{t('project_work_xlsx')}</span>{' '}
                                         <span className="font-semibold tabular-nums">{preview.allocation.grandTotal}h</span>
                                     </span>
                                     <span>
-                                        <span className="text-slate-500">Sum of allocations:</span>{' '}
+                                        <span className="text-slate-500">{t('sum_of_allocations')}</span>{' '}
                                         <span className="font-semibold tabular-nums">{preview.allocation.sumOfAllocations}h</span>
                                     </span>
                                     {preview.allocation.xlsxPath && (
-                                        <span className="text-slate-400">— from {preview.allocation.xlsxPath}</span>
+                                        <span className="text-slate-400">{t('from_xlsx_path', { path: preview.allocation.xlsxPath })}</span>
                                     )}
                                 </div>
                                 <div className="mt-1 text-[11px] text-slate-500">
-                                    Allocated hours per member are distributed from the xlsx grand total, weighted by rank (Lead {'>'} Senior {'>'} Mid {'>'} Junior). Sum should match the project total ±rounding.
+                                    {t('allocation_explainer')}
                                 </div>
                             </div>
                         )}
 
                         {nothingToDo && (
                             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                                {preview.message ?? 'Planned team structure is already fully staffed.'}
+                                {preview.message ?? t('already_fully_staffed')}
                             </div>
                         )}
 
                         {kept.length > 0 && (
                             <section>
                                 <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                                    <Users className="h-3.5 w-3.5" /> Already on the team
+                                    <Users className="h-3.5 w-3.5" /> {t('already_on_the_team')}
                                 </div>
                                 <div className="rounded-md border border-slate-200">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Employee</TableHead>
-                                                <TableHead>Rank</TableHead>
-                                                <TableHead>Capacity role</TableHead>
-                                                <TableHead className="text-right">Months</TableHead>
-                                                <TableHead className="text-right">Allocated (h)</TableHead>
+                                                <TableHead>{t('employee')}</TableHead>
+                                                <TableHead>{t('rank')}</TableHead>
+                                                <TableHead>{t('capacity_role')}</TableHead>
+                                                <TableHead className="text-right">{t('allocated_h')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {kept.map((k) => (
                                                 <TableRow key={k.employeeId}>
-                                                    <TableCell>
-                                                        {k.name ?? k.employeeId}
-                                                        {k.unmatched && (
-                                                            <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
-                                                                no matching role
-                                                            </Badge>
-                                                        )}
-                                                    </TableCell>
+                                                    <TableCell>{k.name ?? k.employeeId}</TableCell>
                                                     <TableCell>{k.rankCode ?? '—'}</TableCell>
                                                     <TableCell>{k.capacityRole ?? '—'}</TableCell>
-                                                    <TableCell className="text-right tabular-nums">{k.months || '—'}</TableCell>
-                                                    <TableCell className="text-right tabular-nums">{Math.round(k.allocatedHours)}</TableCell>
+                                                    <TableCell className="text-right">{k.allocatedHours}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
                                     </Table>
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                    Hours = workable_hours × engagement months from the matched ghost role. A member marked &quot;no matching role&quot; stays on the team but the planned structure has no slot for their capacity_role on this project.
-                                </div>
-                            </section>
-                        )}
-
-                        {capacityCheck.length > 0 && (
-                            <section>
-                                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                                    Capacity check (per planned role)
-                                </div>
-                                <div className="rounded-md border border-slate-200">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Role</TableHead>
-                                                <TableHead className="text-right">Hours budget</TableHead>
-                                                <TableHead className="text-right">Hours supply</TableHead>
-                                                <TableHead className="text-right">Cost budget</TableHead>
-                                                <TableHead className="text-right">Cost used</TableHead>
-                                                <TableHead>Status</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {capacityCheck.map((c) => {
-                                                const shortHours = c.hoursShortfall > 0;
-                                                const overCost   = c.costOverrun > 0;
-                                                const ok         = !shortHours && !overCost;
-                                                return (
-                                                    <TableRow key={c.roleType}>
-                                                        <TableCell>
-                                                            <div className="font-medium">{c.roleType}</div>
-                                                            <div className="text-xs text-slate-500">
-                                                                {c.quantity}× / up to {c.monthsMax} mo
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right tabular-nums">{Math.round(c.hoursBudget)}h</TableCell>
-                                                        <TableCell className={`text-right tabular-nums ${shortHours ? 'text-amber-700 font-semibold' : ''}`}>
-                                                            {Math.round(c.hoursSupply)}h
-                                                            {shortHours && <span className="ml-1 text-xs">(−{Math.round(c.hoursShortfall)})</span>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right tabular-nums">Ks{formatMoney(c.costBudget)}</TableCell>
-                                                        <TableCell className={`text-right tabular-nums ${overCost ? 'text-rose-700 font-semibold' : ''}`}>
-                                                            Ks{formatMoney(c.costUsed)}
-                                                            {overCost && <span className="ml-1 text-xs">(+{formatMoney(c.costOverrun)})</span>}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {ok && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">ok</Badge>}
-                                                            {shortHours && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">short</Badge>}
-                                                            {overCost && <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs ml-1">over budget</Badge>}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                    Hours supply = Σ(workable_hours × engagement months) across kept + proposed. Cost used counts proposed picks only (kept members keep their original allocation).
                                 </div>
                             </section>
                         )}
@@ -270,17 +194,17 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                         {proposed.length > 0 && (
                             <section>
                                 <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                                    AI-proposed additions
+                                    {t('ai_proposed_additions')}
                                 </div>
                                 <div className="rounded-md border border-slate-200">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Role / needed rank</TableHead>
-                                                <TableHead>Employee</TableHead>
-                                                <TableHead>Rank</TableHead>
-                                                <TableHead className="text-right">Allocated (h)</TableHead>
-                                                <TableHead>Fit</TableHead>
+                                                <TableHead>{t('role_needed_rank')}</TableHead>
+                                                <TableHead>{t('employee')}</TableHead>
+                                                <TableHead>{t('rank')}</TableHead>
+                                                <TableHead className="text-right">{t('allocated_h')}</TableHead>
+                                                <TableHead>{t('fit')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -288,7 +212,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                                 <TableRow key={`${p.ghostRoleId}-${p.employeeId}-${i}`}>
                                                     <TableCell>
                                                         <div className="font-medium">{p.roleType}</div>
-                                                        <div className="text-xs text-slate-500">{p.neededRank ?? 'unspecified rank'}</div>
+                                                        <div className="text-xs text-slate-500">{p.neededRank ?? t('unspecified_rank')}</div>
                                                     </TableCell>
                                                     <TableCell>{p.employeeName ?? p.employeeId}</TableCell>
                                                     <TableCell>{p.employeeRank ?? '—'}</TableCell>
@@ -310,7 +234,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                             <section>
                                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                                     <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-amber-700">
-                                        <AlertTriangle className="h-3.5 w-3.5" /> Unfilled roles
+                                        <AlertTriangle className="h-3.5 w-3.5" /> {t('unfilled_roles')}
                                     </div>
                                     <ul className="space-y-1 text-sm text-amber-900">
                                         {unfilled.map((u, i) => (
@@ -325,17 +249,17 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
 
                 <DialogFooter className="gap-2 sm:gap-2">
                     <Button variant="ghost" onClick={onClose} disabled={busy}>
-                        Cancel
+                        {t('cancel')}
                     </Button>
                     <Button
                         variant="outline"
                         onClick={handleRegenerate}
                         disabled={busy || !preview}
                         className="gap-1.5"
-                        title="Ask the AI for a different team — kept members stay."
+                        title={t('regenerate_team_tooltip')}
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${planPreview.isPending && regenerateCount > 0 ? 'animate-spin' : ''}`} />
-                        {planPreview.isPending && regenerateCount > 0 ? 'Regenerating…' : 'Regenerate'}
+                        {planPreview.isPending && regenerateCount > 0 ? t('regenerating') : t('regenerate')}
                         {regenerateCount > 0 && (
                             <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
                                 {regenerateCount}
@@ -346,7 +270,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                         onClick={handleConfirm}
                         disabled={busy || !preview}
                     >
-                        {confirmTeam.isPending ? 'Confirming…' : 'OK — confirm & assign tasks'}
+                        {confirmTeam.isPending ? t('confirming') : t('ok_confirm_assign_tasks')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

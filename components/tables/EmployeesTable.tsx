@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     ColumnDef,
     flexRender,
@@ -73,6 +74,7 @@ interface EmployeesTableProps {
 }
 
 export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp, onEdit, onDelete }: EmployeesTableProps) {
+    const t = useTranslations();
     const router = useRouter();
     const [sorting, setSorting] = useState<SortingState>([]);
     const currency = useTenantCurrency();
@@ -103,7 +105,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Name
+                        {t('name')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -119,7 +121,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Role
+                        {t('role')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -150,7 +152,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Rank
+                    {t('rank')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -175,7 +177,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                         className="-ml-4 h-8 px-4"
                     >
-                        Monthly Salary
+                        {t('monthly_salary_col')}
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
@@ -244,7 +246,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Total Hours / Mo
+                    {t('total_hours_per_mo')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -268,7 +270,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Available Hours
+                    {t('available_hours_col')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -285,7 +287,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         {available}h
                         {assigned > 0 && (
                             <span className="ml-1 text-xs text-[#8a8a8a]">
-                                ({assigned}h assigned)
+                                {t('hours_assigned', { hours: assigned })}
                             </span>
                         )}
                     </div>
@@ -294,7 +296,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
         },
         {
             id: 'skills',
-            header: 'Skills',
+            header: t('skills_col'),
             cell: ({ row }) => {
                 const list = row.original.skills ?? [];
                 if (list.length === 0) {
@@ -329,15 +331,16 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
         },
         {
             accessorKey: 'status',
-            header: 'Status',
+            header: t('status'),
             cell: ({ row }) => {
                 const status = row.getValue('status') as string;
                 let variant: 'default' | 'secondary' | 'destructive' | 'outline' = 'default';
-                if (status === 'Active') variant = 'default';
-                else if (status === 'On Leave') variant = 'secondary';
-                else variant = 'destructive';
+                let label = status;
+                if (status === 'Active')   { variant = 'default';     label = t('status_active'); }
+                else if (status === 'On Leave') { variant = 'secondary';  label = t('status_on_leave'); }
+                else { variant = 'destructive'; label = t('status_terminated'); }
 
-                return <Badge variant={variant}>{status}</Badge>;
+                return <Badge variant={variant}>{label}</Badge>;
             },
         },
         {
@@ -349,21 +352,21 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('open_menu')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => router.push(`/organization/employees/${employee.id}`)}>
                                 <Eye className="mr-2 h-4 w-4" /> View profile
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onEdit(employee)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onDelete(employee.id)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_action')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -417,7 +420,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center text-[#4a4a4a]">
-                                    No employees found.
+                                    {t('no_employees_found')}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -431,7 +434,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
-                    Previous
+                    {t('previous')}
                 </Button>
                 <Button
                     variant="outline"
@@ -439,7 +442,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >
-                    Next
+                    {t('next')}
                 </Button>
             </div>
         </div>

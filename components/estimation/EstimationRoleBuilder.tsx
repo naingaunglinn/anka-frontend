@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useState, type ReactNode, type RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import { useBusinessStore } from '@/store/businessStore'
 import { useTenantStore } from '@/store/tenantStore'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
@@ -15,6 +16,10 @@ import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
 import { applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
 
+export type EstimationRoleBuilderHandle = {
+    triggerBuild: () => Promise<void>
+}
+
 interface Props {
     dealId: string
     dealName?: string
@@ -27,15 +32,22 @@ interface Props {
     onAccept: (roles: AISuggestedRole[]) => void | Promise<void>
     /** Rendered to the right of the Build AI Team button — used to host the sibling "Generate with AI" action. */
     extraAction?: ReactNode
+    /** Suppress the built-in Build button + the budget/timeline hint. Use when the parent owns the trigger UI. */
+    hideBuildButton?: boolean
+    /** When set, exposes a triggerBuild() handle so the parent can fire the build from its own button. */
+    handleRef?: RefObject<EstimationRoleBuilderHandle | null>
+    /** Notified when the build's internal loading flag flips. */
+    onLoadingChange?: (loading: boolean) => void
 }
 
-const LOADING_STEPS = [
-    'Analysing project scope…',
-    'Sizing role buckets…',
-    'Costing from your salary brackets…',
+const LOADING_STEP_KEYS = [
+    'loading_analysing_scope',
+    'loading_sizing_role',
+    'loading_costing_brackets',
 ]
 
 export function EstimationRoleBuilder(props: Props) {
+    const t = useTranslations()
     const [result, setResult] = useState<AITeamBuilderResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingStep, setLoadingStep] = useState(0)
@@ -71,7 +83,7 @@ export function EstimationRoleBuilder(props: Props) {
         setLoading(true)
         setLoadingStep(0)
         const interval = setInterval(() => {
-            setLoadingStep(s => Math.min(s + 1, LOADING_STEPS.length - 1))
+            setLoadingStep(s => Math.min(s + 1, LOADING_STEP_KEYS.length - 1))
         }, 1100)
 
         // All monetary values must be normalised to USD before the AI call —
@@ -142,15 +154,22 @@ export function EstimationRoleBuilder(props: Props) {
                 })),
             }
             setResult(inTenantCurrency)
-            toast.success('Role-mix recommendation ready')
+            toast.success(t('role_mix_ready'))
         } catch (err) {
             console.error('AI role builder failed:', err)
-            toast.error(err instanceof Error ? err.message : 'Could not build role mix')
+            toast.error(err instanceof Error ? err.message : t('could_not_build_role_mix'))
         } finally {
             clearInterval(interval)
             setLoading(false)
         }
     }
+
+    useImperativeHandle(props.handleRef, () => ({ triggerBuild: handleBuild }))
+
+    useEffect(() => {
+        props.onLoadingChange?.(loading)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading])
 
     async function handleAccept() {
         if (!result?.roles?.length) return
@@ -166,41 +185,43 @@ export function EstimationRoleBuilder(props: Props) {
         <div className="space-y-4">
             {canRun && (
                 <div className="flex items-center gap-2 text-xs text-[#4a4a4a]">
-                    <span>Project complexity:</span>
+                    <span>{t('project_complexity')}</span>
                     <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
                         {complexity.band} · {complexity.score}/10
                     </Badge>
                 </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                    type="button"
-                    onClick={handleBuild}
-                    disabled={!canRun || loading}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
-                    size="lg"
-                >
-                    {loading ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {LOADING_STEPS[loadingStep]}
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Build AI Team &amp; Estimate
-                        </>
+            {!props.hideBuildButton && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                        type="button"
+                        onClick={handleBuild}
+                        disabled={!canRun || loading}
+                        className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
+                        size="lg"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {t(LOADING_STEP_KEYS[loadingStep])}
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                {t('build_ai_team_estimate')}
+                            </>
+                        )}
+                    </Button>
+                    {props.extraAction && (
+                        <div className="flex-1">{props.extraAction}</div>
                     )}
-                </Button>
-                {props.extraAction && (
-                    <div className="flex-1">{props.extraAction}</div>
-                )}
-            </div>
+                </div>
+            )}
 
-            {!canRun && (
+            {!props.hideBuildButton && !canRun && (
                 <p className="text-xs text-[#4a4a4a] text-center">
-                    Set Budget and Timeline on the deal to enable role-mix suggestions. The AI will estimate workload hours from the project description.
+                    {t('set_budget_timeline_hint')}
                 </p>
             )}
 
@@ -213,7 +234,7 @@ export function EstimationRoleBuilder(props: Props) {
                         <div className="rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-900 flex items-center gap-2">
                             <Sparkles className="h-3.5 w-3.5 shrink-0" />
                             <span>
-                                AI estimated workload at <span className="font-semibold">{result.estimatedTotalHours.toLocaleString()} hours</span> total, distributed across the roles below.
+                                {t('ai_estimated_workload', { hours: result.estimatedTotalHours.toLocaleString() })}
                             </span>
                         </div>
                     )}
@@ -221,12 +242,12 @@ export function EstimationRoleBuilder(props: Props) {
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-slate-50">
-                                    <TableHead>Role</TableHead>
-                                    <TableHead className="text-right">Qty</TableHead>
-                                    <TableHead className="text-right">Months</TableHead>
-                                    <TableHead className="text-right">Hours</TableHead>
-                                    <TableHead className="text-right">Monthly salary range</TableHead>
-                                    <TableHead className="text-right">Estimated cost</TableHead>
+                                    <TableHead>{t('role')}</TableHead>
+                                    <TableHead className="text-right">{t('qty')}</TableHead>
+                                    <TableHead className="text-right">{t('months_col')}</TableHead>
+                                    <TableHead className="text-right">{t('hours_col')}</TableHead>
+                                    <TableHead className="text-right">{t('monthly_salary_range')}</TableHead>
+                                    <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -269,12 +290,12 @@ export function EstimationRoleBuilder(props: Props) {
                             <span className="tabular-nums">{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                            <span className="text-[#4a4a4a]">Client budget</span>
+                            <span className="text-[#4a4a4a]">{t('client_budget_label')}</span>
                             <span className="tabular-nums">{formatMoney(budget, currency)}</span>
                         </div>
                         <div className={`flex justify-between text-xs font-medium ${result.isFeasible ? 'text-emerald-700' : 'text-rose-700'}`}>
                             <span>{result.feasibilityNote}</span>
-                            <span className="tabular-nums">{result.profitMarginPercent.toFixed(1)}% margin</span>
+                            <span className="tabular-nums">{t('margin_pct_short', { pct: result.profitMarginPercent.toFixed(1) })}</span>
                         </div>
                     </div>
 
@@ -300,7 +321,7 @@ export function EstimationRoleBuilder(props: Props) {
                             disabled={accepting}
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
-                            {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Accept Roles'}
+                            {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('accept_roles')}
                         </Button>
                         <Button
                             type="button"
@@ -308,7 +329,7 @@ export function EstimationRoleBuilder(props: Props) {
                             onClick={handleBuild}
                             disabled={loading}
                         >
-                            Regenerate
+                            {t('regenerate')}
                         </Button>
                     </div>
                 </div>
