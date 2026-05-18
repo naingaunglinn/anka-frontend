@@ -123,12 +123,12 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="!max-w-none w-fit min-w-[64rem] p-6">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-indigo-500" />
-                        AI Team Preview
-                        {projectName && <span className="text-sm font-normal text-slate-500">— {projectName}</span>}
+                    <DialogTitle className="flex items-center gap-2 pr-8">
+                        <Sparkles className="h-4 w-4 text-indigo-500 shrink-0" />
+                        <span>AI Team Preview</span>
+                        {projectName && <span className="text-sm font-normal text-slate-500 truncate">— {projectName}</span>}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -177,11 +177,11 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Employee</TableHead>
-                                                <TableHead>Rank</TableHead>
-                                                <TableHead>Capacity role</TableHead>
-                                                <TableHead className="text-right">Months</TableHead>
-                                                <TableHead className="text-right">Allocated (h)</TableHead>
+                                                <TableHead className="whitespace-nowrap">Employee</TableHead>
+                                                <TableHead className="whitespace-nowrap">Rank</TableHead>
+                                                <TableHead className="whitespace-nowrap">Capacity role</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Months</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Allocated (h)</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -219,12 +219,12 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Role</TableHead>
-                                                <TableHead className="text-right">Hours budget</TableHead>
-                                                <TableHead className="text-right">Hours supply</TableHead>
-                                                <TableHead className="text-right">Cost budget</TableHead>
-                                                <TableHead className="text-right">Cost used</TableHead>
-                                                <TableHead>Status</TableHead>
+                                                <TableHead className="whitespace-nowrap">Role</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Hours budget</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Hours supply</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Cost budget</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Cost used</TableHead>
+                                                <TableHead className="whitespace-nowrap">Status</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -234,23 +234,23 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                                 const ok         = !shortHours && !overCost;
                                                 return (
                                                     <TableRow key={c.roleType}>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             <div className="font-medium">{c.roleType}</div>
                                                             <div className="text-xs text-slate-500">
                                                                 {c.quantity}× / up to {c.monthsMax} mo
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="text-right tabular-nums">{Math.round(c.hoursBudget)}h</TableCell>
-                                                        <TableCell className={`text-right tabular-nums ${shortHours ? 'text-amber-700 font-semibold' : ''}`}>
+                                                        <TableCell className="text-right tabular-nums whitespace-nowrap">{Math.round(c.hoursBudget)}h</TableCell>
+                                                        <TableCell className={`text-right tabular-nums whitespace-nowrap ${shortHours ? 'text-amber-700 font-semibold' : ''}`}>
                                                             {Math.round(c.hoursSupply)}h
                                                             {shortHours && <span className="ml-1 text-xs">(−{Math.round(c.hoursShortfall)})</span>}
                                                         </TableCell>
-                                                        <TableCell className="text-right tabular-nums">Ks{formatMoney(c.costBudget)}</TableCell>
-                                                        <TableCell className={`text-right tabular-nums ${overCost ? 'text-rose-700 font-semibold' : ''}`}>
+                                                        <TableCell className="text-right tabular-nums whitespace-nowrap">Ks{formatMoney(c.costBudget)}</TableCell>
+                                                        <TableCell className={`text-right tabular-nums whitespace-nowrap ${overCost ? 'text-rose-700 font-semibold' : ''}`}>
                                                             Ks{formatMoney(c.costUsed)}
                                                             {overCost && <span className="ml-1 text-xs">(+{formatMoney(c.costOverrun)})</span>}
                                                         </TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             {ok && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">ok</Badge>}
                                                             {shortHours && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">short</Badge>}
                                                             {overCost && <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs ml-1">over budget</Badge>}
@@ -276,24 +276,24 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Role / needed rank</TableHead>
-                                                <TableHead>Employee</TableHead>
-                                                <TableHead>Rank</TableHead>
-                                                <TableHead className="text-right">Allocated (h)</TableHead>
-                                                <TableHead>Fit</TableHead>
+                                                <TableHead className="whitespace-nowrap">Role / needed rank</TableHead>
+                                                <TableHead className="whitespace-nowrap">Employee</TableHead>
+                                                <TableHead className="whitespace-nowrap">Rank</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap">Allocated (h)</TableHead>
+                                                <TableHead className="whitespace-nowrap">Fit</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {proposed.map((p, i) => (
                                                 <TableRow key={`${p.ghostRoleId}-${p.employeeId}-${i}`}>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         <div className="font-medium">{p.roleType}</div>
                                                         <div className="text-xs text-slate-500">{p.neededRank ?? 'unspecified rank'}</div>
                                                     </TableCell>
-                                                    <TableCell>{p.employeeName ?? p.employeeId}</TableCell>
-                                                    <TableCell>{p.employeeRank ?? '—'}</TableCell>
-                                                    <TableCell className="text-right">{p.allocatedHours}</TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">{p.employeeName ?? p.employeeId}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{p.employeeRank ?? '—'}</TableCell>
+                                                    <TableCell className="text-right tabular-nums whitespace-nowrap">{p.allocatedHours}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         <Badge variant="outline" className={`text-xs ${RANK_MATCH_VARIANTS[p.rankMatch]}`}>
                                                             {p.rankMatch}
                                                         </Badge>

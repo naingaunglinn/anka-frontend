@@ -212,9 +212,15 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
         {
             id: 'sellPerHour',
             // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (3×). What we
-            // quote clients per hour of this employee's time.
+            // quote clients per hour of this employee's time. Only billable
+            // (delivery / engineering) departments — IT — get a sell rate;
+            // back-office staff (Sales, HR, etc.) intentionally show "—"
+            // because their hours are never invoiced.
             accessorFn: (row) => {
                 const raw = row.costPerHour;
+                const dept = (row.departmentName ?? '').toLowerCase();
+                const billable = dept === 'it' || dept === 'delivery' || dept === 'engineering';
+                if (!billable) return null;
                 return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
                     ? applyBillingMarkup(applySellMarkup(raw))
                     : null;
