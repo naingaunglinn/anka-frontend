@@ -215,7 +215,13 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             id: 'sellPerHour',
             // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (3×). What we
             // quote clients per hour of this employee's time.
+            //
+            // Only billable departments get a sell price. Non-IT staff
+            // (Sales, HR, etc.) still incur cost (column above) but are
+            // never quoted to clients — sell column shows "—" for them,
+            // matching the spec sheet's greyed-out sellPrice cells.
             accessorFn: (row) => {
+                if (row.departmentName && row.departmentName !== 'IT') return null;
                 const raw = row.costPerHour;
                 return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
                     ? applyBillingMarkup(applySellMarkup(raw))
