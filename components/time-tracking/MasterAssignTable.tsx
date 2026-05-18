@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, ListTree } from 'lucide-react';
+import { Loader2, ListTree, Search, X } from 'lucide-react';
 import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
@@ -66,6 +66,95 @@ export function MasterAssignTable({ projectId }: Props) {
 
     const [drillRow, setDrillRow] = useState<ScheduleTrackingRow | null>(null);
 
+    // Client-side filters. Search by FunctionID/機能名, narrow to rows that
+    // touch a specific assignee (or "Unassigned"), or to rows where at least
+    // one phase is in the selected status. All three combine with AND.
+    const [searchText, setSearchText] = useState('');
+    const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
+
+    // Dropdown options come from the assignees actually present in the loaded
+    // phases — supplemented by the project team list. Sourcing from phases is
+    // critical: if a team member's UUID drifts (re-added employee, AI assigned
+    // an old record, etc.), the grid still shows their old UUID and the team
+    // list shows the new one. Picking the new one would filter to nothing.
+    // We key by assignee_id and prefer the phase's `assignee_name` so the
+    // dropdown label matches what's rendered in the row.
+    const assigneeOptions = useMemo(() => {
+        const byId = new Map<string, string>(); // id -> display name
+        for (const t of tasks) {
+            for (const p of t.phases) {
+                if (p.assigneeId && !byId.has(p.assigneeId)) {
+                    byId.set(p.assigneeId, p.assigneeName ?? p.assigneeId);
+                }
+            }
+        }
+        for (const m of team) {
+            if (m.employeeId && !byId.has(m.employeeId)) {
+                byId.set(m.employeeId, m.employeeName ?? m.employeeId);
+            }
+        }
+        return Array.from(byId, ([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [tasks, team]);
+
+    const filteredTasks = useMemo(() => {
+        const needle = searchText.trim().toLowerCase();
+        return tasks.filter((t) => {
+            if (needle) {
+                const hay = `${t.functionId ?? ''} ${t.functionName ?? ''}`.toLowerCase();
+                if (!hay.includes(needle)) return false;
+            }
+            if (assigneeFilter !== 'all') {
+                const matched = t.phases.some((p) =>
+                    assigneeFilter === 'unassigned'
+                        ? !p.assigneeId
+                        : p.assigneeId === assigneeFilter,
+                );
+                if (!matched) return false;
+            }
+            if (statusFilter !== 'all') {
+                const matched = t.phases.some((p) => p.status === statusFilter);
+                if (!matched) return false;
+            }
+            return true;
+        });
+    }, [tasks, searchText, assigneeFilter, statusFilter]);
+
+    // Hide phase columns entirely when the assignee/status filter is on AND
+    // no row in the filtered set has a matching cell in that phase. Empty
+    // columns reserved at full width make the grid sparse and hard to read.
+    // When no filter is active, every active phase shows (legacy behavior).
+    const visibleActivePhases = useMemo(() => {
+        if (assigneeFilter === 'all' && statusFilter === 'all') {
+            return activePhases;
+        }
+        const cellMatches = (p: ProjectTaskPhaseAssignment) => {
+            if (assigneeFilter !== 'all') {
+                const ok = assigneeFilter === 'unassigned'
+                    ? !p.assigneeId
+                    : p.assigneeId === assigneeFilter;
+                if (!ok) return false;
+            }
+            if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+            return true;
+        };
+        const keep = new Set<string>();
+        for (const t of filteredTasks) {
+            for (const p of t.phases) {
+                if (cellMatches(p)) keep.add(p.phaseCode);
+            }
+        }
+        return activePhases.filter((p) => keep.has(p.code));
+    }, [activePhases, filteredTasks, assigneeFilter, statusFilter]);
+
+    const hasActiveFilter = searchText.trim() !== '' || assigneeFilter !== 'all' || statusFilter !== 'all';
+    const clearFilters = () => {
+        setSearchText('');
+        setAssigneeFilter('all');
+        setStatusFilter('all');
+    };
+
     const update = (phaseAssignmentId: string, updates: Partial<ProjectTaskPhaseAssignment>) => {
         updatePhaseAssignment.mutate({ phaseAssignmentId, updates });
     };
@@ -98,6 +187,62 @@ export function MasterAssignTable({ projectId }: Props) {
                         to generate them from <code>Estimate.xlsx</code>.
                     </div>
                 ) : (
+                    <>
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <div className="relative flex-1 min-w-[220px] max-w-[360px]">
+                            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                type="search"
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                placeholder="Search FunctionID or 機能名"
+                                className="h-8 pl-7 pr-2 text-xs"
+                            />
+                        </div>
+                        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                            <SelectTrigger className="h-8 w-[180px] text-xs">
+                                <SelectValue placeholder="Assignee" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All assignees</SelectItem>
+                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                                {assigneeOptions.map((m) => (
+                                    <SelectItem key={m.id} value={m.id}>
+                                        {m.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | TaskStatus)}>
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All statuses</SelectItem>
+                                {STATUS_VALUES.map((s) => (
+                                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {hasActiveFilter && (
+                            <button
+                                type="button"
+                                onClick={clearFilters}
+                                className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                            >
+                                <X className="h-3 w-3" />
+                                Clear
+                            </button>
+                        )}
+                        <span className="ml-auto text-xs text-slate-500 tabular-nums">
+                            {filteredTasks.length} / {tasks.length}
+                        </span>
+                    </div>
+                    {filteredTasks.length === 0 ? (
+                        <div className="py-10 text-center text-slate-500 text-sm">
+                            No tasks match the current filters.
+                        </div>
+                    ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse text-xs">
                             <thead>
@@ -106,21 +251,37 @@ export function MasterAssignTable({ projectId }: Props) {
                                     <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">FunctionID</th>
                                     <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">機能名</th>
                                     <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">難易度</th>
-                                    {activePhases.map((p) => (
+                                    {visibleActivePhases.map((p) => (
                                         <th key={p.code} colSpan={7} className="px-2 py-2 border-l-2 border-slate-300 border-r border-slate-200 text-center font-semibold text-indigo-700 bg-indigo-50/40">
                                             {p.name}
                                         </th>
                                     ))}
                                 </tr>
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    {activePhases.map((p) => (
+                                    {visibleActivePhases.map((p) => (
                                         <PhaseSubHeaders key={p.code} />
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {tasks.map((t) => {
+                                {filteredTasks.map((t) => {
                                     const byCode = new Map(t.phases.map((p) => [p.phaseCode, p]));
+                                    // When an assignee or status filter is active, blank out
+                                    // phase cells that don't match — so filtering by a manager
+                                    // who only owns documentation phases doesn't keep dev/test
+                                    // cells visible with other employees on the same row.
+                                    const cellMatchesFilters = (p: ProjectTaskPhaseAssignment) => {
+                                        if (assigneeFilter !== 'all') {
+                                            const ok = assigneeFilter === 'unassigned'
+                                                ? !p.assigneeId
+                                                : p.assigneeId === assigneeFilter;
+                                            if (!ok) return false;
+                                        }
+                                        if (statusFilter !== 'all' && p.status !== statusFilter) {
+                                            return false;
+                                        }
+                                        return true;
+                                    };
                                     return (
                                         <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                                             <td className="px-2 py-1.5 border-r border-slate-100 font-mono text-slate-500">{t.rowNo}</td>
@@ -131,18 +292,10 @@ export function MasterAssignTable({ projectId }: Props) {
                                                     {t.difficulty}
                                                 </Badge>
                                             </td>
-                                            {activePhases.map((p) => {
+                                            {visibleActivePhases.map((p) => {
                                                 const cell = byCode.get(p.code);
-                                                if (!cell) {
-                                                    return (
-                                                        <td
-                                                            key={p.code}
-                                                            colSpan={7}
-                                                            className="px-2 py-1.5 border-l-2 border-slate-200 border-r border-slate-100 text-center text-slate-300"
-                                                        >
-                                                            —
-                                                        </td>
-                                                    );
+                                                if (!cell || !cellMatchesFilters(cell)) {
+                                                    return <BlankPhaseCells key={p.code} />;
                                                 }
                                                 const tracking = trackingByPhaseId.get(cell.id);
                                                 return (
@@ -262,6 +415,8 @@ export function MasterAssignTable({ projectId }: Props) {
                             </tbody>
                         </table>
                     </div>
+                    )}
+                    </>
                 )}
             </CardContent>
             <PhaseDrillDownDrawer
@@ -271,6 +426,24 @@ export function MasterAssignTable({ projectId }: Props) {
                 isManager
             />
         </Card>
+    );
+}
+
+// Seven blank cells matching the populated phase column widths. A single
+// colSpan={7} cell shrinks because there's no content driving the widths;
+// rendering each sub-column individually keeps the table aligned with rows
+// that do have data.
+function BlankPhaseCells() {
+    return (
+        <>
+            <td className="px-2 py-1 border-l-2 border-slate-200 w-[60px] text-center text-slate-300">—</td>
+            <td className="px-1.5 py-1 min-w-[150px]" />
+            <td className="px-1.5 py-1 w-[125px]" />
+            <td className="px-1.5 py-1 w-[125px]" />
+            <td className="px-1.5 py-1 w-[125px]" />
+            <td className="px-1.5 py-1 w-[125px]" />
+            <td className="px-1.5 py-1 border-r border-slate-100 w-[110px]" />
+        </>
     );
 }
 
