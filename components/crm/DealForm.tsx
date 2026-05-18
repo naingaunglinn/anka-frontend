@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ interface DealFormProps {
 }
 
 export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps) {
+    const t = useTranslations();
     const [name, setName] = useState('');
     const [client, setClient] = useState('');
     const [estimatedValue, setEstimatedValue] = useState<number | ''>('');
@@ -47,9 +49,9 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const errs: DealFormErrors = {};
-        if (!name.trim()) errs.name = 'Please enter a deal name.';
+        if (!name.trim()) errs.name = t('please_enter_deal_name');
         const prob = Number(winProbability);
-        if (winProbability === '' || prob < 0 || prob > 100) errs.winProbability = 'Win probability must be between 0 and 100.';
+        if (winProbability === '' || prob < 0 || prob > 100) errs.winProbability = t('win_prob_range_invalid');
         setErrors(errs);
         if (Object.keys(errs).length > 0) return;
 
@@ -77,36 +79,36 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
             <DialogContent className="sm:max-w-[425px]">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
-                        <DialogTitle>{initialData ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
+                        <DialogTitle>{initialData ? t('edit_deal_button') : t('add_new_deal')}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <p className="text-xs text-[#4a4a4a] col-span-4">
-                            Fields marked <span className="text-destructive">*</span> are required.
+                            {t('fields_required_explainer')} <span className="text-destructive">*</span> {t('are_required_short')}
                         </p>
                         <div className="grid grid-cols-4 items-start gap-4">
                             <Label htmlFor="name" className="text-right pt-2">
-                                Name <span className="text-destructive">*</span>
+                                {t('name')} <span className="text-destructive">*</span>
                             </Label>
                             <div className="col-span-3 space-y-1">
                                 <Input
                                     id="name"
                                     value={name}
                                     onChange={e => { setName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: undefined })); }}
-                                    onBlur={() => { if (!name.trim()) setErrors(p => ({ ...p, name: 'Please enter a deal name.' })); }}
+                                    onBlur={() => { if (!name.trim()) setErrors(p => ({ ...p, name: t('please_enter_deal_name') })); }}
                                     aria-invalid={!!errors.name}
-                                    placeholder="e.g. Acme Corp Web App"
+                                    placeholder={t('placeholder_acme_app')}
                                 />
                                 {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
                             </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="client" className="text-right">
-                                Client <span className="text-[#4a4a4a] text-xs font-normal">(opt.)</span>
+                                {t('client')} <span className="text-[#4a4a4a] text-xs font-normal">{t('opt_short')}</span>
                             </Label>
-                            <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder="e.g. Acme Corp" />
+                            <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder={t('placeholder_acme_client')} />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="value" className="text-right">Value ({symbol})</Label>
+                            <Label htmlFor="value" className="text-right">{t('value_with_symbol', { symbol })}</Label>
                             <Input
                                 id="value"
                                 type="number"
@@ -119,7 +121,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         </div>
                         <div className="grid grid-cols-4 items-start gap-4">
                             <Label htmlFor="probability" className="text-right pt-2">
-                                Win % <span className="text-destructive">*</span>
+                                {t('win_pct')} <span className="text-destructive">*</span>
                             </Label>
                             <div className="col-span-3 space-y-1">
                                 <Input
@@ -135,24 +137,24 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                             </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="stage" className="text-right">Stage</Label>
+                            <Label htmlFor="stage" className="text-right">{t('stage')}</Label>
                             <div className="col-span-3">
                                 <Select value={status} onValueChange={val => setStatus(val as Deal['status'])}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select stage" />
+                                        <SelectValue placeholder={t('select_stage')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="lead">C — Lead</SelectItem>
-                                        <SelectItem value="qualified">B — Qualified</SelectItem>
-                                        <SelectItem value="negotiation">A — Negotiation</SelectItem>
+                                        <SelectItem value="lead">{t('stage_lead')}</SelectItem>
+                                        <SelectItem value="qualified">{t('stage_qualified')}</SelectItem>
+                                        <SelectItem value="negotiation">{t('stage_negotiation')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-                        <Button type="submit">Save changes</Button>
+                        <Button type="button" variant="outline" onClick={onClose}>{t('cancel')}</Button>
+                        <Button type="submit">{t('save_changes')}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

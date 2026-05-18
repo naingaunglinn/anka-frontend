@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,13 +30,14 @@ function useDebounced<T>(value: T, delay = 300): T {
     return debounced;
 }
 
-const HEALTH_OPTIONS: Array<{ value: string; label: string }> = [
-    { value: 'on_track', label: 'On Track' },
-    { value: 'at_risk',  label: 'At Risk' },
-    { value: 'slipping', label: 'Slipping' },
+const HEALTH_OPTION_KEYS: Array<{ value: string; labelKey: string }> = [
+    { value: 'on_track', labelKey: 'health_on_track' },
+    { value: 'at_risk',  labelKey: 'health_at_risk' },
+    { value: 'slipping', labelKey: 'health_slipping' },
 ];
 
 export default function ScheduleTrackingPage() {
+    const t = useTranslations();
     const projectsQuery = useProjectList();
     const allProjects = projectsQuery.data?.data ?? [];
     // Hide finished projects — schedule tracking is for live work.
@@ -86,9 +88,9 @@ export default function ScheduleTrackingPage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Schedule Tracking</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('schedule_tracking')}</h1>
                 <p className="text-[#8a8a8a] mt-1">
-                    Per-phase progress vs plan across the whole project. Click a row for the day-by-day log history.
+                    {t('schedule_tracking_description')}
                 </p>
             </div>
 
@@ -98,14 +100,10 @@ export default function ScheduleTrackingPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div className="flex flex-wrap items-end gap-3 w-full md:max-w-4xl">
                     <div className="space-y-1 max-w-full">
-                        <label className="text-xs text-[#8a8a8a]">Project</label>
+                        <label className="text-xs text-[#8a8a8a]">{t('project')}</label>
                         <Select value={projectId} onValueChange={setProjectId}>
-                            {/* w-auto grows the trigger to fit the selected
-                                project's name; max-w keeps it from running off
-                                the row on extreme cases. Search + Health below
-                                use flex-1 so they take whatever space is left. */}
                             <SelectTrigger className="w-auto max-w-[min(100%,640px)]">
-                                <SelectValue placeholder="Pick a project" />
+                                <SelectValue placeholder={t('pick_a_project')} />
                             </SelectTrigger>
                             <SelectContent className="max-w-[640px]">
                                 {projects.map((p) => (
@@ -117,25 +115,25 @@ export default function ScheduleTrackingPage() {
                         </Select>
                     </div>
                     <div className="space-y-1 flex-1 min-w-[220px]">
-                        <label className="text-xs text-[#8a8a8a]">Search</label>
+                        <label className="text-xs text-[#8a8a8a]">{t('search')}</label>
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
                             <Input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Function name, ID, or assignee…"
+                                placeholder={t('search_phase_placeholder')}
                                 className="pl-9"
                             />
                         </div>
                     </div>
                     <div className="space-y-1 min-w-[160px]">
-                        <label className="text-xs text-[#8a8a8a]">Health</label>
+                        <label className="text-xs text-[#8a8a8a]">{t('health')}</label>
                         <Select value={healthFilter || 'all'} onValueChange={(v) => setHealthFilter(v === 'all' ? '' : v)}>
                             <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                {HEALTH_OPTIONS.map((o) => (
-                                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                <SelectItem value="all">{t('all')}</SelectItem>
+                                {HEALTH_OPTION_KEYS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -161,10 +159,10 @@ export default function ScheduleTrackingPage() {
                             valueClassName={summary.lateHours > 0 ? 'text-amber-700' : ''}
                         />
                         <div>
-                            <div className="text-[10px] uppercase text-[#8a8a8a]">Health</div>
+                            <div className="text-[10px] uppercase text-[#8a8a8a]">{t('health')}</div>
                             <ScheduleHealthBadge health={summary.health} />
                             <div className="text-xs text-[#8a8a8a] mt-1">
-                                {summary.completedCount}/{summary.phaseCount} phases done
+                                {t('phases_done_summary', { done: summary.completedCount, total: summary.phaseCount })}
                             </div>
                         </div>
                         {/* Today-only stats grouped on the right, separated from the cumulative ones by a vertical divider. */}
@@ -198,9 +196,9 @@ export default function ScheduleTrackingPage() {
                         </TableHeader>
                         <TableBody>
                             {listQuery.isLoading ? (
-                                <TableRow><TableCell colSpan={10} className="py-12"><LoadingState message="Loading tracking data…" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="py-12"><LoadingState message={t('loading_tracking_data')} /></TableCell></TableRow>
                             ) : rows.length === 0 ? (
-                                <TableRow><TableCell colSpan={10} className="py-10 text-center text-[#8a8a8a]">No phases match the current filters.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="py-10 text-center text-[#8a8a8a]">{t('no_phases_match_filters')}</TableCell></TableRow>
                             ) : rows.map((row) => (
                                 <TableRow key={row.id} className="cursor-pointer hover:bg-[#fafbfc]" onClick={() => setSelectedRow(row)}>
                                     <TableCell className="text-xs text-[#8a8a8a]">{row.functionId ?? '—'}</TableCell>
@@ -229,11 +227,11 @@ export default function ScheduleTrackingPage() {
             {/* Pagination */}
             {meta.total ? (
                 <div className="flex items-center justify-between text-sm text-[#8a8a8a]">
-                    <div>{rows.length} of {meta.total} phases</div>
+                    <div>{t('n_of_total_phases', { shown: rows.length, total: meta.total })}</div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" disabled={page <= 1 || listQuery.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
-                        <span className="px-2">Page {meta.current_page ?? page} of {meta.last_page ?? 1}</span>
-                        <Button variant="outline" size="sm" disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                        <Button variant="outline" size="sm" disabled={page <= 1 || listQuery.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t('previous')}</Button>
+                        <span className="px-2">{t('page_x_of_y', { current: meta.current_page ?? page, total: meta.last_page ?? 1 })}</span>
+                        <Button variant="outline" size="sm" disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching} onClick={() => setPage((p) => p + 1)}>{t('next')}</Button>
                     </div>
                 </div>
             ) : null}
@@ -243,8 +241,8 @@ export default function ScheduleTrackingPage() {
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-0">
                         <div className="px-4 py-3 border-b border-[#e6e9ee] bg-[#fafbfc]">
-                            <h2 className="font-semibold">By Assignee</h2>
-                            <p className="text-xs text-[#8a8a8a]">Most behind first.</p>
+                            <h2 className="font-semibold">{t('by_assignee')}</h2>
+                            <p className="text-xs text-[#8a8a8a]">{t('most_behind_first')}</p>
                         </div>
                         <Table>
                             <TableHeader>

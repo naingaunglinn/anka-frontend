@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     ColumnDef,
     flexRender,
@@ -53,6 +54,7 @@ function levelBadgeClass(level: number): string {
 }
 
 export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
+    const t = useTranslations();
     const [sorting, setSorting] = useState<SortingState>([{ id: 'level', desc: false }]);
 
     const columns: ColumnDef<Rank>[] = [
@@ -64,7 +66,7 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Level
+                    {t('level_col')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -81,7 +83,7 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Name
+                    {t('name')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -89,7 +91,7 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
         },
         {
             accessorKey: 'code',
-            header: 'Code',
+            header: t('code_col'),
             cell: ({ row }) => (
                 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700">
                     {row.getValue('code')}
@@ -104,18 +106,18 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('open_menu')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => onEdit(rank)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onDelete(rank.id)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_action')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -165,7 +167,7 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                                    No ranks defined yet.
+                                    {t('no_ranks_found')}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -174,10 +176,10 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
             </div>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-                    Previous
+                    {t('previous')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-                    Next
+                    {t('next')}
                 </Button>
             </div>
         </div>

@@ -44,20 +44,6 @@ api.interceptors.request.use(async (config) => {
         config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Demo mode is read-only: block mutating API calls.
-    if (
-        typeof window !== 'undefined' &&
-        MUTATING_METHODS.has(config.method?.toLowerCase() ?? '')
-    ) {
-        const rawUiStore = window.localStorage.getItem('ui-storage');
-        const parsedUiStore = rawUiStore ? JSON.parse(rawUiStore) : null;
-        const isDemoMode = !!parsedUiStore?.state?.isDemoMode;
-        if (isDemoMode) {
-            toast.error('Demo mode is read-only. Editing actions are disabled.');
-            return Promise.reject(new AxiosError('Demo mode is read-only', 'ERR_DEMO_READ_ONLY', config));
-        }
-    }
-
     return config;
 });
 

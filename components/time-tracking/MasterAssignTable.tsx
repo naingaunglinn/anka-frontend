@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export function MasterAssignTable({ projectId }: Props) {
+    const t = useTranslations();
     const tasksQuery = useProjectTaskAssignments(projectId);
     const teamQuery = useProjectTeam(projectId);
     const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
@@ -166,11 +168,10 @@ export function MasterAssignTable({ projectId }: Props) {
                     <div>
                         <CardTitle className="flex items-center gap-2 text-base">
                             <ListTree className="h-4 w-4 text-indigo-600" />
-                            Master Assign Table
+                            {t('master_assign_table')}
                         </CardTitle>
                         <CardDescription>
-                            Per-phase owners from Estimate.xlsx (Web_Manhour_Detail).
-                            Click any 担当者, date, or ステータス cell to edit.
+                            {t('master_assign_desc')}
                         </CardDescription>
                     </div>
                     {tasksQuery.isFetching && (
@@ -180,11 +181,10 @@ export function MasterAssignTable({ projectId }: Props) {
             </CardHeader>
             <CardContent>
                 {tasksQuery.isLoading ? (
-                    <div className="py-10 text-center text-slate-500 text-sm">Loading task assignments…</div>
+                    <div className="py-10 text-center text-slate-500 text-sm">{t('loading_task_assignments')}</div>
                 ) : tasks.length === 0 ? (
                     <div className="py-10 text-center text-slate-500 text-sm">
-                        No task assignments yet. Click <strong>AI Task Assignment</strong> on a project above
-                        to generate them from <code>Estimate.xlsx</code>.
+                        {t('no_task_assignments')}
                     </div>
                 ) : (
                     <>
@@ -247,10 +247,10 @@ export function MasterAssignTable({ projectId }: Props) {
                         <table className="w-full border-collapse text-xs">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[50px]">NO</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">FunctionID</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">機能名</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">難易度</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[50px]">{t('col_no')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">{t('col_function_id')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">{t('col_function_name_jp')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">{t('col_difficulty')}</th>
                                     {visibleActivePhases.map((p) => (
                                         <th key={p.code} colSpan={7} className="px-2 py-2 border-l-2 border-slate-300 border-r border-slate-200 text-center font-semibold text-indigo-700 bg-indigo-50/40">
                                             {p.name}
@@ -264,8 +264,8 @@ export function MasterAssignTable({ projectId }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredTasks.map((t) => {
-                                    const byCode = new Map(t.phases.map((p) => [p.phaseCode, p]));
+                                {filteredTasks.map((task) => {
+                                    const byCode = new Map(task.phases.map((p) => [p.phaseCode, p]));
                                     // When an assignee or status filter is active, blank out
                                     // phase cells that don't match — so filtering by a manager
                                     // who only owns documentation phases doesn't keep dev/test
@@ -283,13 +283,13 @@ export function MasterAssignTable({ projectId }: Props) {
                                         return true;
                                     };
                                     return (
-                                        <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                                            <td className="px-2 py-1.5 border-r border-slate-100 font-mono text-slate-500">{t.rowNo}</td>
-                                            <td className="px-2 py-1.5 border-r border-slate-100 font-mono">{t.functionId ?? '—'}</td>
-                                            <td className="px-2 py-1.5 border-r border-slate-100 font-medium text-slate-700">{t.functionName}</td>
+                                        <tr key={task.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                                            <td className="px-2 py-1.5 border-r border-slate-100 font-mono text-slate-500">{task.rowNo}</td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100 font-mono">{task.functionId ?? '—'}</td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100 font-medium text-slate-700">{task.functionName}</td>
                                             <td className="px-2 py-1.5 border-r border-slate-100">
-                                                <Badge variant="outline" className={DIFFICULTY_VARIANTS[t.difficulty]}>
-                                                    {t.difficulty}
+                                                <Badge variant="outline" className={DIFFICULTY_VARIANTS[task.difficulty]}>
+                                                    {task.difficulty}
                                                 </Badge>
                                             </td>
                                             {visibleActivePhases.map((p) => {
@@ -307,7 +307,7 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => setDrillRow(tracking)}
-                                                                        title="View daily progress"
+                                                                        title={t('view_daily_progress')}
                                                                         className="cursor-pointer"
                                                                     >
                                                                         <ScheduleHealthBadge
@@ -325,7 +325,7 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                 onValueChange={(v) => update(cell.id, { assigneeId: v || null })}
                                                             >
                                                                 <SelectTrigger className="h-7 text-xs">
-                                                                    <SelectValue placeholder="Unassigned">
+                                                                    <SelectValue placeholder={t('unassigned_short')}>
                                                                         {cell.assigneeName ? (
                                                                             <span className="flex items-center gap-1">
                                                                                 {cell.assigneeName}
@@ -335,7 +335,7 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                                     </span>
                                                                                 )}
                                                                             </span>
-                                                                        ) : 'Unassigned'}
+                                                                        ) : t('unassigned_short')}
                                                                     </SelectValue>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -448,15 +448,16 @@ function BlankPhaseCells() {
 }
 
 function PhaseSubHeaders() {
+    const t = useTranslations();
     return (
         <>
-            <th className="px-2 py-1.5 border-l-2 border-slate-300 text-right font-medium text-slate-600 bg-indigo-50/20">工数(h)</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">担当者</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">予定開始</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">予定終了</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">実績開始</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">実績終了</th>
-            <th className="px-2 py-1.5 border-r border-slate-200 text-left font-medium text-slate-600 bg-indigo-50/20">ステータス</th>
+            <th className="px-2 py-1.5 border-l-2 border-slate-300 text-right font-medium text-slate-600 bg-indigo-50/20">{t('col_hours_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_assignee_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_planned_start_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_planned_end_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_actual_start_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_actual_end_jp')}</th>
+            <th className="px-2 py-1.5 border-r border-slate-200 text-left font-medium text-slate-600 bg-indigo-50/20">{t('col_status_jp')}</th>
         </>
     );
 }

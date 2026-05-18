@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBusinessStore } from '@/store/businessStore';
 import { useDealDetail, useDealMutations } from '@/lib/queries/deals';
 import { useContractList } from '@/lib/queries/contracts';
@@ -28,18 +29,25 @@ import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/Wo
 import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
 import type { EstimationResource } from '@/types/business';
 
-// Rank labels (lead → C, qualified → B, negotiation → A, won → S, lost → D).
-// The old "Proposal" stage was merged into Qualified — see
-// 2026_05_12_000001_collapse_proposal_into_qualified.php.
-const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-    lead:        { label: 'C — Lead',        color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    qualified:   { label: 'B — Qualified',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    negotiation: { label: 'A — Negotiation', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    won:         { label: 'S — Won',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    lost:        { label: 'D — Lost',        color: 'bg-red-50 text-red-700 border-red-200' },
+// Stage colors (label is resolved via translation: t(STAGE_LABEL_KEY[stage])).
+const STAGE_COLOR: Record<string, string> = {
+    lead:        'bg-slate-100 text-slate-700 border-slate-200',
+    qualified:   'bg-blue-50 text-blue-700 border-blue-200',
+    negotiation: 'bg-purple-50 text-purple-700 border-purple-200',
+    won:         'bg-emerald-50 text-emerald-700 border-emerald-200',
+    lost:        'bg-red-50 text-red-700 border-red-200',
+};
+
+const STAGE_LABEL_KEY: Record<string, string> = {
+    lead:        'stage_lead',
+    qualified:   'stage_qualified',
+    negotiation: 'stage_negotiation',
+    won:         'stage_won',
+    lost:        'stage_lost',
 };
 
 export default function DealDetailPage() {
+    const t = useTranslations();
     const params  = useParams();
     const router  = useRouter();
     const dealId  = params.id as string;
@@ -150,7 +158,7 @@ export default function DealDetailPage() {
     if (dealQuery.isLoading) {
         return (
             <div className="p-8 flex items-center justify-center">
-                <p className="text-sm text-slate-500 animate-pulse">Loading deal...</p>
+                <p className="text-sm text-slate-500 animate-pulse">{t('loading_deal')}</p>
             </div>
         );
     }
@@ -158,17 +166,18 @@ export default function DealDetailPage() {
     if (dealQuery.isError || !dealToEdit) {
         return (
             <div className="p-8 space-y-3">
-                <p className="text-sm text-destructive">Could not load this deal.</p>
-                <Button variant="outline" onClick={() => dealQuery.refetch()}>Retry</Button>
+                <p className="text-sm text-destructive">{t('could_not_load_deal')}</p>
+                <Button variant="outline" onClick={() => dealQuery.refetch()}>{t('retry')}</Button>
             </div>
         );
     }
 
-    const stage     = dealToEdit.status ?? 'lead';
-    const stageInfo = STAGE_CONFIG[stage] ?? STAGE_CONFIG.lead;
-    const isWon     = stage === 'won';
-    const isLost    = stage === 'lost';
-    const isClosed  = isWon || isLost;
+    const stage      = dealToEdit.status ?? 'lead';
+    const stageColor = STAGE_COLOR[stage] ?? STAGE_COLOR.lead;
+    const stageLabel = t(STAGE_LABEL_KEY[stage] ?? STAGE_LABEL_KEY.lead);
+    const isWon      = stage === 'won';
+    const isLost     = stage === 'lost';
+    const isClosed   = isWon || isLost;
 
     const marginPct = estimationRollup.marginPct;
     // B-and-above gate for the Financial Summary right-rail card. Ranks: lead=C,
@@ -185,9 +194,9 @@ export default function DealDetailPage() {
     // Workflow steps — lost deals never produce a contract or project, so
     // "Pending" is misleading. Show "N/A" instead so the row reads as terminal.
     const downstreamLabel = (current: string | undefined) => {
-        if (isLost) return 'N/A — Deal Lost';
+        if (isLost) return t('na_deal_lost');
         if (current) return current;
-        return isWon ? 'Created' : 'Pending';
+        return isWon ? t('created') : t('pending');
     };
 
     // Contract step surfaces the draft state when a contract record doesn't
@@ -195,36 +204,34 @@ export default function DealDetailPage() {
     // (drafting / sent / awaiting countersign) instead of a flat "Pending".
     let contractDetail: string;
     if (isLost) {
-        contractDetail = 'N/A — Deal Lost';
+        contractDetail = t('na_deal_lost');
     } else if (linkedContract) {
         contractDetail = `${linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} · ${linkedContract.status}`;
     } else if (activeDraft?.status === 'sent_to_customer') {
-        contractDetail = `Draft v${activeDraft.version} · sent · awaiting signature`;
+        contractDetail = t('draft_sent_awaiting_signature', { version: activeDraft.version });
     } else if (activeDraft?.status === 'signed') {
-        contractDetail = `Draft v${activeDraft.version} · signed · creating contract…`;
+        contractDetail = t('draft_signed_creating_contract', { version: activeDraft.version });
     } else if (activeDraft?.status === 'draft') {
-        contractDetail = `Draft v${activeDraft.version} · in progress`;
+        contractDetail = t('draft_in_progress', { version: activeDraft.version });
     } else {
-        contractDetail = isWon ? 'Created' : 'Pending';
+        contractDetail = isWon ? t('created') : t('pending');
     }
 
     const workflowSteps: WorkflowStep[] = [
         {
-            label: 'Deal',
-            detail: stageInfo.label,
+            label: t('workflow_deal'),
+            detail: stageLabel,
             done:   isWon,
             active: !isClosed,
         },
         {
-            label: 'Contract',
+            label: t('workflow_contract'),
             detail: contractDetail,
             done:   !!linkedContract,
-            // "Active" lights up the moment a draft exists, not just when
-            // the deal is Won — drafting is real, visible work.
             active: !isClosed && (!!activeDraft || (isWon && !linkedContract)),
         },
         {
-            label: 'Project',
+            label: t('workflow_project'),
             detail: downstreamLabel(
                 linkedProject
                     ? `${linkedProject.projectNumber ?? linkedProject.id.slice(0, 8)} · ${linkedProject.status}`
@@ -247,7 +254,7 @@ export default function DealDetailPage() {
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900">{dealToEdit.name}</h1>
                         <p className="text-slate-500 mt-0.5">
                             {dealToEdit.client && <span>{dealToEdit.client} · </span>}
-                            <Badge variant="outline" className={stageInfo.color}>{stageInfo.label}</Badge>
+                            <Badge variant="outline" className={stageColor}>{stageLabel}</Badge>
                         </p>
                     </div>
                 </div>
@@ -262,10 +269,10 @@ export default function DealDetailPage() {
                             className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                             onClick={() => router.push(`/project-pipeline/${dealId}/contract-draft/${activeDraft.id}`)}
                         >
-                            <FileText className="h-4 w-4" /> Open contract draft
+                            <FileText className="h-4 w-4" /> {t('open_contract_draft')}
                             {activeDraft.todo_count > 0 && (
                                 <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">
-                                    {activeDraft.todo_count} TODO
+                                    {activeDraft.todo_count} {t('todo_short')}
                                 </Badge>
                             )}
                         </Button>
@@ -276,7 +283,7 @@ export default function DealDetailPage() {
                                     className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
                                     onClick={() => router.push(`/project-pipeline/${dealId}/contract-draft/new`)}
                                 >
-                                    <Sparkles className="h-4 w-4" /> Generate Contract Draft
+                                    <Sparkles className="h-4 w-4" /> {t('generate_contract_draft')}
                                 </Button>
                             </PermissionGuard>
                         )
@@ -286,18 +293,16 @@ export default function DealDetailPage() {
                         className="gap-2"
                         onClick={() => router.push(`/estimation?dealId=${dealId}`)}
                     >
-                        <Calculator className="h-4 w-4" /> Estimation
+                        <Calculator className="h-4 w-4" /> {t('estimation')}
                     </Button>
                     <PermissionGuard permission="manage_crm">
                         <Button variant="outline" className="gap-2" onClick={() => router.push(`/project-pipeline/edit/${dealId}`)}>
-                            <Edit3 className="h-4 w-4" /> Edit Deal
+                            <Edit3 className="h-4 w-4" /> {t('edit_deal_button')}
                         </Button>
                     </PermissionGuard>
-                    {/* Hard Booking lives in the Task Assign menu now —
-                        no button here. */}
                     <PermissionGuard permission="manage_crm">
                         <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-                            Delete
+                            {t('delete')}
                         </Button>
                     </PermissionGuard>
                 </div>
@@ -314,7 +319,7 @@ export default function DealDetailPage() {
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Client Budget</p>
+                            <p className="text-sm font-medium text-slate-500">{t('client_budget')}</p>
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
@@ -325,7 +330,7 @@ export default function DealDetailPage() {
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Est. Total Cost</p>
+                            <p className="text-sm font-medium text-slate-500">{t('est_total_cost')}</p>
                             <TrendingUp className="h-4 w-4 text-slate-400" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
@@ -336,7 +341,7 @@ export default function DealDetailPage() {
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Gross Profit</p>
+                            <p className="text-sm font-medium text-slate-500">{t('gross_profit')}</p>
                             <DollarSign className="h-4 w-4 text-blue-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold">
@@ -354,7 +359,7 @@ export default function DealDetailPage() {
                 <Card className="shadow-sm border-slate-100">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">Win Probability</p>
+                            <p className="text-sm font-medium text-slate-500">{t('win_probability')}</p>
                             <Target className="h-4 w-4 text-purple-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
@@ -370,21 +375,21 @@ export default function DealDetailPage() {
                     {/* Deal Overview */}
                     <Card className="shadow-sm border-slate-100">
                         <CardHeader className="border-b bg-slate-50/50">
-                            <CardTitle className="text-lg">Deal Overview</CardTitle>
+                            <CardTitle className="text-lg">{t('deal_overview')}</CardTitle>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Deal Name</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('deal_name')}</p>
                                     <p className="text-sm font-medium mt-1">{dealToEdit.name}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Client</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('client')}</p>
                                     <p className="text-sm font-medium mt-1">{dealToEdit.client || '—'}</p>
                                 </div>
                                 {dealToEdit.contactName && (
                                     <div>
-                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Contact</p>
+                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('contact')}</p>
                                         <p className="text-sm font-medium mt-1">{dealToEdit.contactName}</p>
                                         {dealToEdit.contactEmail && (
                                             <p className="text-xs text-slate-400">{dealToEdit.contactEmail}</p>
@@ -392,28 +397,28 @@ export default function DealDetailPage() {
                                     </div>
                                 )}
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Timeline</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('timeline')}</p>
                                     <p className="text-sm font-medium mt-1 flex items-center gap-1.5">
                                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                                        {dealToEdit.timelineMonths ?? 0} month{(dealToEdit.timelineMonths ?? 0) !== 1 ? 's' : ''}
+                                        {t('months', { count: dealToEdit.timelineMonths ?? 0 })}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Workload</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('workload')}</p>
                                     <p className="text-sm font-medium mt-1 flex items-center gap-1.5">
                                         <Clock className="h-3.5 w-3.5 text-slate-400" />
-                                        {dealToEdit.workloadHours ?? 0} hours
+                                        {t('workload_hours', { hours: dealToEdit.workloadHours ?? 0 })}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Expected Start Date</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('expected_start_date')}</p>
                                     <p className="text-sm font-medium mt-1 flex items-center gap-1.5">
                                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
                                         {dealToEdit.expectedCloseDate ?? '—'}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">OT Condition</p>
+                                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('ot_condition')}</p>
                                     <p className="text-sm font-medium mt-1">
                                         {dealToEdit.otPolicyModel ? formatOtSummary(dealToEdit) : '—'}
                                     </p>
@@ -433,19 +438,19 @@ export default function DealDetailPage() {
                     {/* Ghost Roles */}
                     <Card className="shadow-sm border-slate-100">
                         <CardHeader className="border-b bg-slate-50/50">
-                            <CardTitle className="text-lg">Ghost Roles and Staffing</CardTitle>
-                            <CardDescription>Estimated team composition for delivery</CardDescription>
+                            <CardTitle className="text-lg">{t('ghost_roles_staffing')}</CardTitle>
+                            <CardDescription>{t('estimated_team_composition')}</CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">
                             {dealToEdit.ghostRoles && dealToEdit.ghostRoles.length > 0 ? (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead>Role</TableHead>
-                                            <TableHead className="text-right">Quantity</TableHead>
-                                            <TableHead className="text-right">Alloc %</TableHead>
-                                            <TableHead className="text-right">Monthly Salary</TableHead>
-                                            <TableHead className="text-right">Subtotal</TableHead>
+                                            <TableHead>{t('role')}</TableHead>
+                                            <TableHead className="text-right">{t('quantity')}</TableHead>
+                                            <TableHead className="text-right">{t('alloc_pct')}</TableHead>
+                                            <TableHead className="text-right">{t('monthly_salary')}</TableHead>
+                                            <TableHead className="text-right">{t('subtotal')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -468,7 +473,7 @@ export default function DealDetailPage() {
                                             );
                                         })}
                                         <TableRow className="bg-slate-50/50 font-bold">
-                                            <TableCell>Total Labor Cost</TableCell>
+                                            <TableCell>{t('total_labor_cost')}</TableCell>
                                             <TableCell /><TableCell /><TableCell />
                                             <TableCell className="text-right">{formatMoney(ghostLaborCost, currency)}</TableCell>
                                         </TableRow>
@@ -476,7 +481,7 @@ export default function DealDetailPage() {
                                 </Table>
                             ) : (
                                 <div className="p-8 text-center text-sm text-slate-500">
-                                    No ghost roles defined. Edit the deal to add staffing estimates.
+                                    {t('no_ghost_roles')}
                                 </div>
                             )}
                         </CardContent>
@@ -486,8 +491,8 @@ export default function DealDetailPage() {
                     {(linkedContract || linkedProject) && (
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="border-b bg-slate-50/50">
-                                <CardTitle className="text-lg">Linked Records</CardTitle>
-                                <CardDescription>Auto-created when this deal was won</CardDescription>
+                                <CardTitle className="text-lg">{t('linked_records')}</CardTitle>
+                                <CardDescription>{t('auto_created_when_won')}</CardDescription>
                             </CardHeader>
                             <CardContent className="p-4 space-y-3">
                                 {linkedContract && (
@@ -498,7 +503,7 @@ export default function DealDetailPage() {
                                         <div className="flex items-center gap-3">
                                             <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
                                             <div>
-                                                <p className="text-xs text-slate-500">Contract</p>
+                                                <p className="text-xs text-slate-500">{t('contract')}</p>
                                                 <p className="text-sm font-medium">
                                                     {linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)}
                                                     {' · '}
@@ -519,7 +524,7 @@ export default function DealDetailPage() {
                                         <div className="flex items-center gap-3">
                                             <Briefcase className="h-4 w-4 text-purple-500 flex-shrink-0" />
                                             <div>
-                                                <p className="text-xs text-slate-500">Project</p>
+                                                <p className="text-xs text-slate-500">{t('project')}</p>
                                                 <p className="text-sm font-medium">
                                                     {linkedProject.name}
                                                     {' · '}
@@ -543,42 +548,42 @@ export default function DealDetailPage() {
                     {hasFinancials && (
                         <Card className="shadow-sm border-slate-100 sticky top-6">
                             <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100">
-                                <CardTitle className="text-lg">Financial Summary</CardTitle>
-                                <CardDescription>Live from the Estimation page</CardDescription>
+                                <CardTitle className="text-lg">{t('financial_summary')}</CardTitle>
+                                <CardDescription>{t('live_from_estimation')}</CardDescription>
                             </CardHeader>
                             <CardContent className="pt-5 space-y-4">
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">Client Budget</span>
+                                        <span className="text-slate-500">{t('client_budget')}</span>
                                         <span className="font-medium text-slate-700">{formatMoney(dealToEdit.clientBudget ?? 0, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">Base Labor Cost</span>
+                                        <span className="text-slate-500">{t('base_labor_cost')}</span>
                                         <span className="font-medium text-slate-700">{formatMoney(estimationRollup.laborCost, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">Overhead</span>
+                                        <span className="text-slate-500">{t('overhead')}</span>
                                         <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.overheadCost, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">Risk Buffer</span>
+                                        <span className="text-slate-500">{t('risk_buffer')}</span>
                                         <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.bufferCost, currency)}</span>
                                     </div>
                                 </div>
                                 <div className="border-t border-slate-100 pt-4">
                                     <div className="flex justify-between font-bold text-slate-800 mb-2">
-                                        <span>Total Est. Cost</span>
+                                        <span>{t('est_total_cost')}</span>
                                         <span>{formatMoney(estimationRollup.totalEstimatedCost, currency)}</span>
                                     </div>
                                     <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                        <span className="font-bold text-slate-800">Gross Profit</span>
+                                        <span className="font-bold text-slate-800">{t('gross_profit')}</span>
                                         <div className="flex flex-col items-end">
                                             <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
                                                 {formatMoney(estimationRollup.estimatedGrossProfit, currency)}
                                             </span>
                                             {marginPct !== undefined && (
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>
-                                                    {marginPct.toFixed(1)}% Margin
+                                                    {t('margin_pct_label', { pct: marginPct.toFixed(1) })}
                                                 </span>
                                             )}
                                         </div>
@@ -594,20 +599,20 @@ export default function DealDetailPage() {
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Delete Deal</DialogTitle>
+                        <DialogTitle>{t('delete_deal')}</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-slate-600">
-                        Are you sure you want to delete this deal? This action cannot be undone.
+                        {t('delete_deal_confirm')}
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setDeleteOpen(false)}>{t('cancel')}</Button>
                         <Button variant="destructive" onClick={async () => {
                             await deleteDeal.mutateAsync(dealId);
-                            toast.success(`Deal "${dealToEdit.name}" deleted.`);
+                            toast.success(t('deal_deleted_toast', { name: dealToEdit.name }));
                             setDeleteOpen(false);
                             router.push('/project-pipeline');
                         }} disabled={deleteDeal.isPending}>
-                            {deleteDeal.isPending ? 'Deleting...' : 'Delete'}
+                            {deleteDeal.isPending ? t('deleting') : t('delete')}
                         </Button>
                     </div>
                 </DialogContent>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +22,17 @@ import type { Contract, Invoice } from '@/types/business';
 import { MILESTONES_INVOICES_ENABLED } from '@/lib/featureFlags';
 import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
 
+// Contract status translation keys (kept in CONTRACT_STATUS_KEY for both list & detail).
+const CONTRACT_STATUS_KEY: Record<string, string> = {
+    Draft:     'contract_status_draft',
+    Signed:    'contract_status_signed',
+    Active:    'contract_status_active',
+    Completed: 'contract_status_completed',
+    Cancelled: 'contract_status_cancelled',
+};
+
 export default function ContractDetailPage() {
+    const t = useTranslations();
     const params = useParams<{ id: string }>();
     const router = useRouter();
     const contractId = params.id;
@@ -290,22 +301,22 @@ export default function ContractDetailPage() {
     // Project is done iff we have a linked Project row.
     const workflowSteps: WorkflowStep[] = [
         {
-            label: 'Deal',
-            detail: sourceDeal ? sourceDeal.name : 'Won',
+            label: t('workflow_deal'),
+            detail: sourceDeal ? sourceDeal.name : t('won'),
             active: false,
             done: true,
         },
         {
-            label: 'Contract',
-            detail: contract.status,
+            label: t('workflow_contract'),
+            detail: CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status,
             active: true,
             done: contract.status === 'Active' || contract.status === 'Completed',
         },
         {
-            label: 'Project',
+            label: t('workflow_project'),
             detail: linkedProject
-                ? (linkedProject.projectNumber ?? linkedProject.name ?? 'Created')
-                : 'Not started',
+                ? (linkedProject.projectNumber ?? linkedProject.name ?? t('created'))
+                : t('not_started'),
             active: false,
             done: !!linkedProject,
         },
@@ -320,14 +331,14 @@ export default function ContractDetailPage() {
                         onClick={() => router.push('/contracts')}
                         className="flex items-center gap-1 text-sm text-[#4a4a4a] hover:text-[#171717] mb-2"
                     >
-                        <ArrowLeft className="h-4 w-4" /> Back to contracts
+                        <ArrowLeft className="h-4 w-4" /> {t('back_to_contracts')}
                     </button>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-bold tracking-tight text-[#171717]">
                             {contract.contractNumber ?? contract.id.slice(0, 8)}
                         </h1>
                         <Badge variant="outline" className={statusBadgeClass(contract.status)}>
-                            {contract.status}
+                            {CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status}
                         </Badge>
                     </div>
                     <p className="text-[#8a8a8a] mt-1">{contract.client}</p>
@@ -335,17 +346,17 @@ export default function ContractDetailPage() {
                 <div className="flex gap-2">
                     {contract.status === 'Draft' && (
                         <Button className="bg-violet-600 hover:bg-violet-700 gap-2" onClick={() => setSignedOpen(true)}>
-                            <FileSignature className="h-4 w-4" /> Mark as Signed
+                            <FileSignature className="h-4 w-4" /> {t('mark_as_signed')}
                         </Button>
                     )}
                     {contract.status === 'Signed' && (
                         <Button className="bg-[#00a7f4] hover:bg-[#0086c4] gap-2" onClick={handleActivate} disabled={updateContract.isPending}>
-                            <CheckCircle2 className="h-4 w-4" /> Activate Contract
+                            <CheckCircle2 className="h-4 w-4" /> {t('activate_contract_button')}
                         </Button>
                     )}
                     {contract.status === 'Active' && (
                         <Button variant="outline" className="gap-2" onClick={handleComplete} disabled={updateContract.isPending}>
-                            <CheckCircle2 className="h-4 w-4" /> Mark Completed
+                            <CheckCircle2 className="h-4 w-4" /> {t('mark_completed')}
                         </Button>
                     )}
                 </div>
@@ -370,14 +381,14 @@ export default function ContractDetailPage() {
                             Details dialog was removed — they'll come back when
                             the deal flow captures them upstream. */}
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                            <MetaField icon={<Calendar className="h-4 w-4" />} label="Start date" value={contract.startDate ?? '—'} />
-                            <MetaField icon={<Calendar className="h-4 w-4" />} label="End date" value={contract.endDate ?? '—'} />
+                            <MetaField icon={<Calendar className="h-4 w-4" />} label={t('start_date')} value={contract.startDate ?? '—'} />
+                            <MetaField icon={<Calendar className="h-4 w-4" />} label={t('end_date')} value={contract.endDate ?? '—'} />
                             <MetaField
                                 icon={<FileSignature className="h-4 w-4" />}
-                                label="Signed at"
+                                label={t('signed_at')}
                                 value={contract.signedAt ? new Date(contract.signedAt).toISOString().slice(0, 10) : '—'}
                             />
-                            <MetaField icon={<DollarSign className="h-4 w-4" />} label="Currency" value={contract.currency ?? `${currency} (tenant default)`} />
+                            <MetaField icon={<DollarSign className="h-4 w-4" />} label={t('currency_label')} value={contract.currency ?? t('tenant_default_currency', { currency })} />
                         </div>
                         {(sourceDeal || linkedProject) && (
                             <div className="border-t border-[#e6e9ee] pt-4 flex flex-wrap gap-3 text-sm">
@@ -386,7 +397,7 @@ export default function ContractDetailPage() {
                                         onClick={() => router.push(`/crm/${sourceDeal.id}`)}
                                         className="inline-flex items-center gap-1 text-[#00a7f4] hover:underline"
                                     >
-                                        Source deal: {sourceDeal.name} <ExternalLink className="h-3 w-3" />
+                                        {t('source_deal_link', { name: sourceDeal.name })} <ExternalLink className="h-3 w-3" />
                                     </button>
                                 )}
                                 {linkedProject && (
@@ -394,7 +405,7 @@ export default function ContractDetailPage() {
                                         onClick={() => router.push(`/projects/${linkedProject.id}`)}
                                         className="inline-flex items-center gap-1 text-purple-600 hover:underline"
                                     >
-                                        Project: {linkedProject.projectNumber ?? linkedProject.name} <ExternalLink className="h-3 w-3" />
+                                        {t('project_link', { name: linkedProject.projectNumber ?? linkedProject.name })} <ExternalLink className="h-3 w-3" />
                                     </button>
                                 )}
                             </div>
@@ -405,7 +416,7 @@ export default function ContractDetailPage() {
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 space-y-4">
                         <div>
-                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">Contract value</p>
+                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">{t('contract_value')}</p>
                             <p className="text-3xl font-bold tracking-tight text-[#171717]">{formatMoney(totalValue, currency)}</p>
                         </div>
 
@@ -454,15 +465,15 @@ export default function ContractDetailPage() {
                                  * duplicating that flow here. */}
                                 <div className="pt-2 border-t border-[#e6e9ee] space-y-3">
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-[#8a8a8a]">Status</span>
+                                        <span className="text-[#8a8a8a]">{t('status')}</span>
                                         <Badge variant="outline" className={statusBadgeClass(contract.status)}>
-                                            {contract.status}
+                                            {CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status}
                                         </Badge>
                                     </div>
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-[#8a8a8a]">Signed at</span>
+                                        <span className="text-[#8a8a8a]">{t('signed_at')}</span>
                                         <span className="font-medium text-[#171717]">
-                                            {contract.signedAt ? new Date(contract.signedAt).toLocaleDateString() : 'Not signed yet'}
+                                            {contract.signedAt ? new Date(contract.signedAt).toLocaleDateString() : t('not_signed_yet')}
                                         </span>
                                     </div>
                                     {contract.dealId && (
@@ -473,7 +484,7 @@ export default function ContractDetailPage() {
                                             onClick={() => router.push(`/project-pipeline/${contract.dealId}`)}
                                         >
                                             <ExternalLink className="h-3.5 w-3.5" />
-                                            View signed contract draft
+                                            {t('view_signed_contract_draft')}
                                         </Button>
                                     )}
                                 </div>
@@ -586,8 +597,8 @@ export default function ContractDetailPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center gap-2 mb-4">
                             <Activity className="h-4 w-4 text-[#8a8a8a]" />
-                            <p className="text-sm font-semibold text-[#171717]">Activity</p>
-                            <span className="text-xs text-[#8a8a8a]">— last {activityEvents.length} events</span>
+                            <p className="text-sm font-semibold text-[#171717]">{t('activity')}</p>
+                            <span className="text-xs text-[#8a8a8a]">— {t('last_n_events', { count: activityEvents.length })}</span>
                         </div>
                         <ol className="relative border-l border-[#e6e9ee] ml-2">
                             {activityEvents.map((ev, i) => {
@@ -735,22 +746,22 @@ export default function ContractDetailPage() {
             <Dialog open={signedOpen} onOpenChange={setSignedOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Mark contract as Signed</DialogTitle>
+                        <DialogTitle>{t('mark_contract_signed_title')}</DialogTitle>
                         <DialogDescription>
-                            Records the date both parties countersigned. After this you can activate the contract.
+                            {t('mark_contract_signed_desc')}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Signed date</label>
+                            <label className="text-sm font-medium">{t('signed_date')}</label>
                             <Input type="date" value={signedDate} onChange={e => setSignedDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Client signer name <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
+                            <label className="text-sm font-medium">{t('client_signer_name')} <span className="text-[#4a4a4a] text-xs font-normal">{t('optional')}</span></label>
                             <Input
                                 value={signedBy}
                                 onChange={e => setSignedBy(e.target.value)}
-                                placeholder="e.g. Jane Doe, VP Procurement"
+                                placeholder={t('client_signer_placeholder')}
                             />
                         </div>
                         <Button
@@ -758,7 +769,7 @@ export default function ContractDetailPage() {
                             onClick={handleMarkSigned}
                             disabled={updateContract.isPending}
                         >
-                            {updateContract.isPending ? 'Saving…' : 'Mark as Signed'}
+                            {updateContract.isPending ? t('saving') : t('mark_as_signed')}
                         </Button>
                     </div>
                 </DialogContent>

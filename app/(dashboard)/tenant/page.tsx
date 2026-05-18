@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, Fragment } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
 };
 
 function OrgTenantSettings() {
+    const t = useTranslations();
     const tenantQuery = useTenantSettings();
     const { updateTenant, updateExchangeRate } = useTenantMutations();
 
@@ -88,17 +90,17 @@ function OrgTenantSettings() {
                     rate,
                 });
             }
-            toast.success('Exchange rates saved.');
+            toast.success(t('exchange_rates_saved_toast'));
         } catch {
-            toast.error('Failed to save exchange rates.');
+            toast.error(t('failed_save_exchange_rates'));
         }
     };
 
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">Tenant Settings</h2>
-                <p className="text-[#4a4a4a] mt-1">Manage your organization profile and plan details.</p>
+                <h2 className="text-3xl font-bold tracking-tight">{t('tenant_settings_title')}</h2>
+                <p className="text-[#4a4a4a] mt-1">{t('tenant_settings_subtitle')}</p>
             </div>
 
             {tenantQuery.isLoading && <div className="h-48 animate-pulse bg-slate-100 rounded-xl" />}
@@ -106,8 +108,8 @@ function OrgTenantSettings() {
             {tenantQuery.isError && (
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-[#4a4a4a]">Could not load tenant settings.</p>
-                        <Button variant="outline" onClick={() => tenantQuery.refetch()}>Retry</Button>
+                        <p className="text-sm text-[#4a4a4a]">{t('could_not_load_tenant')}</p>
+                        <Button variant="outline" onClick={() => tenantQuery.refetch()}>{t('retry')}</Button>
                     </CardContent>
                 </Card>
             )}
@@ -119,25 +121,25 @@ function OrgTenantSettings() {
                             <CardHeader>
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <Building2 className="w-5 h-5 text-[#8a8a8a]" />
-                                    Organization Profile
+                                    {t('organization_profile')}
                                 </CardTitle>
-                                <CardDescription>Manage your company core details.</CardDescription>
+                                <CardDescription>{t('manage_company_core')}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Organization Name</Label>
+                                    <Label>{t('organization_name')}</Label>
                                     <p className="text-sm font-medium text-slate-700">{tenantQuery.data.name}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Tenant Slug</Label>
+                                    <Label>{t('tenant_slug')}</Label>
                                     <p className="text-sm font-medium text-slate-700">{tenantQuery.data.slug}.anka.app</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Plan</Label>
-                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.plan ?? 'Free'}</p>
+                                    <Label>{t('plan')}</Label>
+                                    <p className="text-sm font-medium text-slate-700">{tenantQuery.data.plan ?? t('free')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="taxRate">Income Tax Rate (%)</Label>
+                                    <Label htmlFor="taxRate">{t('income_tax_rate')}</Label>
                                     <div className="flex items-center">
                                         <Input
                                             id="taxRate"
@@ -151,10 +153,10 @@ function OrgTenantSettings() {
                                         />
                                         <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">%</div>
                                     </div>
-                                    <p className="text-xs text-[#8a8a8a]">Applied to operating profit on the Financials page to compute net profit.</p>
+                                    <p className="text-xs text-[#8a8a8a]">{t('income_tax_help')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="deliveryLag">Delivery Lag (months)</Label>
+                                    <Label htmlFor="deliveryLag">{t('delivery_lag')}</Label>
                                     <div className="flex items-center">
                                         <Input
                                             id="deliveryLag"
@@ -166,12 +168,12 @@ function OrgTenantSettings() {
                                             onChange={e => setDeliveryLag(e.target.value)}
                                             className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                         />
-                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">mo</div>
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">{t('mo')}</div>
                                     </div>
-                                    <p className="text-xs text-[#8a8a8a]">Forecast: months between a deal closing and revenue landing.</p>
+                                    <p className="text-xs text-[#8a8a8a]">{t('delivery_lag_help')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="paymentDays">Payment Delay Default (days)</Label>
+                                    <Label htmlFor="paymentDays">{t('payment_delay_default')}</Label>
                                     <div className="flex items-center">
                                         <Input
                                             id="paymentDays"
@@ -183,13 +185,13 @@ function OrgTenantSettings() {
                                             onChange={e => setPaymentDays(e.target.value)}
                                             className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                         />
-                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">days</div>
+                                        <div className="bg-slate-100 border border-l-0 px-3 h-10 rounded-r-md flex items-center text-sm text-[#8a8a8a]">{t('days')}</div>
                                     </div>
-                                    <p className="text-xs text-[#8a8a8a]">Fallback when a client has no paid-invoice history. Per-client averages override this.</p>
+                                    <p className="text-xs text-[#8a8a8a]">{t('payment_delay_help')}</p>
                                 </div>
                                 <Button className="w-full mt-2 gap-2 bg-[#171717] hover:bg-[#00a7f4]" onClick={handleSave} disabled={updateTenant.isPending}>
                                     <Save className="w-4 h-4" />
-                                    {updateTenant.isPending ? 'Saving...' : 'Save Profile'}
+                                    {updateTenant.isPending ? t('saving') : t('save_profile')}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -198,20 +200,19 @@ function OrgTenantSettings() {
                             <CardHeader>
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <DollarSign className="w-5 h-5 text-[#8a8a8a]" />
-                                    Exchange Rates
+                                    {t('exchange_rates')}
                                 </CardTitle>
                                 <CardDescription>
-                                    Set exchange rates against USD for accurate AI budget calculations.
+                                    {t('exchange_rates_desc')}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <p className="text-xs text-[#8a8a8a]">
-                                    The AI Team Builder converts all budgets and costs to USD before analysis.
-                                    Default: 1 USD = 4,500 MMK, 1 USD = 158 JPY.
+                                    {t('exchange_rates_note')}
                                 </p>
                                 {Object.entries(DEFAULT_EXCHANGE_RATES).map(([currency, defaultRate]) => (
                                     <div key={currency} className="space-y-2">
-                                        <Label htmlFor={`rate-${currency}`}>1 USD = ___ {currency}</Label>
+                                        <Label htmlFor={`rate-${currency}`}>{t('rate_1_usd_template', { currency })}</Label>
                                         <div className="flex items-center">
                                             <Input
                                                 id={`rate-${currency}`}
@@ -225,8 +226,8 @@ function OrgTenantSettings() {
                                         </div>
                                         <p className="text-xs text-[#8a8a8a]">
                                             {tenantQuery.data.exchangeRates?.[currency] != null
-                                                ? 'Custom rate set.'
-                                                : 'Using default rate.'}
+                                                ? t('custom_rate_set')
+                                                : t('using_default_rate')}
                                         </p>
                                     </div>
                                 ))}
@@ -236,7 +237,7 @@ function OrgTenantSettings() {
                                     disabled={updateExchangeRate.isPending}
                                 >
                                     <Save className="w-4 h-4" />
-                                    {updateExchangeRate.isPending ? 'Saving...' : 'Save Exchange Rates'}
+                                    {updateExchangeRate.isPending ? t('saving') : t('save_exchange_rates')}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -245,21 +246,21 @@ function OrgTenantSettings() {
                     <div className="lg:col-span-2">
                         <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
-                                <CardTitle className="text-lg">Tenant Information</CardTitle>
-                                <CardDescription>Read-only details about this tenant instance.</CardDescription>
+                                <CardTitle className="text-lg">{t('tenant_information')}</CardTitle>
+                                <CardDescription>{t('tenant_information_desc')}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Tenant ID</Label>
+                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">{t('tenant_id')}</Label>
                                         <p className="text-sm font-mono mt-1 text-slate-700 break-all">{tenantQuery.data.id}</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Status</Label>
+                                        <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">{t('status')}</Label>
                                         <p className="text-sm mt-1 font-medium">
                                             <span className={`inline-flex items-center gap-1.5 ${tenantQuery.data.isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                 <span className={`w-2 h-2 rounded-full ${tenantQuery.data.isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                                {tenantQuery.data.isActive ? 'Active' : 'Inactive'}
+                                                {tenantQuery.data.isActive ? t('active') : t('inactive')}
                                             </span>
                                         </p>
                                     </div>

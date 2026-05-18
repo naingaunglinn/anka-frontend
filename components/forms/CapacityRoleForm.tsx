@@ -2,6 +2,7 @@
 
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -24,6 +25,7 @@ interface CapacityRoleFormProps {
 }
 
 export function CapacityRoleForm({ initialData, onSubmit, onCancel }: CapacityRoleFormProps) {
+    const t = useTranslations();
     const form = useForm<CapacityRoleFormValues>({
         resolver: zodResolver(capacityRoleSchema),
         mode: 'onBlur',
@@ -52,7 +54,7 @@ export function CapacityRoleForm({ initialData, onSubmit, onCancel }: CapacityRo
                 {form.formState.isSubmitted && errorCount > 0 && (
                     <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>Please fix the highlighted fields before saving.</span>
+                        <span>{t('please_fix_highlighted_plural')}</span>
                     </div>
                 )}
                 <FormField
@@ -60,9 +62,9 @@ export function CapacityRoleForm({ initialData, onSubmit, onCancel }: CapacityRo
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Role Name <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('role_name')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Frontend Developer" {...field} />
+                                <Input placeholder={t('placeholder_frontend_dev')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -73,27 +75,27 @@ export function CapacityRoleForm({ initialData, onSubmit, onCancel }: CapacityRo
                     name="code"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Code <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('code_label')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. frontend" {...field} />
+                                <Input placeholder={t('placeholder_frontend_code')} {...field} />
                             </FormControl>
                             <FormMessage />
                             <p className="text-xs text-muted-foreground mt-1">
-                                Lowercase letters, numbers, hyphens and underscores only.
+                                {t('code_lowercase_hint')}
                             </p>
                         </FormItem>
                     )}
                 />
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
-                        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+                        <Button type="button" variant="outline" onClick={onCancel}>{t('cancel')}</Button>
                     ) : (
                         <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancel</Button>
+                            <Button type="button" variant="outline">{t('cancel')}</Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? 'Saving...' : 'Save Role Type'}
+                        {form.formState.isSubmitting ? t('saving') : t('save_role_type')}
                     </Button>
                 </div>
             </form>

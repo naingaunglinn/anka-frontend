@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     ColumnDef,
     flexRender,
@@ -49,7 +50,19 @@ const CATEGORY_COLORS: Record<string, string> = {
     default:    'bg-gray-50 text-gray-700 border-gray-200',
 };
 
+// Map English category enum to translation keys. The category value lives in
+// the DB in English, so we map at render time.
+const CATEGORY_KEY: Record<string, string> = {
+    Technical:  'skill_category_technical',
+    Creative:   'skill_category_creative',
+    Management: 'skill_category_management',
+    Financial:  'skill_category_financial',
+    Legal:      'skill_category_legal',
+    Operations: 'skill_category_operations',
+};
+
 export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
+    const t = useTranslations();
     const [sorting, setSorting] = useState<SortingState>([]);
 
     const columns: ColumnDef<Skill>[] = [
@@ -61,7 +74,7 @@ export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Skill Name
+                    {t('skill_name_col')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -75,14 +88,15 @@ export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    Category
+                    {t('category_label')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
             cell: ({ row }) => {
                 const cat = row.getValue('category') as string;
                 const cls = CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.default;
-                return <Badge variant="outline" className={`${cls} border`}>{cat}</Badge>;
+                const label = CATEGORY_KEY[cat] ? t(CATEGORY_KEY[cat]) : cat;
+                return <Badge variant="outline" className={`${cls} border`}>{label}</Badge>;
             },
         },
         {
@@ -93,18 +107,18 @@ export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('open_menu')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => onEdit(skill)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onDelete(skill.id)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_action')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -154,7 +168,7 @@ export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                                    No skills found.
+                                    {t('no_skills_found')}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -163,10 +177,10 @@ export function SkillsTable({ data, onEdit, onDelete }: SkillsTableProps) {
             </div>
             <div className="flex items-center justify-end space-x-2 py-4">
                 <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-                    Previous
+                    {t('previous')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-                    Next
+                    {t('next')}
                 </Button>
             </div>
         </div>
