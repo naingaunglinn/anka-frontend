@@ -57,7 +57,7 @@ function LoginFormContent() {
 
     const loginAsDemoAdmin = async () => {
         try {
-            await login({ email: 'admin@pixelagency.test', password: 'Demo@1234' });
+            await login({ email: 'admin@yangonworks.demo', password: 'Demo@1234' });
             exitDemoMode();
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;

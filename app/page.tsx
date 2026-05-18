@@ -191,7 +191,7 @@ export default function Home() {
           <a href="#features" className="inline-flex items-center rounded-full px-6 py-3 text-sm font-semibold text-[#171717] hover:text-[#00a7f4]">Explore features</a>
         </div>
         <div className="mt-8 text-xs text-[#8a8a8a]">
-          <p>Demo credentials: <span className="font-mono text-[#4a4a4a]">admin@pixelagency.test</span> / <span className="font-mono text-[#4a4a4a]">Demo@1234</span></p>
+          <p>Demo credentials: <span className="font-mono text-[#4a4a4a]">admin@yangonworks.demo</span> / <span className="font-mono text-[#4a4a4a]">Demo@1234</span></p>
         </div>
       </section>
 
