@@ -99,14 +99,27 @@ function projectedDealValue(deal: Deal, contract?: Contract): number {
 }
 
 function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, fallback?: Date): Date {
-    const sourceDate = project?.startDate
-        ?? project?.kickoffDate
-        ?? contract?.startDate
-        ?? deal.finalConfirmedAt
-        ?? deal.expectedCloseDate;
+    // Won deals: use the actual project / contract start (work is happening).
+    // Non-won deals: estimate from expectedCloseDate. We add +1 day because
+    // close-date conventionally lands the day before kickoff, so without the
+    // bump a deal whose close is Jun 30 would be plotted from June instead
+    // of the intended July project window.
+    //
+    // `finalConfirmedAt` is intentionally NOT in the chain — it marks when
+    // the estimate was locked, not when work begins. Including it caused
+    // non-won deals to appear weeks before their actual start window.
+    const projectStart = project?.startDate ?? project?.kickoffDate ?? contract?.startDate;
+    if (projectStart) {
+        return startOfUtcMonth(new Date(projectStart));
+    }
 
-    if (!sourceDate) return fallback ?? startOfUtcMonth(new Date());
-    return startOfUtcMonth(new Date(sourceDate));
+    if (deal.expectedCloseDate) {
+        const closeDate = new Date(deal.expectedCloseDate);
+        const dayAfterClose = new Date(closeDate.getTime() + 24 * 60 * 60 * 1000);
+        return startOfUtcMonth(dayAfterClose);
+    }
+
+    return fallback ?? startOfUtcMonth(new Date());
 }
 
 function priorityBadgeClass(priority: AIForecastResult['recommendedActions'][number]['priority']): string {
@@ -231,9 +244,10 @@ export default function ForecastPage() {
     const [summaryAttempt, setSummaryAttempt] = useState(0);
 
     const monthRange = useMemo(() => {
-        const base = startOfUtcMonth(new Date());
-        const monthsToYearEnd = 12 - base.getUTCMonth();
-        return Array.from({ length: monthsToYearEnd }, (_, index) => addUtcMonths(base, index));
+        // Full fiscal year — Jan through Dec of the current year, 12 months.
+        const year = new Date().getUTCFullYear();
+        const janFirst = new Date(Date.UTC(year, 0, 1));
+        return Array.from({ length: 12 }, (_, index) => addUtcMonths(janFirst, index));
     }, []);
 
     const forecastWindowLabel = useMemo(() => {
@@ -659,14 +673,10 @@ export default function ForecastPage() {
                                 )}
                                 <div className="mt-3 space-y-3 text-sm">
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">Annual Initial Budget ({forecastFiscalYear})</span>
+                                        <span className="text-slate-500">Year End Expected Total Profit ({forecastFiscalYear})</span>
                                         <span className="font-semibold text-slate-900">
                                             {hasFiscalYearBudget ? formatMoney(totals.annualInitialBudget, currency) : '—'}
                                         </span>
-                                    </div>
-                                    <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">{totals.comparisonMonthLabel} Budget Target</span>
-                                        <span className="font-semibold text-slate-900">{formatMoney(totals.comparisonBudgetTarget, currency)}</span>
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <span className="text-slate-500">{forecastWindowLabel} Forecast Profit</span>
@@ -750,7 +760,7 @@ export default function ForecastPage() {
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <span>Income, Cost and Profit (Current Month to Year End)</span>
+                                    <span>Income, Cost and Profit (Full Fiscal Year — Jan to Dec)</span>
                                     {finalForecastMonth?.profit < 0 ? (
                                         <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> {totals.comparisonMonthLabel} Loss</span>
                                     ) : (
@@ -851,7 +861,7 @@ export default function ForecastPage() {
                             </Card>
                             <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
                                 <CardContent className="flex h-full flex-col p-5">
-                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">Annual Initial Budget ({forecastFiscalYear})</p>
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">Year End Expected Total Profit ({forecastFiscalYear})</p>
                                     {hasFiscalYearBudget ? (
                                         <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
                                             {formatMoney(totals.annualInitialBudget, currency)}
@@ -917,7 +927,7 @@ export default function ForecastPage() {
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg">Monthly Profit Condition</CardTitle>
-                                <CardDescription>Monthly breakdown from the current month through year end.</CardDescription>
+                                <CardDescription>Monthly breakdown for the full fiscal year, Jan through Dec.</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
