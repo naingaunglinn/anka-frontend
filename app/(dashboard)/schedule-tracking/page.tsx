@@ -146,15 +146,19 @@ export default function ScheduleTrackingPage() {
             {/* Project rollup strip */}
             {summary && (
                 <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+                    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-8 gap-3 text-sm">
                         <Stat label="Estimated" value={`${summary.totalEstimatedHours}h`} />
                         <Stat label="Progress"  value={`${summary.totalProgressHours}h`} />
                         <Stat label="Used"      value={`${summary.totalUsedHours}h`} />
-                        <Stat label="Expected (today)" value={`${summary.expectedProgressHours}h`} />
                         <Stat
-                            label="Variance"
+                            label="Progress Status"
                             value={`${summary.varianceHours > 0 ? '+' : ''}${summary.varianceHours}h`}
                             valueClassName={summary.varianceHours < 0 ? 'text-rose-700' : 'text-emerald-700'}
+                        />
+                        <Stat
+                            label="Extra Hours"
+                            value={`${summary.lateHours > 0 ? '+' : ''}${summary.lateHours}h`}
+                            valueClassName={summary.lateHours > 0 ? 'text-amber-700' : ''}
                         />
                         <div>
                             <div className="text-[10px] uppercase text-[#8a8a8a]">Health</div>
@@ -163,6 +167,13 @@ export default function ScheduleTrackingPage() {
                                 {summary.completedCount}/{summary.phaseCount} phases done
                             </div>
                         </div>
+                        {/* Today-only stats grouped on the right, separated from the cumulative ones by a vertical divider. */}
+                        <Stat
+                            label="Expected (today)"
+                            value={`${summary.todayExpectedHours}h`}
+                            wrapperClassName="md:border-l-2 md:border-slate-300 md:pl-4"
+                        />
+                        <Stat label="Finish Today" value={`${summary.todayProgressHours}h`} />
                     </CardContent>
                 </Card>
             )}
@@ -181,7 +192,7 @@ export default function ScheduleTrackingPage() {
                                 <TableHead className="w-[80px] text-right">Est</TableHead>
                                 <TableHead className="w-[80px] text-right">Prog</TableHead>
                                 <TableHead className="w-[80px] text-right">Used</TableHead>
-                                <TableHead className="w-[100px] text-right">Variance</TableHead>
+                                <TableHead className="w-[120px] text-right">Progress Status</TableHead>
                                 <TableHead className="w-[120px]">Health</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -242,8 +253,9 @@ export default function ScheduleTrackingPage() {
                                     <TableHead className="text-right">Estimated</TableHead>
                                     <TableHead className="text-right">Progress</TableHead>
                                     <TableHead className="text-right">Used</TableHead>
-                                    <TableHead className="text-right">Variance</TableHead>
-                                    <TableHead>Health</TableHead>
+                                    <TableHead className="text-right">Progress Status</TableHead>
+                                    <TableHead className="text-right">Extra Hours</TableHead>
+                                    <TableHead className="text-right">Health</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -256,7 +268,10 @@ export default function ScheduleTrackingPage() {
                                         <TableCell className={`text-right font-medium ${a.varianceHours < 0 ? 'text-rose-700' : a.varianceHours > 0 ? 'text-emerald-700' : ''}`}>
                                             {a.varianceHours > 0 ? '+' : ''}{a.varianceHours}h
                                         </TableCell>
-                                        <TableCell><ScheduleHealthBadge health={a.health} /></TableCell>
+                                        <TableCell className={`text-right font-medium ${a.lateHours > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                            {a.lateHours > 0 ? `+${a.lateHours}` : a.lateHours}h
+                                        </TableCell>
+                                        <TableCell className="text-right"><ScheduleHealthBadge health={a.health} /></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -275,9 +290,9 @@ export default function ScheduleTrackingPage() {
     );
 }
 
-function Stat({ label, value, valueClassName = '' }: { label: string; value: string; valueClassName?: string }) {
+function Stat({ label, value, valueClassName = '', wrapperClassName = '' }: { label: string; value: string; valueClassName?: string; wrapperClassName?: string }) {
     return (
-        <div>
+        <div className={wrapperClassName}>
             <div className="text-[10px] uppercase text-[#8a8a8a]">{label}</div>
             <div className={`font-medium ${valueClassName}`}>{value}</div>
         </div>

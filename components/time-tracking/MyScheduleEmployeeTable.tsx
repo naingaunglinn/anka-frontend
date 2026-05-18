@@ -52,7 +52,7 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
     const trackingQuery = useScheduleTrackingList(projectId, { per_page: 200, assignee_id: employeeId, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks        = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
-    const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
+    const activePhases = useMemo(() => tasksQuery.data?.meta?.activePhases ?? [], [tasksQuery.data]);
 
     const trackingByPhaseId = useMemo(() => {
         const m = new Map<string, ScheduleTrackingRow>();
@@ -289,6 +289,11 @@ function LogProgressModal({
                     const normEnd   = actualEnd   || null;
                     if (normStart !== (phase.actualStart ?? null)) updates.actualStart = normStart as never;
                     if (normEnd   !== (phase.actualEnd   ?? null)) updates.actualEnd   = normEnd   as never;
+                    // Setting an actual_end means the phase is done — auto-flip
+                    // status to 完了 so the employee doesn't have to do it manually.
+                    if (normEnd && phase.status !== '完了') {
+                        updates.status = '完了' as never;
+                    }
                     if (Object.keys(updates).length > 0) {
                         updatePhaseAssignment.mutate({ phaseAssignmentId: phase.id, updates: updates as never });
                     }

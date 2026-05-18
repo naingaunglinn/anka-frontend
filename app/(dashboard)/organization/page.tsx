@@ -42,6 +42,7 @@ import { useBusinessStore } from '@/store/businessStore';
 import { Employee, Department, Role, GlobalOverhead, Skill, Rank } from '@/types/business';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
+import { HolidaysTab } from '@/components/organization/HolidaysTab';
 export default function EmployeesPage() {
     // Connect to Store
     const store = useBusinessStore();
@@ -374,7 +375,7 @@ export default function EmployeesPage() {
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
-                <TabsList className="grid w-full grid-cols-8 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
+                <TabsList className="grid w-full grid-cols-9 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
                     <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
                     <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
                     <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
@@ -382,6 +383,7 @@ export default function EmployeesPage() {
                     <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Ranks</TabsTrigger>
                     <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
                     <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
+                    <TabsTrigger value="holidays" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Holidays</TabsTrigger>
                     <TabsTrigger value="company" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Company</TabsTrigger>
                 </TabsList>
 
@@ -820,6 +822,12 @@ export default function EmployeesPage() {
                             )}
                         </DialogContent>
                     </Dialog>
+                </TabsContent>
+
+                {/* HOLIDAYS TAB — public-holiday list. Drives holiday-aware capacity math
+                    (Time Tracking utilization KPI, AI scheduler date planning). */}
+                <TabsContent value="holidays" className="space-y-4">
+                    <HolidaysTab />
                 </TabsContent>
 
                 {/* COMPANY TAB — name + logo that render on every contract PDF and customer email. */}

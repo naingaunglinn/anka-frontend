@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Users, Briefcase, Sparkles, FastForward } from 'lucide-react';
+import { Clock, Briefcase, Sparkles, FastForward } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useBusinessStore } from '@/store/businessStore';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { normalizeError } from '@/lib/errorHandler';
 import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
-import { scheduleTrackingKeys } from '@/lib/queries/scheduleTracking';
+import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
@@ -18,7 +18,6 @@ import { SimulatedDateBar } from '@/components/SimulatedDateBar';
 import { TeamPreviewDialog } from '@/components/time-tracking/TeamPreviewDialog';
 
 export default function TimeTrackingPage() {
-    const store = useBusinessStore();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
     const queryClient = useQueryClient();
@@ -81,9 +80,11 @@ export default function TimeTrackingPage() {
             queryClient.invalidateQueries({ queryKey: projectKeys.taskAssignments(projectId) });
             queryClient.invalidateQueries({ queryKey: scheduleTrackingKeys.all });
         } catch (err) {
-            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-                ?? 'AI task assignment failed. Ensure the project has a team and an Estimate file exists.';
-            toast.error(msg);
+            // Show the backend's actual message (e.g. "Upload an estimation
+            // (xlsx) for this project before building the team.") instead of
+            // a generic fallback. normalizeError reads `response.data.message`
+            // which matches the Laravel API convention used across the app.
+            toast.error(normalizeError(err).message);
         } finally {
             setAutoAssignLoading(null);
         }
@@ -100,15 +101,24 @@ export default function TimeTrackingPage() {
         [timeEntries, runningProjectIds],
     );
 
-    const totalHoursLogged = runningTimeEntries.reduce((sum, e) => sum + e.hours, 0);
+    // Total Hours Logged is sourced from phase_progress_logs and scoped to the
+    // project picked in the Master Assign Table selector below. Filterable by
+    // date range + phase status via the controls inside the KPI card itself.
+    const [hoursDateFrom, setHoursDateFrom] = useState<string>('');
+    const [hoursDateTo,   setHoursDateTo]   = useState<string>('');
+    const [hoursPhaseStatus, setHoursPhaseStatus] = useState<'all' | '未着手' | '進行中' | '完了'>('all');
+    const hoursSummaryQuery = useProgressLogSummary({
+        dateFrom:    hoursDateFrom || undefined,
+        dateTo:      hoursDateTo   || undefined,
+        phaseStatus: hoursPhaseStatus === 'all' ? undefined : hoursPhaseStatus,
+        projectId:   tableProjectId || undefined,
+    });
+    const totalHoursLogged = hoursSummaryQuery.data?.totalUsedHours ?? 0;
+    const selectedProjectName = tableProjectId
+        ? projects.find((p) => p.id === tableProjectId)?.name
+        : undefined;
+
     const activeProjectsCount = new Set(runningTimeEntries.map(e => e.projectId)).size;
-    const totalCapacity = store.employees
-        .filter((employee) => employee.status === 'Active')
-        .reduce((sum, employee) => sum + employee.workableHours, 0);
-    const approvedHours = runningTimeEntries
-        .filter((entry) => entry.status === 'Approved')
-        .reduce((sum, entry) => sum + entry.hours, 0);
-    const utilization = totalCapacity > 0 ? Math.round((approvedHours / totalCapacity) * 100) : 0;
     const isLoading = projectsQuery.isLoading || timeEntriesQuery.isLoading;
     const isError = projectsQuery.isError || timeEntriesQuery.isError;
     const retry = () => {
@@ -123,7 +133,7 @@ export default function TimeTrackingPage() {
                 <p className="text-[#8a8a8a] mt-1">Track budget consumption and labor costs across active projects.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -131,7 +141,45 @@ export default function TimeTrackingPage() {
                             <Clock className="h-5 w-5 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{totalHoursLogged}h</span>
+                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
+                                {hoursSummaryQuery.isLoading ? '—' : `${totalHoursLogged}h`}
+                            </span>
+                        </div>
+                        <p className="mt-1 text-xs text-[#8a8a8a] truncate" title={selectedProjectName ?? ''}>
+                            {selectedProjectName ? `For ${selectedProjectName}` : 'Pick a project below to scope'}
+                        </p>
+                        <div className="mt-4 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={hoursDateFrom}
+                                    onChange={(e) => setHoursDateFrom(e.target.value)}
+                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
+                                    aria-label="From date"
+                                />
+                                <span className="text-xs text-[#8a8a8a]">to</span>
+                                <input
+                                    type="date"
+                                    value={hoursDateTo}
+                                    onChange={(e) => setHoursDateTo(e.target.value)}
+                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
+                                    aria-label="To date"
+                                />
+                            </div>
+                            <Select
+                                value={hoursPhaseStatus}
+                                onValueChange={(v) => setHoursPhaseStatus(v as 'all' | '未着手' | '進行中' | '完了')}
+                            >
+                                <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All phase statuses</SelectItem>
+                                    <SelectItem value="未着手">未着手 (Not started)</SelectItem>
+                                    <SelectItem value="進行中">進行中 (In progress)</SelectItem>
+                                    <SelectItem value="完了">完了 (Done)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </CardContent>
                 </Card>
@@ -143,20 +191,6 @@ export default function TimeTrackingPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-[#171717]">{activeProjectsCount}</span>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Available Team Utilization</p>
-                            <Users className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
-                                {utilization}%
-                            </span>
-                            <span className="text-sm text-[#8a8a8a]">average this month</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -328,7 +362,7 @@ function AutoAssignProjectRow({
                     ) : (
                         <FastForward className="h-4 w-4" />
                     )}
-                    Assign Tasks Only
+                    Assign tasks with AI
                 </Button>
                 <Button
                     size="sm"
@@ -342,7 +376,7 @@ function AutoAssignProjectRow({
                     ) : (
                         <Sparkles className="h-4 w-4" />
                     )}
-                    AI Task Assignment
+                    Build the team and assign tasks with AI
                 </Button>
             </div>
         </div>
