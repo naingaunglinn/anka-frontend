@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 import { User, Mail, Save, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function ProfilePage() {
+    const t = useTranslations();
     const router = useRouter();
     const { user } = useAuth();
     const { login } = useAuthStore();
@@ -41,9 +43,9 @@ export default function ProfilePage() {
 
     const validateProfile = () => {
         const errs: typeof profileErrors = {};
-        if (!firstName.trim()) errs.firstName = 'Please enter your first name.';
-        if (!email.trim()) errs.email = 'Please enter your email address.';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Please enter a valid email address.';
+        if (!firstName.trim()) errs.firstName = t('please_enter_first_name');
+        if (!email.trim()) errs.email = t('please_enter_email');
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = t('please_enter_valid_email');
         setProfileErrors(errs);
         return Object.keys(errs).length === 0;
     };
@@ -82,14 +84,14 @@ export default function ProfilePage() {
                 login(updatedUser, token);
             }
 
-            toast.success('Profile updated successfully.');
+            toast.success(t('profile_updated_success'));
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
             const errors = axiosErr.response?.data?.errors;
             if (errors?.email) {
                 setProfileErrors(prev => ({ ...prev, email: errors.email[0] }));
             } else {
-                toast.error(axiosErr.response?.data?.message ?? 'Failed to update profile.');
+                toast.error(axiosErr.response?.data?.message ?? t('failed_to_update_profile'));
             }
         } finally {
             setIsSaving(false);
@@ -98,11 +100,11 @@ export default function ProfilePage() {
 
     const validatePasswords = () => {
         const errs: typeof pwErrors = {};
-        if (!currentPassword) errs.currentPassword = 'Please enter your current password.';
-        if (!newPassword) errs.newPassword = 'Please enter a new password.';
-        else if (newPassword.length < 8) errs.newPassword = 'New password must be at least 8 characters.';
-        if (!confirmPassword) errs.confirmPassword = 'Please confirm your new password.';
-        else if (newPassword && newPassword !== confirmPassword) errs.confirmPassword = 'Passwords do not match.';
+        if (!currentPassword) errs.currentPassword = t('please_enter_current_password');
+        if (!newPassword) errs.newPassword = t('please_enter_new_password');
+        else if (newPassword.length < 8) errs.newPassword = t('password_min_length');
+        if (!confirmPassword) errs.confirmPassword = t('please_confirm_password');
+        else if (newPassword && newPassword !== confirmPassword) errs.confirmPassword = t('passwords_do_not_match');
         setPwErrors(errs);
         return Object.keys(errs).length === 0;
     };
@@ -116,7 +118,7 @@ export default function ProfilePage() {
                 new_password: newPassword,
                 new_password_confirmation: confirmPassword,
             });
-            toast.success('Password changed successfully.');
+            toast.success(t('password_changed_success'));
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
@@ -128,7 +130,7 @@ export default function ProfilePage() {
             } else if (apiErrors?.new_password) {
                 setPwErrors(prev => ({ ...prev, newPassword: apiErrors.new_password[0] }));
             } else {
-                toast.error(axiosErr.response?.data?.message ?? 'Failed to change password.');
+                toast.error(axiosErr.response?.data?.message ?? t('failed_to_change_password'));
             }
         } finally {
             setIsChangingPw(false);
@@ -138,7 +140,7 @@ export default function ProfilePage() {
     if (!user) {
         return (
             <div className="flex items-center justify-center h-96">
-                <p className="text-[#8a8a8a]">Loading profile...</p>
+                <p className="text-[#8a8a8a]">{t('loading_profile')}</p>
             </div>
         );
     }
@@ -146,43 +148,43 @@ export default function ProfilePage() {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">My Profile</h2>
-                <p className="text-[#4a4a4a] mt-1">Update your name and email address.</p>
+                <h2 className="text-3xl font-bold tracking-tight">{t('my_profile')}</h2>
+                <p className="text-[#4a4a4a] mt-1">{t('profile_description')}</p>
             </div>
 
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                         <User className="w-5 h-5 text-[#8a8a8a]" />
-                        Personal Information
+                        {t('personal_information')}
                     </CardTitle>
-                    <CardDescription>Changes apply immediately across the platform.</CardDescription>
+                    <CardDescription>{t('personal_info_description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="firstName">
-                                First Name <span className="text-destructive">*</span>
+                                {t('first_name')} <span className="text-destructive">*</span>
                             </Label>
                             <Input
                                 id="firstName"
                                 value={firstName}
                                 onChange={e => { setFirstName(e.target.value); if (profileErrors.firstName) setProfileErrors(p => ({ ...p, firstName: undefined })); }}
-                                onBlur={() => { if (!firstName.trim()) setProfileErrors(p => ({ ...p, firstName: 'Please enter your first name.' })); }}
-                                placeholder="e.g. Jane"
+                                onBlur={() => { if (!firstName.trim()) setProfileErrors(p => ({ ...p, firstName: t('please_enter_first_name') })); }}
+                                placeholder={t('placeholder_first_name')}
                                 aria-invalid={!!profileErrors.firstName}
                             />
                             {profileErrors.firstName && <p className="text-xs text-destructive">{profileErrors.firstName}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="lastName">
-                                Last Name <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span>
+                                {t('last_name')} <span className="text-[#4a4a4a] text-xs font-normal">{t('optional')}</span>
                             </Label>
                             <Input
                                 id="lastName"
                                 value={lastName}
                                 onChange={e => setLastName(e.target.value)}
-                                placeholder="e.g. Smith"
+                                placeholder={t('placeholder_last_name')}
                             />
                         </div>
                     </div>
@@ -190,7 +192,7 @@ export default function ProfilePage() {
                     <div className="space-y-2">
                         <Label htmlFor="email" className="flex items-center gap-1.5">
                             <Mail className="w-3.5 h-3.5 text-[#8a8a8a]" />
-                            Email Address <span className="text-destructive">*</span>
+                            {t('email_address')} <span className="text-destructive">*</span>
                         </Label>
                         <Input
                             id="email"
@@ -198,10 +200,10 @@ export default function ProfilePage() {
                             value={email}
                             onChange={e => { setEmail(e.target.value); if (profileErrors.email) setProfileErrors(p => ({ ...p, email: undefined })); }}
                             onBlur={() => {
-                                if (!email.trim()) setProfileErrors(p => ({ ...p, email: 'Please enter your email address.' }));
-                                else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) setProfileErrors(p => ({ ...p, email: 'Please enter a valid email address.' }));
+                                if (!email.trim()) setProfileErrors(p => ({ ...p, email: t('please_enter_email') }));
+                                else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) setProfileErrors(p => ({ ...p, email: t('please_enter_valid_email') }));
                             }}
-                            placeholder="name@example.com"
+                            placeholder={t('placeholder_email')}
                             aria-invalid={!!profileErrors.email}
                         />
                         {profileErrors.email && <p className="text-xs text-destructive">{profileErrors.email}</p>}
@@ -210,7 +212,7 @@ export default function ProfilePage() {
                     <div className="pt-2">
                         <Button onClick={handleSave} disabled={isSaving} className="gap-2">
                             <Save className="w-4 h-4" />
-                            {isSaving ? 'Saving...' : 'Save Changes'}
+                            {isSaving ? t('saving') : t('save_changes_button')}
                         </Button>
                     </div>
                 </CardContent>
@@ -218,17 +220,17 @@ export default function ProfilePage() {
 
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader>
-                    <CardTitle className="text-lg">Account Details</CardTitle>
-                    <CardDescription>Read-only information about your account.</CardDescription>
+                    <CardTitle className="text-lg">{t('account_details')}</CardTitle>
+                    <CardDescription>{t('account_details_description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">Role</Label>
+                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">{t('role')}</Label>
                             <p className="text-sm font-medium mt-1">{user.appRole}</p>
                         </div>
                         <div>
-                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">User ID</Label>
+                            <Label className="text-xs text-[#8a8a8a] uppercase tracking-wider">{t('user_id')}</Label>
                             <p className="text-sm font-mono mt-1 text-[#4a4a4a]">{user.id}</p>
                         </div>
                     </div>
@@ -239,21 +241,21 @@ export default function ProfilePage() {
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                         <Lock className="w-5 h-5 text-[#8a8a8a]" />
-                        Change Password
+                        {t('change_password')}
                     </CardTitle>
-                    <CardDescription>Update your password. You will need to log in again after changing it.</CardDescription>
+                    <CardDescription>{t('change_password_description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                     <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="currentPassword">{t('current_password')} <span className="text-destructive">*</span></Label>
                         <div className="relative">
                             <Input
                                 id="currentPassword"
                                 type={showCurrentPw ? 'text' : 'password'}
                                 value={currentPassword}
                                 onChange={e => { setCurrentPassword(e.target.value); if (pwErrors.currentPassword) setPwErrors(p => ({ ...p, currentPassword: undefined })); }}
-                                onBlur={() => { if (!currentPassword) setPwErrors(p => ({ ...p, currentPassword: 'Please enter your current password.' })); }}
-                                placeholder="Enter current password"
+                                onBlur={() => { if (!currentPassword) setPwErrors(p => ({ ...p, currentPassword: t('please_enter_current_password') })); }}
+                                placeholder={t('enter_current_password')}
                                 aria-invalid={!!pwErrors.currentPassword}
                             />
                             <button
@@ -267,7 +269,7 @@ export default function ProfilePage() {
                         {pwErrors.currentPassword && <p className="text-xs text-destructive">{pwErrors.currentPassword}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="newPassword">New Password <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="newPassword">{t('new_password')} <span className="text-destructive">*</span></Label>
                         <div className="relative">
                             <Input
                                 id="newPassword"
@@ -275,10 +277,10 @@ export default function ProfilePage() {
                                 value={newPassword}
                                 onChange={e => { setNewPassword(e.target.value); if (pwErrors.newPassword) setPwErrors(p => ({ ...p, newPassword: undefined })); }}
                                 onBlur={() => {
-                                    if (!newPassword) setPwErrors(p => ({ ...p, newPassword: 'Please enter a new password.' }));
-                                    else if (newPassword.length < 8) setPwErrors(p => ({ ...p, newPassword: 'Password must be at least 8 characters.' }));
+                                    if (!newPassword) setPwErrors(p => ({ ...p, newPassword: t('please_enter_new_password') }));
+                                    else if (newPassword.length < 8) setPwErrors(p => ({ ...p, newPassword: t('password_min_length') }));
                                 }}
-                                placeholder="Min. 8 characters"
+                                placeholder={t('min_8_characters')}
                                 aria-invalid={!!pwErrors.newPassword}
                             />
                             <button
@@ -292,17 +294,17 @@ export default function ProfilePage() {
                         {pwErrors.newPassword && <p className="text-xs text-destructive">{pwErrors.newPassword}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm New Password <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="confirmPassword">{t('confirm_new_password')} <span className="text-destructive">*</span></Label>
                         <Input
                             id="confirmPassword"
                             type="password"
                             value={confirmPassword}
                             onChange={e => { setConfirmPassword(e.target.value); if (pwErrors.confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: undefined })); }}
                             onBlur={() => {
-                                if (!confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: 'Please confirm your new password.' }));
-                                else if (newPassword && newPassword !== confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: 'Passwords do not match.' }));
+                                if (!confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: t('please_confirm_password') }));
+                                else if (newPassword && newPassword !== confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: t('passwords_do_not_match') }));
                             }}
-                            placeholder="Re-enter new password"
+                            placeholder={t('reenter_new_password')}
                             aria-invalid={!!pwErrors.confirmPassword}
                         />
                         {pwErrors.confirmPassword && <p className="text-xs text-destructive">{pwErrors.confirmPassword}</p>}
@@ -310,7 +312,7 @@ export default function ProfilePage() {
                     <div className="pt-2">
                         <Button onClick={handleChangePassword} disabled={isChangingPw} className="gap-2">
                             <Lock className="w-4 h-4" />
-                            {isChangingPw ? 'Changing...' : 'Change Password'}
+                            {isChangingPw ? t('changing') : t('change_password')}
                         </Button>
                     </div>
                 </CardContent>

@@ -10,22 +10,10 @@ import { useUIStore } from '@/store/uiStore';
 import { useBusinessStore } from '@/store/businessStore';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import { usePathname, useRouter } from 'next/navigation';
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-    const { isSidebarCollapsed, isDemoMode } = useUIStore();
+    const { isSidebarCollapsed } = useUIStore();
     const [mounted, setMounted] = useState(false);
-    const pathname = usePathname();
-    const router = useRouter();
-
-    useEffect(() => {
-        if (!mounted || !isDemoMode) return;
-        const allowedDemoPrefixes = ['/dashboard', '/forecast', '/profile'];
-        const isAllowed = allowedDemoPrefixes.some((prefix) => pathname.startsWith(prefix));
-        if (!isAllowed) {
-            router.replace('/dashboard');
-        }
-    }, [mounted, isDemoMode, pathname, router]);
 
     useEffect(() => {
         setMounted(true);

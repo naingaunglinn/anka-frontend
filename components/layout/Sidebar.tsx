@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
@@ -28,37 +29,34 @@ import {
     ScrollText,
 } from 'lucide-react';
 
+// labelKey resolves against messages/{locale}.json at render time.
 const orgRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/dashboard',     color: 'text-[#00a7f4]' },
-    { label: 'Organization',      icon: Users,           href: '/organization',  color: 'text-violet-500' },
-    { label: 'Project Pipeline', icon: Briefcase,        href: '/project-pipeline', color: 'text-pink-700' },
-    { label: 'Estimation',        icon: Calculator,      href: '/estimation',    color: 'text-orange-700' },
-    { label: 'Contracts',           icon: FileSignature, href: '/contracts',     color: 'text-emerald-500' },
-    { label: 'Projects',          icon: FolderKanban,    href: '/projects',      color: 'text-green-700' },
-    { label: 'Time Tracking',     icon: Clock,           href: '/time-tracking', color: 'text-amber-500' },
-    { label: 'Schedule Tracking', icon: Activity,        href: '/schedule-tracking', color: 'text-rose-500' },
-    { label: 'My Schedule',       icon: CalendarCheck,   href: '/my-schedule',   color: 'text-emerald-500' },
-    { label: 'Financials',        icon: PieChart,        href: '/financial',     color: 'text-[#0086c4]' },
-    { label: 'Forecast',          icon: LineChart,       href: '/forecast',      color: 'text-indigo-500' },
-    { label: 'Tenant Settings',   icon: Building2,       href: '/tenant',        color: 'text-violet-500' },
-];
-
-const demoRoutes = [
-    { label: 'Demo Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-[#00a7f4]' },
-    { label: 'Forecast Preview', icon: LineChart, href: '/forecast', color: 'text-indigo-500' },
+    { labelKey: 'dashboard',         icon: LayoutDashboard, href: '/dashboard',          color: 'text-[#00a7f4]' },
+    { labelKey: 'organization',      icon: Users,           href: '/organization',       color: 'text-violet-500' },
+    { labelKey: 'project_pipeline',  icon: Briefcase,       href: '/project-pipeline',   color: 'text-pink-700' },
+    { labelKey: 'estimation',        icon: Calculator,      href: '/estimation',         color: 'text-orange-700' },
+    { labelKey: 'contracts',         icon: FileSignature,   href: '/contracts',          color: 'text-emerald-500' },
+    { labelKey: 'projects',          icon: FolderKanban,    href: '/projects',           color: 'text-green-700' },
+    { labelKey: 'time_tracking',     icon: Clock,           href: '/time-tracking',      color: 'text-amber-500' },
+    { labelKey: 'schedule_tracking', icon: Activity,        href: '/schedule-tracking',  color: 'text-rose-500' },
+    { labelKey: 'my_schedule',       icon: CalendarCheck,   href: '/my-schedule',        color: 'text-emerald-500' },
+    { labelKey: 'financials',        icon: PieChart,        href: '/financial',          color: 'text-[#0086c4]' },
+    { labelKey: 'forecast',          icon: LineChart,       href: '/forecast',           color: 'text-indigo-500' },
+    { labelKey: 'tenant_settings',   icon: Building2,       href: '/tenant',             color: 'text-violet-500' },
 ];
 
 const superAdminRoutes = [
-    { label: 'Dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-[#00a7f4]' },
-    { label: 'Tenant Management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
-    { label: 'Billing & Plans',   icon: Receipt,          href: '/admin/billing',    color: 'text-emerald-400' },
-    { label: 'Audit Logs',        icon: ScrollText,       href: '/admin/audit',      color: 'text-amber-400' },
-    { label: 'AI Usage',          icon: BrainCircuit,     href: '/admin/ai-usage',   color: 'text-pink-400' },
+    { labelKey: 'dashboard',         icon: LayoutDashboard, href: '/admin/dashboard',  color: 'text-[#00a7f4]' },
+    { labelKey: 'tenant_management', icon: Building2,       href: '/tenant',           color: 'text-violet-400' },
+    { labelKey: 'billing_plans',     icon: Receipt,         href: '/admin/billing',    color: 'text-emerald-400' },
+    { labelKey: 'audit_logs',        icon: ScrollText,      href: '/admin/audit',      color: 'text-amber-400' },
+    { labelKey: 'ai_usage',          icon: BrainCircuit,    href: '/admin/ai-usage',   color: 'text-pink-400' },
 ];
 
 export const Sidebar = () => {
     const pathname = usePathname();
-    const { isSidebarCollapsed, toggleSidebar, isDemoMode } = useUIStore();
+    const t = useTranslations();
+    const { isSidebarCollapsed, toggleSidebar } = useUIStore();
     const user = useAuthStore((s) => s.user);
     const [mounted, setMounted] = useState(false);
 
@@ -69,7 +67,7 @@ export const Sidebar = () => {
     }
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
-    const routes = isDemoMode ? demoRoutes : (user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes);
+    const routes = user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes;
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 
     return (
@@ -88,10 +86,10 @@ export const Sidebar = () => {
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="ml-4 min-w-0">
-                            <h1 className="text-xl font-bold truncate leading-tight text-[#171717]">Anka SaaS</h1>
+                            <h1 className="text-xl font-bold truncate leading-tight text-[#171717]">{t('anka_saas')}</h1>
                             {user?.isSuperAdmin && (
                                 <span className="text-[10px] font-semibold tracking-widest uppercase text-[#0086c4]">
-                                    Super Admin
+                                    {t('super_admin')}
                                 </span>
                             )}
                         </div>
@@ -99,30 +97,30 @@ export const Sidebar = () => {
                 </Link>
 
                 {user?.isSuperAdmin && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-[#8a8a8a] px-3 mb-2">Admin Panel</p>
-                )}
-                {isDemoMode && !isSidebarCollapsed && (
-                    <p className="text-[11px] uppercase tracking-wider text-[#00a7f4] px-3 mb-2">Demo Version (Read Only)</p>
+                    <p className="text-[11px] uppercase tracking-wider text-[#8a8a8a] px-3 mb-2">{t('admin_panel')}</p>
                 )}
 
                 <div className="space-y-1">
-                    {routes.map((route) => (
-                        <Link
-                            href={route.href}
-                            key={route.href}
-                            className={cn(
-                                "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-[#0086c4] hover:bg-[#00a7f4]/10 rounded-lg transition items-center",
-                                pathname.startsWith(route.href) ? "text-[#0086c4] bg-[#00a7f4]/10" : "text-[#4a4a4a]",
-                                isSidebarCollapsed ? "justify-center" : "justify-start"
-                            )}
-                            title={isSidebarCollapsed ? route.label : undefined}
-                        >
-                            <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "flex-1")}>
-                                <route.icon className={cn("h-5 w-5", isSidebarCollapsed ? "" : "mr-3", route.color)} />
-                                {!isSidebarCollapsed && <span className="truncate">{route.label}</span>}
-                            </div>
-                        </Link>
-                    ))}
+                    {routes.map((route) => {
+                        const label = t(route.labelKey);
+                        return (
+                            <Link
+                                href={route.href}
+                                key={route.href}
+                                className={cn(
+                                    "text-sm group flex p-3 w-full font-medium cursor-pointer hover:text-[#0086c4] hover:bg-[#00a7f4]/10 rounded-lg transition items-center",
+                                    pathname.startsWith(route.href) ? "text-[#0086c4] bg-[#00a7f4]/10" : "text-[#4a4a4a]",
+                                    isSidebarCollapsed ? "justify-center" : "justify-start"
+                                )}
+                                title={isSidebarCollapsed ? label : undefined}
+                            >
+                                <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "flex-1")}>
+                                    <route.icon className={cn("h-5 w-5", isSidebarCollapsed ? "" : "mr-3", route.color)} />
+                                    {!isSidebarCollapsed && <span className="truncate">{label}</span>}
+                                </div>
+                            </Link>
+                        );
+                    })}
                 </div>
             </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
     Dialog,
     DialogContent,
@@ -76,6 +77,7 @@ export function ContractReadyDialog({
     suggestedPrice,
     resources,
 }: ContractReadyDialogProps) {
+    const t = useTranslations();
     const { updateDeal } = useDealMutations();
     const tenantCurrency = useTenantCurrency();
     const roles = useBusinessStore((s) => s.roles);
@@ -201,22 +203,21 @@ export function ContractReadyDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Mark Contract Ready</DialogTitle>
+                    <DialogTitle>{t('mark_contract_ready_title')}</DialogTitle>
                     <DialogDescription>
-                        Capture the terms the customer agreed to. Submitting this advances the deal from
-                        Rank B → A and locks these fields for contract drafting.
+                        {t('contract_ready_desc')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
                     <div className="rounded-md bg-slate-50 border border-slate-100 p-3 text-xs text-slate-600">
-                        Pre-filled from the current estimate — adjust to match what the customer actually agreed to.
+                        {t('prefilled_estimate_note')}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-monthly-fee" className="text-xs">
-                                Monthly fee <span className="text-rose-500">*</span>
+                                {t('monthly_fee')} <span className="text-rose-500">*</span>
                             </Label>
                             <Input
                                 id="cr-monthly-fee"
@@ -233,7 +234,7 @@ export function ContractReadyDialog({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-contract-months" className="text-xs">
-                                Contract months <span className="text-rose-500">*</span>
+                                {t('contract_months_label')} <span className="text-rose-500">*</span>
                             </Label>
                             <Input
                                 id="cr-contract-months"
@@ -252,7 +253,7 @@ export function ContractReadyDialog({
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-currency" className="text-xs">
-                                Currency <span className="text-rose-500">*</span>
+                                {t('currency_label')} <span className="text-rose-500">*</span>
                             </Label>
                             <Input
                                 id="cr-currency"
@@ -267,7 +268,7 @@ export function ContractReadyDialog({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-installation-fee" className="text-xs">
-                                Installation fee <span className="text-slate-400">(optional)</span>
+                                {t('installation_fee')} <span className="text-slate-400">{t('optional_lowercase')}</span>
                             </Label>
                             <Input
                                 id="cr-installation-fee"
@@ -286,14 +287,14 @@ export function ContractReadyDialog({
 
                     <div className="space-y-1.5">
                         <Label htmlFor="cr-team-summary" className="text-xs">
-                            Team summary <span className="text-rose-500">*</span>
+                            {t('team_summary')} <span className="text-rose-500">*</span>
                         </Label>
                         <Textarea
                             id="cr-team-summary"
                             value={teamSummary}
                             onChange={(e) => setTeamSummary(e.target.value)}
                             rows={2}
-                            placeholder="e.g. 2× Backend Engineer (6mo), 1× QA (4mo)"
+                            placeholder={t('team_summary_placeholder')}
                         />
                         {fieldErrors.teamSummary && (
                             <p className="text-[11px] text-rose-600">{fieldErrors.teamSummary}</p>
@@ -303,7 +304,7 @@ export function ContractReadyDialog({
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-support-hours" className="text-xs">
-                                Support hours / month <span className="text-slate-400">(optional)</span>
+                                {t('support_hours_per_month')} <span className="text-slate-400">{t('optional_lowercase')}</span>
                             </Label>
                             <Input
                                 id="cr-support-hours"
@@ -321,16 +322,16 @@ export function ContractReadyDialog({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="cr-template" className="text-xs">
-                                Contract template hint <span className="text-slate-400">(optional)</span>
+                                {t('contract_template_hint')} <span className="text-slate-400">{t('optional_lowercase')}</span>
                             </Label>
                             <Select value={templateVariant} onValueChange={setTemplateVariant}>
                                 <SelectTrigger id="cr-template">
-                                    <SelectValue placeholder="Let wizard decide" />
+                                    <SelectValue placeholder={t('let_wizard_decide')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {TEMPLATE_OPTIONS.map((opt) => (
                                         <SelectItem key={opt.value} value={opt.value}>
-                                            {opt.label}
+                                            {t(`template_${opt.value}`)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -340,14 +341,14 @@ export function ContractReadyDialog({
 
                     <div className="space-y-1.5">
                         <Label htmlFor="cr-ot-policy" className="text-xs">
-                            OT policy notes <span className="text-slate-400">(optional)</span>
+                            {t('ot_policy_notes')} <span className="text-slate-400">{t('optional_lowercase')}</span>
                         </Label>
                         <Textarea
                             id="cr-ot-policy"
                             value={otPolicy}
                             onChange={(e) => setOtPolicy(e.target.value)}
                             rows={2}
-                            placeholder="Anything the contract wizard should know about overtime billing"
+                            placeholder={t('ot_policy_placeholder')}
                         />
                         {fieldErrors.otPolicy && (
                             <p className="text-[11px] text-rose-600">{fieldErrors.otPolicy}</p>
@@ -357,14 +358,14 @@ export function ContractReadyDialog({
 
                 <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-                        Cancel
+                        {t('cancel')}
                     </Button>
                     <Button
                         onClick={handleSubmit}
                         disabled={submitting}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                        {submitting ? 'Confirming...' : 'Confirm & Lock Terms'}
+                        {submitting ? t('confirming_ellipsis') : t('confirm_lock_terms')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

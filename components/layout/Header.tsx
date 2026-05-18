@@ -2,9 +2,9 @@
 
 import { useTenantStore } from '@/store/tenantStore';
 import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
     Building2,
     LogOut,
@@ -22,13 +22,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 export const Header = () => {
     const router = useRouter();
+    const t = useTranslations();
     const { currentTenant } = useTenantStore();
     const user = useAuthStore((state) => state.user);
-    const isDemoMode = useUIStore((state) => state.isDemoMode);
-    const exitDemoMode = useUIStore((state) => state.exitDemoMode);
     const { logout } = useAuth();
 
     const displayName = user?.firstName ? `${user.firstName} ${user.lastName}` : (user?.email ?? 'User');
@@ -37,16 +37,9 @@ export const Header = () => {
     const handleLogout = async () => {
         try {
             await logout();
-            exitDemoMode();
         } finally {
             router.replace('/login');
         }
-    };
-
-    const handleExitDemo = async () => {
-        await logout();
-        exitDemoMode();
-        router.replace('/login');
     };
 
     return (
@@ -55,30 +48,18 @@ export const Header = () => {
                 {user?.isSuperAdmin ? (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#f0f9ff] border border-[#00a7f4]/20">
                         <Building2 className="w-4 h-4 text-[#00a7f4]" />
-                        <span className="text-sm font-semibold text-[#0086c4]">Super Admin</span>
+                        <span className="text-sm font-semibold text-[#0086c4]">{t('super_admin')}</span>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#f0f9ff] border border-[#00a7f4]/20 min-w-[200px]">
                         <Building2 className="w-4 h-4 text-[#00a7f4]" />
-                        <span className="font-semibold text-[#171717]">{currentTenant?.name ?? 'Select Tenant'}</span>
+                        <span className="font-semibold text-[#171717]">{currentTenant?.name ?? t('select_tenant')}</span>
                     </div>
                 )}
             </div>
 
             <div className="flex items-center gap-x-4">
-                {isDemoMode && (
-                    <div className="flex items-center gap-2 rounded-md border border-[#00a7f4]/30 bg-[#00a7f4]/10 px-3 py-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0086c4]">Demo Version</span>
-                        <button
-                            type="button"
-                            onClick={handleExitDemo}
-                            className="ml-1 text-xs font-medium text-[#0086c4] underline-offset-2 hover:underline"
-                        >
-                            Exit
-                        </button>
-                    </div>
-                )}
+                <LocaleSwitcher />
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -98,18 +79,18 @@ export const Header = () => {
                                     {user?.email || 'user@example.com'}
                                 </p>
                                 <p className="text-xs font-bold text-primary mt-1">
-                                    Role: {user?.appRole || 'Guest'}
+                                    {t('role')}: {user?.appRole || 'Guest'}
                                 </p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
                             <Settings className="w-4 h-4 mr-2" />
-                            Profile
+                            {t('profile')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                             <LogOut className="w-4 h-4 mr-2" />
-                            Log out
+                            {t('log_out')}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles, FileCheck2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles, FileCheck2, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal, EstimationResource, ProjectOverhead } from '@/types/business';
@@ -23,7 +24,7 @@ import {
     type AIEstimationDraft,
 } from '@/lib/queries/estimationVersions';
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
-import { EstimationRoleBuilder } from '@/components/estimation/EstimationRoleBuilder';
+import { EstimationRoleBuilder, type EstimationRoleBuilderHandle } from '@/components/estimation/EstimationRoleBuilder';
 import { ContractReadyDialog } from '@/components/estimation/ContractReadyDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
@@ -63,6 +64,7 @@ function CompareBanner({
     currency: Currency
     onClose: () => void
 }) {
+    const t = useTranslations()
     // The version-list endpoint returns counts only — not the actual resources
     // array. Fetch the full version detail here so the diff table reflects
     // real saved values, not always-empty placeholders.
@@ -72,7 +74,7 @@ function CompareBanner({
 
     const headerLabel = detail
         ? `Comparing with v${detail.versionNumber}${detail.notes ? ` · ${detail.notes}` : ''}`
-        : 'Loading comparison...'
+        : t('loading_comparison')
 
     // Resources from the API may carry either snake_case or camelCase keys
     // depending on which mapper produced them; normalize before indexing.
@@ -107,28 +109,28 @@ function CompareBanner({
                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
                     {headerLabel}
                 </p>
-                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>Close</Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onClose}>{t('close')}</Button>
             </div>
 
             {detailQuery.isLoading && (
-                <p className="text-xs text-slate-500 italic">Loading saved version data...</p>
+                <p className="text-xs text-slate-500 italic">{t('loading_saved_version')}</p>
             )}
 
             {detailQuery.isError && (
                 <p className="text-xs text-rose-600">
-                    Could not load that version&apos;s details.
-                    <Button variant="link" size="sm" className="h-auto px-1 text-xs text-rose-600" onClick={() => detailQuery.refetch()}>Retry</Button>
+                    {t('could_not_load_version')}
+                    <Button variant="link" size="sm" className="h-auto px-1 text-xs text-rose-600" onClick={() => detailQuery.refetch()}>{t('retry')}</Button>
                 </p>
             )}
 
             {detail && (
                 <div className="space-y-3">
                     <div className="grid grid-cols-3 gap-4 text-xs">
-                        <div className="font-medium text-slate-500">Role</div>
-                        <div className="font-medium text-slate-500 text-right">Saved (v{detail.versionNumber})</div>
-                        <div className="font-medium text-slate-500 text-right">Current</div>
+                        <div className="font-medium text-slate-500">{t('role')}</div>
+                        <div className="font-medium text-slate-500 text-right">{t('saved_v_label', { version: detail.versionNumber })}</div>
+                        <div className="font-medium text-slate-500 text-right">{t('current')}</div>
                         {allRoleIds.length === 0 ? (
-                            <div className="col-span-3 text-slate-500 italic">No resources in either version.</div>
+                            <div className="col-span-3 text-slate-500 italic">{t('no_resources_either_version')}</div>
                         ) : allRoleIds.map(roleId => {
                             const role = store.roles.find(r => r.id === roleId)
                             const savedH = savedMap.get(roleId) ?? 0
@@ -148,9 +150,9 @@ function CompareBanner({
 
                     {allOverheadNames.length > 0 && (
                         <div className="grid grid-cols-3 gap-4 text-xs pt-2 border-t border-blue-100">
-                            <div className="font-medium text-slate-500">Overhead</div>
-                            <div className="font-medium text-slate-500 text-right">Saved</div>
-                            <div className="font-medium text-slate-500 text-right">Current</div>
+                            <div className="font-medium text-slate-500">{t('overhead_col')}</div>
+                            <div className="font-medium text-slate-500 text-right">{t('saved_col')}</div>
+                            <div className="font-medium text-slate-500 text-right">{t('current')}</div>
                             {allOverheadNames.map(name => {
                                 const savedC = savedOverheadMap.get(name) ?? 0
                                 const currC  = currentOverheadMap.get(name) ?? 0
@@ -169,7 +171,7 @@ function CompareBanner({
                     )}
 
                     <div className="grid grid-cols-3 gap-4 text-xs pt-2 border-t border-blue-100">
-                        <div className="text-slate-700">Target Margin</div>
+                        <div className="text-slate-700">{t('target_margin')}</div>
                         <div className="text-right text-slate-500">{savedMargin}%</div>
                         <div className={`text-right font-medium ${diffClass(marginDiff)}`}>
                             {currentMargin}% {marginDiff !== 0 ? `(${marginDiff > 0 ? '+' : ''}${marginDiff})` : ''}
@@ -186,6 +188,7 @@ interface EstimationSimulatorProps {
 }
 
 export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorProps) {
+    const t = useTranslations();
     const router = useRouter();
     const store = useBusinessStore();
     const qc = useQueryClient();
@@ -209,6 +212,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
     const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
     const [suggestFromNotesOpen, setSuggestFromNotesOpen] = useState(false);
+    const roleBuilderHandleRef = useRef<EstimationRoleBuilderHandle | null>(null);
+    const [isBuildingTeam, setIsBuildingTeam] = useState(false);
 
     // Version queries
     const versionsQuery = useEstimationVersions(selectedDealId || null);
@@ -310,7 +315,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 // Keep dirty=true so the next edit re-triggers; toast once so
                 // the user knows the row they just changed didn't make it.
                 console.error('Auto-save failed:', err);
-                toast.error('Could not save changes — your edits are still in the UI but not on the deal.');
+                toast.error(t('could_not_save_changes'));
             }
         }, 800);
         return () => {
@@ -391,7 +396,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             // back to store.roles[0] when no match (rare; toasted).
             const fallbackRoleId = store.roles[0]?.id;
             if (!fallbackRoleId) {
-                toast.error('No roles defined for your tenant — add at least one role before generating an AI draft.');
+                toast.error(t('no_roles_defined'));
                 return;
             }
             const titleToRoleId = new Map(
@@ -440,7 +445,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 });
             } catch (saveErr) {
                 console.error('Failed to persist AI draft to deal:', saveErr);
-                toast.error('AI ran but could not save to the deal — try again.');
+                toast.error(t('ai_could_not_save'));
                 // Restore pre-AI state — refetch will repopulate from server too,
                 // but setting here avoids a flash of stale data.
                 setResources(prevResources);
@@ -455,7 +460,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             const ovhSuffix = aiOverheads.length > 0
                 ? ` and ${aiOverheads.length} predicted overhead${aiOverheads.length === 1 ? '' : 's'}`
                 : '';
-            toast.success(`AI generated ${aiResources.length} features${ovhSuffix} — saved to deal.`);
+            toast.success(t('ai_generated_features', { count: aiResources.length, ovhSuffix }));
         } catch {
             // Hook already toasted via normalizeError; nothing to add here.
         }
@@ -530,9 +535,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             setDirty(false);
             setLastSavedAt(new Date().toLocaleString());
             setVersionNotes('');
-            toast.success(`Estimation v${nextVer} saved!`);
+            toast.success(t('estimation_saved', { version: nextVer }));
         } catch {
-            toast.error('Failed to save estimation version');
+            toast.error(t('failed_save_estimation'));
         }
     };
 
@@ -555,9 +560,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 loadedDealIdRef.current = selectedDealId;
                 loadFromDeal(deal);
             }
-            toast.success(`Restored to v${versionNumber}`);
+            toast.success(t('restored_to_v', { version: versionNumber }));
         } catch {
-            toast.error('Failed to restore version');
+            toast.error(t('failed_restore_version'));
         }
     };
 
@@ -695,25 +700,25 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                 <Card className="shadow-sm border-slate-100 bg-slate-50">
                     <CardHeader className="pb-4">
-                        <CardTitle className="text-sm uppercase tracking-wider text-slate-500">Target Deal</CardTitle>
+                        <CardTitle className="text-sm uppercase tracking-wider text-slate-500">{t('target_deal')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-3">
                             <Select value={selectedDealId} onValueChange={handleDealChange}>
                                 <SelectTrigger className="w-full bg-white">
-                                    <SelectValue placeholder="Select a deal from CRM to estimate..." />
+                                    <SelectValue placeholder={t('select_deal_from_crm')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {store.deals.map(deal => (
                                         <SelectItem key={deal.id} value={deal.id}>
-                                            {deal.name} ({deal.client || 'No client'})
+                                            {deal.name} ({deal.client || t('no_client')})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                             {selectedDealId && (
                                 <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => router.push(`/crm/${selectedDealId}`)}>
-                                    <ExternalLink className="h-3.5 w-3.5" /> View Deal
+                                    <ExternalLink className="h-3.5 w-3.5" /> {t('view_deal')}
                                 </Button>
                             )}
                         </div>
@@ -725,8 +730,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <CardHeader className="pb-3 border-b">
                             <div className="flex justify-between items-center flex-wrap gap-3">
                                 <div>
-                                    <CardTitle className="text-base">Estimate Versions</CardTitle>
-                                    <CardDescription className="text-xs">Track saved estimates, compare versions, and export to XLSX.</CardDescription>
+                                    <CardTitle className="text-base">{t('estimate_versions')}</CardTitle>
+                                    <CardDescription className="text-xs">{t('estimate_versions_desc')}</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-3 flex-wrap">
                                     <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -740,7 +745,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 color: hasUnsavedChanges ? '#92400e' : '#065f46',
                                             }}
                                         >
-                                            {hasUnsavedChanges ? 'Draft' : 'Saved'}
+                                            {hasUnsavedChanges ? t('draft') : t('saved')}
                                         </span>
                                         {lastSavedAt && (
                                             <span className="text-slate-400">· {lastSavedAt}</span>
@@ -753,7 +758,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         onClick={() => setShowHistory(!showHistory)}
                                     >
                                         <History className="h-3 w-3" />
-                                        {totalVersions} versions
+                                        {t('n_versions', { count: totalVersions })}
                                     </Button>
                                     {/* Pick any saved version to compare the live draft against,
                                         not just v[N-1]. The "__none__" sentinel is the explicit
@@ -766,11 +771,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     >
                                         <SelectTrigger className="h-7 px-2 gap-1 text-xs w-auto min-w-[110px]">
                                             <GitCompare className="h-3 w-3" />
-                                            <SelectValue placeholder="Compare to..." />
+                                            <SelectValue placeholder={t('compare_to')} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {compareWithId && (
-                                                <SelectItem value="__none__">— Stop comparing</SelectItem>
+                                                <SelectItem value="__none__">{t('stop_comparing')}</SelectItem>
                                             )}
                                             {versions.map((v) => (
                                                 <SelectItem key={v.id} value={v.id}>
@@ -784,25 +789,25 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         </CardHeader>
                         {showHistory && versions.length > 0 && (
                             <div className="border-t bg-slate-50 p-4 space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Version History</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">{t('version_history')}</p>
                                 {versions.map((v, idx) => (
                                     <div key={v.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-semibold text-slate-800">v{v.versionNumber}</span>
                                                 <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-medium">
-                                                    {v.resourceCount} resources · {v.overheadCount} overheads
+                                                    {t('resources_and_overheads', { r: v.resourceCount, o: v.overheadCount })}
                                                 </span>
                                                 {idx === 0 && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">Latest</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">{t('latest')}</span>
                                                 )}
                                                 {v.hasContextNotes && (
                                                     <span
                                                         className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium inline-flex items-center gap-1"
-                                                        title={v.contextNotes ?? 'Has meeting notes attached'}
+                                                        title={v.contextNotes ?? t('has_meeting_notes')}
                                                     >
                                                         <MessageSquareText className="h-3 w-3" />
-                                                        notes
+                                                        {t('notes_short')}
                                                     </span>
                                                 )}
                                             </div>
@@ -819,7 +824,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 onClick={() => setCompareWithId(compareWithId === v.id ? null : v.id)}
                                             >
                                                 <GitCompare className="h-3 w-3" />
-                                                {compareWithId === v.id ? 'Comparing' : 'Compare'}
+                                                {compareWithId === v.id ? t('comparing') : t('compare')}
                                             </Button>
                                             <Button
                                                 variant="outline"
@@ -832,7 +837,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 }}
                                             >
                                                 <Download className="h-3 w-3" />
-                                                {isDownloading[v.id] ? 'Exporting…' : 'Export XLSX'}
+                                                {isDownloading[v.id] ? t('exporting') : t('export_xlsx')}
                                             </Button>
                                             {idx > 0 && (
                                                 <Button
@@ -841,7 +846,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                     className="h-7 gap-1 text-xs"
                                                     onClick={() => handleRestore(v.id, v.versionNumber)}
                                                 >
-                                                    <RotateCcw className="h-3 w-3" /> Restore
+                                                    <RotateCcw className="h-3 w-3" /> {t('restore')}
                                                 </Button>
                                             )}
                                         </div>
@@ -862,97 +867,142 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </Card>
                 )}
 
-                {selectedDeal && (
+                {selectedDeal && (() => {
+                    const hasRoles = (selectedDeal.ghostRoles?.length ?? 0) > 0;
+                    const hasScope = resources.length > 0;
+                    const canBuild = (selectedDeal.clientBudget ?? 0) > 0 && (selectedDeal.timelineMonths ?? 0) > 0;
+                    type SmartMode = 'build' | 'scope' | 'notes';
+                    const mode: SmartMode = !hasRoles ? 'build' : !hasScope ? 'scope' : 'notes';
+                    const smartBusy = isBuildingTeam || isGeneratingAi;
+
+                    const smartConfig: Record<SmartMode, {
+                        label: string;
+                        icon: 'sparkles' | 'message';
+                        title: string;
+                        disabled: boolean;
+                        className: string;
+                        onClick: () => void;
+                    }> = {
+                        build: {
+                            label: isBuildingTeam ? t('building_ellipsis') : t('build_ai_team_estimate'),
+                            icon: 'sparkles',
+                            title: t('ai_assistant_build_title'),
+                            disabled: !canBuild || smartBusy,
+                            className: 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md',
+                            onClick: () => { void roleBuilderHandleRef.current?.triggerBuild(); },
+                        },
+                        scope: {
+                            label: isGeneratingAi ? t('generating_with_ai') : t('generate_scope_from_deal'),
+                            icon: 'sparkles',
+                            title: t('ai_assistant_scope_title'),
+                            disabled: smartBusy,
+                            className: 'bg-violet-600 hover:bg-violet-700 text-white',
+                            onClick: () => { void handleGenerateAi(); },
+                        },
+                        notes: {
+                            label: t('refine_scope_from_notes'),
+                            icon: 'message',
+                            title: t('ai_assistant_notes_title'),
+                            disabled: smartBusy,
+                            className: 'bg-amber-600 hover:bg-amber-700 text-white',
+                            onClick: () => setSuggestFromNotesOpen(true),
+                        },
+                    };
+                    const cfg = smartConfig[mode];
+
+                    return (
                     <Card className="shadow-sm border-slate-100">
                         <CardHeader className="pb-4 border-b">
                             <CardTitle className="text-lg flex items-center gap-2">
                                 <Sparkles className="h-4 w-4 text-indigo-600" />
-                                AI Project Planner
+                                {t('ai_project_planner')}
                             </CardTitle>
                             <CardDescription>
-                                Build the role mix and generate the project scope from the deal context. <span className="font-medium text-[#171717]">Build AI Team</span> suggests roles + cost; <span className="font-medium text-[#171717]">Generate with AI</span> turns the deal into scope rows and predicted overheads.
+                                {t('ai_project_planner_desc')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <EstimationRoleBuilder
-                                dealId={selectedDeal.id}
-                                dealName={selectedDeal.name}
-                                dealClient={selectedDeal.client}
-                                clientBudget={selectedDeal.clientBudget ?? 0}
-                                timelineMonths={selectedDeal.timelineMonths ?? 0}
-                                workloadHours={selectedDeal.workloadHours ?? 0}
-                                workloadDescription={selectedDeal.workloadDescription ?? ''}
-                                onAccept={async (roles: AISuggestedRole[]) => {
-                                    // Map AI's role suggestions onto the deal's ghost-role shape.
-                                    // The ghost-role IDs are server-assigned on persist, so we
-                                    // intentionally omit `id` here — the mapper drops empty ids.
-                                    const ghostRoles: GhostRole[] = roles.map(r => ({
-                                        id: '',
-                                        roleType: r.roleType,
-                                        quantity: r.quantity,
-                                        months: r.months,
-                                        minMonthlySalary: r.minMonthlySalary,
-                                        maxMonthlySalary: r.maxMonthlySalary,
-                                    }));
-                                    try {
-                                        await updateDeal.mutateAsync({
-                                            id: selectedDeal.id,
-                                            updates: { ghostRoles },
-                                        });
-                                        toast.success('Roles saved to deal');
-                                    } catch (err) {
-                                        console.error('Failed to save AI roles to deal:', err);
-                                        toast.error('Could not save the roles — please try again.');
-                                    }
-                                }}
-                                extraAction={
-                                    <div className="flex flex-col gap-2 h-full">
-                                        <Button
-                                            onClick={handleGenerateAi}
-                                            disabled={!selectedDealId || isGeneratingAi}
-                                            className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 disabled:opacity-60"
-                                            size="lg"
-                                            title="Generate scope rows and predicted overheads from the deal context using Claude"
-                                        >
-                                            <Sparkles className="h-4 w-4" />
-                                            {isGeneratingAi ? 'Generating with AI...' : 'Generate with AI'}
-                                        </Button>
-                                        <Button
-                                            onClick={() => setSuggestFromNotesOpen(true)}
-                                            disabled={!selectedDealId || resources.length === 0}
-                                            className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 disabled:opacity-60"
-                                            size="lg"
-                                            title={resources.length === 0
-                                                ? 'Generate or add scope first, then come back here to apply meeting feedback.'
-                                                : 'Paste meeting minutes / chat — AI proposes scope and overhead changes for review.'}
-                                        >
-                                            <MessageSquareText className="h-4 w-4" />
-                                            Suggest changes from notes
-                                        </Button>
-                                    </div>
-                                }
-                            />
+                            <div className="space-y-4">
+                                <Button
+                                    type="button"
+                                    onClick={cfg.onClick}
+                                    disabled={cfg.disabled}
+                                    className={`w-full gap-2 disabled:opacity-60 transition-all duration-200 ${cfg.className}`}
+                                    size="lg"
+                                    title={cfg.title}
+                                >
+                                    {smartBusy ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : cfg.icon === 'sparkles' ? (
+                                        <Sparkles className="h-4 w-4" />
+                                    ) : (
+                                        <MessageSquareText className="h-4 w-4" />
+                                    )}
+                                    {cfg.label}
+                                </Button>
+                                {mode === 'build' && !canBuild && (
+                                    <p className="text-xs text-[#4a4a4a] text-center">
+                                        {t('set_budget_timeline_hint')}
+                                    </p>
+                                )}
+                                <EstimationRoleBuilder
+                                    dealId={selectedDeal.id}
+                                    dealName={selectedDeal.name}
+                                    dealClient={selectedDeal.client}
+                                    clientBudget={selectedDeal.clientBudget ?? 0}
+                                    timelineMonths={selectedDeal.timelineMonths ?? 0}
+                                    workloadHours={selectedDeal.workloadHours ?? 0}
+                                    workloadDescription={selectedDeal.workloadDescription ?? ''}
+                                    hideBuildButton
+                                    handleRef={roleBuilderHandleRef}
+                                    onLoadingChange={setIsBuildingTeam}
+                                    onAccept={async (roles: AISuggestedRole[]) => {
+                                        // Map AI's role suggestions onto the deal's ghost-role shape.
+                                        // The ghost-role IDs are server-assigned on persist, so we
+                                        // intentionally omit `id` here — the mapper drops empty ids.
+                                        const ghostRoles: GhostRole[] = roles.map(r => ({
+                                            id: '',
+                                            roleType: r.roleType,
+                                            quantity: r.quantity,
+                                            months: r.months,
+                                            minMonthlySalary: r.minMonthlySalary,
+                                            maxMonthlySalary: r.maxMonthlySalary,
+                                        }));
+                                        try {
+                                            await updateDeal.mutateAsync({
+                                                id: selectedDeal.id,
+                                                updates: { ghostRoles },
+                                            });
+                                            toast.success(t('roles_saved_to_deal'));
+                                        } catch (err) {
+                                            console.error('Failed to save AI roles to deal:', err);
+                                            toast.error(t('could_not_save_roles'));
+                                        }
+                                    }}
+                                />
+                            </div>
                         </CardContent>
                     </Card>
-                )}
+                    );
+                })()}
 
                 {selectedDeal && (selectedDeal.ghostRoles?.length ?? 0) > 0 && (
                     <Card className="shadow-sm border-slate-100">
                         <CardHeader className="pb-4 border-b">
-                            <CardTitle className="text-lg">Project Roles</CardTitle>
+                            <CardTitle className="text-lg">{t('project_roles')}</CardTitle>
                             <CardDescription>
-                                The role mix saved on this deal. Generated by AI Team Builder above, or set manually on the deal page.
+                                {t('project_roles_desc')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
                                 <TableHeader>
                                     <TableRow className="bg-slate-50">
-                                        <TableHead>Role</TableHead>
-                                        <TableHead className="text-right">Qty</TableHead>
-                                        <TableHead className="text-right">Months</TableHead>
-                                        <TableHead className="text-right">Monthly salary range</TableHead>
-                                        <TableHead className="text-right">Estimated cost</TableHead>
+                                        <TableHead>{t('role')}</TableHead>
+                                        <TableHead className="text-right">{t('qty')}</TableHead>
+                                        <TableHead className="text-right">{t('months_col')}</TableHead>
+                                        <TableHead className="text-right">{t('monthly_salary_range')}</TableHead>
+                                        <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -960,11 +1010,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         const avg = ((gr.minMonthlySalary ?? 0) + (gr.maxMonthlySalary ?? 0)) / 2
                                         const total = gr.quantity * gr.months * avg
                                         const labelByRoleType: Record<string, string> = {
-                                            frontend: 'Frontend Engineer',
-                                            backend: 'Backend Engineer',
-                                            design: 'Product Designer',
-                                            qa: 'QA Engineer',
-                                            pm: 'Project Manager',
+                                            frontend: t('role_type_frontend'),
+                                            backend: t('role_type_backend'),
+                                            design: t('role_type_design'),
+                                            qa: t('role_type_qa'),
+                                            pm: t('role_type_pm'),
                                         }
                                         return (
                                             <TableRow key={gr.id || `gr-${i}`}>
@@ -991,8 +1041,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                 <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
-                        <CardTitle className="text-lg">Project Scope & Labor</CardTitle>
-                        <CardDescription>Itemize the project scope to calculate base developer costs.</CardDescription>
+                        <CardTitle className="text-lg">{t('project_scope_labor')}</CardTitle>
+                        <CardDescription>{t('project_scope_desc')}</CardDescription>
                     </CardHeader>
                     {aiDraft && (
                         <AIDraftReviewPanel
@@ -1004,11 +1054,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead>Feature</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead className="text-right">Rate/hr (Cost)</TableHead>
-                                    <TableHead className="text-right">Hours</TableHead>
-                                    <TableHead className="text-right">Cost</TableHead>
+                                    <TableHead>{t('feature_col')}</TableHead>
+                                    <TableHead>{t('role')}</TableHead>
+                                    <TableHead className="text-right">{t('rate_per_hr_cost')}</TableHead>
+                                    <TableHead className="text-right">{t('hours_col')}</TableHead>
+                                    <TableHead className="text-right">{t('cost_col')}</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -1022,7 +1072,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
-                                            <TableCell>{role?.title || 'Unknown Role'}</TableCell>
+                                            <TableCell>{role?.title || t('unknown_role')}</TableCell>
                                             <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
@@ -1039,30 +1089,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                         <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Feature Name</label>
-                                <Input value={newFeature} onChange={e => setNewFeature(e.target.value)} placeholder="e.g. User Profile" className="h-9 bg-white" />
+                                <label className="text-xs font-medium text-slate-500">{t('feature_name')}</label>
+                                <Input value={newFeature} onChange={e => setNewFeature(e.target.value)} placeholder={t('placeholder_user_profile')} className="h-9 bg-white" />
                             </div>
                             <div className="w-[200px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Role</label>
+                                <label className="text-xs font-medium text-slate-500">{t('role')}</label>
                                 <Select
                                 value={newRoleId}
                                 onValueChange={setNewRoleId}>
                                     <SelectTrigger className="h-9 bg-white">
-                                        <SelectValue placeholder="Select role..." />
+                                        <SelectValue placeholder={t('select_role_short')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {store.roles.map(r => (
-                                            <SelectItem key={r.id} value={r.id}>{r.title} (Bill: {formatMoney(r.rate, currency)})</SelectItem>
+                                            <SelectItem key={r.id} value={r.id}>{t('role_bill_rate', { title: r.title, rate: formatMoney(r.rate, currency) })}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="w-[100px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Hours</label>
+                                <label className="text-xs font-medium text-slate-500">{t('hours_col')}</label>
                                 <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAdd} className="h-9 bg-[#171717] gap-2">
-                                <Plus className="h-4 w-4" /> Add
+                                <Plus className="h-4 w-4" /> {t('add')}
                             </Button>
                         </div>
                     </CardContent>
@@ -1070,15 +1120,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                 <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
                     <CardHeader className="pb-4 border-b">
-                        <CardTitle className="text-lg">Project-Specific Overhead</CardTitle>
-                        <CardDescription>Add one-time expenses specific to this contract (travel, audits, specialized licenses).</CardDescription>
+                        <CardTitle className="text-lg">{t('project_specific_overhead')}</CardTitle>
+                        <CardDescription>{t('project_overhead_desc')}</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead>Overhead Category / Description</TableHead>
-                                    <TableHead className="text-right">Project Cost</TableHead>
+                                    <TableHead>{t('overhead_cat_desc')}</TableHead>
+                                    <TableHead className="text-right">{t('project_cost_col')}</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -1096,7 +1146,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 ))}
                                 {overheads.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">No specific overheads added.</TableCell>
+                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">{t('no_specific_overheads')}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -1104,15 +1154,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                         <div className="p-4 bg-slate-50 border-t flex gap-3 items-end">
                             <div className="flex-1 space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Expense Name</label>
-                                <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder="e.g. Security Audit Firm" className="h-9 bg-white" />
+                                <label className="text-xs font-medium text-slate-500">{t('expense_name')}</label>
+                                <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder={t('placeholder_security_audit')} className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">Cost ({symbol})</label>
+                                <label className="text-xs font-medium text-slate-500">{t('cost_with_symbol', { symbol })}</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] gap-2">
-                                <Plus className="h-4 w-4" /> Add
+                                <Plus className="h-4 w-4" /> {t('add')}
                             </Button>
                         </div>
                     </CardContent>
@@ -1124,14 +1174,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Calculator className="h-5 w-5 text-blue-500" />
-                            Margin Simulator
+                            {t('margin_simulator')}
                         </CardTitle>
-                        <CardDescription className="text-muted-foreground">Drag to target margin</CardDescription>
+                        <CardDescription className="text-muted-foreground">{t('drag_to_target_margin')}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-700">Target Margin</span>
+                                <span className="text-sm font-medium text-slate-700">{t('target_margin')}</span>
                                 <span className="text-2xl font-bold text-emerald-500">{margin[0]}%</span>
                             </div>
                             <Slider
@@ -1146,29 +1196,29 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                         <div className="pt-4 border-t border-slate-100 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Direct Labor Cost</span>
+                                <span className="text-slate-500">{t('direct_labor_cost')}</span>
                                 <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">
-                                    Overhead &amp; Buffer ({LABOR_OVERHEAD_PERCENTAGE}% of labor)
+                                    {t('overhead_buffer_pct', { pct: LABOR_OVERHEAD_PERCENTAGE })}
                                 </span>
                                 <span className="font-medium text-amber-600">{formatMoney(laborOverhead, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Project Overhead</span>
+                                <span className="text-slate-500">{t('project_overhead')}</span>
                                 <span className="font-medium text-rose-500">{formatMoney(projectOverheadTotal, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
-                                <span className="text-slate-700">Total Project Cost</span>
+                                <span className="text-slate-700">{t('total_project_cost')}</span>
                                 <span className="text-slate-800">{formatMoney(totalCost, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">Expected Profit</span>
+                                <span className="text-slate-500">{t('expected_profit')}</span>
                                 <span className="font-medium text-emerald-500">+{formatMoney(expectedProfit, currency)}</span>
                             </div>
                             <div className="pt-2 flex justify-between items-end border-t border-slate-100">
-                                <span className="text-sm font-medium text-slate-700">Suggested Price</span>
+                                <span className="text-sm font-medium text-slate-700">{t('suggested_price')}</span>
                                     <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-emerald-500">
                                     {formatMoney(suggestedPrice, currency)}
                                 </span>
@@ -1176,7 +1226,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
 
                             {clientBudget > 0 && (
                                 <div className="flex justify-between items-center text-xs pt-1">
-                                    <span className="text-slate-400">vs. Client Budget</span>
+                                    <span className="text-slate-400">{t('vs_client_budget')}</span>
                                     <span className={exceedsBudget ? 'text-rose-600 font-medium' : 'text-slate-500'}>
                                         {formatMoney(clientBudget, currency)}
                                     </span>
@@ -1187,21 +1237,20 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         {exceedsBudget && (
                             <div className="rounded-md border border-rose-200 bg-rose-50 p-3 space-y-1">
                                 <p className="text-xs font-semibold text-rose-700 uppercase tracking-wider">
-                                    Suggested price exceeds budget
+                                    {t('suggested_price_exceeds_budget')}
                                 </p>
                                 <p className="text-xs text-rose-700">
-                                    {formatMoney(budgetOverage, currency)} over the client&apos;s {formatMoney(clientBudget, currency)} budget
-                                    {' '}({budgetOveragePercent.toFixed(1)}%). Lower the target margin or reduce scope before quoting.
+                                    {t('budget_overage_explain', { over: formatMoney(budgetOverage, currency), budget: formatMoney(clientBudget, currency), pct: budgetOveragePercent.toFixed(1) })}
                                 </p>
                             </div>
                         )}
 
                         <div className="pt-2">
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Version Notes (optional)</label>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block">{t('version_notes_optional')}</label>
                             <Input
                                 value={versionNotes}
                                 onChange={e => setVersionNotes(e.target.value)}
-                                placeholder="What changed in this version?"
+                                placeholder={t('placeholder_version_changes')}
                                 className="h-8 text-xs bg-white border-slate-200 text-slate-800 placeholder:text-slate-400"
                             />
                         </div>
@@ -1213,13 +1262,13 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         >
                             <Save className="h-4 w-4" />
                             {saveVersion.isPending
-                                ? 'Snapshotting...'
+                                ? t('snapshotting')
                                 : isUnchangedFromSaved
-                                    ? 'No changes since last version'
-                                    : `Save Version v${nextVersion}${hasUnsavedChanges ? '+' : ''}`}
+                                    ? t('no_changes_since_last')
+                                    : t('save_version_v', { version: `${nextVersion}${hasUnsavedChanges ? '+' : ''}` })}
                         </Button>
                         <p className="text-[10px] text-slate-400 text-center -mt-1">
-                            Edits auto-save to the deal as you type. Save Version creates a checkpoint with XLSX.
+                            {t('auto_save_explainer')}
                         </p>
 
                         {/* Contract Ready — manual B→A trigger. Pressed only when the
@@ -1238,10 +1287,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                                         >
                                             <FileCheck2 className="h-4 w-4" />
-                                            Mark Contract Ready
+                                            {t('mark_contract_ready')}
                                         </Button>
                                         <p className="text-[10px] text-slate-400 text-center">
-                                            Press this when the customer has agreed. Locks the terms and advances the deal to Rank A.
+                                            {t('mark_contract_ready_hint')}
                                         </p>
                                     </>
                                 )}
@@ -1249,10 +1298,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <Button
                                         disabled
                                         className="w-full gap-2"
-                                        title="Move the deal to Qualified (Rank B) before marking contract ready."
+                                        title={t('move_deal_to_qualified_hint')}
                                     >
                                         <FileCheck2 className="h-4 w-4" />
-                                        Mark Contract Ready (Rank B required)
+                                        {t('mark_contract_ready_disabled')}
                                     </Button>
                                 )}
                                 {(selectedDeal.status === 'negotiation' || selectedDeal.status === 'won') && (
@@ -1260,7 +1309,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold text-emerald-800">
-                                                Contract terms confirmed
+                                                {t('contract_terms_confirmed')}
                                                 {selectedDeal.finalConfirmedAt && (
                                                     <span className="font-normal text-emerald-700">
                                                         {' '}· {new Date(selectedDeal.finalConfirmedAt).toLocaleDateString()}
@@ -1268,8 +1317,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                                 )}
                                             </p>
                                             <p className="text-[11px] text-emerald-700 mt-0.5">
-                                                Deal is at Rank {selectedDeal.status === 'won' ? 'S' : 'A'}. The agreed terms
-                                                are locked; you can still save more versions for the record.
+                                                {t('rank_status_explain', { rank: selectedDeal.status === 'won' ? 'S' : 'A' })}
                                             </p>
                                         </div>
                                     </div>
@@ -1336,7 +1384,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         contextNotes,
                                     });
                                     setLastSavedAt(new Date().toLocaleString());
-                                    toast.success(`Applied changes — saved as v${nextVer} with notes attached.`);
+                                    toast.success(t('applied_changes_saved', { version: nextVer }));
                                 }}
                             />
                         )}
@@ -1352,17 +1400,18 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                             <AlertTriangle className="h-5 w-5 text-amber-600" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <DialogTitle>Replace current estimate?</DialogTitle>
+                                            <DialogTitle>{t('replace_current_estimate')}</DialogTitle>
                                             <DialogDescription className="mt-1.5">
-                                                A fresh AI suggestion will replace the {resources.length} scope row{resources.length === 1 ? '' : 's'}
-                                                {overheads.length > 0 && ` and ${overheads.length} overhead${overheads.length === 1 ? '' : 's'}`}
-                                                {' '}currently on this deal, and save the new version to the database.
+                                                {t('replace_estimate_explain', {
+                                                    rowCount: resources.length,
+                                                    withOverheads: overheads.length > 0 ? t('and_n_overheads', { count: overheads.length }) : '',
+                                                })}
                                             </DialogDescription>
                                         </div>
                                     </div>
                                 </DialogHeader>
                                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                                    Tip: save a version first if you want to compare the AI&rsquo;s new draft against the current scope side-by-side.
+                                    {t('tip_save_version_first')}
                                 </div>
                                 <DialogFooter className="gap-2">
                                     <Button
@@ -1370,7 +1419,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         onClick={() => setRegenerateConfirmOpen(false)}
                                         disabled={isGeneratingAi}
                                     >
-                                        Keep current estimate
+                                        {t('keep_current_estimate')}
                                     </Button>
                                     <Button
                                         className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
@@ -1381,7 +1430,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         }}
                                     >
                                         <Sparkles className="h-4 w-4" />
-                                        Replace &amp; regenerate
+                                        {t('replace_and_regenerate')}
                                     </Button>
                                 </DialogFooter>
                             </DialogContent>

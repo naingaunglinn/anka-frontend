@@ -2,6 +2,7 @@
 
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -24,6 +25,7 @@ interface RankFormProps {
 }
 
 export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
+    const t = useTranslations();
     const form = useForm<RankFormValues>({
         // Cast required for react-hook-form v5 + zod's generic inference —
         // same workaround the EmployeeForm uses. Without it TS complains
@@ -56,7 +58,7 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
                 {form.formState.isSubmitted && errorCount > 0 && (
                     <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>Please fix the highlighted fields before saving.</span>
+                        <span>{t('please_fix_highlighted_plural')}</span>
                     </div>
                 )}
                 <FormField
@@ -64,9 +66,9 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Rank Name <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('rank_name')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Senior, Principal, Staff Engineer" {...field} />
+                                <Input placeholder={t('placeholder_rank_examples')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -77,13 +79,13 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
                     name="code"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Code <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('code_label')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Senior, Principal" {...field} />
+                                <Input placeholder={t('placeholder_code_examples')} {...field} />
                             </FormControl>
                             <FormMessage />
                             <p className="text-xs text-muted-foreground mt-1">
-                                Short identifier. Letters, numbers, underscore, hyphen only.
+                                {t('short_identifier_hint')}
                             </p>
                         </FormItem>
                     )}
@@ -93,28 +95,27 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
                     name="level"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Seniority Level <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('seniority_level')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                                 <Input type="number" min={0} max={100} step={1} {...field} />
                             </FormControl>
                             <FormMessage />
                             <p className="text-xs text-muted-foreground mt-1">
-                                Higher = more senior. Defaults: Junior 10, Mid 20, Senior 30, Lead 40.
-                                Use gaps (e.g. 35 for Principal) so future ranks can fit between.
+                                {t('seniority_level_hint')}
                             </p>
                         </FormItem>
                     )}
                 />
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
-                        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+                        <Button type="button" variant="outline" onClick={onCancel}>{t('cancel')}</Button>
                     ) : (
                         <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancel</Button>
+                            <Button type="button" variant="outline">{t('cancel')}</Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? 'Saving...' : 'Save Rank'}
+                        {form.formState.isSubmitting ? t('saving') : t('save_rank')}
                     </Button>
                 </div>
             </form>

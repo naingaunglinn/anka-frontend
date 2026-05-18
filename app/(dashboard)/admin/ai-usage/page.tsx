@@ -1,11 +1,13 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAdminAIUsage } from '@/lib/queries/aiUsage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { BrainCircuit, Coins, MessageSquare, Hash } from 'lucide-react';
 
 export default function AdminAIUsagePage() {
+    const t = useTranslations();
     const { data, isLoading } = useAdminAIUsage();
 
     if (isLoading) {
@@ -28,8 +30,8 @@ export default function AdminAIUsagePage() {
     if (!data) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-bold text-[#171717]">AI Usage</h1>
-                <p className="text-[#8a8a8a] mt-2">Unable to load AI usage data.</p>
+                <h1 className="text-2xl font-bold text-[#171717]">{t('ai_usage_title_short')}</h1>
+                <p className="text-[#8a8a8a] mt-2">{t('unable_to_load_ai_usage')}</p>
             </div>
         );
     }
@@ -39,32 +41,32 @@ export default function AdminAIUsagePage() {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">AI Usage & Costs</h1>
-                <p className="text-[#8a8a8a] mt-1">Platform-wide AI consumption and estimated costs.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('ai_usage_costs_title')}</h1>
+                <p className="text-[#8a8a8a] mt-1">{t('ai_usage_costs_subtitle')}</p>
             </div>
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KpiCard
-                    title="Total Calls"
+                    title={t('total_calls_col')}
                     value={totals.totalCalls.toLocaleString()}
                     icon={MessageSquare}
                     iconColor="text-[#00a7f4]"
                 />
                 <KpiCard
-                    title="Total Tokens"
+                    title={t('total_tokens_col')}
                     value={(totals.totalInputTokens + totals.totalOutputTokens).toLocaleString()}
                     icon={Hash}
                     iconColor="text-violet-500"
                 />
                 <KpiCard
-                    title="Input Tokens"
+                    title={t('input_tokens_col')}
                     value={totals.totalInputTokens.toLocaleString()}
                     icon={BrainCircuit}
                     iconColor="text-emerald-500"
                 />
                 <KpiCard
-                    title="Est. Cost"
+                    title={t('est_cost')}
                     value={`$${totals.totalCost.toFixed(2)}`}
                     icon={Coins}
                     iconColor="text-amber-500"
@@ -74,7 +76,7 @@ export default function AdminAIUsagePage() {
             {/* Cost Per Tenant Chart */}
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Cost Per Tenant</CardTitle>
+                    <CardTitle className="text-lg">{t('cost_per_tenant')}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 h-[350px]">
                     {tenants.length > 0 ? (
@@ -84,16 +86,16 @@ export default function AdminAIUsagePage() {
                                 <XAxis type="number" tickFormatter={(v) => `$${v}`} axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                                 <YAxis dataKey="tenantName" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} width={100} />
                                 <Tooltip
-                                    formatter={(value: any, name: any) => [`$${Number(value).toFixed(2)}`, 'Cost']}
+                                    formatter={(value: any) => [`$${Number(value).toFixed(2)}`, t('cost_label')]}
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 />
                                 <Legend />
-                                <Bar dataKey="totalCost" name="Estimated Cost" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+                                <Bar dataKey="totalCost" name={t('estimated_cost_label')} fill="#F59E0B" radius={[0, 4, 4, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
                         <div className="flex items-center justify-center h-full text-[#8a8a8a] text-sm">
-                            No AI usage data yet
+                            {t('no_ai_usage_yet')}
                         </div>
                     )}
                 </CardContent>
@@ -102,19 +104,19 @@ export default function AdminAIUsagePage() {
             {/* Per-Tenant Breakdown Table */}
             <Card className="shadow-sm border-[#e6e9ee]">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
-                    <CardTitle className="text-lg">Per-Tenant Breakdown</CardTitle>
+                    <CardTitle className="text-lg">{t('per_tenant_breakdown')}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-white">
                                 <tr>
-                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">Tenant</th>
-                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Calls</th>
-                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Input Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Output Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Total Tokens</th>
-                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">Est. Cost</th>
+                                    <th className="text-left py-3 px-4 font-medium text-[#8a8a8a]">{t('tenant_col')}</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">{t('calls')}</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">{t('input_tokens_col')}</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">{t('output_tokens_col')}</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">{t('total_tokens_col')}</th>
+                                    <th className="text-right py-3 px-4 font-medium text-[#8a8a8a]">{t('est_cost')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -135,7 +137,7 @@ export default function AdminAIUsagePage() {
                                 {tenants.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="py-8 text-center text-[#8a8a8a]">
-                                            No AI usage data yet
+                                            {t('no_ai_usage_yet')}
                                         </td>
                                     </tr>
                                 )}

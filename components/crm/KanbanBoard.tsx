@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +69,7 @@ export function KanbanBoard({
      */
     showDropped?: boolean;
 }) {
+    const t = useTranslations();
     const router = useRouter();
     const getDealEstimation = useBusinessStore(state => state.getDealEstimation);
     const { deleteDeal, dropDeal } = useDealMutations();
@@ -135,7 +137,7 @@ export function KanbanBoard({
         if (!deletingDealId) return;
         try {
             await deleteDeal.mutateAsync(deletingDealId);
-            toast.success('Deal deleted.');
+            toast.success(t('deal_deleted_short'));
         } finally {
             setDeleteOpen(false);
             setDeletingDealId(null);
@@ -224,7 +226,7 @@ export function KanbanBoard({
                                                         <DropdownMenuTrigger asChild>
                                                             <Button variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-100 shrink-0">
                                                                 <MoreVertical className="h-4 w-4 text-[#8a8a8a]" />
-                                                                <span className="sr-only">Open menu</span>
+                                                                <span className="sr-only">{t('open_menu')}</span>
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-[180px]">
@@ -232,7 +234,7 @@ export function KanbanBoard({
                                                                 onClick={() => router.push(`/project-pipeline/${deal.id}`)}
                                                             >
                                                                 <Eye className="mr-2 h-4 w-4" />
-                                                                Deal Detail
+                                                                {t('deal_detail')}
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem
                                                                 onClick={() => router.push(`/project-pipeline/edit/${deal.id}`)}
@@ -240,7 +242,7 @@ export function KanbanBoard({
                                                                 title={!canManageCrm ? rbacReason : undefined}
                                                             >
                                                                 <Edit2 className="mr-2 h-4 w-4" />
-                                                                Edit Details
+                                                                {t('edit_details_short')}
                                                             </DropdownMenuItem>
                                                             {/* Staffing lives in the Task Assign menu now —
                                                                 no dropdown item here. */}
@@ -263,7 +265,7 @@ export function KanbanBoard({
                                                                         className="text-orange-600 focus:text-orange-700 focus:bg-orange-50"
                                                                     >
                                                                         <Ban className="mr-2 h-4 w-4" />
-                                                                        Drop deal
+                                                                        {t('drop_deal')}
                                                                     </DropdownMenuItem>
                                                                 </>
                                                             )}
@@ -274,7 +276,7 @@ export function KanbanBoard({
                                                                 className="text-red-600 focus:text-red-700 focus:bg-red-50"
                                                             >
                                                                 <Trash2 className="mr-2 h-4 w-4" />
-                                                                Delete
+                                                                {t('delete')}
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
@@ -282,23 +284,23 @@ export function KanbanBoard({
 
                                                 {/* Client + Staffing badge */}
                                                 <div className="flex justify-between items-center text-xs text-[#4a4a4a]">
-                                                    <span>{deal.client || 'Unknown Client'}</span>
+                                                    <span>{deal.client || t('unknown_client')}</span>
                                                     {rolesNeededCount > 0 ? (
                                                         <Badge variant={isFullyStaffed ? 'default' : 'secondary'} className={`h-5 text-[10px] ${isFullyStaffed ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}`}>
-                                                            {hardBookedCount}/{rolesNeededCount} Staffed
+                                                            {t('staffed_ratio', { booked: hardBookedCount, needed: rolesNeededCount })}
                                                         </Badge>
                                                     ) : null}
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Est. Cost</span>
+                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('est_cost_short')}</span>
                                                         <span className="text-sm font-semibold text-[#4a4a4a]">
                                                             {formatMoneyShort(estimatedCost, currency)}
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Gross Profit</span>
+                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('gross_profit_short')}</span>
                                                         <span className={`text-sm font-bold ${marginColorClass}`}>
                                                             {formatMoneyShort(grossProfit, currency)}
                                                         </span>
@@ -307,13 +309,13 @@ export function KanbanBoard({
 
                                                 <div className="grid grid-cols-2 gap-2">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Budget</span>
+                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('budget_short')}</span>
                                                         <span className="text-sm font-bold text-slate-800">
                                                             {formatMoneyShort(budget, currency)}
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">Win Prob</span>
+                                                        <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('win_prob_short')}</span>
                                                         <div className="flex flex-col items-end w-full mt-1">
                                                             <span className="text-[10px] font-semibold">{deal.winProbability || 0}%</span>
                                                             <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mt-0.5">
@@ -331,11 +333,11 @@ export function KanbanBoard({
                                                     <div className="flex justify-start pt-1">
                                                         {deal.hasSentContractDraft ? (
                                                             <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] border-0">
-                                                                Contract Sent
+                                                                {t('contract_sent')}
                                                             </Badge>
                                                         ) : deal.activeContractDraftId ? (
                                                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px] border-0">
-                                                                Drafting
+                                                                {t('drafting')}
                                                             </Badge>
                                                         ) : null}
                                                     </div>
@@ -355,15 +357,15 @@ export function KanbanBoard({
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Delete Deal</DialogTitle>
+                        <DialogTitle>{t('delete_deal')}</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-[#4a4a4a]">
-                        Are you sure you want to delete this deal? This action cannot be undone.
+                        {t('delete_deal_confirm')}
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setDeleteOpen(false)}>{t('cancel')}</Button>
                         <Button variant="destructive" onClick={handleDeleteDeal} disabled={deleteDeal.isPending}>
-                            {deleteDeal.isPending ? 'Deleting...' : 'Delete'}
+                            {deleteDeal.isPending ? t('deleting') : t('delete')}
                         </Button>
                     </div>
                 </DialogContent>
@@ -373,19 +375,19 @@ export function KanbanBoard({
             <Dialog open={dropOpen} onOpenChange={(open) => { setDropOpen(open); if (!open) setDropReason(''); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Drop deal</DialogTitle>
+                        <DialogTitle>{t('drop_deal_title')}</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-[#4a4a4a]">
-                        Drop <strong>{droppingDeal?.name}</strong> from the pipeline?<br />
-                        Dropped deals can&apos;t be reactivated — to reconsider this opportunity, create a new deal.
+                        {t('drop_deal_prompt', { name: droppingDeal?.name ?? '' })}<br />
+                        {t('drop_deal_confirm')}
                     </p>
                     <div className="mt-3 space-y-1">
                         <Label htmlFor="drop-reason" className="text-sm text-[#4a4a4a]">
-                            Reason <span className="text-red-500">*</span>
+                            {t('reason')} <span className="text-red-500">*</span>
                         </Label>
                         <Textarea
                             id="drop-reason"
-                            placeholder="e.g. Lost to competitor on price, project cancelled, budget frozen"
+                            placeholder={t('drop_reason_placeholder')}
                             value={dropReason}
                             onChange={(e) => setDropReason(e.target.value)}
                             maxLength={500}
@@ -393,13 +395,13 @@ export function KanbanBoard({
                         />
                     </div>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDropOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setDropOpen(false)}>{t('cancel')}</Button>
                         <Button
                             variant="destructive"
                             onClick={handleDropDeal}
                             disabled={dropDeal.isPending || !dropReason.trim()}
                         >
-                            {dropDeal.isPending ? 'Processing...' : 'Drop deal'}
+                            {dropDeal.isPending ? t('processing') : t('drop_deal')}
                         </Button>
                     </div>
                 </DialogContent>

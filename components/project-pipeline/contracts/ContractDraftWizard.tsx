@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ export function ContractDraftWizard({
     /** When set, skip to the edit step using this draft. */
     initialDraft?: DealContractDraft;
 }) {
+    const t = useTranslations();
     const router = useRouter();
     // When opening an existing draft that's already been sent (or signed),
     // skip Edit and land on the Send step directly — that's where the
@@ -227,10 +229,10 @@ export function ContractDraftWizard({
             });
             setDraft(result.document);
             if (result.auto_won && result.contract?.id) {
-                toast.success('Contract signed — deal moved to Won (S).');
+                toast.success(t('toast_contract_signed_won'));
                 router.push(`/contracts/${result.contract.id}`);
             } else {
-                toast.success('Draft marked signed.');
+                toast.success(t('toast_draft_marked_signed'));
             }
         } catch (err) {
             showError(err);
@@ -244,10 +246,9 @@ export function ContractDraftWizard({
             <div className="space-y-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">1 · Pick a template</CardTitle>
+                        <CardTitle className="text-base">{t('pick_a_template')}</CardTitle>
                         <CardDescription>
-                            Choose the SES variant that best matches this deal. The Estimation menu can hint
-                            at one via <code>suggested_template_variant</code>.
+                            {t('pick_template_desc')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -267,11 +268,9 @@ export function ContractDraftWizard({
                 {templateId && (
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">2 · Answer template-specific questions</CardTitle>
+                            <CardTitle className="text-base">{t('answer_template_q')}</CardTitle>
                             <CardDescription>
-                                Anything you skip will become a <code className="text-amber-600">{'{{TODO}}'}</code> in
-                                the generated draft for you to fill manually. The deal&apos;s Requirement
-                                Description and Estimation handoff fields are passed automatically.
+                                {t('answer_template_desc', { todo: '{{TODO}}' })}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -291,23 +290,21 @@ export function ContractDraftWizard({
                 {templateId && (
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">3 · Signatories</CardTitle>
+                            <CardTitle className="text-base">{t('signatories')}</CardTitle>
                             <CardDescription>
-                                The two people who will sign this contract. Provider side pre-fills
-                                from the tenant default; Customer side is captured at negotiation
-                                (different from the day-to-day deal contact).
+                                {t('signatories_desc')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
 
                         <div className="space-y-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Provider (your side)
+                            {t('provider_your_side')}
                         </div>
                             <SignatoryPicker
                                 id="wizard-signatory-picker"
-                                label="Override with a senior employee (optional)"
-                                helper="Picking auto-fills the fields below. Leave the fields blank to use the tenant default."
+                                label={t('override_senior_employee')}
+                                helper={t('pick_auto_fills')}
                                 onSelect={({ name, title }) => {
                                     setSignatoryName(name);
                                     setSignatoryTitle(title);
@@ -315,68 +312,63 @@ export function ContractDraftWizard({
                             />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="wizard-signatory-name" className="text-xs">Name</Label>
+                                    <Label htmlFor="wizard-signatory-name" className="text-xs">{t('name')}</Label>
                                     <Input
                                         id="wizard-signatory-name"
                                         value={signatoryName}
                                         onChange={(e) => setSignatoryName(e.target.value)}
-                                        placeholder={tenantQuery.data?.signatoryName ?? 'e.g. U Aung Min'}
+                                        placeholder={tenantQuery.data?.signatoryName ?? t('placeholder_signatory_name')}
                                         maxLength={255}
                                         className="bg-white"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="wizard-signatory-title" className="text-xs">Title</Label>
+                                    <Label htmlFor="wizard-signatory-title" className="text-xs">{t('title_label')}</Label>
                                     <Input
                                         id="wizard-signatory-title"
                                         value={signatoryTitle}
                                         onChange={(e) => setSignatoryTitle(e.target.value)}
-                                        placeholder={tenantQuery.data?.signatoryTitle ?? 'e.g. Managing Director'}
+                                        placeholder={tenantQuery.data?.signatoryTitle ?? t('placeholder_md_title')}
                                         maxLength={255}
                                         className="bg-white"
                                     />
                                 </div>
                             </div>
                             <p className="text-[11px] text-slate-500">
-                                Leave blank to use the tenant default. The contract date is auto-set
-                                to today when the PDF is generated.
+                                {t('leave_blank_tenant_default')}
                             </p>
                         </div>
 
                         <div className="space-y-3 pt-4 border-t border-slate-100">
                             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Customer (their side)
+                                {t('customer_their_side')}
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="wizard-customer-signer-name" className="text-xs">Name</Label>
+                                    <Label htmlFor="wizard-customer-signer-name" className="text-xs">{t('name')}</Label>
                                     <Input
                                         id="wizard-customer-signer-name"
                                         value={customerSignerName}
                                         onChange={(e) => setCustomerSignerName(e.target.value)}
-                                        placeholder={`e.g. U Hla Min`}
+                                        placeholder={t('placeholder_customer_signer')}
                                         maxLength={255}
                                         className="bg-white"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="wizard-customer-signer-title" className="text-xs">Title</Label>
+                                    <Label htmlFor="wizard-customer-signer-title" className="text-xs">{t('title_label')}</Label>
                                     <Input
                                         id="wizard-customer-signer-title"
                                         value={customerSignerTitle}
                                         onChange={(e) => setCustomerSignerTitle(e.target.value)}
-                                        placeholder="e.g. CFO"
+                                        placeholder={t('placeholder_cfo')}
                                         maxLength={255}
                                         className="bg-white"
                                     />
                                 </div>
                             </div>
                             <p className="text-[11px] text-slate-500">
-                                Captured during negotiation. The deal contact ({deal.contactName ?? 'unset'})
-                                is the day-to-day liaison and is often <em>not</em> the authorised
-                                signer. Leave a field blank to print a blank line on the PDF for the
-                                customer to fill in by hand. The signing date is always left blank —
-                                we don&apos;t know when they&apos;ll sign.
+                                {t('customer_signer_note', { contact: deal.contactName ?? t('contact_unset') })}
                             </p>
                         </div>
                         </CardContent>
@@ -385,7 +377,7 @@ export function ContractDraftWizard({
 
                 <div className="flex justify-between items-center">
                     <Button variant="outline" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
-                        <ArrowLeft className="h-4 w-4" /> Back to deal
+                        <ArrowLeft className="h-4 w-4" /> {t('back_to_deal')}
                     </Button>
                     <Button
                         onClick={handleGenerate}
@@ -396,12 +388,12 @@ export function ContractDraftWizard({
                         {generateMutation.isPending ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Generating (60–90s)…
+                                {t('generating_sec')}
                             </>
                         ) : (
                             <>
                                 <Sparkles className="h-4 w-4" />
-                                Generate draft
+                                {t('generate_draft')}
                                 <ArrowRight className="h-4 w-4" />
                             </>
                         )}
@@ -421,7 +413,7 @@ export function ContractDraftWizard({
                     <CardHeader className="pb-3 flex flex-row items-start gap-3 justify-between">
                         <div className="min-w-0">
                             <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                                Draft v{draft.version}
+                                {t('draft_v_label', { version: draft.version })}
                                 <DraftStatusChip status={draft.status} />
                                 {draft.template && (
                                     <span className="text-xs font-normal text-slate-500">
@@ -430,9 +422,9 @@ export function ContractDraftWizard({
                                 )}
                             </CardTitle>
                             <CardDescription className="mt-1">
-                                Review and edit each section. {hasTodos
-                                    ? <span className="text-amber-700 font-medium">{todoCount} TODO{todoCount === 1 ? '' : 's'} unresolved.</span>
-                                    : <span className="text-emerald-700 font-medium">All sections complete.</span>}
+                                {t('review_edit_section')} {hasTodos
+                                    ? <span className="text-amber-700 font-medium">{t('todos_unresolved', { count: todoCount })}</span>
+                                    : <span className="text-emerald-700 font-medium">{t('all_sections_complete')}</span>}
                             </CardDescription>
                         </div>
                         <div className="flex gap-2 shrink-0">
@@ -443,7 +435,7 @@ export function ContractDraftWizard({
                                 onClick={() => setPreviewOpen(true)}
                                 className="gap-1.5"
                             >
-                                <Eye className="h-3.5 w-3.5" /> Preview PDF
+                                <Eye className="h-3.5 w-3.5" /> {t('preview_pdf')}
                             </Button>
                             <Button
                                 type="button"
@@ -452,7 +444,7 @@ export function ContractDraftWizard({
                                 onClick={() => setStep('choose')}
                                 disabled={isLocked}
                             >
-                                <ArrowLeft className="h-3.5 w-3.5" /> Edit answers
+                                <ArrowLeft className="h-3.5 w-3.5" /> {t('edit_answers')}
                             </Button>
                         </div>
                     </CardHeader>
@@ -462,10 +454,8 @@ export function ContractDraftWizard({
                     <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-sm text-blue-900">
                         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
                         <div>
-                            <span className="font-medium">This draft has already been sent.</span>{' '}
-                            Any edits you make here won&apos;t reach the customer until you re-send
-                            from the next step. The PDF re-renders automatically on re-send so the
-                            customer gets the updated content.
+                            <span className="font-medium">{t('draft_already_sent')}</span>{' '}
+                            {t('draft_sent_warning')}
                         </div>
                     </div>
                 )}
@@ -474,8 +464,7 @@ export function ContractDraftWizard({
                     <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-sm text-amber-900">
                         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                         <span>
-                            Resolve the {'{{TODO}}'} markers (or supply more wizard answers and regenerate)
-                            before sending to the customer.
+                            {t('resolve_todo_warning', { todo: '{{TODO}}' })}
                         </span>
                     </div>
                 )}
@@ -502,7 +491,7 @@ export function ContractDraftWizard({
 
                 <div className="flex justify-between items-center">
                     <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
-                        <ArrowLeft className="h-4 w-4" /> Back to deal
+                        <ArrowLeft className="h-4 w-4" /> {t('back_to_deal')}
                     </Button>
                     {!isLocked && (
                         <Button
@@ -511,7 +500,7 @@ export function ContractDraftWizard({
                             size="lg"
                             className="bg-indigo-600 hover:bg-indigo-700"
                         >
-                            {draft?.status === 'sent_to_customer' ? 'Go to send / upload signed' : 'Continue to send'}
+                            {draft?.status === 'sent_to_customer' ? t('go_to_send') : t('continue_to_send')}
                             <ArrowRight className="h-4 w-4" />
                         </Button>
                     )}
@@ -539,12 +528,11 @@ export function ContractDraftWizard({
                     <CardHeader className="flex flex-row items-start justify-between gap-3">
                         <div className="min-w-0">
                             <CardTitle className="text-base flex items-center gap-2">
-                                3 · Send to customer
+                                {t('send_to_customer')}
                                 <DraftStatusChip status={draft.status} />
                             </CardTitle>
                             <CardDescription>
-                                Email the draft to your contact. Preview the PDF first to sanity-check
-                                what they&apos;ll receive.
+                                {t('email_draft_desc')}
                             </CardDescription>
                         </div>
                         <Button
@@ -554,7 +542,7 @@ export function ContractDraftWizard({
                             onClick={() => setPreviewOpen(true)}
                             className="gap-1.5 shrink-0"
                         >
-                            <Eye className="h-3.5 w-3.5" /> Preview PDF
+                            <Eye className="h-3.5 w-3.5" /> {t('preview_pdf')}
                         </Button>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -562,27 +550,26 @@ export function ContractDraftWizard({
                             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-sm text-amber-900">
                                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                                 <span>
-                                    {todoCount} unresolved TODO marker{todoCount === 1 ? '' : 's'} remain.
-                                    Sending with TODOs visible looks unprofessional — go back and resolve them.
+                                    {t('todos_remain_warning', { count: todoCount })}
                                 </span>
                             </div>
                         )}
                         <div className="space-y-1">
                             <Label htmlFor="to-email" className="text-xs">
-                                Customer email <span className="text-red-500">*</span>
+                                {t('customer_email_label')} <span className="text-red-500">*</span>
                             </Label>
                             <Input
                                 id="to-email"
                                 type="email"
                                 value={emailTo}
                                 onChange={(e) => setEmailTo(e.target.value)}
-                                placeholder="customer@example.com"
+                                placeholder={t('placeholder_customer_email')}
                                 disabled={isSigned}
                                 className="bg-white"
                             />
                             {draft.sent_to_email && (
                                 <p className="text-[11px] text-slate-500">
-                                    Last sent to <span className="font-medium">{draft.sent_to_email}</span>
+                                    {t('last_sent_to')} <span className="font-medium">{draft.sent_to_email}</span>
                                     {draft.sent_at && ` · ${new Date(draft.sent_at).toLocaleString()}`}
                                 </p>
                             )}
@@ -595,7 +582,7 @@ export function ContractDraftWizard({
                         >
                             {sendMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                             <Mail className="h-3.5 w-3.5" />
-                            {isSent ? 'Re-send' : sendMutation.isPending ? 'Sending…' : 'Send to customer'}
+                            {isSent ? t('re_send') : sendMutation.isPending ? t('sending_dots') : t('send_to_customer_btn')}
                         </Button>
                     </CardContent>
                 </Card>
@@ -613,9 +600,9 @@ export function ContractDraftWizard({
                         <CardContent className="p-4 flex items-start gap-3">
                             <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
                             <div className="text-sm">
-                                <p className="font-semibold text-emerald-900">Contract signed.</p>
+                                <p className="font-semibold text-emerald-900">{t('contract_signed_short')}</p>
                                 <p className="text-emerald-800 mt-1">
-                                    Deal moved to <strong>S — Won</strong>; contract record created.
+                                    {t('deal_moved_to_won')}
                                 </p>
                             </div>
                         </CardContent>
@@ -624,10 +611,10 @@ export function ContractDraftWizard({
 
                 <div className="flex justify-between items-center">
                     <Button variant="outline" onClick={() => setStep('edit')} disabled={isSigned}>
-                        <ArrowLeft className="h-4 w-4" /> Back to edit
+                        <ArrowLeft className="h-4 w-4" /> {t('back_to_edit')}
                     </Button>
                     <Button variant="ghost" onClick={() => router.push(`/project-pipeline/${deal.id}`)}>
-                        Back to deal
+                        {t('back_to_deal')}
                     </Button>
                 </div>
 

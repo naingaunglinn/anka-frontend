@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { EmployeesTable } from '@/components/tables/EmployeesTable';
 import { EmployeeForm } from '@/components/forms/EmployeeForm';
 import { DepartmentsTable } from '@/components/tables/DepartmentsTable';
@@ -43,6 +44,7 @@ import { Employee, Department, Role, GlobalOverhead, Skill, Rank } from '@/types
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 export default function EmployeesPage() {
+    const t = useTranslations();
     // Connect to Store
     const store = useBusinessStore();
     const { syncing, syncError } = useOrganizationSync();
@@ -338,7 +340,7 @@ export default function EmployeesPage() {
         return (
             <div className="flex items-center justify-center h-64">
                 <p className="text-sm text-[#4a4a4a] animate-pulse">
-                    Loading organization data...
+                    {t('loading_organization_data')}
                 </p>
             </div>
         );
@@ -348,7 +350,7 @@ export default function EmployeesPage() {
         return (
             <div className="flex items-center justify-center h-64">
                 <p className="text-sm text-destructive">
-                    Failed to connect to database: {syncError}
+                    {t('failed_to_connect_to_database')} {syncError}
                 </p>
             </div>
         );
@@ -358,40 +360,40 @@ export default function EmployeesPage() {
         <div className="space-y-6">
             <div>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Organization Settings</h2>
-                    <p className="text-[#4a4a4a] mt-1">Manage your departments, roles, employees, and cost structures.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">{t('organization_settings')}</h2>
+                    <p className="text-[#4a4a4a] mt-1">{t('organization_settings_description')}</p>
                 </div>
             </div>
 
             <Tabs defaultValue="employees" className="w-full">
                 <TabsList className="grid w-full grid-cols-8 bg-slate-100/50 mb-8 p-1 h-auto rounded-lg">
-                    <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Departments</TabsTrigger>
-                    <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Roles</TabsTrigger>
-                    <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Employees</TabsTrigger>
-                    <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Skills</TabsTrigger>
-                    <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Ranks</TabsTrigger>
-                    <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Salary Structure</TabsTrigger>
-                    <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Global Overhead</TabsTrigger>
-                    <TabsTrigger value="company" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">Company</TabsTrigger>
+                    <TabsTrigger value="departments" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('departments')}</TabsTrigger>
+                    <TabsTrigger value="roles" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('roles')}</TabsTrigger>
+                    <TabsTrigger value="employees" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('employees')}</TabsTrigger>
+                    <TabsTrigger value="skills" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('skills')}</TabsTrigger>
+                    <TabsTrigger value="ranks" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('ranks')}</TabsTrigger>
+                    <TabsTrigger value="salary" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('salary_structure')}</TabsTrigger>
+                    <TabsTrigger value="overhead" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('global_overhead')}</TabsTrigger>
+                    <TabsTrigger value="company" className="py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">{t('company')}</TabsTrigger>
                 </TabsList>
 
                 {/* DEPARTMENTS TAB */}
                 <TabsContent value="departments" className="space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Departments</h3>
-                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organizational departments.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('departments')}</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">{t('manage_organizational_departments')}</p>
                         </div>
                         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Department
+                                    <Plus className="w-4 h-4" /> {t('add_department')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Department</DialogTitle>
-                                    <DialogDescription>Create a new department for your organization.</DialogDescription>
+                                    <DialogTitle>{t('add_new_department')}</DialogTitle>
+                                    <DialogDescription>{t('create_new_department_description')}</DialogDescription>
                                 </DialogHeader>
                                 <DepartmentForm employees={store.employees} onSubmit={handleAddDepartment} onCancel={() => setIsDeptDialogOpen(false)} />
                             </DialogContent>
@@ -407,7 +409,7 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingDepartment} onOpenChange={(open) => !open && setEditingDepartment(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Department</DialogTitle>
+                                <DialogTitle>{t('edit_department')}</DialogTitle>
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
@@ -425,19 +427,19 @@ export default function EmployeesPage() {
                 <TabsContent value="roles" className="space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Roles & Rates</h3>
-                            <p className="text-[#4a4a4a] text-sm mt-1">Define roles and standard billable rates.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('roles_and_rates')}</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">{t('define_roles_and_rates')}</p>
                         </div>
                         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Role
+                                    <Plus className="w-4 h-4" /> {t('add_role')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Role</DialogTitle>
-                                    <DialogDescription>Create a new role structure.</DialogDescription>
+                                    <DialogTitle>{t('add_new_role')}</DialogTitle>
+                                    <DialogDescription>{t('create_new_role_structure')}</DialogDescription>
                                 </DialogHeader>
                                 <RoleForm departments={store.departments} onSubmit={handleAddRole} onCancel={() => setIsRoleDialogOpen(false)} />
                             </DialogContent>
@@ -453,7 +455,7 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingRole} onOpenChange={(open) => !open && setEditingRole(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Role</DialogTitle>
+                                <DialogTitle>{t('edit_role')}</DialogTitle>
                             </DialogHeader>
                             {editingRole && (
                                 <RoleForm
@@ -471,19 +473,19 @@ export default function EmployeesPage() {
                 <TabsContent value="employees" className="mt-0 space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Employees List</h3>
-                            <p className="text-[#4a4a4a] text-sm mt-1">Manage your organization&#39;s roster and costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('employees_list')}</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">{t('manage_roster_and_costs')}</p>
                         </div>
                         <Dialog open={isEmpDialogOpen} onOpenChange={setIsEmpDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Employee
+                                    <Plus className="w-4 h-4" /> {t('add_employee')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Employee</DialogTitle>
-                                    <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
+                                    <DialogTitle>{t('add_new_employee')}</DialogTitle>
+                                    <DialogDescription>{t('employee_form_description')}</DialogDescription>
                                 </DialogHeader>
                                 <EmployeeForm
                                     roles={store.roles}
@@ -504,17 +506,17 @@ export default function EmployeesPage() {
                                 <Input
                                     value={empSearchName}
                                     onChange={(e) => setEmpSearchName(e.target.value)}
-                                    placeholder="Search by name..."
+                                    placeholder={t('search_by_name')}
                                     className="pl-9"
                                 />
                             </div>
                             <div className="md:w-48">
                                 <Select value={empRoleFilter} onValueChange={setEmpRoleFilter}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="All roles" />
+                                        <SelectValue placeholder={t('all_roles')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All roles</SelectItem>
+                                        <SelectItem value="all">{t('all_roles')}</SelectItem>
                                         {store.roles.map((r) => (
                                             <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
                                         ))}
@@ -524,26 +526,26 @@ export default function EmployeesPage() {
                             <div className="md:w-48">
                                 <Select value={empStatusFilter} onValueChange={setEmpStatusFilter}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="All statuses" />
+                                        <SelectValue placeholder={t('all_statuses')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All statuses</SelectItem>
-                                        <SelectItem value="Active">Active</SelectItem>
-                                        <SelectItem value="On Leave">On Leave</SelectItem>
-                                        <SelectItem value="Terminated">Terminated</SelectItem>
+                                        <SelectItem value="all">{t('all_statuses')}</SelectItem>
+                                        <SelectItem value="Active">{t('status_active')}</SelectItem>
+                                        <SelectItem value="On Leave">{t('status_on_leave')}</SelectItem>
+                                        <SelectItem value="Terminated">{t('status_terminated')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
                         {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
                             <p className="mt-2 text-xs text-[#8a8a8a]">
-                                Showing {filteredEmployees.length} of {store.employees.length} employees.
+                                {t('showing_x_of_y_employees', { filtered: filteredEmployees.length, total: store.employees.length })}
                                 <button
                                     type="button"
                                     onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpStatusFilter('all'); }}
                                     className="ml-2 text-slate-700 underline hover:no-underline"
                                 >
-                                    Clear filters
+                                    {t('clear_filters')}
                                 </button>
                             </p>
                         )}
@@ -560,8 +562,8 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Employee</DialogTitle>
-                                <DialogDescription>Update the details for {editingEmployee?.name}.</DialogDescription>
+                                <DialogTitle>{t('edit_employee')}</DialogTitle>
+                                <DialogDescription>{t('update_details_for', { name: editingEmployee?.name ?? '' })}</DialogDescription>
                             </DialogHeader>
                             {editingEmployee && (
                                 <EmployeeForm
@@ -582,19 +584,19 @@ export default function EmployeesPage() {
                 <TabsContent value="skills" className="space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Skills</h3>
-                            <p className="text-[#4a4a4a] text-sm mt-1">Manage skills that can be assigned to employees.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('skills')}</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">{t('manage_skills_description')}</p>
                         </div>
                         <Dialog open={isSkillDialogOpen} onOpenChange={setIsSkillDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Skill
+                                    <Plus className="w-4 h-4" /> {t('add_skill')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Skill</DialogTitle>
-                                    <DialogDescription>Create a skill to assign to employees.</DialogDescription>
+                                    <DialogTitle>{t('add_new_skill')}</DialogTitle>
+                                    <DialogDescription>{t('create_skill_description')}</DialogDescription>
                                 </DialogHeader>
                                 <SkillForm onSubmit={handleAddSkill} onCancel={() => setIsSkillDialogOpen(false)} />
                             </DialogContent>
@@ -610,7 +612,7 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingSkill} onOpenChange={(open) => !open && setEditingSkill(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Skill</DialogTitle>
+                                <DialogTitle>{t('edit_skill')}</DialogTitle>
                             </DialogHeader>
                             {editingSkill && (
                                 <SkillForm
@@ -627,23 +629,22 @@ export default function EmployeesPage() {
                 <TabsContent value="ranks" className="space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Ranks</h3>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('ranks')}</h3>
                             <p className="text-[#4a4a4a] text-sm mt-1">
-                                Seniority tiers used by the AI Team Builder. Defaults: Junior, Mid, Senior, Lead.
-                                Add custom ranks for your team (e.g. Principal, Staff Engineer).
+                                {t('ranks_description')}
                             </p>
                         </div>
                         <Dialog open={isRankDialogOpen} onOpenChange={setIsRankDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Rank
+                                    <Plus className="w-4 h-4" /> {t('add_rank')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Rank</DialogTitle>
+                                    <DialogTitle>{t('add_new_rank')}</DialogTitle>
                                     <DialogDescription>
-                                        Create a custom seniority rank. Higher level = more senior.
+                                        {t('create_rank_description')}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <RankForm onSubmit={handleAddRank} onCancel={() => setIsRankDialogOpen(false)} />
@@ -660,7 +661,7 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingRank} onOpenChange={(open) => !open && setEditingRank(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Rank</DialogTitle>
+                                <DialogTitle>{t('edit_rank')}</DialogTitle>
                             </DialogHeader>
                             {editingRank && (
                                 <RankForm
@@ -678,12 +679,12 @@ export default function EmployeesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
-                                <CardTitle>Salary Multipliers</CardTitle>
-                                <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
+                                <CardTitle>{t('salary_multipliers')}</CardTitle>
+                                <CardDescription>{t('salary_multipliers_description')}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Employer Taxes (%)</label>
+                                    <label className="text-sm font-medium">{t('employer_taxes')}</label>
                                     <Input
                                         type="number"
                                         value={salaryMultiplier.taxes}
@@ -691,7 +692,7 @@ export default function EmployeesPage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Benefits/Insurance (%)</label>
+                                    <label className="text-sm font-medium">{t('benefits_insurance')}</label>
                                     <Input
                                         type="number"
                                         value={salaryMultiplier.benefits}
@@ -703,23 +704,23 @@ export default function EmployeesPage() {
                                     onClick={handleSaveSalary}
                                     disabled={isSavingSalary}
                                 >
-                                    {isSavingSalary ? "Saving..." : "Save Multipliers"}
+                                    {isSavingSalary ? t('saving') : t('save_multipliers')}
                                 </Button>
                             </CardContent>
                         </Card>
 
                         <Card className="shadow-sm border-[#e6e9ee]">
                             <CardHeader>
-                                <CardTitle>Estimation Defaults</CardTitle>
+                                <CardTitle>{t('estimation_defaults')}</CardTitle>
                                 <CardDescription>
-                                    Fallback assumptions used by the Estimation Engine when a deal or role doesn&apos;t supply concrete data.
+                                    {t('estimation_defaults_description')}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">
-                                        Cost-to-Bill Ratio
-                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(0–1; e.g. 0.40 = cost is 40% of billable rate)</span>
+                                        {t('cost_to_bill_ratio')}
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">{t('cost_to_bill_hint')}</span>
                                     </label>
                                     <Input
                                         type="number"
@@ -732,8 +733,8 @@ export default function EmployeesPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">
-                                        Default Monthly Capacity (hours)
-                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(per employee; typical 160)</span>
+                                        {t('default_monthly_capacity')}
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">{t('monthly_capacity_hint')}</span>
                                     </label>
                                     <Input
                                         type="number"
@@ -745,8 +746,8 @@ export default function EmployeesPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">
-                                        Fallback Hourly Cost
-                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">(used when no employee or role rate is available)</span>
+                                        {t('fallback_hourly_cost')}
+                                        <span className="text-[#8a8a8a] text-xs font-normal ml-1">{t('fallback_hourly_hint')}</span>
                                     </label>
                                     <Input
                                         type="number"
@@ -760,7 +761,7 @@ export default function EmployeesPage() {
                                     onClick={handleSaveEstimationDefaults}
                                     disabled={isSavingDefaults}
                                 >
-                                    {isSavingDefaults ? "Saving..." : "Save Defaults"}
+                                    {isSavingDefaults ? t('saving') : t('save_defaults')}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -771,19 +772,19 @@ export default function EmployeesPage() {
                 <TabsContent value="overhead" className="space-y-4">
                     <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
                         <div>
-                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">Global Overhead Categories</h3>
-                            <p className="text-[#4a4a4a] text-sm mt-1">Define organization-wide fixed monthly overhead costs.</p>
+                            <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('global_overhead_categories')}</h3>
+                            <p className="text-[#4a4a4a] text-sm mt-1">{t('overhead_categories_description')}</p>
                         </div>
                         <Dialog open={isOverheadDialogOpen} onOpenChange={setIsOverheadDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
-                                    <Plus className="w-4 h-4" /> Add Overhead
+                                    <Plus className="w-4 h-4" /> {t('add_overhead')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[500px]">
                                 <DialogHeader>
-                                    <DialogTitle>Add New Overhead</DialogTitle>
-                                    <DialogDescription>Define a fixed monthly cost.</DialogDescription>
+                                    <DialogTitle>{t('add_new_overhead')}</DialogTitle>
+                                    <DialogDescription>{t('define_fixed_monthly_cost')}</DialogDescription>
                                 </DialogHeader>
                                 <OverheadForm onSubmit={handleAddOverhead} onCancel={() => setIsOverheadDialogOpen(false)} />
                             </DialogContent>
@@ -799,7 +800,7 @@ export default function EmployeesPage() {
                     <Dialog open={!!editingOverhead} onOpenChange={(open) => !open && setEditingOverhead(null)}>
                         <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Edit Overhead</DialogTitle>
+                                <DialogTitle>{t('edit_overhead')}</DialogTitle>
                             </DialogHeader>
                             {editingOverhead && (
                                 <OverheadForm
@@ -815,10 +816,9 @@ export default function EmployeesPage() {
                 {/* COMPANY TAB — name + logo that render on every contract PDF and customer email. */}
                 <TabsContent value="company" className="space-y-4">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
-                        <h3 className="text-xl font-bold tracking-tight text-[#171717]">Company Settings</h3>
+                        <h3 className="text-xl font-bold tracking-tight text-[#171717]">{t('company_settings')}</h3>
                         <p className="text-[#4a4a4a] text-sm mt-1">
-                            Your company name and logo appear at the top of every contract PDF
-                            and in the customer-facing email subject + body.
+                            {t('company_settings_description')}
                         </p>
                     </div>
                     <CompanySettingsForm />

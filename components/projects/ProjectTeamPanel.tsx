@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }: Props) {
+    const t = useTranslations()
     const [loadingAI, setLoadingAI] = useState(false)
     const [isAddOpen, setIsAddOpen] = useState(false)
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
@@ -68,9 +70,9 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                 monthlySalary: a.monthly_salary as number | undefined,
             }))
             onAssignmentsChange(mapped)
-            toast.success('Team auto-assigned based on skills!')
-        } catch (err) {
-            toast.error('Auto-assign failed. Try again.')
+            toast.success(t('team_auto_assigned'))
+        } catch {
+            toast.error(t('auto_assign_failed'))
         } finally {
             setLoadingAI(false)
         }
@@ -78,8 +80,8 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
 
     async function handleAddAssignment() {
         const errs: typeof addErrors = {}
-        if (!selectedEmployeeId) errs.employee = 'Select a team member.'
-        if (!allocatedHours || Number(allocatedHours) <= 0) errs.hours = 'Enter valid hours.'
+        if (!selectedEmployeeId) errs.employee = t('select_team_member_err')
+        if (!allocatedHours || Number(allocatedHours) <= 0) errs.hours = t('enter_valid_hours')
         setAddErrors(errs)
         if (Object.keys(errs).length > 0) return
 
@@ -102,9 +104,9 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
             setSelectedEmployeeId('')
             setAllocatedHours('')
             setAddErrors({})
-            toast.success('Team member assigned!')
+            toast.success(t('team_member_assigned'))
         } catch {
-            toast.error('Failed to assign team member.')
+            toast.error(t('failed_assign_member'))
         }
     }
 
@@ -112,9 +114,9 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
         try {
             await api.delete(`/projects/${projectId}/team/${id}`)
             onAssignmentsChange(assignments.filter(a => a.id !== id))
-            toast.success('Team member removed.')
+            toast.success(t('team_member_removed'))
         } catch {
-            toast.error('Failed to remove team member.')
+            toast.error(t('failed_remove_member'))
         }
     }
 
@@ -126,7 +128,7 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                         <Users className="h-4 w-4 text-indigo-600" />
-                        Project Team
+                        {t('project_team')}
                     </CardTitle>
                     <div className="flex gap-2">
                         <Button
@@ -137,25 +139,25 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                             className="gap-1.5"
                         >
                             <Sparkles className="h-3.5 w-3.5" />
-                            {loadingAI ? 'Assigning...' : 'AI Auto-Assign'}
+                            {loadingAI ? t('assigning') : t('ai_auto_assign')}
                         </Button>
                         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                             <DialogTrigger asChild>
                                 <Button size="sm" className="gap-1.5">
                                     <Plus className="h-3.5 w-3.5" />
-                                    Add Member
+                                    {t('add_member_btn')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[400px]">
                                 <DialogHeader>
-                                    <DialogTitle>Assign Team Member</DialogTitle>
+                                    <DialogTitle>{t('assign_team_member')}</DialogTitle>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium">Employee</label>
+                                        <label className="text-sm font-medium">{t('employee')}</label>
                                         <Select value={selectedEmployeeId} onValueChange={v => { setSelectedEmployeeId(v); setAddErrors(p => ({ ...p, employee: undefined })); }}>
                                             <SelectTrigger aria-invalid={!!addErrors.employee}>
-                                                <SelectValue placeholder="Select team member..." />
+                                                <SelectValue placeholder={t('select_team_member')} />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {unassignedEmployees.map(emp => (
@@ -166,7 +168,7 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                                         {addErrors.employee && <p className="text-xs text-destructive">{addErrors.employee}</p>}
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium">Allocated Hours</label>
+                                        <label className="text-sm font-medium">{t('allocated_hours_label')}</label>
                                         <Input
                                             type="number"
                                             min="1"
@@ -178,7 +180,7 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                                         {addErrors.hours && <p className="text-xs text-destructive">{addErrors.hours}</p>}
                                     </div>
                                     <Button className="w-full" onClick={handleAddAssignment}>
-                                        Assign to Project
+                                        {t('assign_to_project')}
                                     </Button>
                                 </div>
                             </DialogContent>
@@ -190,17 +192,17 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                 {assignments.length === 0 ? (
                     <div className="text-center py-8 text-slate-500">
                         <Users className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                        <p className="text-sm">No team members assigned yet.</p>
-                        <p className="text-xs mt-1">Use AI Auto-Assign or add manually.</p>
+                        <p className="text-sm">{t('no_members_assigned')}</p>
+                        <p className="text-xs mt-1">{t('use_ai_or_add')}</p>
                     </div>
                 ) : (
                     <>
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-slate-50">
-                                    <TableHead>Employee</TableHead>
-                                    <TableHead>Source</TableHead>
-                                    <TableHead className="text-right">Allocated Hours</TableHead>
+                                    <TableHead>{t('employee')}</TableHead>
+                                    <TableHead>{t('source_col')}</TableHead>
+                                    <TableHead className="text-right">{t('allocated_hours_label')}</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -219,12 +221,12 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                                                     <div className="h-7 w-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
                                                         {a.employeeName?.split(' ').map((w: string) => w[0]).join('').slice(0, 2) ?? '?'}
                                                     </div>
-                                                    <span className="font-medium text-slate-700">{a.employeeName ?? emp?.name ?? 'Unknown'}</span>
+                                                    <span className="font-medium text-slate-700">{a.employeeName ?? emp?.name ?? t('unknown')}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={sourceBadge}>
-                                                    {a.assignmentSource === 'deal_transfer' ? 'From Deal' : a.assignmentSource}
+                                                    {a.assignmentSource === 'deal_transfer' ? t('source_from_deal_short') : a.assignmentSource}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{a.allocatedHours}h</TableCell>
@@ -245,7 +247,7 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
                         </Table>
                         <div className="flex justify-end mt-3 pt-3 border-t">
                             <span className="text-sm font-medium text-slate-600">
-                                Total: <span className="text-slate-900">{totalAssignedHours}h</span>
+                                {t('total_short')} <span className="text-slate-900">{totalAssignedHours}h</span>
                             </span>
                         </div>
                     </>

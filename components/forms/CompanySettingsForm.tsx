@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,11 +29,12 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
  * endpoints enforce the same on the backend.
  */
 export function CompanySettingsForm() {
+    const t = useTranslations();
     const { data: tenant, isLoading, isError, refetch } = useTenantSettings();
     const { updateTenant, uploadLogo, deleteLogo } = useTenantMutations();
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
-    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [nameDraft, setNameDraft] = useState('');
@@ -73,17 +75,17 @@ export function CompanySettingsForm() {
     const handleFileSelected = async (file: File) => {
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
         if (!ALLOWED_LOGO_EXT.includes(ext as typeof ALLOWED_LOGO_EXT[number])) {
-            toast.error(`Unsupported file type. Allowed: ${ALLOWED_LOGO_EXT.join(', ')}.`);
+            toast.error(t('unsupported_file_type', { types: ALLOWED_LOGO_EXT.join(', ') }));
             return;
         }
         if (file.size > MAX_LOGO_BYTES) {
-            toast.error('File is larger than 2 MB.');
+            toast.error(t('file_too_large_2mb'));
             return;
         }
 
         try {
             await uploadLogo.mutateAsync(file);
-            toast.success('Logo uploaded.');
+            toast.success(t('logo_uploaded'));
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -94,7 +96,7 @@ export function CompanySettingsForm() {
         if (!nameDirty) return;
         try {
             await updateTenant.mutateAsync({ name: nameDraft.trim() });
-            toast.success('Company name updated.');
+            toast.success(t('company_name_updated'));
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -108,7 +110,7 @@ export function CompanySettingsForm() {
                 signatory_name: signatoryNameDraft.trim() || null,
                 signatory_title: signatoryTitleDraft.trim() || null,
             });
-            toast.success('Authorized signatory updated.');
+            toast.success(t('signatory_updated'));
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -118,7 +120,7 @@ export function CompanySettingsForm() {
     const handleDeleteLogo = async () => {
         try {
             await deleteLogo.mutateAsync();
-            toast.success('Logo removed.');
+            toast.success(t('logo_removed'));
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -130,7 +132,7 @@ export function CompanySettingsForm() {
         setIsSavingBudget(true);
         try {
             await store.updateCompanySettings({ annualInitialBudget: parsedAnnualBudget });
-            toast.success('Initial annual budget updated.');
+            toast.success(t('initial_annual_budget_updated'));
         } finally {
             setIsSavingBudget(false);
         }
@@ -140,7 +142,7 @@ export function CompanySettingsForm() {
         return (
             <div className="flex items-center gap-2 text-sm text-slate-500 p-6">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading company settings…
+                {t('loading_company_settings')}
             </div>
         );
     }
@@ -149,8 +151,8 @@ export function CompanySettingsForm() {
         return (
             <Card className="border-red-200 bg-red-50/30">
                 <CardContent className="p-6 space-y-2">
-                    <p className="text-sm text-red-700">Couldn&apos;t load company settings.</p>
-                    <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+                    <p className="text-sm text-red-700">{t('couldnt_load_company')}</p>
+                    <Button variant="outline" size="sm" onClick={() => refetch()}>{t('retry')}</Button>
                 </CardContent>
             </Card>
         );
@@ -161,21 +163,20 @@ export function CompanySettingsForm() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <Building2 className="h-4 w-4" /> Company name
+                        <Building2 className="h-4 w-4" /> {t('company_name')}
                     </CardTitle>
                     <CardDescription>
-                        Appears as the Provider on every contract PDF and in the email subject/body
-                        the customer receives.
+                        {t('company_name_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="space-y-1.5">
-                        <Label htmlFor="company-name">Name</Label>
+                        <Label htmlFor="company-name">{t('name')}</Label>
                         <Input
                             id="company-name"
                             value={nameDraft}
                             onChange={(e) => setNameDraft(e.target.value)}
-                            placeholder="e.g. Brycen Myanmar Ltd."
+                            placeholder={t('placeholder_company_name')}
                             maxLength={255}
                             className="bg-white"
                         />
@@ -186,7 +187,7 @@ export function CompanySettingsForm() {
                             disabled={!nameDirty || updateTenant.isPending}
                             size="sm"
                         >
-                            {updateTenant.isPending ? 'Saving…' : 'Save name'}
+                            {updateTenant.isPending ? t('saving') : t('save_name')}
                         </Button>
                     </div>
                 </CardContent>
@@ -194,17 +195,15 @@ export function CompanySettingsForm() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Authorized signatory</CardTitle>
+                    <CardTitle className="text-base">{t('authorized_signatory')}</CardTitle>
                     <CardDescription>
-                        Appears in the Provider signature block of every contract PDF. Set the
-                        person who actually signs on behalf of the company; salespeople can
-                        override on a per-contract basis during the draft wizard.
+                        {t('signatory_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <SignatoryPicker
                         id="signatory-picker-tenant"
-                        helper="Eligible employees: Manager rank or above. Picking auto-fills the fields below; manual edits still work."
+                        helper={t('signatory_helper')}
                         onSelect={({ name, title }) => {
                             setSignatoryNameDraft(name);
                             setSignatoryTitleDraft(title);
@@ -212,23 +211,23 @@ export function CompanySettingsForm() {
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label htmlFor="signatory-name">Name</Label>
+                            <Label htmlFor="signatory-name">{t('name')}</Label>
                             <Input
                                 id="signatory-name"
                                 value={signatoryNameDraft}
                                 onChange={(e) => setSignatoryNameDraft(e.target.value)}
-                                placeholder="e.g. U Aung Min"
+                                placeholder={t('placeholder_signatory_name')}
                                 maxLength={255}
                                 className="bg-white"
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="signatory-title">Title</Label>
+                            <Label htmlFor="signatory-title">{t('title_label')}</Label>
                             <Input
                                 id="signatory-title"
                                 value={signatoryTitleDraft}
                                 onChange={(e) => setSignatoryTitleDraft(e.target.value)}
-                                placeholder="e.g. Managing Director"
+                                placeholder={t('placeholder_md_title')}
                                 maxLength={255}
                                 className="bg-white"
                             />
@@ -240,7 +239,7 @@ export function CompanySettingsForm() {
                             disabled={!signatoryDirty || updateTenant.isPending}
                             size="sm"
                         >
-                            {updateTenant.isPending ? 'Saving…' : 'Save signatory'}
+                            {updateTenant.isPending ? t('saving') : t('save_signatory')}
                         </Button>
                     </div>
                 </CardContent>
@@ -248,15 +247,14 @@ export function CompanySettingsForm() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Initial Annual Budget (12 months)</CardTitle>
+                    <CardTitle className="text-base">{t('initial_annual_budget_title')}</CardTitle>
                     <CardDescription>
-                        This is the company&apos;s full-year target budget. Forecast uses this saved amount for all
-                        annual and prorated budget comparisons.
+                        {t('initial_annual_budget_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="space-y-1.5">
-                        <Label htmlFor="annual-initial-budget">Annual budget</Label>
+                        <Label htmlFor="annual-initial-budget">{t('annual_budget')}</Label>
                         <Input
                             id="annual-initial-budget"
                             type="number"
@@ -269,7 +267,7 @@ export function CompanySettingsForm() {
                         />
                     </div>
                     <p className="text-xs text-slate-500">
-                        Current saved budget: {formatMoney(store.companySettings.annualInitialBudget ?? 1_000_000_000, currency)}
+                        {t('current_saved_budget', { amount: formatMoney(store.companySettings.annualInitialBudget ?? 1_000_000_000, currency) })}
                     </p>
                     <div className="flex justify-end">
                         <Button
@@ -277,7 +275,7 @@ export function CompanySettingsForm() {
                             disabled={!annualBudgetDirty || !annualBudgetValid || isSavingBudget}
                             size="sm"
                         >
-                            {isSavingBudget ? 'Saving…' : 'Save budget'}
+                            {isSavingBudget ? t('saving') : t('save_budget')}
                         </Button>
                     </div>
                 </CardContent>
@@ -285,10 +283,9 @@ export function CompanySettingsForm() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Company logo</CardTitle>
+                    <CardTitle className="text-base">{t('company_logo')}</CardTitle>
                     <CardDescription>
-                        Rendered at the top of every contract PDF. PNG, JPG, or WebP up to 2 MB.
-                        Recommended size: ~400 px wide.
+                        {t('company_logo_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -309,7 +306,7 @@ export function CompanySettingsForm() {
                             ) : (
                                 <div className="w-48 h-24 rounded-md border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400">
                                     <Building2 className="h-6 w-6" />
-                                    <span className="text-xs mt-1">No logo yet</span>
+                                    <span className="text-xs mt-1">{t('no_logo_yet')}</span>
                                 </div>
                             )}
                         </div>
@@ -340,7 +337,7 @@ export function CompanySettingsForm() {
                                     ) : (
                                         <Upload className="h-3.5 w-3.5" />
                                     )}
-                                    {tenant.logoUrl ? 'Replace logo' : 'Upload logo'}
+                                    {tenant.logoUrl ? t('replace_logo') : t('upload_logo')}
                                 </Button>
                                 {tenant.logoUrl && (
                                     <Button
@@ -356,13 +353,12 @@ export function CompanySettingsForm() {
                                         ) : (
                                             <Trash2 className="h-3.5 w-3.5" />
                                         )}
-                                        Remove
+                                        {t('remove')}
                                     </Button>
                                 )}
                             </div>
                             <p className="text-xs text-slate-500">
-                                The next contract you generate will use the new logo. Existing PDFs
-                                aren&apos;t re-rendered.
+                                {t('company_logo_hint')}
                             </p>
                         </div>
                     </div>

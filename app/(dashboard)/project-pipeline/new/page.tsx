@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { useTenantStore, type Currency } from "@/store/tenantStore";
 import { CURRENCY_CONFIG } from "@/lib/currencyConfig";
@@ -44,9 +45,10 @@ import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
 import { CustomerRequirementsSection } from "@/components/project-pipeline/CustomerRequirementsSection";
 
 export default function NewDealPage() {
+    const t = useTranslations();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
-    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
     const { createDeal } = useDealMutations();
     const { allowed: canManageCrm, reason: rbacReason } = usePermission('manage_crm');
 
@@ -139,16 +141,16 @@ export default function NewDealPage() {
         };
 
         await createDeal.mutateAsync(newDeal);
-        toast.success(`Deal "${data.name}" created`);
+        toast.success(t('deal_created_toast', { name: data.name }));
         router.push('/project-pipeline');
     }
 
     if (!canManageCrm) {
         return (
             <div className="container mx-auto p-6 max-w-3xl space-y-4">
-                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{t('permission_required')}</h1>
                 <p className="text-sm text-muted-foreground">{rbacReason}</p>
-                <Button variant="outline" onClick={() => router.push('/project-pipeline')}>Back to pipeline</Button>
+                <Button variant="outline" onClick={() => router.push('/project-pipeline')}>{t('back_to_pipeline_short')}</Button>
             </div>
         );
     }
@@ -160,24 +162,23 @@ export default function NewDealPage() {
                     variant="outline"
                     size="icon"
                     onClick={() => router.push('/project-pipeline')}
-                    aria-label="Back to pipeline"
+                    aria-label={t('back_to_pipeline_short')}
                 >
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">New Deal</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">{t('new_deal')}</h1>
                     <p className="text-[#4a4a4a] mt-1">
-                        Capture the customer&apos;s intake. Estimation calculates the cost; this menu owns negotiation and contract drafting.
+                        {t('new_deal_subtitle')}
                     </p>
                 </div>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Deal Profile</CardTitle>
+                    <CardTitle>{t('deal_profile')}</CardTitle>
                     <CardDescription>
-                        Required fields drive the AI contract drafting wizard later. The Estimation menu reads
-                        these values when calculating cost and team structure.
+                        {t('deal_profile_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -187,8 +188,7 @@ export default function NewDealPage() {
                                 <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                     <span>
-                                        Please fix {Object.keys(form.formState.errors).length} highlighted
-                                        field{Object.keys(form.formState.errors).length === 1 ? '' : 's'} before saving.
+                                        {t('please_fix_highlighted_n', { count: Object.keys(form.formState.errors).length })}
                                     </span>
                                 </div>
                             )}
@@ -198,9 +198,9 @@ export default function NewDealPage() {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Deal Name <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('deal_name_label')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
+                                            <Input placeholder={t('placeholder_acme_webapp')} className="bg-white" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -212,9 +212,9 @@ export default function NewDealPage() {
                                 name="client"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Client / Company Name <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('client_company_name')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g. Acme Corporation" className="bg-white" {...field} />
+                                            <Input placeholder={t('placeholder_acme_corp')} className="bg-white" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -227,9 +227,9 @@ export default function NewDealPage() {
                                     name="contactName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Name <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_name_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g. Jane Smith" className="bg-white" {...field} />
+                                                <Input placeholder={t('placeholder_jane_smith')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -240,9 +240,9 @@ export default function NewDealPage() {
                                     name="contactEmail"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Email <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_email_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input type="email" placeholder="jane@acme.com" className="bg-white" {...field} />
+                                                <Input type="email" placeholder={t('placeholder_acme_email')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -253,9 +253,9 @@ export default function NewDealPage() {
                                     name="contactPhone"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Phone <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_phone_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder="+1 555 000 0000" className="bg-white" {...field} />
+                                                <Input placeholder={t('placeholder_intl_phone')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -269,7 +269,7 @@ export default function NewDealPage() {
                                     name="expectedCloseDate"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Expected Start Date <span className="text-red-500">*</span></FormLabel>
+                                            <FormLabel>{t('expected_start_date_label')} <span className="text-red-500">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="date" className="bg-white" {...field} />
                                             </FormControl>
@@ -278,7 +278,7 @@ export default function NewDealPage() {
                                     )}
                                 />
                                 <FormItem>
-                                    <FormLabel>Expected End Date</FormLabel>
+                                    <FormLabel>{t('expected_end_date_label')}</FormLabel>
                                     <div className="h-9 flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
                                         {expectedCloseDate && timelineMonths
                                             ? new Date(new Date(expectedCloseDate).getTime() + Number(timelineMonths) * 30.44 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -292,11 +292,11 @@ export default function NewDealPage() {
                                 name="leadSource"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                        <FormLabel>{t('lead_source')} <span className="text-muted-foreground text-xs font-normal">{t('optional_lowercase')}</span></FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                             <FormControl>
                                                 <SelectTrigger className="bg-white">
-                                                    <SelectValue placeholder="How did they find you?" />
+                                                    <SelectValue placeholder={t('how_did_they_find_you')} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -318,7 +318,7 @@ export default function NewDealPage() {
                                     name="clientBudget"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Estimate Budget ({CURRENCY_CONFIG[currency].symbol}) <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('estimate_budget_with_symbol', { symbol: CURRENCY_CONFIG[currency].symbol })} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="number" className="bg-white" {...field} />
                                             </FormControl>
@@ -331,7 +331,7 @@ export default function NewDealPage() {
                                     name="timelineMonths"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Target Timeline (Months) <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('target_timeline_months')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="number" step="1" min="1" className="bg-white" {...field} />
                                             </FormControl>
@@ -346,10 +346,10 @@ export default function NewDealPage() {
                                 name="workloadDescription"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Requirement Description <span className="text-muted-foreground text-xs font-normal">(feeds the AI contract drafting prompt)</span></FormLabel>
+                                        <FormLabel>{t('requirement_description')} <span className="text-muted-foreground text-xs font-normal">{t('feeds_ai_contract_hint')}</span></FormLabel>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="What does the customer need? Tech stack, scope, deliverables, integrations, special working-hours requirements, testing scope..."
+                                                placeholder={t('requirement_placeholder')}
                                                 className="bg-white min-h-[120px]"
                                                 {...field}
                                             />
@@ -365,12 +365,12 @@ export default function NewDealPage() {
 
                             <div>
                                 <label className="text-sm font-medium leading-none">
-                                    Upload Brief (.txt) <span className="text-muted-foreground font-normal">— optional</span>
+                                    {t('upload_brief_txt')} <span className="text-muted-foreground font-normal">{t('optional_dash')}</span>
                                 </label>
                                 <div className="mt-2 flex items-center gap-3">
                                     <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
                                         <Upload className="h-4 w-4" />
-                                        Choose file
+                                        {t('choose_file')}
                                         <input
                                             type="file"
                                             accept=".txt"
@@ -383,7 +383,7 @@ export default function NewDealPage() {
                                     )}
                                 </div>
                                 <p className="text-[11px] text-slate-500 mt-2">
-                                    Pastes the file contents into the Requirement Description field above.
+                                    {t('upload_file_pastes_hint')}
                                 </p>
                             </div>
 
@@ -394,10 +394,10 @@ export default function NewDealPage() {
                                     size="lg"
                                     onClick={() => router.push('/project-pipeline')}
                                 >
-                                    Cancel
+                                    {t('cancel')}
                                 </Button>
                                 <Button type="submit" size="lg" disabled={createDeal.isPending}>
-                                    {createDeal.isPending ? 'Creating…' : 'Create Deal'}
+                                    {createDeal.isPending ? t('creating_dots') : t('create_deal')}
                                 </Button>
                             </div>
                         </form>
