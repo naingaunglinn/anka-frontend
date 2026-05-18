@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, Sparkles, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
+import { applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
 
 interface Props {
     dealId: string
@@ -250,25 +251,22 @@ export function EstimationRoleBuilder(props: Props) {
                         </Table>
                     </div>
 
-                    {/* Cost roll-up. Same composition as the scope-table summary
-                        so users can sanity-check the AI's math against the
-                        company's overhead/buffer percentages. */}
+                    {/* Cost roll-up. New model: labor cost basis (loaded hourly
+                        × hours) is the agency's real cost; suggested price applies
+                        the BILLING_MARKUP_MULTIPLIER (×3) to labor. Derived
+                        margin replaces the legacy overhead%+buffer% lines. */}
                     <div className="rounded-md bg-slate-50 border border-slate-200 px-4 py-3 text-sm space-y-1">
                         <div className="flex justify-between">
-                            <span className="text-[#4a4a4a]">Base labor cost</span>
+                            <span className="text-[#4a4a4a]">Labor Cost (Basis)</span>
                             <span className="tabular-nums">{formatMoney(result.baseLaborCost, currency)}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-[#4a4a4a]">Overhead ({companySettings.overheadPercentage}%)</span>
-                            <span className="tabular-nums">{formatMoney(result.overheadCost, currency)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-[#4a4a4a]">Risk buffer ({companySettings.bufferPercentage}%)</span>
-                            <span className="tabular-nums">{formatMoney(result.bufferCost, currency)}</span>
+                            <span className="text-[#4a4a4a]">Labor Sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost)</span>
+                            <span className="tabular-nums">{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between border-t border-slate-200 pt-1 mt-1 font-medium">
-                            <span>Total estimated cost</span>
-                            <span className="tabular-nums">{formatMoney(result.totalEstimatedCost, currency)}</span>
+                            <span>Suggested Price</span>
+                            <span className="tabular-nums">{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                             <span className="text-[#4a4a4a]">Client budget</span>

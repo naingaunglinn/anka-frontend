@@ -3,6 +3,7 @@
 import type { AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/currency'
+import { applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -113,29 +114,23 @@ export function AITeamBuilderResultPanel({
                 <CardContent className="pt-4 space-y-3">
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">Labor Cost</span>
+                            <span className="text-[#8a8a8a]">Labor Cost (Basis)</span>
                             <span className="font-medium text-slate-700">
                                 {formatMoney(result.baseLaborCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">Overhead</span>
-                            <span className="font-medium text-red-500/80">
-                                +{formatMoney(result.overheadCost, currency)}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">Risk Buffer</span>
-                            <span className="font-medium text-red-500/80">
-                                +{formatMoney(result.bufferCost, currency)}
+                            <span className="text-[#8a8a8a]">Labor Sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost)</span>
+                            <span className="font-medium text-emerald-600">
+                                {formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}
                             </span>
                         </div>
                     </div>
 
                     <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
                         <div className="flex justify-between font-bold text-slate-800">
-                            <span>Total Cost</span>
-                            <span>{formatMoney(result.totalEstimatedCost, currency)}</span>
+                            <span>Suggested Price</span>
+                            <span>{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-[#8a8a8a]">Client Budget</span>
