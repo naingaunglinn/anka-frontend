@@ -14,6 +14,7 @@ import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { computeDealComplexity, recommendManagement, type ComplexityBand } from '@/lib/dealComplexity'
 import { extractRequiredSkills } from '@/lib/skillMatching'
 import { toUSD, fromUSD } from '@/lib/currencyConverter'
+import { applySellMarkup, applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
 import api from '@/lib/api'
 
 interface Props {
@@ -80,41 +81,49 @@ function generateClientFallback(input: AITeamBuilderInput): AITeamBuilderResult 
             Math.round(totalHours * weight),
             (emp.workableHours || 160) * months
         )
+        // Match /estimation + /organization: loaded cost = raw × 1.15
+        // (absorbs company overhead). totalCost on each team member is the
+        // agency's labor cost basis for that allocation.
+        const loadedCostPerHour = applySellMarkup(emp.costPerHour || 0)
         return {
             employeeId: emp.id,
             name: emp.name,
             role: emp.capacityRole || 'member',
             allocatedHours,
             monthlySalary: emp.monthlySalary || 0,
-            costPerHour: emp.costPerHour || 0,
-            totalCost: allocatedHours * (emp.costPerHour || 0),
+            costPerHour: loadedCostPerHour,
+            totalCost: allocatedHours * loadedCostPerHour,
             reasoning: `${emp.name} contributes ${emp.capacityRole} expertise with ${emp.monthlySalary ? `${formatMoney(emp.monthlySalary, input.currency ?? 'MMK')}/mo` : 'competitive'} cost rate.`,
             matchedSkills: (emp.skills || []).map((s: { name?: string }) => s.name || '').filter(Boolean),
             skillMatchScore: Math.round(70 + Math.random() * 25),
         }
     }).filter(m => m.allocatedHours > 0).sort((a, b) => b.allocatedHours - a.allocatedHours).slice(0, 5)
 
+    // New cost model: cost basis = loaded labor cost; sell = loaded × 3.
+    // The legacy overheadCost / bufferCost fields are retained in the result
+    // shape for backwards compatibility with EstimationRoleBuilder + saved
+    // versions, but are zeroed out — the markup is now baked into the rate.
     const baseLaborCost = team.reduce((sum, m) => sum + m.totalCost, 0)
-    const overheadPct = (input.companySettings?.overheadPercentage || 20) / 100
-    const bufferPct = (input.companySettings?.bufferPercentage || 10) / 100
-    const overheadCost = baseLaborCost * overheadPct
-    const bufferCost = (baseLaborCost + overheadCost) * bufferPct
-    const totalEstimatedCost = baseLaborCost + overheadCost + bufferCost
-    const estimatedGrossProfit = input.clientBudget - totalEstimatedCost
-    const profitMarginPercent = input.clientBudget > 0 ? (estimatedGrossProfit / input.clientBudget) * 100 : 0
-    const isFeasible = totalEstimatedCost <= input.clientBudget
+    const laborSell = team.reduce((sum, m) => sum + m.allocatedHours * applyBillingMarkup(m.costPerHour), 0)
+    const totalEstimatedCost = baseLaborCost
+    const suggestedPrice = laborSell
+    const estimatedGrossProfit = suggestedPrice - totalEstimatedCost
+    const profitMarginPercent = suggestedPrice > 0 ? (estimatedGrossProfit / suggestedPrice) * 100 : 0
+    const isFeasible = suggestedPrice <= input.clientBudget
 
     return {
         team,
         baseLaborCost: Math.round(baseLaborCost),
-        overheadCost: Math.round(overheadCost),
-        bufferCost: Math.round(bufferCost),
+        overheadCost: 0,
+        bufferCost: 0,
         totalEstimatedCost: Math.round(totalEstimatedCost),
         estimatedGrossProfit: Math.round(estimatedGrossProfit),
         profitMarginPercent: Math.round(profitMarginPercent * 100) / 100,
         isFeasible,
-        feasibilityNote: isFeasible ? 'Project is within budget' : `Project exceeds budget by ${formatMoney(totalEstimatedCost - input.clientBudget, input.currency ?? 'MMK')}`,
-        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Total cost is ${formatMoney(totalEstimatedCost, input.currency ?? 'MMK')} against a ${formatMoney(input.clientBudget, input.currency ?? 'MMK')} budget.`,
+        feasibilityNote: isFeasible
+            ? `Quote (${formatMoney(suggestedPrice, input.currency ?? 'MMK')}) fits the client budget`
+            : `Quote (${formatMoney(suggestedPrice, input.currency ?? 'MMK')}) exceeds budget by ${formatMoney(suggestedPrice - input.clientBudget, input.currency ?? 'MMK')}`,
+        aiReasoning: `Based on the ${input.timelineMonths}-month timeline and ${totalHours}h workload, I've selected ${team.length} team members. ${team.map(t => `${t.name} (${t.role}) contributes ${t.allocatedHours}h`).join(', ')}. Labor cost is ${formatMoney(totalEstimatedCost, input.currency ?? 'MMK')}; quoted price (${BILLING_MARKUP_MULTIPLIER}× loaded cost) is ${formatMoney(suggestedPrice, input.currency ?? 'MMK')} against a ${formatMoney(input.clientBudget, input.currency ?? 'MMK')} budget.`,
         warnings: profitMarginPercent < 10 ? ['Profit margin is below 10%. Consider negotiating a higher budget or reducing scope.'] : [],
         skillGapAnalysis: {
             coveredSkills: [],

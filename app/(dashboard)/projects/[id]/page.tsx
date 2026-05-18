@@ -105,11 +105,10 @@ export default function ProjectDetailPage() {
         setEditOpen(false);
     };
 
-    // ── Status change action ─────────────────────────────────────────────────
-    const setStatus = (status: Project['status']) => {
-        if (!project) return;
-        updateProject.mutate({ id: project.id, updates: { status } });
-    };
+    // Status is no longer user-editable — it's computed automatically from
+    // time-tracking data (Project::maybeAutoTransition runs on every approved
+    // time entry plus a nightly cron sweep). See
+    // anka-api/storage/contract_auto_status_decision.md for the rules.
 
     // ── Add team member dialog ───────────────────────────────────────────────
     const [addOpen, setAddOpen] = useState(false);
@@ -207,15 +206,13 @@ export default function ProjectDetailPage() {
                     </div>
                     <p className="text-[#8a8a8a] mt-1">{project.client}</p>
                 </div>
-                <div className="flex gap-2">
-                    <Select value="" onValueChange={(v) => setStatus(v as Project['status'])}>
-                        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Change status…" /></SelectTrigger>
-                        <SelectContent>
-                            {(['Not Started', 'On Track', 'At Risk', 'Over Budget', 'Completed'] as const)
-                                .filter(s => s !== project.status)
-                                .map(s => <SelectItem key={s} value={s}>Mark {s}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                <div className="flex items-center gap-2">
+                    {/* Status is computed automatically from time-tracking data —
+                        no manual override here. Showing a small hint so users
+                        understand why there's no "Change status" control. */}
+                    <span className="text-[11px] text-[#8a8a8a] hidden sm:inline">
+                        Status updates automatically from time tracking
+                    </span>
                     <Button variant="outline" onClick={openEdit}>Edit details</Button>
                 </div>
             </div>

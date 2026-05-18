@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import type { Deal } from '@/types/business';
 const ALL_STATUSES = '__all__'; // Radix Select rejects '' as a SelectItem value; sentinel for "no filter".
 
 export default function CRMPage() {
+    const t = useTranslations();
     // Hydrate org data into businessStore (roles, employees, companySettings)
     // so downstream pages and the deal-detail Financial Summary card have
     // what they need when the user navigates from here.
@@ -82,14 +84,14 @@ export default function CRMPage() {
         <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">Project Pipeline</h2>
-                    <p className="text-[#4a4a4a] mt-1">Manage leads, draft contracts with AI, and track opportunities through to signed.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#171717]">{t('project_pipeline')}</h2>
+                    <p className="text-[#4a4a4a] mt-1">{t('project_pipeline_description')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <PermissionGuard permission="manage_crm">
                         <Link href="/project-pipeline/new">
                             <Button>
-                                <Plus className="mr-2 h-4 w-4" /> New Deal
+                                <Plus className="mr-2 h-4 w-4" /> {t('new_deal')}
                             </Button>
                         </Link>
                     </PermissionGuard>
@@ -99,7 +101,7 @@ export default function CRMPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Pipeline Value</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('total_pipeline_value')}</CardTitle>
                         <DollarSign className="h-4 w-4 text-[#00a7f4]" />
                     </CardHeader>
                     <CardContent>
@@ -107,14 +109,14 @@ export default function CRMPage() {
                             {formatMoneyShort(pipelineTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            Sum of all deals in pipeline
+                            {t('sum_of_all_deals')}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Weighted Revenue</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('weighted_revenue')}</CardTitle>
                         <Target className="h-4 w-4 text-emerald-600" />
                     </CardHeader>
                     <CardContent>
@@ -122,14 +124,14 @@ export default function CRMPage() {
                             {formatMoneyShort(weightedTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            Value × Win Probability
+                            {t('value_times_win_probability')}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card className="bg-white border-[#e6e9ee] shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Forecasted Yield</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('forecasted_yield')}</CardTitle>
                         <TrendingUp className="h-4 w-4 text-indigo-600" />
                     </CardHeader>
                     <CardContent>
@@ -137,7 +139,7 @@ export default function CRMPage() {
                             {pipelineTotal > 0 ? ((weightedTotal / pipelineTotal) * 100).toFixed(1) : 0}%
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            Average pipeline health
+                            {t('average_pipeline_health')}
                         </p>
                     </CardContent>
                 </Card>
@@ -155,20 +157,20 @@ export default function CRMPage() {
                         type="search"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search by deal name or client..."
+                        placeholder={t('search_by_deal_or_client')}
                         className="pl-9 bg-white"
                     />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full sm:w-[180px] bg-white">
-                        <SelectValue placeholder="All stages" />
+                        <SelectValue placeholder={t('all_stages')} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value={ALL_STATUSES}>All stages</SelectItem>
-                        <SelectItem value="lead">C — Lead</SelectItem>
-                        <SelectItem value="qualified">B — Qualified</SelectItem>
-                        <SelectItem value="negotiation">A — Negotiation</SelectItem>
-                        <SelectItem value="won">S — Won</SelectItem>
+                        <SelectItem value={ALL_STATUSES}>{t('all_stages')}</SelectItem>
+                        <SelectItem value="lead">{t('stage_lead')}</SelectItem>
+                        <SelectItem value="qualified">{t('stage_qualified')}</SelectItem>
+                        <SelectItem value="negotiation">{t('stage_negotiation')}</SelectItem>
+                        <SelectItem value="won">{t('stage_won')}</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button
@@ -177,15 +179,15 @@ export default function CRMPage() {
                     size="sm"
                     onClick={() => setShowDropped(v => !v)}
                     className="gap-1.5"
-                    title={showDropped ? 'Hide dropped deals' : 'Overlay dropped deals on the board'}
+                    title={showDropped ? t('hide_dropped_tooltip') : t('show_dropped_tooltip')}
                 >
                     {showDropped ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    {showDropped ? 'Hide dropped' : `Show dropped${droppedCount ? ` (${droppedCount})` : ''}`}
+                    {showDropped ? t('hide_dropped') : (droppedCount ? t('show_dropped_with_count', { count: droppedCount }) : t('show_dropped'))}
                 </Button>
                 {hasActiveFilters && (
                     <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
                         <X className="h-3.5 w-3.5" />
-                        Clear filters
+                        {t('clear_filters')}
                     </Button>
                 )}
             </div>
@@ -198,12 +200,11 @@ export default function CRMPage() {
             {deals.length > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#4a4a4a]">
                     <span>
-                        Showing <span className="font-semibold text-[#171717]">{deals.length}</span>
-                        {totalDeals !== deals.length && (
-                            <> of <span className="font-semibold text-[#171717]">{totalDeals}</span></>
-                        )} deal{totalDeals === 1 ? '' : 's'}
+                        {totalDeals !== deals.length
+                            ? t('showing_x_of_y_deals', { shown: deals.length, total: totalDeals })
+                            : t('showing_n_deals', { shown: deals.length })}
                         {perPage !== DEFAULT_PER_PAGE && (
-                            <span className="text-[#8a8a8a]"> (page size {perPage})</span>
+                            <span className="text-[#8a8a8a]"> {t('page_size', { size: perPage })}</span>
                         )}
                     </span>
                     {hasMore && (
@@ -214,7 +215,7 @@ export default function CRMPage() {
                             disabled={perPage >= MAX_PER_PAGE}
                             className="h-7"
                         >
-                            Load all (max {MAX_PER_PAGE})
+                            {t('load_all_max', { max: MAX_PER_PAGE })}
                         </Button>
                     )}
                 </div>
@@ -225,23 +226,23 @@ export default function CRMPage() {
                     <div className="h-96 w-full animate-pulse rounded-lg bg-slate-100" />
                 ) : dealsQuery.isError ? (
                     <div className="flex h-96 flex-col items-center justify-center gap-3 text-center">
-                        <p className="text-sm font-medium text-[#171717]">Could not load pipeline deals.</p>
-                        <Button variant="outline" onClick={() => dealsQuery.refetch()}>Retry</Button>
+                        <p className="text-sm font-medium text-[#171717]">{t('could_not_load_pipeline')}</p>
+                        <Button variant="outline" onClick={() => dealsQuery.refetch()}>{t('retry')}</Button>
                     </div>
                 ) : deals.length === 0 ? (
                     <div className="flex h-96 flex-col items-center justify-center gap-3 text-center">
                         {hasActiveFilters ? (
                             <>
-                                <p className="text-sm text-[#8a8a8a]">No deals match the current filters.</p>
-                                <Button variant="outline" onClick={clearFilters}>Clear filters</Button>
+                                <p className="text-sm text-[#8a8a8a]">{t('no_deals_match_filters')}</p>
+                                <Button variant="outline" onClick={clearFilters}>{t('clear_filters')}</Button>
                             </>
                         ) : (
                             <>
-                                <p className="text-sm text-[#8a8a8a]">No deals yet. Create your first deal to start the pipeline.</p>
+                                <p className="text-sm text-[#8a8a8a]">{t('no_deals_yet')}</p>
                                 <PermissionGuard permission="manage_crm">
                                     <Link href="/project-pipeline/new">
                                         <Button>
-                                            <Plus className="mr-2 h-4 w-4" /> New Deal
+                                            <Plus className="mr-2 h-4 w-4" /> {t('new_deal')}
                                         </Button>
                                     </Link>
                                 </PermissionGuard>

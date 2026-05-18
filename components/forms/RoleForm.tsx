@@ -2,6 +2,7 @@
 
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
     Form,
@@ -32,6 +33,7 @@ interface RoleFormProps {
 }
 
 export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleFormProps) {
+    const t = useTranslations();
     const form = useForm<RoleFormValues>({
         resolver: zodResolver(roleSchema) as any,
         mode: 'onBlur',
@@ -69,8 +71,8 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                             {errorCount === 1
-                                ? 'Please fix the highlighted field before saving.'
-                                : `Please fill in ${errorCount} required fields before saving.`}
+                                ? t('please_fix_highlighted')
+                                : t('please_fill_required_fields', { count: errorCount })}
                         </span>
                     </div>
                 )}
@@ -79,9 +81,9 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     name="title"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Role Title <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('role_title')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Senior Developer" {...field} />
+                                <Input placeholder={t('placeholder_senior_dev')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -92,11 +94,11 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     name="departmentId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Department <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('department_label')} <span className="text-destructive">*</span></FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select a department" />
+                                        <SelectValue placeholder={t('select_a_department')} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -114,9 +116,9 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                     name="rate"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Standard Bill Rate ($/hr) <span className="text-destructive">*</span></FormLabel>
+                            <FormLabel>{t('standard_bill_rate')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input type="number" placeholder="e.g. 85" {...field} />
+                                <Input type="number" placeholder={t('placeholder_rate_85')} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -124,22 +126,22 @@ export function RoleForm({ initialData, departments, onSubmit, onCancel }: RoleF
                 />
 
                 <p className="text-xs text-[#4a4a4a]">
-                    Fields marked <span className="text-destructive">*</span> are required.
+                    {t('fields_required_explainer')} <span className="text-destructive">*</span> {t('are_required_short')}
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                     {onCancel ? (
                         <Button type="button" variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     ) : (
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
-                                Cancel
+                                {t('cancel')}
                             </Button>
                         </DialogClose>
                     )}
                     <Button type="submit" disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? "Saving..." : "Save Role"}
+                        {form.formState.isSubmitting ? t('saving') : t('save_role')}
                     </Button>
                 </div>
             </form>

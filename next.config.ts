@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// Points next-intl at our request-config module. Cookie-based locale, no
+// `[locale]` route segment — keeps every existing route URL unchanged.
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 // ── Origin resolution ─────────────────────────────────────────────────────────
 // Resolved at build time so the CSP string is a static per-deployment value.
@@ -81,4 +86,4 @@ const nextConfig: NextConfig = {
     },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

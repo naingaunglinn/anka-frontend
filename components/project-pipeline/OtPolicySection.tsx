@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormContext } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import {
     FormControl,
     FormField,
@@ -35,6 +36,7 @@ import { OT_POLICY_OPTIONS, type DealFormValues } from '@/lib/schemas/deal.schem
  * defined this as part of the Project Pipeline UI surface from day one.
  */
 export function OtPolicySection() {
+    const t = useTranslations();
     const form = useFormContext<DealFormValues>();
     const policyModel = form.watch('otPolicyModel');
 
@@ -45,10 +47,9 @@ export function OtPolicySection() {
     return (
         <Card className="border-slate-200">
             <CardHeader className="pb-3">
-                <CardTitle className="text-base">OT / Overage Policy</CardTitle>
+                <CardTitle className="text-base">{t('ot_overage_policy')}</CardTitle>
                 <CardDescription className="text-xs">
-                    How is overtime handled? This drives <strong>⑦ Profit Calculate</strong> (absorbed OT
-                    reduces project profit) and gets printed in the contract draft.
+                    {t('ot_policy_desc')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -57,19 +58,19 @@ export function OtPolicySection() {
                     name="otPolicyModel"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Policy model</FormLabel>
+                            <FormLabel>{t('policy_model')}</FormLabel>
                             <Select
                                 onValueChange={(v) => field.onChange(v === '__none__' ? null : v)}
                                 value={field.value ?? '__none__'}
                             >
                                 <FormControl>
                                     <SelectTrigger className="bg-white">
-                                        <SelectValue placeholder="Pick how OT is billed" />
+                                        <SelectValue placeholder={t('pick_how_ot_billed')} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
                                     <SelectItem value="__none__" className="text-slate-500">
-                                        Not yet decided
+                                        {t('not_yet_decided')}
                                     </SelectItem>
                                     {OT_POLICY_OPTIONS.map((opt) => (
                                         <SelectItem key={opt.value} value={opt.value}>
@@ -90,9 +91,7 @@ export function OtPolicySection() {
                     <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs text-amber-900">
                         <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                         <span>
-                            Absorbing OT means every overtime hour an engineer logs comes out of this
-                            deal&apos;s profit. Make sure the budget covers expected overrun before
-                            agreeing to this with the customer.
+                            {t('ot_absorbed_warning')}
                         </span>
                     </div>
                 )}
@@ -105,7 +104,7 @@ export function OtPolicySection() {
                                 name="otRatePerHour"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Per-hour rate <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('per_hour_rate')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
@@ -119,7 +118,7 @@ export function OtPolicySection() {
                                             />
                                         </FormControl>
                                         <FormDescription className="text-[11px]">
-                                            What the customer pays for each OT hour.
+                                            {t('ot_rate_help')}
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -132,7 +131,7 @@ export function OtPolicySection() {
                                 name="otIncludedHoursPerMonth"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Included hours/month <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('included_hours_per_month')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
@@ -147,7 +146,7 @@ export function OtPolicySection() {
                                             />
                                         </FormControl>
                                         <FormDescription className="text-[11px]">
-                                            Hours absorbed before customer-pays kicks in (Yazaki uses 12).
+                                            {t('included_hours_help')}
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -162,10 +161,10 @@ export function OtPolicySection() {
                     name="otNotes"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Notes <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                            <FormLabel>{t('notes')} <span className="text-muted-foreground text-xs font-normal">{t('optional_lowercase')}</span></FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder="Any clarifications from the customer conversation. The AI uses this when drafting the OT clause."
+                                    placeholder={t('ot_notes_placeholder')}
                                     className="bg-white min-h-[60px]"
                                     {...field}
                                     value={field.value ?? ''}

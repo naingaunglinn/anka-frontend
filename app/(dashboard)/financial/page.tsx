@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQueries } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,14 +12,15 @@ import { ResponsiveContainer, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxi
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney, formatMoneyShort } from '@/lib/currency';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { fetchProjectTaskAssignments, projectKeys, useProjectList } from '@/lib/queries/projects';
-import { scheduleTrackingKeys, type LateHourEmployeeRow, type ProjectLateHoursResponse } from '@/lib/queries/scheduleTracking';
+import { scheduleTrackingKeys, type ProjectLateHoursResponse, type LateHourEmployeeRow } from '@/lib/queries/scheduleTracking';
+import { dealRank } from '@/lib/dealRanks';
 import api from '@/lib/api';
 import type { Contract, Deal, Employee, Project, ProjectTaskAssignment, TimeEntry } from '@/types/business';
 
@@ -174,8 +176,14 @@ function getTaskProgress(task: ProjectTaskAssignment, today: Date): number {
     return 0.5;
 }
 
-function getActualProgress(project: Project, tasks: ProjectTaskAssignment[], actualHours: number, today: Date): number {
-    if (tasks.length > 0) {
+function getActualProgress(
+    project: Project,
+    tasks: ProjectTaskAssignment[],
+    actualHours: number,
+    today: Date,
+    useTaskTracking: boolean,
+): number {
+    if (useTaskTracking && tasks.length > 0) {
         const totalWeight = tasks.reduce((sum, task) => sum + Math.max(task.totalHours, 1), 0);
         if (totalWeight > 0) {
             const completedWeight = tasks.reduce((sum, task) => {
@@ -207,8 +215,15 @@ function getPlannedTimeline(project: Project, deal?: Deal, tasks: ProjectTaskAss
     return { plannedStart, plannedEnd };
 }
 
-function getActualStart(project: Project, tasks: ProjectTaskAssignment[], projectEntries: TimeEntry[]): Date | null {
-    const aggregatedActualStart = getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))));
+function getActualStart(
+    project: Project,
+    tasks: ProjectTaskAssignment[],
+    projectEntries: TimeEntry[],
+    useTaskTracking: boolean,
+): Date | null {
+    const aggregatedActualStart = useTaskTracking
+        ? getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))))
+        : null;
     const firstEntryDate = getEarlierDate(...projectEntries.map((entry) => parseDate(entry.date)));
     const kickoff = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
     return aggregatedActualStart ?? firstEntryDate ?? kickoff;
@@ -219,23 +234,25 @@ function getOvertimeMetrics(
     overtimeHours: number,
     overtimeCost: number,
     runningMonths: number,
-): { overtimeImpact: number; overtimeRevenue: number } {
+): { overtimeImpact: number; overtimeProfitAdjustment: number } {
     const policy = deal?.otPolicyModel ?? '';
     const rate = positiveNumber(deal?.otRatePerHour);
 
     if (policy === 'customer_pays_per_hour') {
         const recoverable = overtimeHours * (rate > 0 ? rate : overtimeCost / Math.max(overtimeHours, 1));
-        return { overtimeImpact: 0, overtimeRevenue: recoverable };
+        const overtimeProfitAdjustment = Math.max(0, recoverable - overtimeCost);
+        return { overtimeImpact: overtimeProfitAdjustment, overtimeProfitAdjustment };
     }
 
     if (policy === 'capped_then_customer_pays') {
         const included = positiveNumber(deal?.otIncludedHoursPerMonth) * Math.max(1, runningMonths);
         const billableHours = Math.max(0, overtimeHours - included);
         const recoverable = billableHours * (rate > 0 ? rate : overtimeCost / Math.max(overtimeHours, 1));
-        return { overtimeImpact: 0, overtimeRevenue: recoverable };
+        const overtimeProfitAdjustment = Math.max(0, recoverable - overtimeCost);
+        return { overtimeImpact: overtimeProfitAdjustment, overtimeProfitAdjustment };
     }
 
-    return { overtimeImpact: -overtimeCost, overtimeRevenue: 0 };
+    return { overtimeImpact: -overtimeCost, overtimeProfitAdjustment: -overtimeCost };
 }
 
 function getHealth(variance: number, progressDelta: number): { health: ProfitHealth; reason: string } {
@@ -248,10 +265,10 @@ function getHealth(variance: number, progressDelta: number): { health: ProfitHea
     }
 
     if (progressDelta < -0.12) {
-        return { health: 'At Risk', reason: 'Delivery progress is behind the planned running pace.' };
+        return { health: 'At Risk', reason: 'Actual progress is behind schedule.' };
     }
 
-    return { health: 'At Risk', reason: 'Actual profit is trailing the planned profit baseline.' };
+    return { health: 'At Risk', reason: 'Actual profit is below the expected level by today.' };
 }
 
 function getHealthClasses(health: ProfitHealth): string {
@@ -261,9 +278,10 @@ function getHealthClasses(health: ProfitHealth): string {
 }
 
 export default function FinancialPage() {
+    const t = useTranslations();
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
-    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
     const taxRate = currentTenant?.taxRate ?? 0.20;
     const today = useMemo(() => new Date(), []);
 
@@ -358,7 +376,7 @@ export default function FinancialPage() {
     const taskAssignmentsByProject = useMemo(() => {
         const map = new Map<string, ProjectTaskAssignment[]>();
         projects.forEach((project, index) => {
-            map.set(project.id, taskAssignmentQueries[index]?.data ?? []);
+            map.set(project.id, taskAssignmentQueries[index]?.data?.data ?? []);
         });
         return map;
     }, [projects, taskAssignmentQueries]);
@@ -406,6 +424,8 @@ export default function FinancialPage() {
                 const deal = contract ? dealsById.get(contract.dealId) : undefined;
                 const tasks = taskAssignmentsByProject.get(project.id) ?? [];
                 const projectEntries = approvedTimeEntries.filter((entry) => entry.projectId === project.id);
+                const projectRank = deal ? dealRank(deal) : 'C';
+                const useTaskTracking = projectRank === 'S' && tasks.length > 0;
 
                 const planRevenue = estimateProjectRevenue(contract, deal);
                 const planCost = estimateProjectCost(planRevenue, deal);
@@ -413,10 +433,11 @@ export default function FinancialPage() {
                 const planProfit = estimatedGrossProfit ?? (planRevenue - planCost);
 
                 const { plannedStart, plannedEnd } = getPlannedTimeline(project, deal, tasks);
-                const actualStart = getActualStart(project, tasks, projectEntries) ?? plannedStart;
+                const actualStart = getActualStart(project, tasks, projectEntries, useTaskTracking) ?? plannedStart;
                 const plannedDurationDays = plannedStart && plannedEnd ? diffDays(plannedStart, plannedEnd) : Math.max(30, positiveNumber(deal?.timelineMonths || deal?.finalContractMonths) * 30 || 180);
+                const plannedElapsedDays = plannedStart ? diffDays(plannedStart, today < (plannedEnd ?? today) ? today : (plannedEnd ?? today)) : 0;
                 const elapsedDays = actualStart ? diffDays(actualStart, today) : 0;
-                const plannedProgress = plannedStart ? clamp(elapsedDays / plannedDurationDays) : 0;
+                const plannedProgress = plannedStart ? clamp(plannedElapsedDays / plannedDurationDays) : 0;
 
                 const actualHours = projectEntries.reduce((sum, entry) => sum + positiveNumber(entry.hours), 0);
                 const actualLaborCost = projectEntries.reduce((sum, entry) => {
@@ -425,7 +446,7 @@ export default function FinancialPage() {
                     return sum + (positiveNumber(entry.hours) * hourlyCost);
                 }, 0);
 
-                const actualProgress = getActualProgress(project, tasks, actualHours, today);
+                const actualProgress = getActualProgress(project, tasks, actualHours, today, useTaskTracking);
                 const actualRevenue = planRevenue * actualProgress;
 
                 const plannedCostToDate = planCost * plannedProgress;
@@ -450,9 +471,10 @@ export default function FinancialPage() {
                 const overtimeSource: 'progress_logs' | 'time_entries' = hasLogData ? 'progress_logs' : 'time_entries';
 
                 const runningMonths = Math.max(1, Math.ceil(elapsedDays / 30));
-                const { overtimeImpact, overtimeRevenue } = getOvertimeMetrics(deal, overtimeHours, overtimeCost, runningMonths);
+                const { overtimeImpact, overtimeProfitAdjustment } = getOvertimeMetrics(deal, overtimeHours, overtimeCost, runningMonths);
+                const baseLaborCost = Math.max(0, actualLaborCost - overtimeCost);
 
-                const actualProfit = actualRevenue + overtimeRevenue - actualLaborCost;
+                const actualProfit = actualRevenue - baseLaborCost + overtimeProfitAdjustment;
                 const variance = actualProfit - plannedProfitToDate;
                 const progressDelta = actualProgress - plannedProgress;
                 const { health, reason } = getHealth(variance, progressDelta);
@@ -461,7 +483,7 @@ export default function FinancialPage() {
                     id: project.id,
                     name: project.name,
                     client: project.client,
-                    rank: deal?.status === 'won' ? 'S' : deal?.status === 'negotiation' ? 'A' : deal?.status === 'qualified' ? 'B' : 'C',
+                    rank: projectRank,
                     planProfit,
                     planProfitToDate: plannedProfitToDate,
                     actualProfit,
@@ -598,8 +620,8 @@ export default function FinancialPage() {
         <div className="p-6 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Financial Performance</h1>
-                    <p className="mt-1 text-[#8a8a8a]">Project profit tracking, company overall profit, and monthly P&amp;L in one place.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('financial_performance')}</h1>
+                    <p className="mt-1 text-[#8a8a8a]">{t('financial_subtitle')}</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2">
@@ -607,34 +629,33 @@ export default function FinancialPage() {
                             type="month"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            placeholder="From"
+                            placeholder={t('from')}
                             className="w-40"
                         />
-                        <span className="text-sm text-[#8a8a8a]">to</span>
+                        <span className="text-sm text-[#8a8a8a]">{t('to')}</span>
                         <Input
                             type="month"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            placeholder="To"
+                            placeholder={t('to_placeholder')}
                             className="w-40"
                         />
                         {(dateFrom || dateTo) && (
                             <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); }}>
-                                Clear
+                                {t('clear')}
                             </Button>
                         )}
                     </div>
                     <Button variant="outline" onClick={handleCsvExport} className="gap-2 bg-white">
-                        <Download className="h-4 w-4" /> Export CSV
+                        <Download className="h-4 w-4" /> {t('export_csv')}
                     </Button>
                 </div>
             </div>
-
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Company Actual Profit</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('company_actual_profit')}</p>
                             <DollarSign className={`h-4 w-4 ${projectSummary.actualProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${projectSummary.actualProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -647,40 +668,40 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Company Plan Profit (To Date)</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('company_plan_profit_to_date')}</p>
                             <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
                             {formatMoney(projectSummary.planProfitToDate, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">Baseline based on planned project running time.</p>
+                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('baseline_based_on_planned_time')}</p>
                     </CardContent>
                 </Card>
 
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Profit Variance</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('profit_variance')}</p>
                             <TrendingDown className={`h-4 w-4 ${projectSummary.variance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${projectSummary.variance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {formatMoney(projectSummary.variance, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">Actual profit minus planned profit baseline.</p>
+                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('actual_minus_plan_helper')}</p>
                     </CardContent>
                 </Card>
 
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Projects Needing Attention</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('projects_needing_attention')}</p>
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
                         </div>
                         <div className="mt-2 flex items-end gap-3">
                             <span className="text-3xl font-bold tracking-tight text-[#171717]">{projectSummary.atRisk}</span>
-                            <span className="pb-1 text-sm text-[#8a8a8a]">{projectSummary.watch} watch</span>
+                            <span className="pb-1 text-sm text-[#8a8a8a]">{t('watch_count', { count: projectSummary.watch })}</span>
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">Projects behind plan on margin, pace, or both.</p>
+                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('projects_behind_plan')}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -688,15 +709,20 @@ export default function FinancialPage() {
             <div className="grid gap-6 xl:grid-cols-[1.2fr,1fr]">
                 <section className="rounded-lg border border-[#e6e9ee] bg-white">
                     <div className="border-b px-6 py-4">
-                        <h2 className="text-lg font-semibold text-[#171717]">Company Profit Snapshot</h2>
-                        <p className="mt-1 text-sm text-[#8a8a8a]">Compare current overall project profit against the planned baseline.</p>
+                        <h2 className="text-lg font-semibold text-[#171717]">{t('company_profit_snapshot')}</h2>
+                        <p className="mt-1 text-sm text-[#8a8a8a]">{t('company_profit_snapshot_subtitle')}</p>
                     </div>
                     <div className="h-[280px] px-4 py-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={companyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <BarChart data={companyChartData} margin={{ top: 10, right: 10, left: 16, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+                                <YAxis
+                                    tickLine={false}
+                                    axisLine={false}
+                                    width={88}
+                                    tickFormatter={(value) => formatMoneyShort(Number(value ?? 0), currency)}
+                                />
                                 <Tooltip formatter={(value) => formatMoney(Number(value ?? 0), currency)} />
                                 <Bar dataKey="amount" radius={[6, 6, 0, 0]} fill="#00a7f4" />
                             </BarChart>
@@ -708,21 +734,21 @@ export default function FinancialPage() {
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base text-[#171717]">
                             <Info className="h-4 w-4 text-[#00a7f4]" />
-                            Profit Logic
+                            {t('profit_logic')}
                         </CardTitle>
                         <CardDescription className="text-[#8a8a8a]">
-                            Project profit now reads from delivery progress, actual running time, and OT policy.
+                            {t('profit_logic_desc')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pt-0 text-sm text-[#4a4a4a]">
                         <p>
-                            <span className="font-semibold text-[#171717]">Plan Profit</span> comes from the project&apos;s planned revenue and estimated cost, then the dashboard scales it by the planned running timeline to get the expected profit by today.
+                            <span className="font-semibold text-[#171717]">{t('plan_profit')}</span> {t('plan_profit_explain')}
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">Actual Profit</span> uses current project progress. For S-rank projects, progress is weighted from Task Assign and Tracking rows; otherwise it falls back to approved hours against budget hours.
+                            <span className="font-semibold text-[#171717]">{t('actual_profit')}</span> {t('actual_profit_explain')}
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">Overtime Impact</span> is only shown as a negative when the contract does not have an OT fee recovery path. If OT fees exist, the impact line stays neutral and any recoverable OT revenue is added back into actual profit.
+                            <span className="font-semibold text-[#171717]">{t('overtime_impact_label')}</span> {t('overtime_impact_explain')}
                         </p>
                     </CardContent>
                 </Card>
@@ -730,22 +756,22 @@ export default function FinancialPage() {
 
             <section className="rounded-lg border border-[#e6e9ee] bg-white">
                 <div className="border-b px-6 py-4">
-                    <h2 className="text-lg font-semibold text-[#171717]">Project Profit Comparison</h2>
-                    <p className="mt-1 text-sm text-[#8a8a8a]">See which projects are following plan and which ones are moving into risk.</p>
+                    <h2 className="text-lg font-semibold text-[#171717]">{t('project_profit_comparison')}</h2>
+                    <p className="mt-1 text-sm text-[#8a8a8a]">{t('project_profit_comparison_subtitle')}</p>
                 </div>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader className="bg-white">
                             <TableRow>
-                                <TableHead className="py-4">Project</TableHead>
-                                <TableHead className="py-4">Rank</TableHead>
-                                <TableHead className="text-right py-4">Plan Profit</TableHead>
-                                <TableHead className="text-right py-4">Plan Profit (To Date)</TableHead>
-                                <TableHead className="text-right py-4">Actual Profit</TableHead>
-                                <TableHead className="text-right py-4">Variance</TableHead>
-                                <TableHead className="text-right py-4">OT Impact</TableHead>
-                                <TableHead className="text-right py-4">Progress</TableHead>
-                                <TableHead className="py-4">Status</TableHead>
+                                <TableHead className="py-4">{t('project')}</TableHead>
+                                <TableHead className="py-4">{t('rank')}</TableHead>
+                                <TableHead className="text-right py-4">{t('plan_profit_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('plan_profit_to_date_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('actual_profit_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('variance_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('ot_impact_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('progress')}</TableHead>
+                                <TableHead className="py-4">{t('status')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -754,9 +780,9 @@ export default function FinancialPage() {
                                     <TableCell className="py-4">
                                         <div className="font-semibold text-[#171717]">{row.name}</div>
                                         <div className="mt-1 text-xs text-[#8a8a8a]">{row.client}</div>
-                                        <div className="mt-1 text-xs text-[#8a8a8a]">OT policy: {row.otPolicy.replaceAll('_', ' ')}</div>
+                                        <div className="mt-1 text-xs text-[#8a8a8a]">{t('ot_policy_label', { policy: row.otPolicy.replaceAll('_', ' ') })}</div>
                                         <div className="mt-2 text-xs text-[#8a8a8a]">
-                                            Actual hours {row.actualHours.toFixed(1)} / budget pace {Math.round(row.plannedProgress * 100)}%
+                                            {t('actual_hours_vs_budget_pace', { hours: row.actualHours.toFixed(1), pct: Math.round(row.plannedProgress * 100) })}
                                         </div>
                                     </TableCell>
                                     <TableCell className="py-4">
@@ -775,7 +801,7 @@ export default function FinancialPage() {
                                     <TableCell className={`text-right py-4 ${row.overtimeImpact < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
                                         {formatMoney(row.overtimeImpact, currency)}
                                         {row.overtimeHours > 0 && (
-                                            <div className="mt-1 text-xs text-[#8a8a8a]">{row.overtimeHours.toFixed(1)} OT hrs</div>
+                                            <div className="mt-1 text-xs text-[#8a8a8a]">{t('ot_hrs_short', { hours: row.overtimeHours.toFixed(1) })}</div>
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right py-4">
@@ -783,7 +809,7 @@ export default function FinancialPage() {
                                             {Math.round(row.actualProgress * 100)}%
                                         </div>
                                         <div className={`mt-1 text-xs ${row.progressDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            vs plan {Math.round(row.plannedProgress * 100)}%
+                                            {t('vs_plan', { pct: Math.round(row.plannedProgress * 100) })}
                                         </div>
                                     </TableCell>
                                     <TableCell className="py-4">
@@ -797,7 +823,7 @@ export default function FinancialPage() {
                             {projectProfitRows.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={9} className="py-8 text-center text-[#8a8a8a]">
-                                        No project profit data yet. Signed projects with time tracking will appear here.
+                                        {t('no_project_profit_data')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -812,23 +838,22 @@ export default function FinancialPage() {
             <section className="space-y-3">
                 <div className="flex items-end justify-between gap-3">
                     <div>
-                        <h3 className="text-lg font-semibold text-[#171717]">Late Hours by Members</h3>
+                        <h3 className="text-lg font-semibold text-[#171717]">{t('late_hours_by_members')}</h3>
                         <p className="text-sm text-[#8a8a8a]">
-                            Daily inefficiency surfaced from My Schedule progress logs. Hours spent beyond delivered work,
-                            multiplied by each member&apos;s cost per hour.
+                            {t('late_hours_subtitle')}
                         </p>
                     </div>
                     <div className="flex gap-6 text-right">
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Members</div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('members')}</div>
                             <div className="text-lg font-semibold text-[#171717]">{lateHoursTotal.members}</div>
                         </div>
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late hrs</div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('total_late_hrs')}</div>
                             <div className="text-lg font-semibold text-rose-700">{lateHoursTotal.hours.toFixed(1)}h</div>
                         </div>
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late cost</div>
+                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('total_late_cost')}</div>
                             <div className="text-lg font-semibold text-rose-700">{formatMoney(lateHoursTotal.cost, currency)}</div>
                         </div>
                     </div>
@@ -837,24 +862,23 @@ export default function FinancialPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Member</TableHead>
-                                <TableHead>Rank</TableHead>
-                                <TableHead>Capacity role</TableHead>
-                                <TableHead className="text-right">Cost / hr</TableHead>
-                                <TableHead className="text-right">Days logged</TableHead>
-                                <TableHead className="text-right">Progress (h)</TableHead>
-                                <TableHead className="text-right">Used (h)</TableHead>
-                                <TableHead className="text-right">Late (h)</TableHead>
-                                <TableHead className="text-right">Late cost</TableHead>
-                                <TableHead>Projects</TableHead>
+                                <TableHead>{t('member')}</TableHead>
+                                <TableHead>{t('rank')}</TableHead>
+                                <TableHead>{t('capacity_role')}</TableHead>
+                                <TableHead className="text-right">{t('cost_per_hr')}</TableHead>
+                                <TableHead className="text-right">{t('days_logged')}</TableHead>
+                                <TableHead className="text-right">{t('progress_h')}</TableHead>
+                                <TableHead className="text-right">{t('used_h')}</TableHead>
+                                <TableHead className="text-right">{t('late_h')}</TableHead>
+                                <TableHead className="text-right">{t('late_cost')}</TableHead>
+                                <TableHead>{t('projects')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {lateHoursByMember.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={10} className="py-8 text-center text-sm text-[#8a8a8a]">
-                                        No daily progress logs yet. Once members log progress vs. used hours on My Schedule,
-                                        their late hours will surface here.
+                                        {t('no_late_hours_logs')}
                                     </TableCell>
                                 </TableRow>
                             ) : lateHoursByMember.map((row) => (
@@ -875,7 +899,7 @@ export default function FinancialPage() {
                                     <TableCell className="text-xs text-[#8a8a8a]">
                                         {row.projectCount === 1
                                             ? row.projectNames[0]
-                                            : `${row.projectCount} projects`}
+                                            : t('projects_count', { count: row.projectCount })}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -888,7 +912,7 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Total Recognized Revenue</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_recognized_revenue')}</p>
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
@@ -900,7 +924,7 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Total Costs (Labor + Overhead)</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_costs_labor_overhead')}</p>
                             <TrendingDown className="h-4 w-4 text-rose-500" />
                         </div>
                         <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
@@ -912,7 +936,7 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Operating Profit</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('operating_profit_label')}</p>
                             <TrendingUp className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${monthlySummary.totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -924,7 +948,7 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Overall Profit Margin</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('overall_profit_margin')}</p>
                             <div className="flex h-4 w-4 items-center justify-center rounded-full bg-[#00a7f4]/10">
                                 <span className="text-[10px] font-bold text-[#00a7f4]">%</span>
                             </div>
@@ -940,36 +964,36 @@ export default function FinancialPage() {
                 <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base text-[#171717]">
                         <Info className="h-4 w-4 text-[#00a7f4]" />
-                        Monthly P&amp;L Logic
+                        {t('monthly_pnl_logic')}
                     </CardTitle>
                     <CardDescription className="text-[#8a8a8a]">
-                        These monthly lines are still computed live from invoices, time tracking, and organization overheads.
+                        {t('monthly_pnl_logic_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
                     <div className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
                         <div>
-                            <span className="font-semibold text-[#171717]">Recognized Revenue</span>
+                            <span className="font-semibold text-[#171717]">{t('recognized_revenue')}</span>
                             <p className="mt-0.5 text-xs text-[#8a8a8a]">
-                                Sum of paid invoices, grouped by paid date.
+                                {t('recognized_revenue_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">Direct Labor</span>
+                            <span className="font-semibold text-[#171717]">{t('direct_labor')}</span>
                             <p className="mt-0.5 text-xs text-[#8a8a8a]">
-                                Full payroll for active and on-leave employees across months with activity.
+                                {t('direct_labor_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">Global Overhead</span>
+                            <span className="font-semibold text-[#171717]">{t('global_overhead_label')}</span>
                             <p className="mt-0.5 text-xs text-[#8a8a8a]">
-                                Organization overheads that match each month plus always-on costs.
+                                {t('global_overhead_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">Net Margin</span>
+                            <span className="font-semibold text-[#171717]">{t('net_margin')}</span>
                             <p className="mt-0.5 text-xs text-[#8a8a8a]">
-                                Operating profit after tenant tax rate ({(taxRate * 100).toFixed(0)}%).
+                                {t('net_margin_desc', { rate: (taxRate * 100).toFixed(0) })}
                             </p>
                         </div>
                     </div>
@@ -978,20 +1002,20 @@ export default function FinancialPage() {
 
             <Card className="border-[#e6e9ee] shadow-sm">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
-                    <CardTitle className="text-lg">Monthly Profit &amp; Loss Statement</CardTitle>
-                    <CardDescription>Breakdown of revenue versus costs by month.</CardDescription>
+                    <CardTitle className="text-lg">{t('monthly_pnl_statement')}</CardTitle>
+                    <CardDescription>{t('monthly_pnl_statement_desc')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader className="bg-white">
                             <TableRow>
-                                <TableHead className="py-4">Month</TableHead>
-                                <TableHead className="text-right py-4">Recognized Revenue</TableHead>
-                                <TableHead className="text-right py-4">Direct Labor</TableHead>
-                                <TableHead className="text-right py-4">Gross Profit</TableHead>
-                                <TableHead className="text-right py-4">Global Overhead</TableHead>
-                                <TableHead className="text-right py-4">Op. Profit</TableHead>
-                                <TableHead className="text-right py-4">Net Margin %</TableHead>
+                                <TableHead className="py-4">{t('month')}</TableHead>
+                                <TableHead className="text-right py-4">{t('recognized_revenue')}</TableHead>
+                                <TableHead className="text-right py-4">{t('direct_labor')}</TableHead>
+                                <TableHead className="text-right py-4">{t('gross_profit_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('global_overhead_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('op_profit_col')}</TableHead>
+                                <TableHead className="text-right py-4">{t('net_margin_pct')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1025,7 +1049,7 @@ export default function FinancialPage() {
                             {pnlData.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="py-8 text-center text-[#8a8a8a]">
-                                        No financial data. Add invoices and time entries to generate P&amp;L statements.
+                                        {t('no_financial_data_pnl')}
                                     </TableCell>
                                 </TableRow>
                             )}

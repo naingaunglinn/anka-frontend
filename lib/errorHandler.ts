@@ -51,10 +51,12 @@ export function normalizeError(err: unknown): NormalizedError {
         }
 
         const status = err.response.status;
-        const data = err.response.data as ApiError | undefined;
+        const data = err.response.data as (ApiError & { error?: string }) | undefined;
         // Always prefer the server's human-readable message; only fall back to
         // a safe default when the backend didn't include one (e.g. plain 500).
-        const serverMessage = data?.message;
+        // Some endpoints (AI assign, time-entry workflow) use `error` instead
+        // of `message` — surface those too rather than the generic fallback.
+        const serverMessage = data?.message ?? data?.error;
 
         switch (status) {
             case 422:

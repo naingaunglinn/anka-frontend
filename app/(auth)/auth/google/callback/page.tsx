@@ -13,7 +13,10 @@ function mapApiUser(raw: Record<string, unknown>): AuthUser {
         firstName: (raw.first_name ?? raw.firstName) as string,
         lastName: (raw.last_name ?? raw.lastName) as string,
         email: raw.email as string,
-        appRole: ((raw.app_role ?? raw.appRole) as AuthUser['appRole']) ?? 'Executive',
+        appRole: ((raw.app_role ?? raw.appRole) as string) ?? 'Executive',
+        permissions: Array.isArray(raw.permissions)
+            ? (raw.permissions as string[])
+            : (isSuperAdmin ? ['all'] : []),
         systemRole: (raw.system_role ?? raw.systemRole ?? 'member') as string,
         isSuperAdmin,
         tenant: tenant

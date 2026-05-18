@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormContext } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import {
     FormControl,
     FormField,
@@ -29,15 +30,15 @@ import type { DealFormValues } from '@/lib/schemas/deal.schema';
  *   - Testing range (browsers, OS versions)
  */
 export function CustomerRequirementsSection() {
+    const t = useTranslations();
     const form = useFormContext<DealFormValues>();
 
     return (
         <Card className="border-slate-200">
             <CardHeader className="pb-3">
-                <CardTitle className="text-base">Customer Requirements</CardTitle>
+                <CardTitle className="text-base">{t('customer_requirements')}</CardTitle>
                 <CardDescription className="text-xs">
-                    Optional — fill in as customer conversations surface details. Estimation reads these
-                    when pricing; the AI uses them when drafting the contract. Locked once contract drafting starts.
+                    {t('customer_requirements_desc')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -46,10 +47,10 @@ export function CustomerRequirementsSection() {
                     name="customerSupportObligations"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>What the customer provides</FormLabel>
+                            <FormLabel>{t('what_customer_provides')}</FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder="e.g. AWS account access, staging environment, test devices, SSO accounts for our engineers..."
+                                    placeholder={t('customer_provides_placeholder')}
                                     className="bg-white min-h-[60px]"
                                     {...field}
                                     value={field.value ?? ''}
@@ -57,7 +58,7 @@ export function CustomerRequirementsSection() {
                                 />
                             </FormControl>
                             <FormDescription className="text-[11px]">
-                                Devices, environments, credentials the customer must supply for us to deliver.
+                                {t('customer_provides_help')}
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
@@ -69,10 +70,10 @@ export function CustomerRequirementsSection() {
                     name="outOfScopePolicy"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Out-of-scope policy</FormLabel>
+                            <FormLabel>{t('out_of_scope_policy')}</FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder="e.g. Out-of-scope work billed at OT rate; requires written change order from authorised signatory..."
+                                    placeholder={t('oos_placeholder')}
                                     className="bg-white min-h-[60px]"
                                     {...field}
                                     value={field.value ?? ''}
@@ -80,7 +81,7 @@ export function CustomerRequirementsSection() {
                                 />
                             </FormControl>
                             <FormDescription className="text-[11px]">
-                                How additional / out-of-scope work is handled. Leave blank to use the contract template default.
+                                {t('oos_help')}
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
@@ -92,10 +93,10 @@ export function CustomerRequirementsSection() {
                     name="workingHours"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Working hours</FormLabel>
+                            <FormLabel>{t('working_hours')}</FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder="e.g. 9 AM – 6 PM MMT (UTC+6:30), Mon–Fri. After-hours emergencies via on-call rotation."
+                                    placeholder={t('working_hours_placeholder')}
                                     className="bg-white min-h-[50px]"
                                     {...field}
                                     value={field.value ?? ''}
@@ -103,7 +104,7 @@ export function CustomerRequirementsSection() {
                                 />
                             </FormControl>
                             <FormDescription className="text-[11px]">
-                                Important for offshore deals — capture timezone explicitly to avoid disputes.
+                                {t('working_hours_help')}
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
@@ -115,10 +116,10 @@ export function CustomerRequirementsSection() {
                     name="testingRange"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Testing range</FormLabel>
+                            <FormLabel>{t('testing_range')}</FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder="e.g. Chrome / Firefox / Safari latest 2 versions; iOS 16+; Android 12+; viewport widths 360-1920px..."
+                                    placeholder={t('testing_range_placeholder')}
                                     className="bg-white min-h-[50px]"
                                     {...field}
                                     value={field.value ?? ''}
@@ -126,7 +127,7 @@ export function CustomerRequirementsSection() {
                                 />
                             </FormControl>
                             <FormDescription className="text-[11px]">
-                                Browsers, OS versions, device classes covered. Drives QA hours in Estimation.
+                                {t('testing_range_help')}
                             </FormDescription>
                             <FormMessage />
                         </FormItem>

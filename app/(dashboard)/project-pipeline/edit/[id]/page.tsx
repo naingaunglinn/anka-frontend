@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 /**
  * Project Pipeline — edit deal (③ Nego data only).
  *
@@ -46,9 +48,10 @@ import { OtPolicySection } from "@/components/project-pipeline/OtPolicySection";
 import { CustomerRequirementsSection } from "@/components/project-pipeline/CustomerRequirementsSection";
 
 export default function EditDealPage() {
+    const t = useTranslations();
     const router = useRouter();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
-    const currency = (currentTenant?.currency as Currency) ?? tenants.find((t) => t.id === activeTenantId)?.currency ?? 'MMK';
+    const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
     const params = useParams();
     const dealId = params.id as string;
 
@@ -167,7 +170,7 @@ export default function EditDealPage() {
             },
         });
 
-        toast.success(`Deal "${data.name}" updated.`);
+        toast.success(t('deal_updated_toast', { name: data.name }));
         router.push(`/project-pipeline/${dealId}`);
     }
 
@@ -176,28 +179,28 @@ export default function EditDealPage() {
     if (!canManageCrm) {
         return (
             <div className="container mx-auto p-6 max-w-3xl space-y-4">
-                <h1 className="text-2xl font-bold tracking-tight">Permission required</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{t('permission_required')}</h1>
                 <p className="text-sm text-muted-foreground">{rbacReason}</p>
-                <Button variant="outline" onClick={() => router.push('/project-pipeline')}>Back to pipeline</Button>
+                <Button variant="outline" onClick={() => router.push('/project-pipeline')}>{t('back_to_pipeline_short')}</Button>
             </div>
         );
     }
 
     if (dealQuery.isLoading) {
-        return <div className="p-8 text-sm text-muted-foreground">Loading deal...</div>;
+        return <div className="p-8 text-sm text-muted-foreground">{t('loading_deal')}</div>;
     }
 
     if (dealQuery.isError) {
         return (
             <div className="p-8 space-y-3">
-                <p className="text-sm text-destructive">Could not load this deal.</p>
-                <Button variant="outline" onClick={() => dealQuery.refetch()}>Retry</Button>
+                <p className="text-sm text-destructive">{t('could_not_load_deal')}</p>
+                <Button variant="outline" onClick={() => dealQuery.refetch()}>{t('retry')}</Button>
             </div>
         );
     }
 
     if (!dealToEdit) {
-        return <div className="p-8">Deal not found.</div>;
+        return <div className="p-8">{t('deal_not_found')}</div>;
     }
 
     if (isLockedStage(dealToEdit.status)) {
@@ -207,20 +210,20 @@ export default function EditDealPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-amber-900">
                             <Lock className="h-5 w-5" />
-                            Deal locked
+                            {t('deal_locked')}
                         </CardTitle>
                         <CardDescription className="text-amber-800">
                             {dealToEdit.status === 'won'
-                                ? 'This deal is signed and locked. Amendments require a new deal.'
-                                : 'Contract drafting has started — the deal’s scope, timeline, and budget are now locked. To change scope, drop this deal and start a new one.'}
+                                ? t('deal_locked_won')
+                                : t('deal_locked_drafting')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex gap-2">
                         <Button variant="outline" onClick={() => router.push(`/project-pipeline/${dealId}`)}>
-                            View deal
+                            {t('view_deal_btn')}
                         </Button>
                         <Button variant="ghost" onClick={() => router.push('/project-pipeline')}>
-                            Back to pipeline
+                            {t('back_to_pipeline_short')}
                         </Button>
                     </CardContent>
                 </Card>
@@ -235,21 +238,21 @@ export default function EditDealPage() {
                     variant="outline"
                     size="icon"
                     onClick={() => router.push(`/project-pipeline/${dealId}`)}
-                    aria-label="Back to deal"
+                    aria-label={t('back_to_deal_short')}
                 >
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Edit Deal</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">{t('edit_deal_title')}</h1>
                     <p className="text-[#4a4a4a] mt-1">
-                        Update the customer intake. Estimation owns the cost calculation; this menu owns negotiation and contract drafting.
+                        {t('edit_deal_subtitle')}
                     </p>
                 </div>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Deal Profile</CardTitle>
+                    <CardTitle>{t('deal_profile')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Form {...form}>
@@ -258,8 +261,7 @@ export default function EditDealPage() {
                                 <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                     <span>
-                                        Please fix {Object.keys(form.formState.errors).length} highlighted
-                                        field{Object.keys(form.formState.errors).length === 1 ? '' : 's'} before saving.
+                                        {t('please_fix_highlighted_n', { count: Object.keys(form.formState.errors).length })}
                                     </span>
                                 </div>
                             )}
@@ -269,9 +271,9 @@ export default function EditDealPage() {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Deal Name <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('deal_name_label')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g. Acme Corp Web App" className="bg-white" {...field} />
+                                            <Input placeholder={t('placeholder_acme_webapp')} className="bg-white" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -283,9 +285,9 @@ export default function EditDealPage() {
                                 name="client"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Client / Company Name <span className="text-destructive">*</span></FormLabel>
+                                        <FormLabel>{t('client_company_name')} <span className="text-destructive">*</span></FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g. Acme Corporation" className="bg-white" {...field} />
+                                            <Input placeholder={t('placeholder_acme_corp')} className="bg-white" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -298,9 +300,9 @@ export default function EditDealPage() {
                                     name="contactName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Name <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_name_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g. Jane Smith" className="bg-white" {...field} />
+                                                <Input placeholder={t('placeholder_jane_smith')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -311,9 +313,9 @@ export default function EditDealPage() {
                                     name="contactEmail"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Email <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_email_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input type="email" placeholder="jane@acme.com" className="bg-white" {...field} />
+                                                <Input type="email" placeholder={t('placeholder_acme_email')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -324,9 +326,9 @@ export default function EditDealPage() {
                                     name="contactPhone"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Contact Phone <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('contact_phone_label')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder="+1 555 000 0000" className="bg-white" {...field} />
+                                                <Input placeholder={t('placeholder_intl_phone')} className="bg-white" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -340,7 +342,7 @@ export default function EditDealPage() {
                                     name="expectedCloseDate"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Expected Start Date <span className="text-red-500">*</span></FormLabel>
+                                            <FormLabel>{t('expected_start_date_label')} <span className="text-red-500">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="date" className="bg-white" {...field} />
                                             </FormControl>
@@ -349,7 +351,7 @@ export default function EditDealPage() {
                                     )}
                                 />
                                 <FormItem>
-                                    <FormLabel>Expected End Date</FormLabel>
+                                    <FormLabel>{t('expected_end_date_label')}</FormLabel>
                                     <div className="h-9 flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
                                         {expectedCloseDate && timelineMonths
                                             ? new Date(new Date(expectedCloseDate).getTime() + Number(timelineMonths) * 30.44 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -363,11 +365,11 @@ export default function EditDealPage() {
                                 name="leadSource"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Lead Source <span className="text-muted-foreground text-xs font-normal">(optional)</span></FormLabel>
+                                        <FormLabel>{t('lead_source')} <span className="text-muted-foreground text-xs font-normal">{t('optional_lowercase')}</span></FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                             <FormControl>
                                                 <SelectTrigger className="bg-white">
-                                                    <SelectValue placeholder="How did they find you?" />
+                                                    <SelectValue placeholder={t('how_did_they_find_you')} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -389,7 +391,7 @@ export default function EditDealPage() {
                                     name="clientBudget"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Estimate Budget ({CURRENCY_CONFIG[currency].symbol}) <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('estimate_budget_with_symbol', { symbol: CURRENCY_CONFIG[currency].symbol })} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="number" className="bg-white" {...field} />
                                             </FormControl>
@@ -402,7 +404,7 @@ export default function EditDealPage() {
                                     name="timelineMonths"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Target Timeline (Months) <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>{t('target_timeline_months')} <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
                                                 <Input type="number" step="1" min="1" className="bg-white" {...field} />
                                             </FormControl>
@@ -417,10 +419,10 @@ export default function EditDealPage() {
                                 name="workloadDescription"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Requirement Description <span className="text-muted-foreground text-xs font-normal">(feeds the AI contract drafting prompt)</span></FormLabel>
+                                        <FormLabel>{t('requirement_description')} <span className="text-muted-foreground text-xs font-normal">{t('feeds_ai_contract_hint')}</span></FormLabel>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="What does the customer need? Tech stack, scope, deliverables, integrations, special working-hours requirements, testing scope..."
+                                                placeholder={t('requirement_placeholder')}
                                                 className="bg-white min-h-[120px]"
                                                 {...field}
                                             />
@@ -441,10 +443,10 @@ export default function EditDealPage() {
                                     size="lg"
                                     onClick={() => router.push(`/project-pipeline/${dealId}`)}
                                 >
-                                    Cancel
+                                    {t('cancel')}
                                 </Button>
                                 <Button type="submit" size="lg" disabled={updateDeal.isPending}>
-                                    {updateDeal.isPending ? 'Saving…' : 'Save Changes'}
+                                    {updateDeal.isPending ? t('saving') : t('save_changes')}
                                 </Button>
                             </div>
                         </form>

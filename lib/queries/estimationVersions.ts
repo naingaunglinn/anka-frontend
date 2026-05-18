@@ -513,3 +513,42 @@ export function useDownloadEstimationXlsx() {
 
     return { downloadVersion, isDownloading: pending }
 }
+
+// ─── Send estimate XLSX to customer (spec ④.G) ───────────────────────────────
+
+export interface SendEstimationXlsxInput {
+    versionId: string;
+    toEmail: string;
+    message?: string | null;
+}
+
+export interface SendEstimationXlsxResult {
+    id: string;
+    versionNumber: number;
+    sentAt: string | null;
+    sentToEmail: string | null;
+}
+
+/**
+ * Queue the Estimate Doc XLSX for delivery to the customer via the
+ * tenant's Mailgun mailer. Spec ④.G — "When the Estimate Doc is
+ * approved, send it to the customer by email." Returns the new
+ * sent_at + sent_to_email so the UI can display "Sent on…".
+ */
+export function useSendEstimationXlsx() {
+    return useMutation<SendEstimationXlsxResult, Error, SendEstimationXlsxInput>({
+        mutationFn: async ({ versionId, toEmail, message }) => {
+            const { data } = await api.post(`/estimation-versions/${versionId}/send`, {
+                to_email: toEmail,
+                message: message ?? null,
+            });
+            const row = data.data as Record<string, unknown>;
+            return {
+                id: row.id as string,
+                versionNumber: Number(row.version_number),
+                sentAt: (row.sent_at as string | null) ?? null,
+                sentToEmail: (row.sent_to_email as string | null) ?? null,
+            };
+        },
+    });
+}

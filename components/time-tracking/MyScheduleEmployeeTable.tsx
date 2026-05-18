@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,12 +48,13 @@ interface Props {
 }
 
 export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
+    const t = useTranslations();
     const tasksQuery    = useProjectTaskAssignments(projectId);
     const asOf = useAsOfParam();
     const trackingQuery = useScheduleTrackingList(projectId, { per_page: 200, assignee_id: employeeId, ...(asOf ? { as_of: asOf } : {}) });
 
     const tasks        = useMemo(() => tasksQuery.data?.data ?? [], [tasksQuery.data]);
-    const activePhases = useMemo(() => tasksQuery.data?.meta.activePhases ?? [], [tasksQuery.data]);
+    const activePhases = useMemo(() => tasksQuery.data?.meta?.activePhases ?? [], [tasksQuery.data]);
 
     const trackingByPhaseId = useMemo(() => {
         const m = new Map<string, ScheduleTrackingRow>();
@@ -74,10 +76,10 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
                     <div>
                         <CardTitle className="flex items-center gap-2 text-base">
                             <ListTree className="h-4 w-4 text-emerald-600" />
-                            My Schedule
+                            {t('my_schedule')}
                         </CardTitle>
                         <CardDescription>
-                            Phases assigned to you across this project. Click the pencil icon on any of your phases to log today&apos;s progress.
+                            {t('my_schedule_card_desc')}
                         </CardDescription>
                     </div>
                     {(tasksQuery.isFetching || trackingQuery.isFetching) && (
@@ -87,20 +89,20 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
             </CardHeader>
             <CardContent>
                 {tasksQuery.isLoading ? (
-                    <div className="py-10 text-center text-slate-500 text-sm">Loading your schedule…</div>
+                    <div className="py-10 text-center text-slate-500 text-sm">{t('loading_your_schedule')}</div>
                 ) : myTasks.length === 0 ? (
                     <div className="py-10 text-center text-slate-500 text-sm">
-                        Nothing is assigned to you in this project yet.
+                        {t('nothing_assigned_to_you')}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse text-xs">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[50px]">NO</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">FunctionID</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">機能名</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">難易度</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[50px]">{t('col_no')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">{t('col_function_id')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">{t('col_function_name_jp')}</th>
+                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">{t('col_difficulty')}</th>
                                     {activePhases.map((p) => (
                                         <th key={p.code} colSpan={7} className="px-2 py-2 border-l-2 border-slate-300 border-r border-slate-200 text-center font-semibold text-emerald-700 bg-emerald-50/40">
                                             {p.name}
@@ -153,6 +155,7 @@ function TaskRow({
     trackingByPhaseId: Map<string, ScheduleTrackingRow>;
     onOpenForm: (phase: ProjectTaskPhaseAssignment) => void;
 }) {
+    const tRow = useTranslations();
     const byCode = new Map(task.phases.map((p) => [p.phaseCode, p]));
 
     return (
@@ -193,7 +196,7 @@ function TaskRow({
                         </td>
                         <td className={`px-2 py-1 min-w-[140px] text-xs ${isMine ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>
                             {cell.assigneeName ?? <span className="text-slate-300">—</span>}
-                            {isMine && <span className="ml-1 text-[10px] text-emerald-600">(you)</span>}
+                            {isMine && <span className="ml-1 text-[10px] text-emerald-600">{tRow('you_marker')}</span>}
                         </td>
                         <td className="px-2 py-1 text-xs text-slate-500 w-[100px]">{cell.plannedStart ?? '—'}</td>
                         <td className="px-2 py-1 text-xs text-slate-500 w-[100px]">{cell.plannedEnd ?? '—'}</td>
@@ -210,7 +213,7 @@ function TaskRow({
                                         variant="ghost"
                                         className="h-6 w-6 p-0"
                                         onClick={() => onOpenForm(cell)}
-                                        title="Log progress"
+                                        title={tRow('log_progress_tooltip')}
                                     >
                                         <PencilLine className="h-3.5 w-3.5 text-emerald-600" />
                                     </Button>
@@ -235,6 +238,7 @@ function LogProgressModal({
     projectId: string;
     onClose: () => void;
 }) {
+    const t = useTranslations();
     const today = new Date().toISOString().slice(0, 10);
     const [logDate, setLogDate]        = useState(today);
     const [progressHours, setProgress] = useState('');
@@ -289,6 +293,11 @@ function LogProgressModal({
                     const normEnd   = actualEnd   || null;
                     if (normStart !== (phase.actualStart ?? null)) updates.actualStart = normStart as never;
                     if (normEnd   !== (phase.actualEnd   ?? null)) updates.actualEnd   = normEnd   as never;
+                    // Setting an actual_end means the phase is done — auto-flip
+                    // status to 完了 so the employee doesn't have to do it manually.
+                    if (normEnd && phase.status !== '完了') {
+                        updates.status = '完了' as never;
+                    }
                     if (Object.keys(updates).length > 0) {
                         updatePhaseAssignment.mutate({ phaseAssignmentId: phase.id, updates: updates as never });
                     }
@@ -305,32 +314,32 @@ function LogProgressModal({
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        Log progress
+                        {t('log_progress_title')}
                         <Badge variant="outline" className="text-xs">{phase.phaseName}</Badge>
                     </DialogTitle>
                     <DialogDescription>
-                        Estimated {phase.estimatedHours}h · Planned {phase.plannedStart} → {phase.plannedEnd}
+                        {t('estimated_planned_summary', { hours: phase.estimatedHours, start: phase.plannedStart ?? '—', end: phase.plannedEnd ?? '—' })}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 mt-2">
                     <div className="space-y-1.5">
-                        <div className="text-xs font-medium text-slate-700">Previous entries</div>
+                        <div className="text-xs font-medium text-slate-700">{t('previous_entries')}</div>
                         {logsLoading ? (
                             <div className="h-12 animate-pulse bg-slate-100 rounded-md" />
                         ) : prevLogs.length === 0 ? (
                             <p className="text-xs text-slate-400 italic">
-                                No prior entries — this will be the first log for this phase.
+                                {t('no_prior_entries')}
                             </p>
                         ) : (
                             <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="h-8 text-xs">Date</TableHead>
-                                            <TableHead className="h-8 text-xs text-right">Progress (h)</TableHead>
-                                            <TableHead className="h-8 text-xs text-right">Used (h)</TableHead>
-                                            <TableHead className="h-8 text-xs">Note</TableHead>
+                                            <TableHead className="h-8 text-xs">{t('date')}</TableHead>
+                                            <TableHead className="h-8 text-xs text-right">{t('progress_h')}</TableHead>
+                                            <TableHead className="h-8 text-xs text-right">{t('used_h')}</TableHead>
+                                            <TableHead className="h-8 text-xs">{t('note_col')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -352,23 +361,23 @@ function LogProgressModal({
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">Log date</label>
+                            <label className="text-xs text-slate-600">{t('log_date')}</label>
                             <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">Progress hours (today)</label>
+                            <label className="text-xs text-slate-600">{t('progress_hours_today')}</label>
                             <Input
                                 type="number"
                                 min={0}
                                 step={0.25}
                                 value={progressHours}
                                 onChange={(e) => setProgress(e.target.value)}
-                                placeholder={`up to ${phase.estimatedHours}`}
+                                placeholder={t('up_to_hours', { hours: phase.estimatedHours })}
                             />
-                            <p className="text-[10px] text-slate-400">How much of the planned work you completed today.</p>
+                            <p className="text-[10px] text-slate-400">{t('progress_hours_help')}</p>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">Used hours (today)</label>
+                            <label className="text-xs text-slate-600">{t('used_hours_today')}</label>
                             <Input
                                 type="number"
                                 min={0}
@@ -377,41 +386,41 @@ function LogProgressModal({
                                 onChange={(e) => setUsed(e.target.value)}
                                 placeholder="e.g. 8"
                             />
-                            <p className="text-[10px] text-slate-400">Clock time you actually spent today.</p>
+                            <p className="text-[10px] text-slate-400">{t('used_hours_help')}</p>
                         </div>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-xs text-slate-600">Note (optional)</label>
+                        <label className="text-xs text-slate-600">{t('note_optional')}</label>
                         <Textarea
                             rows={2}
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
-                            placeholder="Anything worth flagging — blockers, scope changes, surprises…"
+                            placeholder={t('note_placeholder')}
                         />
                     </div>
 
                     <div className="border-t border-slate-200 pt-3">
-                        <div className="text-xs font-medium text-slate-700 mb-2">Phase milestones (optional)</div>
+                        <div className="text-xs font-medium text-slate-700 mb-2">{t('phase_milestones_optional')}</div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1">
-                                <label className="text-xs text-slate-600">Actual start date</label>
+                                <label className="text-xs text-slate-600">{t('actual_start_date_label')}</label>
                                 <Input type="date" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">Set the first day you actually started this phase.</p>
+                                <p className="text-[10px] text-slate-400">{t('actual_start_help')}</p>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-slate-600">Actual end date</label>
+                                <label className="text-xs text-slate-600">{t('actual_end_date_label')}</label>
                                 <Input type="date" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">Set only when the phase is fully complete — it locks in the final variance.</p>
+                                <p className="text-[10px] text-slate-400">{t('actual_end_help')}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button variant="ghost" onClick={onClose} disabled={inFlight}>Cancel</Button>
+                    <Button variant="ghost" onClick={onClose} disabled={inFlight}>{t('cancel')}</Button>
                     <Button onClick={save} disabled={inFlight || progressHours === '' || usedHours === ''}>
-                        {inFlight ? 'Saving…' : 'Save log'}
+                        {inFlight ? t('saving') : t('save_log')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -420,15 +429,16 @@ function LogProgressModal({
 }
 
 function PhaseSubHeaders() {
+    const t = useTranslations();
     return (
         <>
-            <th className="px-2 py-1.5 border-l-2 border-slate-300 text-right font-medium text-slate-600 bg-emerald-50/20">工数(h)</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">担当者</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">予定開始</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">予定終了</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">実績開始</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">実績終了</th>
-            <th className="px-2 py-1.5 border-r border-slate-200 text-left font-medium text-slate-600 bg-emerald-50/20">ステータス</th>
+            <th className="px-2 py-1.5 border-l-2 border-slate-300 text-right font-medium text-slate-600 bg-emerald-50/20">{t('col_hours_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_assignee_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_planned_start_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_planned_end_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_actual_start_jp')}</th>
+            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_actual_end_jp')}</th>
+            <th className="px-2 py-1.5 border-r border-slate-200 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_status_jp')}</th>
         </>
     );
 }

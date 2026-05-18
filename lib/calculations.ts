@@ -4,6 +4,29 @@
 // per-line overheads (deal_overheads) remain separate and are added on top.
 export const LABOR_OVERHEAD_PERCENTAGE = 15;
 
+/**
+ * Multiplier that converts an employee's internal cost-per-hour to their
+ * sell-price-per-hour. The 15% delta covers company overhead + risk buffer
+ * — "we are selling people time" so the agency's per-hour quote already
+ * includes those absorbed costs. Used by /organization (sell column on the
+ * employee table) and /estimation (per-row rate + labor cost line).
+ */
+export const SELL_PRICE_MULTIPLIER = 1 + LABOR_OVERHEAD_PERCENTAGE / 100;
+
+export function applySellMarkup(costPerHour: number): number {
+    return costPerHour * SELL_PRICE_MULTIPLIER;
+}
+
+// Final client-billing multiplier applied on top of the loaded cost
+// (raw salary/hour × 1.15). On /organization the employee "Sell / Hr"
+// column is loaded_cost × 3, so the agency's quoted hourly rate already
+// includes overhead AND the standard 3× markup.
+export const BILLING_MARKUP_MULTIPLIER = 3;
+
+export function applyBillingMarkup(loadedCostPerHour: number): number {
+    return loadedCostPerHour * BILLING_MARKUP_MULTIPLIER;
+}
+
 export function calculateLaborOverhead(
     baseLaborCost: number,
     pct: number = LABOR_OVERHEAD_PERCENTAGE,

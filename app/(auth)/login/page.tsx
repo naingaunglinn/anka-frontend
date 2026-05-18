@@ -1,13 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,11 +22,9 @@ import { ArrowRight, ChartNoAxesCombined, LogIn, Sparkles, Target } from 'lucide
 import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth.schema';
 
 function LoginFormContent() {
+    const t = useTranslations();
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { login, isLoggingIn } = useAuth();
-    const exitDemoMode = useUIStore((s) => s.exitDemoMode);
-    const isDemoIntent = searchParams.get('demo') === '1';
 
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
@@ -43,29 +39,13 @@ function LoginFormContent() {
     const onSubmit = async (values: LoginFormValues) => {
         try {
             await login({ email: values.email, password: values.password });
-            exitDemoMode();
             const { useAuthStore } = await import('@/store/authStore');
             const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
             router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {
-                message: axiosErr.response?.data?.message ?? 'Login failed. Check your credentials.',
-            });
-        }
-    };
-
-    const loginAsDemoAdmin = async () => {
-        try {
-            await login({ email: 'admin@pixelagency.test', password: 'Demo@1234' });
-            exitDemoMode();
-            const { useAuthStore } = await import('@/store/authStore');
-            const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
-            router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
-        } catch (err: unknown) {
-            const axiosErr = err as { response?: { data?: { message?: string } } };
-            form.setError('email', {
-                message: axiosErr.response?.data?.message ?? 'Demo login failed. Ensure seeders are run.',
+                message: axiosErr.response?.data?.message ?? t('login_failed'),
             });
         }
     };
@@ -83,26 +63,26 @@ function LoginFormContent() {
                     </div>
 
                     <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
-                        Gross Profit Suggestion
-                        <span className="block text-[#00a7f4]">System For Real Decisions</span>
+                        {t('auth_hero_title_line1')}
+                        <span className="block text-[#00a7f4]">{t('auth_hero_title_line2')}</span>
                     </h1>
 
                     <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
-                        Predict margins early, compare scenarios fast, and act on concrete suggestions before project kickoff.
+                        {t('auth_hero_subtitle')}
                     </p>
 
                     <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <ChartNoAxesCombined className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Forecast</p>
+                            <p className="text-xs font-semibold">{t('forecast_short')}</p>
                         </article>
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <Target className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Optimize</p>
+                            <p className="text-xs font-semibold">{t('optimize')}</p>
                         </article>
                         <article className="rounded-xl border border-[#00a7f4]/25 bg-white/90 p-3 shadow-sm">
                             <Sparkles className="mb-2 h-4 w-4 text-[#00a7f4]" />
-                            <p className="text-xs font-semibold">Suggest</p>
+                            <p className="text-xs font-semibold">{t('suggest')}</p>
                         </article>
                     </div>
                 </section>
@@ -113,22 +93,12 @@ function LoginFormContent() {
                             <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a7f4] text-white shadow-lg">
                                 <LogIn className="h-6 w-6" />
                             </div>
-                            <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
+                            <CardTitle className="text-2xl font-bold">{t('sign_in_to_anka')}</CardTitle>
                             <CardDescription className="text-[#171717]/65">
-                                Continue to your gross-profit insights workspace.
+                                {t('continue_to_workspace')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {isDemoIntent && (
-                                <Button
-                                    type="button"
-                                    className="mb-4 h-11 w-full bg-[#171717] text-white hover:bg-black"
-                                    onClick={loginAsDemoAdmin}
-                                >
-                                    Log in as Demo Admin
-                                </Button>
-                            )}
-
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                                     <FormField
@@ -136,10 +106,10 @@ function LoginFormContent() {
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">Work Email</FormLabel>
+                                                <FormLabel className="text-[#171717]/90">{t('work_email')}</FormLabel>
                                                 <FormControl>
                                                     <Input
-                                                        placeholder="name@company.com"
+                                                        placeholder={t('placeholder_email_co')}
                                                         {...field}
                                                         className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
@@ -153,11 +123,11 @@ function LoginFormContent() {
                                         name="password"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">Password</FormLabel>
+                                                <FormLabel className="text-[#171717]/90">{t('password')}</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="password"
-                                                        placeholder="********"
+                                                        placeholder={t('placeholder_password_stars')}
                                                         {...field}
                                                         className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
                                                     />
@@ -172,7 +142,7 @@ function LoginFormContent() {
                                         className="h-11 w-full bg-[#00a7f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,167,244,0.35)] hover:bg-[#0599df]"
                                         disabled={isLoggingIn}
                                     >
-                                        {isLoggingIn ? 'Signing in...' : 'Enter ANKA'}
+                                        {isLoggingIn ? t('signing_in') : t('enter_anka')}
                                         {!isLoggingIn && <ArrowRight className="ml-2 h-4 w-4" />}
                                     </Button>
                                 </form>
@@ -180,7 +150,7 @@ function LoginFormContent() {
 
                             <p className="mt-5 text-center text-sm text-[#171717]/70">
                                 <Link href="/" className="font-semibold text-[#00a7f4] hover:underline">
-                                    ← Back to Home
+                                    {t('back_to_home')}
                                 </Link>
                             </p>
                         </CardContent>
@@ -192,49 +162,5 @@ function LoginFormContent() {
 }
 
 export default function LoginPage() {
-    return (
-        <Suspense fallback={<LoginSkeleton />}>
-            <LoginFormContent />
-        </Suspense>
-    );
-}
-
-function LoginSkeleton() {
-    return (
-        <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-[#171717]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_15%,rgba(0,167,244,0.25),transparent_35%),radial-gradient(circle_at_88%_22%,rgba(56,189,248,0.22),transparent_33%),radial-gradient(circle_at_78%_86%,rgba(2,132,199,0.20),transparent_36%)]" />
-            <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 py-10 md:px-10 lg:grid-cols-2">
-                <section>
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#00a7f4]/30 bg-white/95 px-4 py-2 shadow-sm">
-                        <span className="h-2 w-2 rounded-full bg-[#00a7f4]" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00a7f4]">ANKA</span>
-                    </div>
-                    <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
-                        Gross Profit Suggestion
-                        <span className="block text-[#00a7f4]">System For Real Decisions</span>
-                    </h1>
-                    <p className="mt-5 max-w-xl text-base leading-7 text-[#171717]/75 md:text-lg">
-                        Predict margins early, compare scenarios fast, and act on concrete suggestions before project kickoff.
-                    </p>
-                </section>
-                <section>
-                    <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
-                        <CardHeader className="space-y-2 pb-6">
-                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a7f4] text-white shadow-lg">
-                                <LogIn className="h-6 w-6" />
-                            </div>
-                            <CardTitle className="text-2xl font-bold">Sign In to ANKA</CardTitle>
-                            <CardDescription className="text-[#171717]/65">
-                                Continue to your gross-profit insights workspace.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex flex-col items-center gap-4 py-8">
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#00a7f4] border-t-transparent" />
-                            <p className="text-sm text-[#171717]/55">Loading sign-in...</p>
-                        </CardContent>
-                    </Card>
-                </section>
-            </div>
-        </main>
-    );
+    return <LoginFormContent />;
 }
