@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Edit, Trash2, ArrowUpDown } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ArrowUpDown, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -36,6 +37,7 @@ import type { Employee, Role, TimeEntry } from '@/types/business';
 import { useBusinessStore } from '@/store/businessStore';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
+import { applySellMarkup, applyBillingMarkup, LABOR_OVERHEAD_PERCENTAGE, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations';
 
 // "Assigned" against monthly capacity = anything currently consuming the
 // employee's time this month: still-to-do (Draft), submitted-pending-review
@@ -73,6 +75,7 @@ interface EmployeesTableProps {
 
 export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp, onEdit, onDelete }: EmployeesTableProps) {
     const t = useTranslations();
+    const router = useRouter();
     const [sorting, setSorting] = useState<SortingState>([]);
     const currency = useTenantCurrency();
     const storeEntries = useBusinessStore((s) => s.timeEntries);
@@ -182,20 +185,58 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'), currency)}</div>,
         },
         {
-            accessorKey: 'costPerHour',
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="-ml-4 h-8 px-4"
-                    >
-                        {t('cost_hr')}
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
+            id: 'costPerHour',
+            // Loaded cost = raw salary/hour × (1 + LABOR_OVERHEAD_PERCENTAGE/100).
+            // The DB column `cost_per_hour` is the raw rate (monthly_salary /
+            // workable_hours); the +15% absorbs company overhead so this column
+            // reflects what the employee actually costs the agency per hour.
+            accessorFn: (row) => {
+                const raw = row.costPerHour;
+                return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
+                    ? applySellMarkup(raw)
+                    : null;
             },
-            cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('costPerHour'), currency)}</div>,
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                    className="-ml-4 h-8 px-4"
+                    title={`Raw hourly salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead.`}
+                >
+                    Cost / Hr
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => (
+                <div>{formatMoneyOrDash(row.getValue('costPerHour') as number | null, currency)}</div>
+            ),
+        },
+        {
+            id: 'sellPerHour',
+            // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (3×). What we
+            // quote clients per hour of this employee's time.
+            accessorFn: (row) => {
+                const raw = row.costPerHour;
+                return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
+                    ? applyBillingMarkup(applySellMarkup(raw))
+                    : null;
+            },
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                    className="-ml-4 h-8 px-4"
+                    title={`Cost / Hr × ${BILLING_MARKUP_MULTIPLIER}. Quoted hourly rate to clients.`}
+                >
+                    Sell / Hr
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => (
+                <div className="text-emerald-700 font-medium">
+                    {formatMoneyOrDash(row.getValue('sellPerHour') as number | null, currency)}
+                </div>
+            ),
         },
         {
             accessorKey: 'workableHours',
@@ -318,6 +359,9 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>{t('actions_label')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => router.push(`/organization/employees/${employee.id}`)}>
+                                <Eye className="mr-2 h-4 w-4" /> View profile
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onEdit(employee)}>
                                 <Edit className="mr-2 h-4 w-4" /> {t('edit_action')}
                             </DropdownMenuItem>

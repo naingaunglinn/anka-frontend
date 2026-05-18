@@ -1302,6 +1302,7 @@
   "role_type_qa": "QA Engineer",
   "roles": "Roles",
   "roles_and_rates": "Roles & Rates",
+  "roles_permissions": "Roles & Permissions",
   "roles_saved_to_deal": "Roles saved to deal",
   "salary_multipliers": "Salary Multipliers",
   "salary_multipliers_description": "Configure taxes, benefits, and bonus %.",

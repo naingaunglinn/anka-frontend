@@ -1302,6 +1302,7 @@
   "role_type_qa": "QAエンジニア",
   "roles": "役職",
   "roles_and_rates": "役職と単価",
+  "roles_permissions": "ロールと権限",
   "roles_saved_to_deal": "役割を案件に保存しました",
   "salary_multipliers": "給与係数",
   "salary_multipliers_description": "税金、福利厚生、ボーナス %を設定します。",

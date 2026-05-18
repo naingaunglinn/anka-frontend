@@ -33,7 +33,10 @@ export const employeeSchema = z.object({
     // <Select> for the same reason capacityRole uses it; the store/API layer
     // converts back to null.
     rankId:        z.string().optional(),
-    monthlySalary: z.coerce.number().min(0, 'Salary must be ≥ 0'),
+    // Spec ①.2 — salary split into Basic + Allowance. monthlySalary is derived
+    // server-side (basic + allowance) and not entered directly.
+    basicSalary:   z.coerce.number().min(0, 'Basic salary must be ≥ 0'),
+    allowance:     z.coerce.number().min(0, 'Allowance must be ≥ 0').default(0),
     workableHours: z.coerce.number().min(1, 'Must be > 0').max(744, 'Max 744 h/month'),
     status:        z.enum(['Active', 'On Leave', 'Terminated']),
     // Skills the employee has, fed verbatim to the AI Team Builder so Claude

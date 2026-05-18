@@ -61,6 +61,8 @@ function toEmployee(row: Record<string, unknown>): Employee {
             code:  rankRaw.code as string,
             level: rankRaw.level as number,
         } : null,
+        basicSalary:      Number(row.basic_salary ?? row.monthly_salary ?? 0),
+        allowance:        Number(row.allowance ?? 0),
         monthlySalary:    row.monthly_salary as number,
         workableHours:    row.workable_hours as number,
         costPerHour:      row.cost_per_hour as number,
@@ -216,7 +218,10 @@ export async function insertEmployee(
         capacity_role:    e.capacityRole ?? null,
         capacity_role_id: e.capacityRoleId ?? null,
         rank_id:          e.rankId ?? null,
-        monthly_salary:   e.monthlySalary,
+        // Spec ①.2 — basic + allowance instead of single monthly_salary.
+        // Backend derives monthly_salary = basic + allowance.
+        basic_salary:     e.basicSalary,
+        allowance:        e.allowance,
         workable_hours:   e.workableHours,
         status:           e.status,
         skills,
@@ -241,7 +246,9 @@ export async function updateEmployeeDB(
         capacity_role:    e.capacityRole ?? null,
         capacity_role_id: e.capacityRoleId ?? null,
         rank_id:          e.rankId ?? null,
-        monthly_salary:   e.monthlySalary,
+        // Spec ①.2 — basic + allowance instead of single monthly_salary.
+        basic_salary:     e.basicSalary,
+        allowance:        e.allowance,
         workable_hours:   e.workableHours,
         status:           e.status,
         skills,

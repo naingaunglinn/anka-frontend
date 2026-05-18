@@ -7,7 +7,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Calculator, Save, ExternalLink, Clock, History, GitCompare, RotateCcw, Download, Sparkles, FileCheck2, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
@@ -26,12 +25,18 @@ import {
 import { AIDraftReviewPanel } from '@/components/estimation/AIDraftReviewPanel';
 import { EstimationRoleBuilder, type EstimationRoleBuilderHandle } from '@/components/estimation/EstimationRoleBuilder';
 import { ContractReadyDialog } from '@/components/estimation/ContractReadyDialog';
+import { SendEstimateDialog } from '@/components/estimation/SendEstimateDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
-import { calculateLaborOverhead, LABOR_OVERHEAD_PERCENTAGE } from '@/lib/calculations';
+import {
+    applySellMarkup,
+    applyBillingMarkup,
+    LABOR_OVERHEAD_PERCENTAGE,
+    BILLING_MARKUP_MULTIPLIER,
+} from '@/lib/calculations';
 import toast from 'react-hot-toast';
 import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency, useCurrencySymbol } from '@/hooks/useTenantCurrency';
@@ -171,7 +176,7 @@ function CompareBanner({
                     )}
 
                     <div className="grid grid-cols-3 gap-4 text-xs pt-2 border-t border-blue-100">
-                        <div className="text-slate-700">{t('target_margin')}</div>
+                        <div className="text-slate-700">Derived Margin</div>
                         <div className="text-right text-slate-500">{savedMargin}%</div>
                         <div className={`text-right font-medium ${diffClass(marginDiff)}`}>
                             {currentMargin}% {marginDiff !== 0 ? `(${marginDiff > 0 ? '+' : ''}${marginDiff})` : ''}
@@ -210,6 +215,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [versionNotes, setVersionNotes] = useState('');
     const [showHistory, setShowHistory] = useState(false);
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
+    const [sendEstimateOpen, setSendEstimateOpen] = useState(false);
     const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
     const [suggestFromNotesOpen, setSuggestFromNotesOpen] = useState(false);
     const roleBuilderHandleRef = useRef<EstimationRoleBuilderHandle | null>(null);
@@ -232,7 +238,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const latestVersionDetailQuery = useEstimationVersionDetail(currentVersion?.id ?? null);
     const latestVersionDetail = latestVersionDetailQuery.data;
 
-    // Local estimation state before saving
+    // Local estimation state before saving. `margin` is no longer user-input —
+    // it's kept in state purely for the autosave payload (target_margin column)
+    // and synced from derivedMarginPct below.
     const [resources, setResources] = useState<EstimationResource[]>([]);
     const [overheads, setOverheads] = useState<ProjectOverhead[]>([]);
     const [margin, setMargin] = useState([30]);
@@ -259,7 +267,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         // apart from real scope.
         setResources(deal.estimationResources ?? []);
         setOverheads(deal.projectOverheads || []);
-        setMargin([deal.targetMargin || 30]);
+        // margin is auto-derived below from resources × 3× rule; the saved
+        // value is overwritten on the next render. Seed once to keep the
+        // autosave payload non-null until the derive effect fires.
+        setMargin([deal.targetMargin || 0]);
         setDirty(false);
         setLastSavedAt(null);
     };
@@ -269,7 +280,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         if (!selectedDealId) {
             setResources([]);
             setOverheads([]);
-            setMargin([30]);
+            setMargin([0]);
             setDirty(false);
             setLastSavedAt(null);
             loadedDealIdRef.current = null;
@@ -288,10 +299,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     }, [selectedDealId, store.deals, store.roles]);
 
     // Debounced auto-save on edits. When the user mutates resources / overheads
-    // / margin and `dirty` flips true, schedule a PATCH to deal.estimation_resources
-    // + deal.deal_overheads after 800ms of inactivity. AI generation persists
-    // synchronously inside handleGenerateAi, so it sets dirty=false explicitly
-    // — this effect only handles row/overhead edits the user makes afterward.
+    // (which in turn re-derives margin) and `dirty` flips true, schedule a PATCH
+    // to deal.estimation_resources + deal.deal_overheads after 800ms of inactivity.
+    // AI generation persists synchronously inside handleGenerateAi, so it sets
+    // dirty=false explicitly — this effect only handles row/overhead edits the
+    // user makes afterward.
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         if (!selectedDealId) return;
@@ -566,64 +578,70 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         }
     };
 
-    // Cost-rate strategy:
-    //   1. Active employees with this jobRoleId → median(costPerHour). Median
-    //      (not first-match) so the result is deterministic regardless of
-    //      employee insertion order, and median (not mean) so a single very-
-    //      senior or very-junior outlier doesn't skew the typical rate.
+    // costRateForResource / costRateForRole now return the LOADED cost
+    // (raw hourly salary + LABOR_OVERHEAD_PERCENTAGE absorbed overhead).
+    // Matches the "Cost / Hr" column on /organization → Employees.
+    //   1. Active employees with this jobRoleId → median(loaded costPerHour).
     //   2. No matching employees but role exists with a positive rate →
-    //      role.rate × costToBillRatio (default 0.40 = "cost is 40% of
-    //      billable rate" → 60% margin). A zero/negative role.rate is
-    //      treated as "no rate signal" and falls through.
-    //   3. Nothing → fallbackHourlyCost (default 50 in tenant currency).
+    //      role.rate × costToBillRatio × 1.15 (loaded fallback).
+    //   3. Nothing → fallbackHourlyCost × 1.15.
     // Both fallbacks are tenant-tunable via /organization → Salary Structure.
     const costRateForRole = (roleId: string): number => {
         const rates = store.employees
             .filter(e => e.jobRoleId === roleId && e.status === 'Active')
             .map(e => e.costPerHour)
             .filter((r): r is number => typeof r === 'number' && Number.isFinite(r) && r > 0);
-        if (rates.length > 0) return median(rates);
+        if (rates.length > 0) return applySellMarkup(median(rates));
 
         const role = store.roles.find(r => r.id === roleId);
-        if (role && role.rate > 0) return role.rate * store.companySettings.costToBillRatio;
+        if (role && role.rate > 0) return applySellMarkup(role.rate * store.companySettings.costToBillRatio);
 
-        return store.companySettings.fallbackHourlyCost;
+        return applySellMarkup(store.companySettings.fallbackHourlyCost);
     };
 
-    // When a specific employee is picked for a row, use their exact cost_per_hour
-    // instead of the role's median. Estimating with the real cost is more accurate
-    // than the role median when the staffing decision is firm.
     const costRateForResource = (res: EstimationResource): number => {
         if (res.employeeId) {
             const emp = store.employees.find(e => e.id === res.employeeId);
             if (emp && typeof emp.costPerHour === 'number' && Number.isFinite(emp.costPerHour) && emp.costPerHour > 0) {
-                return emp.costPerHour;
+                return applySellMarkup(emp.costPerHour);
             }
         }
         return costRateForRole(res.roleId);
     };
 
-    const laborCost = resources.reduce(
+    // Sell rate is what we quote to the client per hour: loaded cost × 3.
+    // Matches the "Sell / Hr" column on /organization → Employees.
+    const sellRateForResource = (res: EstimationResource): number => applyBillingMarkup(costRateForResource(res));
+
+    // Cost basis (what the project costs the agency) vs. labor sell (what we
+    // bill the client for labor). Overheads pass through at cost — they're
+    // pass-through expenses, not part of the 3× labor markup.
+    const laborCostBasis = resources.reduce(
         (sum, res) => sum + res.hours * costRateForResource(res),
         0,
     );
+    const laborSell = resources.reduce(
+        (sum, res) => sum + res.hours * sellRateForResource(res),
+        0,
+    );
 
-    // Cost model: a single 15% markup on labor absorbs both the old company
-    // overhead and risk buffer. Project-level absolute overheads (deal_overheads)
-    // remain a separate line, untouched by the markup.
-    //   - laborOverhead        = laborCost × LABOR_OVERHEAD_PERCENTAGE / 100
-    //   - projectOverheadTotal = Σ absolute project overheads
-    //   - totalCost            = laborCost + laborOverhead + projectOverheadTotal
     const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-    const laborOverhead = calculateLaborOverhead(laborCost);
-    const totalCost = laborCost + laborOverhead + projectOverheadTotal;
+    const totalCost = laborCostBasis + projectOverheadTotal;
 
-    // Slider is capped at 80% so margin/100 stays well below 1, but clamp
-    // explicitly here so a future cap change can't silently produce price=0.
-    const clampedMarginPct = Math.min(95, Math.max(0, margin[0]));
-    const targetMarginDecimal = clampedMarginPct / 100;
-    const suggestedPrice = totalCost / (1 - targetMarginDecimal);
+    // Price is fixed by the 3× rule; no margin slider input. Margin is the
+    // derived output of (price − cost) / price, persisted to target_margin
+    // for backwards compatibility with deal/version reports.
+    const suggestedPrice = laborSell + projectOverheadTotal;
     const expectedProfit = suggestedPrice - totalCost;
+    const derivedMarginPct = suggestedPrice > 0
+        ? Math.round((expectedProfit / suggestedPrice) * 100)
+        : 0;
+
+    // Mirror the derived margin into the `margin` state so the autosave payload
+    // and CompareBanner pick it up. Guarded to avoid render loops.
+    useEffect(() => {
+        setMargin(prev => prev[0] === derivedMarginPct ? prev : [derivedMarginPct]);
+    }, [derivedMarginPct]);
 
     // Stable signature of the local edit state for "is this identical to
     // what's already saved?" checks. Resources and overheads are sorted
@@ -1054,28 +1072,28 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead>{t('feature_col')}</TableHead>
-                                    <TableHead>{t('role')}</TableHead>
-                                    <TableHead className="text-right">{t('rate_per_hr_cost')}</TableHead>
-                                    <TableHead className="text-right">{t('hours_col')}</TableHead>
-                                    <TableHead className="text-right">{t('cost_col')}</TableHead>
+                                    <TableHead>Feature</TableHead>
+                                    <TableHead>Role</TableHead>
+                                    <TableHead className="text-right">Sell Rate / Hr</TableHead>
+                                    <TableHead className="text-right">Hours</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {resources.map((res) => {
                                     const role = store.roles.find(r => r.id === res.roleId);
-                                    // Cost rate is read from the role's median — employee picks no
-                                    // longer happen at estimation time, so we don't look up a
-                                    // specific employee's cost_per_hour here.
-                                    const costRate = costRateForResource(res);
+                                    // Display the SELL rate (cost + 15% absorbed overhead) — matches
+                                    // the "Sell / Hr" column on /organization Employees and keeps the
+                                    // per-row Amount consistent with the Labor Cost total below.
+                                    const sellRate = sellRateForResource(res);
                                     return (
                                         <TableRow key={res.id}>
                                             <TableCell className="font-medium">{res.featureName}</TableCell>
-                                            <TableCell>{role?.title || t('unknown_role')}</TableCell>
-                                            <TableCell className="text-right">{formatMoney(costRate, currency)}</TableCell>
+                                            <TableCell>{role?.title || 'Unknown Role'}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(sellRate, currency)}</TableCell>
                                             <TableCell className="text-right">{res.hours}</TableCell>
-                                            <TableCell className="text-right font-medium">{formatMoney(res.hours * costRate, currency)}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatMoney(res.hours * sellRate, currency)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(res.id)}>
                                                     <Trash2 className="h-4 w-4" />
@@ -1174,36 +1192,38 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Calculator className="h-5 w-5 text-blue-500" />
-                            {t('margin_simulator')}
+                            Margin Summary
                         </CardTitle>
-                        <CardDescription className="text-muted-foreground">{t('drag_to_target_margin')}</CardDescription>
+                        <CardDescription className="text-muted-foreground">
+                            Price = labor sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost) + overheads at cost. Margin is derived.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-700">{t('target_margin')}</span>
-                                <span className="text-2xl font-bold text-emerald-500">{margin[0]}%</span>
+                                <span className="text-sm font-medium text-slate-700">Derived Margin</span>
+                                <span className="text-2xl font-bold text-emerald-500">{derivedMarginPct}%</span>
                             </div>
-                            <Slider
-                                value={margin}
-                                onValueChange={setMargin}
-                                max={80}
-                                min={10}
-                                step={1}
-                                className="py-4"
-                            />
                         </div>
 
                         <div className="pt-4 border-t border-slate-100 space-y-4">
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">{t('direct_labor_cost')}</span>
-                                <span className="font-medium text-slate-800">{formatMoney(laborCost, currency)}</span>
+                                <span
+                                    className="text-slate-500"
+                                    title={`Sum of hours × Sell Rate (loaded cost × ${BILLING_MARKUP_MULTIPLIER}). What we bill the client for labor.`}
+                                >
+                                    Labor (Sell)
+                                </span>
+                                <span className="font-medium text-slate-800">{formatMoney(laborSell, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">
-                                    {t('overhead_buffer_pct', { pct: LABOR_OVERHEAD_PERCENTAGE })}
+                                <span
+                                    className="text-slate-500"
+                                    title={`Sum of hours × Cost / Hr (raw salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead). What labor costs the agency.`}
+                                >
+                                    Labor Cost (Basis)
                                 </span>
-                                <span className="font-medium text-amber-600">{formatMoney(laborOverhead, currency)}</span>
+                                <span className="font-medium text-slate-800">{formatMoney(laborCostBasis, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">{t('project_overhead')}</span>
@@ -1240,7 +1260,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     {t('suggested_price_exceeds_budget')}
                                 </p>
                                 <p className="text-xs text-rose-700">
-                                    {t('budget_overage_explain', { over: formatMoney(budgetOverage, currency), budget: formatMoney(clientBudget, currency), pct: budgetOveragePercent.toFixed(1) })}
+                                    {formatMoney(budgetOverage, currency)} over the client&apos;s {formatMoney(clientBudget, currency)} budget
+                                    {' '}({budgetOveragePercent.toFixed(1)}%). Reduce hours or scope before quoting — labor sell rate is fixed at {BILLING_MARKUP_MULTIPLIER}× loaded cost.
                                 </p>
                             </div>
                         )}
@@ -1332,6 +1353,16 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 deal={selectedDeal}
                                 suggestedPrice={suggestedPrice}
                                 resources={resources}
+                                onConfirmed={() => setSendEstimateOpen(true)}
+                            />
+                        )}
+
+                        {selectedDeal && (
+                            <SendEstimateDialog
+                                open={sendEstimateOpen}
+                                onOpenChange={setSendEstimateOpen}
+                                deal={selectedDeal}
+                                versionId={versionsQuery.data?.[0]?.id ?? null}
                             />
                         )}
 

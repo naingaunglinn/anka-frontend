@@ -360,7 +360,7 @@ export default function FinancialPage() {
     const taskAssignmentsByProject = useMemo(() => {
         const map = new Map<string, ProjectTaskAssignment[]>();
         projects.forEach((project, index) => {
-            map.set(project.id, taskAssignmentQueries[index]?.data ?? []);
+            map.set(project.id, taskAssignmentQueries[index]?.data?.data ?? []);
         });
         return map;
     }, [projects, taskAssignmentQueries]);

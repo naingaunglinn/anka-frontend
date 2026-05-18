@@ -7,13 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Loader2, Trash2, Upload } from 'lucide-react';
+import { Building2, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
+import { useInitialBudgets, useUpsertInitialBudget, useDeleteInitialBudget } from '@/lib/queries/initialBudgets';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
-import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
-import { formatMoney } from '@/lib/currency';
 
 const ALLOWED_LOGO_EXT = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -32,7 +31,6 @@ export function CompanySettingsForm() {
     const t = useTranslations();
     const { data: tenant, isLoading, isError, refetch } = useTenantSettings();
     const { updateTenant, uploadLogo, deleteLogo } = useTenantMutations();
-    const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
 
@@ -40,8 +38,6 @@ export function CompanySettingsForm() {
     const [nameDraft, setNameDraft] = useState('');
     const [signatoryNameDraft, setSignatoryNameDraft] = useState('');
     const [signatoryTitleDraft, setSignatoryTitleDraft] = useState('');
-    const [annualBudgetDraft, setAnnualBudgetDraft] = useState('');
-    const [isSavingBudget, setIsSavingBudget] = useState(false);
 
     // Sync local drafts with whatever the server says once it loads.
     // Reset only when the tenant id changes so background refetches don't
@@ -59,18 +55,11 @@ export function CompanySettingsForm() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenant?.id]);
 
-    useEffect(() => {
-        setAnnualBudgetDraft(String(store.companySettings.annualInitialBudget ?? 1_000_000_000));
-    }, [store.companySettings.annualInitialBudget]);
-
     const nameDirty = tenant && nameDraft !== tenant.name && nameDraft.trim().length > 0;
     const signatoryDirty = tenant && (
         signatoryNameDraft.trim() !== (tenant.signatoryName ?? '').trim()
         || signatoryTitleDraft.trim() !== (tenant.signatoryTitle ?? '').trim()
     );
-    const parsedAnnualBudget = Number(annualBudgetDraft);
-    const annualBudgetValid = Number.isFinite(parsedAnnualBudget) && parsedAnnualBudget >= 0;
-    const annualBudgetDirty = annualBudgetValid && parsedAnnualBudget !== (store.companySettings.annualInitialBudget ?? 1_000_000_000);
 
     const handleFileSelected = async (file: File) => {
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -124,17 +113,6 @@ export function CompanySettingsForm() {
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
-        }
-    };
-
-    const handleSaveAnnualBudget = async () => {
-        if (!annualBudgetDirty || !annualBudgetValid) return;
-        setIsSavingBudget(true);
-        try {
-            await store.updateCompanySettings({ annualInitialBudget: parsedAnnualBudget });
-            toast.success(t('initial_annual_budget_updated'));
-        } finally {
-            setIsSavingBudget(false);
         }
     };
 
@@ -245,41 +223,7 @@ export function CompanySettingsForm() {
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">{t('initial_annual_budget_title')}</CardTitle>
-                    <CardDescription>
-                        {t('initial_annual_budget_desc')}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="annual-initial-budget">{t('annual_budget')}</Label>
-                        <Input
-                            id="annual-initial-budget"
-                            type="number"
-                            min={0}
-                            step="1000"
-                            value={annualBudgetDraft}
-                            onChange={(e) => setAnnualBudgetDraft(e.target.value)}
-                            placeholder="e.g. 1000000000"
-                            className="bg-white"
-                        />
-                    </div>
-                    <p className="text-xs text-slate-500">
-                        {t('current_saved_budget', { amount: formatMoney(store.companySettings.annualInitialBudget ?? 1_000_000_000, currency) })}
-                    </p>
-                    <div className="flex justify-end">
-                        <Button
-                            onClick={handleSaveAnnualBudget}
-                            disabled={!annualBudgetDirty || !annualBudgetValid || isSavingBudget}
-                            size="sm"
-                        >
-                            {isSavingBudget ? t('saving') : t('save_budget')}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+            <InitialBudgetsCard currency={currency} />
 
             <Card>
                 <CardHeader>
@@ -365,5 +309,191 @@ export function CompanySettingsForm() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+/**
+ * Year-scoped target profit table. Each row is one fiscal year's
+ * declared budget. Forecast (process ⑧) reads the row matching the year
+ * of the displayed months and compares the 6-month projection against
+ * it. Spec ①.3 — "at the start of each year, declare an Initial Budget."
+ */
+function InitialBudgetsCard({ currency }: { currency: Currency }) {
+    const budgetsQuery = useInitialBudgets();
+    const upsert = useUpsertInitialBudget();
+    const del = useDeleteInitialBudget();
+
+    const budgets = budgetsQuery.data ?? [];
+    const currentYear = new Date().getFullYear();
+
+    // Per-row draft state. Keyed by fiscal_year — strings (not numbers) so
+    // the user can type freely without coercion fighting them.
+    const [drafts, setDrafts] = useState<Record<number, string>>({});
+    const [newYear, setNewYear] = useState<string>(String(currentYear + 1));
+    const [newAmount, setNewAmount] = useState<string>('');
+
+    const draftFor = (year: number) => {
+        if (drafts[year] !== undefined) return drafts[year];
+        const existing = budgets.find(b => b.fiscalYear === year);
+        return existing ? String(existing.amount) : '';
+    };
+
+    const isRowDirty = (year: number) => {
+        if (drafts[year] === undefined) return false;
+        const existing = budgets.find(b => b.fiscalYear === year);
+        const parsed = Number(drafts[year]);
+        return Number.isFinite(parsed) && parsed >= 0 && parsed !== (existing?.amount ?? -1);
+    };
+
+    const handleSaveRow = async (year: number) => {
+        const parsed = Number(drafts[year]);
+        if (!Number.isFinite(parsed) || parsed < 0) return;
+        try {
+            await upsert.mutateAsync({ fiscalYear: year, amount: parsed });
+            setDrafts(prev => {
+                const next = { ...prev };
+                delete next[year];
+                return next;
+            });
+            toast.success(`Budget for ${year} saved.`);
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleDeleteRow = async (year: number) => {
+        if (!window.confirm(`Remove the ${year} budget? Forecast for ${year} will show "no budget set" afterwards.`)) {
+            return;
+        }
+        try {
+            await del.mutateAsync(year);
+            toast.success(`Budget for ${year} removed.`);
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleAddYear = async () => {
+        const year = Number(newYear);
+        const amount = Number(newAmount);
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+            toast.error('Fiscal year must be a 4-digit year between 2000 and 2100.');
+            return;
+        }
+        if (budgets.some(b => b.fiscalYear === year)) {
+            toast.error(`Budget for ${year} already exists — edit the existing row.`);
+            return;
+        }
+        if (!Number.isFinite(amount) || amount < 0) {
+            toast.error('Amount must be a non-negative number.');
+            return;
+        }
+        try {
+            await upsert.mutateAsync({ fiscalYear: year, amount });
+            setNewAmount('');
+            toast.success(`Budget for ${year} added.`);
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Initial Annual Budget (per fiscal year)</CardTitle>
+                <CardDescription>
+                    Target profit for each fiscal year. Forecast uses the row for the year of the
+                    months being displayed; years with no row show a &ldquo;no budget set&rdquo; notice.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {budgetsQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading budgets…
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-[120px_1fr_auto_auto] gap-3 px-1 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            <span>Fiscal Year</span>
+                            <span>Amount ({currency})</span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        {budgets.length === 0 ? (
+                            <p className="text-sm text-slate-500 py-3">
+                                No budgets declared yet. Add one below.
+                            </p>
+                        ) : (
+                            budgets.map(b => {
+                                const dirty = isRowDirty(b.fiscalYear);
+                                return (
+                                    <div key={b.id} className="grid grid-cols-[120px_1fr_auto_auto] gap-3 items-center">
+                                        <span className="text-sm font-medium text-slate-700">{b.fiscalYear}</span>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            step="1000"
+                                            value={draftFor(b.fiscalYear)}
+                                            onChange={(e) => setDrafts(prev => ({ ...prev, [b.fiscalYear]: e.target.value }))}
+                                            className="bg-white"
+                                        />
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSaveRow(b.fiscalYear)}
+                                            disabled={!dirty || upsert.isPending}
+                                        >
+                                            {upsert.isPending ? 'Saving…' : 'Save'}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteRow(b.fiscalYear)}
+                                            disabled={del.isPending}
+                                            title={`Remove ${b.fiscalYear} budget`}
+                                        >
+                                            <Trash2 className="h-4 w-4 text-rose-500" />
+                                        </Button>
+                                    </div>
+                                );
+                            })
+                        )}
+
+                        <div className="grid grid-cols-[120px_1fr_auto_auto] gap-3 items-center pt-3 border-t border-slate-100">
+                            <Input
+                                type="number"
+                                min={2000}
+                                max={2100}
+                                step="1"
+                                value={newYear}
+                                onChange={(e) => setNewYear(e.target.value)}
+                                placeholder="2027"
+                                className="bg-white"
+                            />
+                            <Input
+                                type="number"
+                                min={0}
+                                step="1000"
+                                value={newAmount}
+                                onChange={(e) => setNewAmount(e.target.value)}
+                                placeholder="e.g. 1500000000"
+                                className="bg-white"
+                            />
+                            <Button
+                                size="sm"
+                                onClick={handleAddYear}
+                                disabled={upsert.isPending || !newAmount}
+                            >
+                                <Plus className="mr-1 h-4 w-4" /> Add
+                            </Button>
+                            <span />
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }

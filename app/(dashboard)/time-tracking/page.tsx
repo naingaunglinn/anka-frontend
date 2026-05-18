@@ -5,9 +5,8 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Users, Briefcase, Sparkles, FastForward } from 'lucide-react';
+import { Clock, Briefcase, Sparkles, FastForward } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useBusinessStore } from '@/store/businessStore';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { normalizeError } from '@/lib/errorHandler';
@@ -21,7 +20,6 @@ import { TeamPreviewDialog } from '@/components/time-tracking/TeamPreviewDialog'
 
 export default function TimeTrackingPage() {
     const t = useTranslations();
-    const store = useBusinessStore();
     const projectsQuery = useProjectList();
     const timeEntriesQuery = useTimeEntryList();
     const queryClient = useQueryClient();
@@ -105,9 +103,9 @@ export default function TimeTrackingPage() {
         [timeEntries, runningProjectIds],
     );
 
-    // Total Hours Logged is now sourced from phase_progress_logs (new schedule
-    // tracking system), not the legacy time_entries table. Filterable by date
-    // range + phase status via the controls inside the KPI card itself.
+    // Total Hours Logged is sourced from phase_progress_logs and scoped to the
+    // project picked in the Master Assign Table selector below. Filterable by
+    // date range + phase status via the controls inside the KPI card itself.
     const [hoursDateFrom, setHoursDateFrom] = useState<string>('');
     const [hoursDateTo,   setHoursDateTo]   = useState<string>('');
     const [hoursPhaseStatus, setHoursPhaseStatus] = useState<'all' | '未着手' | '進行中' | '完了'>('all');
@@ -115,17 +113,14 @@ export default function TimeTrackingPage() {
         dateFrom:    hoursDateFrom || undefined,
         dateTo:      hoursDateTo   || undefined,
         phaseStatus: hoursPhaseStatus === 'all' ? undefined : hoursPhaseStatus,
+        projectId:   tableProjectId || undefined,
     });
     const totalHoursLogged = hoursSummaryQuery.data?.totalUsedHours ?? 0;
+    const selectedProjectName = tableProjectId
+        ? projects.find((p) => p.id === tableProjectId)?.name
+        : undefined;
 
     const activeProjectsCount = new Set(runningTimeEntries.map(e => e.projectId)).size;
-    const totalCapacity = store.employees
-        .filter((employee) => employee.status === 'Active')
-        .reduce((sum, employee) => sum + employee.workableHours, 0);
-    const approvedHours = runningTimeEntries
-        .filter((entry) => entry.status === 'Approved')
-        .reduce((sum, entry) => sum + entry.hours, 0);
-    const utilization = totalCapacity > 0 ? Math.round((approvedHours / totalCapacity) * 100) : 0;
     const isLoading = projectsQuery.isLoading || timeEntriesQuery.isLoading;
     const isError = projectsQuery.isError || timeEntriesQuery.isError;
     const retry = () => {
@@ -140,7 +135,7 @@ export default function TimeTrackingPage() {
                 <p className="text-[#8a8a8a] mt-1">{t('time_tracking_description')}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -152,6 +147,9 @@ export default function TimeTrackingPage() {
                                 {hoursSummaryQuery.isLoading ? '—' : `${totalHoursLogged}h`}
                             </span>
                         </div>
+                        <p className="mt-1 text-xs text-[#8a8a8a] truncate" title={selectedProjectName ?? ''}>
+                            {selectedProjectName ? `For ${selectedProjectName}` : 'Pick a project below to scope'}
+                        </p>
                         <div className="mt-4 space-y-2">
                             <div className="flex items-center gap-2">
                                 <input
@@ -195,20 +193,6 @@ export default function TimeTrackingPage() {
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-3xl font-bold tracking-tight text-[#171717]">{activeProjectsCount}</span>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('available_team_utilization')}</p>
-                            <Users className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-3xl font-bold tracking-tight text-[#171717]">
-                                {utilization}%
-                            </span>
-                            <span className="text-sm text-[#8a8a8a]">{t('average_this_month')}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -383,7 +367,7 @@ function AutoAssignProjectRow({
                     ) : (
                         <FastForward className="h-4 w-4" />
                     )}
-                    {t('assign_tasks_only')}
+                    Assign tasks with AI
                 </Button>
                 <Button
                     size="sm"
@@ -397,7 +381,7 @@ function AutoAssignProjectRow({
                     ) : (
                         <Sparkles className="h-4 w-4" />
                     )}
-                    {t('ai_task_assignment')}
+                    Build the team and assign tasks with AI
                 </Button>
             </div>
         </div>

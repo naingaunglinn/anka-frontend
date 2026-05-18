@@ -1,9 +1,9 @@
 'use client'
 
 import type { AITeamBuilderResult } from '@/types/aiTeamBuilder'
-import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/currency'
+import { applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -42,11 +42,10 @@ export function AITeamBuilderResultPanel({
     onRegenerate,
     onAccept,
 }: Props) {
-    const t = useTranslations()
     const currency = useTenantCurrency()
     function handleAccept() {
         onAccept(result)
-        toast.success(t('ai_team_accepted_toast'))
+        toast.success('AI team recommendation accepted!')
     }
 
     const marginColor =
@@ -70,7 +69,7 @@ export function AITeamBuilderResultPanel({
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
                         <User className="h-4 w-4 text-indigo-600" />
-                        {t('recommended_team')}
+                        Recommended Team
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -96,7 +95,7 @@ export function AITeamBuilderResultPanel({
                                     </div>
                                 </div>
                                 <div className="flex justify-between text-xs text-[#8a8a8a] mt-1 pt-1.5 border-t border-slate-50">
-                                    <span>{t('hours_allocated_short', { hours: member.allocatedHours })}</span>
+                                    <span>{member.allocatedHours}h allocated</span>
                                     <span className="font-medium text-slate-700">
                                         {formatMoney(member.totalCost, currency)}
                                     </span>
@@ -110,37 +109,31 @@ export function AITeamBuilderResultPanel({
             {/* — P&L Estimate — */}
             <Card className="border-[#e6e9ee] shadow-sm">
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
-                    <CardTitle className="text-base">{t('pnl_estimate')}</CardTitle>
+                    <CardTitle className="text-base">P&amp;L Estimate</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 space-y-3">
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">{t('labor_cost')}</span>
+                            <span className="text-[#8a8a8a]">Labor Cost (Basis)</span>
                             <span className="font-medium text-slate-700">
                                 {formatMoney(result.baseLaborCost, currency)}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">{t('overhead')}</span>
-                            <span className="font-medium text-red-500/80">
-                                +{formatMoney(result.overheadCost, currency)}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-[#8a8a8a]">{t('risk_buffer')}</span>
-                            <span className="font-medium text-red-500/80">
-                                +{formatMoney(result.bufferCost, currency)}
+                            <span className="text-[#8a8a8a]">Labor Sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost)</span>
+                            <span className="font-medium text-emerald-600">
+                                {formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}
                             </span>
                         </div>
                     </div>
 
                     <div className="border-t border-[#e6e9ee] pt-3 space-y-2">
                         <div className="flex justify-between font-bold text-slate-800">
-                            <span>{t('total_cost')}</span>
-                            <span>{formatMoney(result.totalEstimatedCost, currency)}</span>
+                            <span>Suggested Price</span>
+                            <span>{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-[#8a8a8a]">{t('client_budget')}</span>
+                            <span className="text-[#8a8a8a]">Client Budget</span>
                             <span className="font-medium text-slate-700">
                                 {formatMoney(clientBudget, currency)}
                             </span>
@@ -156,7 +149,7 @@ export function AITeamBuilderResultPanel({
                             ) : (
                                 <AlertTriangle className="h-4 w-4 text-red-600" />
                             )}
-                            <span className="font-bold text-slate-800">{t('gross_profit')}</span>
+                            <span className="font-bold text-slate-800">Gross Profit</span>
                         </div>
                         <div className="flex flex-col items-end">
                             <span className={`font-bold text-lg ${marginColor}`}>
@@ -165,7 +158,7 @@ export function AITeamBuilderResultPanel({
                             <span
                                 className={`text-xs font-semibold px-2 py-0.5 rounded-full ${marginColor}`}
                             >
-                                {t('margin_pct', { pct: (result.profitMarginPercent ?? 0).toFixed(1) })}
+                                {(result.profitMarginPercent ?? 0).toFixed(1)}% Margin
                             </span>
                         </div>
                     </div>
@@ -183,7 +176,7 @@ export function AITeamBuilderResultPanel({
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
                         <MessageSquare className="h-4 w-4 text-purple-600" />
-                        {t('ai_reasoning')}
+                        AI Reasoning
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -198,7 +191,7 @@ export function AITeamBuilderResultPanel({
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
                     <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
                         <AlertTriangle className="h-3.5 w-3.5" />
-                        {t('warnings')}
+                        Warnings
                     </p>
                     <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
                         {result.warnings.map((w, i) => (
@@ -216,7 +209,7 @@ export function AITeamBuilderResultPanel({
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                 >
                     <Save className="mr-2 h-4 w-4" />
-                    {t('accept_save_to_deal')}
+                    Accept &amp; Save to Deal
                 </Button>
                 <Button
                     type="button"
@@ -225,7 +218,7 @@ export function AITeamBuilderResultPanel({
                     className="shadow-sm"
                 >
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    {t('regenerate')}
+                    Regenerate
                 </Button>
             </div>
         </div>

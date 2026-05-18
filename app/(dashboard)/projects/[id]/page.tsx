@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,23 +17,7 @@ import { useContractList } from '@/lib/queries/contracts';
 import { useBusinessStore } from '@/store/businessStore';
 import type { Project } from '@/types/business';
 
-// Map ProjectStatus enum to translation keys (kept English internally for stable comparisons).
-const PROJECT_STATUS_KEY: Record<Project['status'], string> = {
-    'Not Started': 'status_not_started',
-    'On Track':    'status_on_track',
-    'At Risk':     'status_at_risk',
-    'Over Budget': 'status_over_budget',
-    'Completed':   'status_completed',
-};
-
-const TIME_ENTRY_STATUS_KEY: Record<string, string> = {
-    Approved: 'status_approved',
-    Pending:  'status_pending',
-    Rejected: 'status_rejected',
-};
-
 export default function ProjectDetailPage() {
-    const t = useTranslations();
     const params = useParams<{ id: string }>();
     const router = useRouter();
     const projectId = params.id;
@@ -122,11 +105,10 @@ export default function ProjectDetailPage() {
         setEditOpen(false);
     };
 
-    // ── Status change action ─────────────────────────────────────────────────
-    const setStatus = (status: Project['status']) => {
-        if (!project) return;
-        updateProject.mutate({ id: project.id, updates: { status } });
-    };
+    // Status is no longer user-editable — it's computed automatically from
+    // time-tracking data (Project::maybeAutoTransition runs on every approved
+    // time entry plus a nightly cron sweep). See
+    // anka-api/storage/contract_auto_status_decision.md for the rules.
 
     // ── Add team member dialog ───────────────────────────────────────────────
     const [addOpen, setAddOpen] = useState(false);
@@ -181,10 +163,10 @@ export default function ProjectDetailPage() {
             <div className="p-6">
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-[#4a4a4a]">{t('could_not_load_project')}</p>
+                        <p className="text-sm text-[#4a4a4a]">Could not load project.</p>
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => router.push('/projects')}>{t('back_to_projects')}</Button>
-                            <Button variant="outline" onClick={() => projectQuery.refetch()}>{t('retry')}</Button>
+                            <Button variant="outline" onClick={() => router.push('/projects')}>Back to projects</Button>
+                            <Button variant="outline" onClick={() => projectQuery.refetch()}>Retry</Button>
                         </div>
                     </CardContent>
                 </Card>
@@ -215,25 +197,23 @@ export default function ProjectDetailPage() {
                         onClick={() => router.push('/projects')}
                         className="flex items-center gap-1 text-sm text-[#4a4a4a] hover:text-[#171717] mb-2"
                     >
-                        <ArrowLeft className="h-4 w-4" /> {t('back_to_projects')}
+                        <ArrowLeft className="h-4 w-4" /> Back to projects
                     </button>
                     <div className="flex items-center gap-3 flex-wrap">
                         <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{project.name}</h1>
-                        <Badge variant="outline" className={statusBadgeClass(project.status)}>{t(PROJECT_STATUS_KEY[project.status])}</Badge>
+                        <Badge variant="outline" className={statusBadgeClass(project.status)}>{project.status}</Badge>
                         <span className="text-xs text-[#8a8a8a]">{project.projectNumber ?? project.id.slice(0, 8)}</span>
                     </div>
                     <p className="text-[#8a8a8a] mt-1">{project.client}</p>
                 </div>
-                <div className="flex gap-2">
-                    <Select value="" onValueChange={(v) => setStatus(v as Project['status'])}>
-                        <SelectTrigger className="w-[160px]"><SelectValue placeholder={t('change_status')} /></SelectTrigger>
-                        <SelectContent>
-                            {(['Not Started', 'On Track', 'At Risk', 'Over Budget', 'Completed'] as const)
-                                .filter(s => s !== project.status)
-                                .map(s => <SelectItem key={s} value={s}>{t('mark_simple', { status: t(PROJECT_STATUS_KEY[s]) })}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                    <Button variant="outline" onClick={openEdit}>{t('edit_details')}</Button>
+                <div className="flex items-center gap-2">
+                    {/* Status is computed automatically from time-tracking data —
+                        no manual override here. Showing a small hint so users
+                        understand why there's no "Change status" control. */}
+                    <span className="text-[11px] text-[#8a8a8a] hidden sm:inline">
+                        Status updates automatically from time tracking
+                    </span>
+                    <Button variant="outline" onClick={openEdit}>Edit details</Button>
                 </div>
             </div>
 
@@ -243,11 +223,11 @@ export default function ProjectDetailPage() {
                     <CardContent className="p-4 flex items-center gap-3 text-sm text-amber-900">
                         <FileWarning className="h-5 w-5 flex-shrink-0" />
                         <div className="flex-1">
-                            <p className="font-medium">{t('linked_contract_draft_warning')}</p>
-                            <p className="text-xs mt-0.5">{t('contract_draft_subnote')}</p>
+                            <p className="font-medium">Linked contract is still in Draft status.</p>
+                            <p className="text-xs mt-0.5">Time logged against this project may not be invoiceable until the contract is signed.</p>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => router.push(`/contracts/${linkedContract.id}`)}>
-                            {t('open_contract')}
+                            Open contract
                         </Button>
                     </CardContent>
                 </Card>
@@ -258,12 +238,12 @@ export default function ProjectDetailPage() {
                 <Card className="lg:col-span-2 shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 space-y-4">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                            <MetaField icon={<Calendar className="h-4 w-4" />} label={t('start_date')} value={project.startDate ?? '—'} />
-                            <MetaField icon={<Calendar className="h-4 w-4" />} label={t('kickoff_date')} value={project.kickoffDate ?? '—'} highlight={!project.kickoffDate} />
-                            <MetaField icon={<Calendar className="h-4 w-4" />} label={t('end_date')} value={project.endDate ?? '—'} />
-                            <MetaField icon={<Briefcase className="h-4 w-4" />} label={t('project_manager')} value={project.projectManagerName ?? t('unassigned')} highlight={!project.projectManagerName} />
-                            <MetaField icon={<Users className="h-4 w-4" />} label={t('team_size')} value={t(team.length === 1 ? 'member_singular' : 'member_plural', { count: team.length })} highlight={team.length === 0} />
-                            <MetaField icon={<Clock className="h-4 w-4" />} label={t('allocated_hours')} value={`${totalAllocatedHours}h`} />
+                            <MetaField icon={<Calendar className="h-4 w-4" />} label="Start date" value={project.startDate ?? '—'} />
+                            <MetaField icon={<Calendar className="h-4 w-4" />} label="Kickoff date" value={project.kickoffDate ?? '—'} highlight={!project.kickoffDate} />
+                            <MetaField icon={<Calendar className="h-4 w-4" />} label="End date" value={project.endDate ?? '—'} />
+                            <MetaField icon={<Briefcase className="h-4 w-4" />} label="Project manager" value={project.projectManagerName ?? 'Unassigned'} highlight={!project.projectManagerName} />
+                            <MetaField icon={<Users className="h-4 w-4" />} label="Team size" value={`${team.length} ${team.length === 1 ? 'member' : 'members'}`} highlight={team.length === 0} />
+                            <MetaField icon={<Clock className="h-4 w-4" />} label="Allocated hours" value={`${totalAllocatedHours}h`} />
                         </div>
                         {linkedContract && (
                             <div className="border-t border-[#e6e9ee] pt-4 flex flex-wrap gap-3 text-sm">
@@ -271,7 +251,7 @@ export default function ProjectDetailPage() {
                                     onClick={() => router.push(`/contracts/${linkedContract.id}`)}
                                     className="inline-flex items-center gap-1 text-[#00a7f4] hover:underline"
                                 >
-                                    {t('linked_contract', { number: linkedContract.contractNumber ?? linkedContract.id.slice(0, 8), status: linkedContract.status })}
+                                    Linked contract: {linkedContract.contractNumber ?? linkedContract.id.slice(0, 8)} ({linkedContract.status})
                                     <ExternalLink className="h-3 w-3" />
                                 </button>
                             </div>
@@ -283,20 +263,20 @@ export default function ProjectDetailPage() {
                 <Card className="shadow-sm border-[#e6e9ee]">
                     <CardContent className="p-6 space-y-4">
                         <div>
-                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">{t('budget_burn')}</p>
+                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">Budget burn</p>
                             <p className="text-3xl font-bold tracking-tight text-[#171717] mt-1">{consumedHours}<span className="text-base font-medium text-[#8a8a8a]"> / {budgetHours} h</span></p>
                         </div>
                         <div>
                             <div className="flex justify-between text-xs mb-1.5">
-                                <span className="text-[#4a4a4a]">{t('percent_consumed', { percent: burnPercent })}</span>
-                                <span className="text-[#8a8a8a]">{t('remaining_hours', { hours: remainingHours })}</span>
+                                <span className="text-[#4a4a4a]">{burnPercent}% consumed</span>
+                                <span className="text-[#8a8a8a]">{remainingHours}h remaining</span>
                             </div>
                             <Progress value={burnPercent} className="h-2" indicatorClassName={burnColor} />
                         </div>
                         <div className="pt-3 border-t border-[#e6e9ee] flex items-center justify-between text-xs">
-                            <span className="text-[#8a8a8a]">{t('days_to_budget')}</span>
+                            <span className="text-[#8a8a8a]">Days to budget @ recent burn</span>
                             <span className={`font-semibold ${daysToBudget !== null && daysToBudget < 14 ? 'text-rose-600' : 'text-[#171717]'}`}>
-                                {daysToBudget === null ? '—' : daysToBudget === 0 ? t('budget_reached') : t('approx_days', { days: daysToBudget })}
+                                {daysToBudget === null ? '—' : daysToBudget === 0 ? 'Budget reached' : `~${daysToBudget} days`}
                             </span>
                         </div>
                     </CardContent>
@@ -309,8 +289,8 @@ export default function ProjectDetailPage() {
                     <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-[#8a8a8a]" />
-                            <p className="text-sm font-semibold text-[#171717]">{t('team_roster')}</p>
-                            <span className="text-xs text-[#8a8a8a]">— {t(team.length === 1 ? 'member_singular' : 'member_plural', { count: team.length })}</span>
+                            <p className="text-sm font-semibold text-[#171717]">Team roster</p>
+                            <span className="text-xs text-[#8a8a8a]">— {team.length} {team.length === 1 ? 'member' : 'members'}</span>
                         </div>
                         <div className="flex gap-2">
                             <Button
@@ -319,26 +299,26 @@ export default function ProjectDetailPage() {
                                 className="gap-1.5"
                                 onClick={() => setAddOpen(true)}
                                 disabled={assignableEmployees.length === 0}
-                                title={assignableEmployees.length === 0 ? t('all_active_already_on_team') : t('add_a_team_member_tooltip')}
+                                title={assignableEmployees.length === 0 ? 'All active employees are already on this team' : 'Add a team member'}
                             >
                                 <Plus className="h-3.5 w-3.5" />
-                                {t('add_member')}
+                                Add member
                             </Button>
                         </div>
                     </div>
                     {team.length === 0 ? (
                         <div className="p-6 text-center text-sm text-[#8a8a8a]">
-                            {t('no_team_members')} <span className="font-medium">{t('add_member')}</span> {t('no_team_members_after')}
+                            No team members assigned. Click <span className="font-medium">Add member</span> above.
                         </div>
                     ) : (
                         <Table>
                             <TableHeader className="bg-white">
                                 <TableRow>
-                                    <TableHead>{t('member')}</TableHead>
-                                    <TableHead>{t('source')}</TableHead>
-                                    <TableHead className="text-right">{t('allocated')}</TableHead>
-                                    <TableHead className="text-right">{t('consumed')}</TableHead>
-                                    <TableHead className="w-[160px]">{t('utilization')}</TableHead>
+                                    <TableHead>Member</TableHead>
+                                    <TableHead>Source</TableHead>
+                                    <TableHead className="text-right">Allocated</TableHead>
+                                    <TableHead className="text-right">Consumed</TableHead>
+                                    <TableHead className="w-[160px]">Utilization</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -348,9 +328,9 @@ export default function ProjectDetailPage() {
                                     const util = assignment.allocatedHours > 0 ? Math.min(100, Math.round((consumed / assignment.allocatedHours) * 100)) : 0;
                                     const utilColor = util > 100 ? 'bg-rose-500' : util > 85 ? 'bg-amber-500' : 'bg-emerald-500';
                                     const sourceLabel =
-                                        assignment.assignmentSource === 'deal_transfer' ? t('source_from_deal') :
-                                        assignment.assignmentSource === 'ai' ? t('source_ai') :
-                                                                              t('source_manual');
+                                        assignment.assignmentSource === 'deal_transfer' ? 'From deal' :
+                                        assignment.assignmentSource === 'ai' ? 'AI-suggested' :
+                                                                              'Manual';
                                     return (
                                         <TableRow key={assignment.id}>
                                             <TableCell className="font-medium">{assignment.employeeName ?? assignment.employeeId.slice(0, 8)}</TableCell>
@@ -374,7 +354,7 @@ export default function ProjectDetailPage() {
                                                     className="h-8 w-8 text-rose-500 hover:text-rose-600"
                                                     onClick={() => setRemovingAssignmentId(assignment.id)}
                                                     disabled={removeMember.isPending}
-                                                    title={t('remove_from_team')}
+                                                    title="Remove from team"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -394,26 +374,26 @@ export default function ProjectDetailPage() {
                     <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-[#8a8a8a]" />
-                            <p className="text-sm font-semibold text-[#171717]">{t('recent_time_entries')}</p>
-                            <span className="text-xs text-[#8a8a8a]">— {t('last_x_of_y', { shown: recentEntries.length, total: timeEntries.length })}</span>
+                            <p className="text-sm font-semibold text-[#171717]">Recent time entries</p>
+                            <span className="text-xs text-[#8a8a8a]">— last {recentEntries.length} of {timeEntries.length}</span>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => router.push('/time-tracking')}>
-                            {t('open_time_tracking')}
+                            Open Time Tracking
                         </Button>
                     </div>
                     {recentEntries.length === 0 ? (
                         <div className="p-6 text-center text-sm text-[#8a8a8a]">
-                            {t('no_time_entries_yet')}
+                            No time entries logged on this project yet.
                         </div>
                     ) : (
                         <Table>
                             <TableHeader className="bg-white">
                                 <TableRow>
-                                    <TableHead>{t('date')}</TableHead>
-                                    <TableHead>{t('employee')}</TableHead>
-                                    <TableHead>{t('task')}</TableHead>
-                                    <TableHead>{t('status')}</TableHead>
-                                    <TableHead className="text-right">{t('hours')}</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Employee</TableHead>
+                                    <TableHead>Task</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Hours</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -434,7 +414,7 @@ export default function ProjectDetailPage() {
                                                     entry.status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                                                   'bg-slate-100 text-slate-700 border-slate-200'
                                                 }>
-                                                    {TIME_ENTRY_STATUS_KEY[entry.status] ? t(TIME_ENTRY_STATUS_KEY[entry.status]) : entry.status}
+                                                    {entry.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{entry.hours}h</TableCell>
@@ -451,14 +431,14 @@ export default function ProjectDetailPage() {
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{t('add_team_member')}</DialogTitle>
-                        <DialogDescription>{t('add_team_member_description')}</DialogDescription>
+                        <DialogTitle>Add team member</DialogTitle>
+                        <DialogDescription>Assign an active employee to this project with an hour allocation.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">{t('employee_label')}</label>
+                            <label className="text-sm font-medium">Employee</label>
                             <Select value={newEmployeeId} onValueChange={setNewEmployeeId}>
-                                <SelectTrigger><SelectValue placeholder={t('select_employee_placeholder')} /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Select employee…" /></SelectTrigger>
                                 <SelectContent>
                                     {assignableEmployees.map(e => (
                                         <SelectItem key={e.id} value={e.id}>
@@ -468,11 +448,11 @@ export default function ProjectDetailPage() {
                                 </SelectContent>
                             </Select>
                             {assignableEmployees.length === 0 && (
-                                <p className="text-xs text-[#8a8a8a]">{t('all_active_on_team_short')}</p>
+                                <p className="text-xs text-[#8a8a8a]">All active employees are already on this team.</p>
                             )}
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">{t('allocated_hours')}</label>
+                            <label className="text-sm font-medium">Allocated hours</label>
                             <Input
                                 type="number"
                                 min="0"
@@ -481,14 +461,14 @@ export default function ProjectDetailPage() {
                                 onChange={e => setNewAllocatedHours(e.target.value)}
                                 placeholder="40"
                             />
-                            <p className="text-xs text-[#8a8a8a]">{t('allocated_hours_helper')}</p>
+                            <p className="text-xs text-[#8a8a8a]">Hours budgeted for this person on this project. Drives the utilization bar.</p>
                         </div>
                         <Button
                             className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                             onClick={handleAddMember}
                             disabled={!newEmployeeId || !newAllocatedHours || Number(newAllocatedHours) <= 0 || assignMember.isPending}
                         >
-                            {assignMember.isPending ? t('adding') : t('add_to_team')}
+                            {assignMember.isPending ? 'Adding…' : 'Add to team'}
                         </Button>
                     </div>
                 </DialogContent>
@@ -498,15 +478,16 @@ export default function ProjectDetailPage() {
             <Dialog open={!!removingAssignmentId} onOpenChange={open => !open && setRemovingAssignmentId(null)}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{t('remove_team_member')}</DialogTitle>
+                        <DialogTitle>Remove team member</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-[#4a4a4a]">
-                        {t('remove_member_confirm_prefix')} <span className="font-medium text-[#171717]">{removingMember?.employeeName ?? t('this_member')}</span>{t('remove_member_confirm_suffix')}
+                        Remove <span className="font-medium text-[#171717]">{removingMember?.employeeName ?? 'this member'}</span> from the team?
+                        Time entries they already logged stay on the project — only the allocation is dropped.
                     </p>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setRemovingAssignmentId(null)}>{t('cancel')}</Button>
+                        <Button variant="outline" onClick={() => setRemovingAssignmentId(null)}>Cancel</Button>
                         <Button variant="destructive" onClick={handleRemoveMember} disabled={removeMember.isPending}>
-                            {removeMember.isPending ? t('removing') : t('remove')}
+                            {removeMember.isPending ? 'Removing…' : 'Remove'}
                         </Button>
                     </div>
                 </DialogContent>
@@ -516,26 +497,26 @@ export default function ProjectDetailPage() {
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{t('edit_project_details')}</DialogTitle>
-                        <DialogDescription>{t('edit_project_details_description')}</DialogDescription>
+                        <DialogTitle>Edit project details</DialogTitle>
+                        <DialogDescription>Kickoff scheduling, PM assignment, and budget tuning.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium">{t('kickoff_date')}</label>
+                                <label className="text-sm font-medium">Kickoff date</label>
                                 <Input type="date" value={editKickoff} onChange={e => setEditKickoff(e.target.value)} />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium">{t('end_date')}</label>
+                                <label className="text-sm font-medium">End date</label>
                                 <Input type="date" value={editEnd} onChange={e => setEditEnd(e.target.value)} />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">{t('project_manager')}</label>
+                            <label className="text-sm font-medium">Project manager</label>
                             <Select value={editPm} onValueChange={setEditPm}>
-                                <SelectTrigger><SelectValue placeholder={t('select_pm_placeholder')} /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Select PM…" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="__none__">{t('unassigned')}</SelectItem>
+                                    <SelectItem value="__none__">Unassigned</SelectItem>
                                     {employees
                                         .filter(e => e.status === 'Active')
                                         .map(e => <SelectItem key={e.id} value={e.id}>{e.name}{e.roleName ? ` — ${e.roleName}` : ''}</SelectItem>)}
@@ -543,16 +524,16 @@ export default function ProjectDetailPage() {
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">{t('budget_hours_label')}</label>
+                            <label className="text-sm font-medium">Budget hours</label>
                             <Input type="number" min="0" step="1" value={editBudget} onChange={e => setEditBudget(e.target.value)} />
-                            <p className="text-xs text-[#8a8a8a]">{t('consumed_with_note', { hours: consumedHours })}</p>
+                            <p className="text-xs text-[#8a8a8a]">Consumed: {consumedHours}h · increasing the budget moves the over-budget threshold.</p>
                         </div>
                         <Button
                             className="w-full bg-[#171717] hover:bg-[#00a7f4]"
                             onClick={saveEdit}
                             disabled={updateProject.isPending}
                         >
-                            {updateProject.isPending ? t('saving') : t('save_changes')}
+                            {updateProject.isPending ? 'Saving…' : 'Save changes'}
                         </Button>
                     </div>
                 </DialogContent>

@@ -27,6 +27,7 @@ import {
     Receipt,
     BrainCircuit,
     ScrollText,
+    KeyRound,
 } from 'lucide-react';
 
 // labelKey resolves against messages/{locale}.json at render time.
@@ -43,6 +44,7 @@ const orgRoutes = [
     { labelKey: 'financials',        icon: PieChart,        href: '/financial',          color: 'text-[#0086c4]' },
     { labelKey: 'forecast',          icon: LineChart,       href: '/forecast',           color: 'text-indigo-500' },
     { labelKey: 'tenant_settings',   icon: Building2,       href: '/tenant',             color: 'text-violet-500' },
+    { labelKey: 'roles_permissions', icon: KeyRound,        href: '/tenant/roles',       color: 'text-fuchsia-600' },
 ];
 
 const superAdminRoutes = [
@@ -66,7 +68,7 @@ export const Sidebar = () => {
         return <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl w-64 border-r border-[#e6e9ee]"></div>;
     }
 
-    const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user?.appRole, r.href));
+    const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user, r.href));
     const routes = user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes;
     const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
 

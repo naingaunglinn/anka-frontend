@@ -101,7 +101,13 @@ export interface TeamPlanKept {
     rankCode: string | null;
     rankName: string | null;
     capacityRole: string | null;
+    /** Ghost-role this kept member was paired with at preview time. */
+    ghostRoleId: string | null;
+    /** Engagement months from the matched ghost role; 0 when unmatched. */
+    months: number;
     allocatedHours: number;
+    /** True when no ghost role of matching role_type was available to pair against. */
+    unmatched: boolean;
 }
 
 export interface TeamPlanProposed {
@@ -112,8 +118,29 @@ export interface TeamPlanProposed {
     capacityRole: string | null;
     roleType: string;
     neededRank: string | null;
+    /** Engagement months for this pick (= ghost_role.months). */
+    months: number;
+    /** Picked employee's monthly_salary — used for cost-envelope display. */
+    monthlySalary: number;
     allocatedHours: number;
     rankMatch: 'exact' | 'downgrade' | 'upgrade' | 'split';
+}
+
+/**
+ * Per-role-type capacity arithmetic returned by /plan-team. Powers the
+ * "is this team correctly sized?" panel in TeamPreviewDialog. All hours
+ * and money are absolute (not per-month).
+ */
+export interface TeamPlanCapacityRow {
+    roleType: string;
+    quantity: number;
+    monthsMax: number;
+    hoursBudget: number;
+    hoursSupply: number;
+    hoursShortfall: number;
+    costBudget: number;
+    costUsed: number;
+    costOverrun: number;
 }
 
 export interface TeamPlanUnfilled {
@@ -153,6 +180,11 @@ export interface TeamPlanPreview {
      * xlsx-driven allocations (which is now always required for plan-team).
      */
     allocation?: TeamPlanAllocationMeta;
+    /**
+     * Per-role capacity table: tells the user whether the picked team's
+     * total engagement-hours and total cost fit inside the ghost-role budget.
+     */
+    capacityCheck: TeamPlanCapacityRow[];
 }
 
 function toTeamPlanKept(row: Record<string, unknown>): TeamPlanKept {
@@ -162,7 +194,10 @@ function toTeamPlanKept(row: Record<string, unknown>): TeamPlanKept {
         rankCode:       (row.rank_code as string | null) ?? null,
         rankName:       (row.rank_name as string | null) ?? null,
         capacityRole:   (row.capacity_role as string | null) ?? null,
+        ghostRoleId:    (row.ghost_role_id as string | null) ?? null,
+        months:         Number(row.months ?? 0),
         allocatedHours: Number(row.allocated_hours ?? 0),
+        unmatched:      Boolean(row.unmatched ?? false),
     };
 }
 
@@ -175,8 +210,24 @@ function toTeamPlanProposed(row: Record<string, unknown>): TeamPlanProposed {
         capacityRole:   (row.capacity_role as string | null) ?? null,
         roleType:       (row.role_type as string) ?? '',
         neededRank:     (row.needed_rank as string | null) ?? null,
+        months:         Number(row.months ?? 0),
+        monthlySalary:  Number(row.monthly_salary ?? 0),
         allocatedHours: Number(row.allocated_hours ?? 0),
         rankMatch:      (row.rank_match as TeamPlanProposed['rankMatch']) ?? 'exact',
+    };
+}
+
+function toCapacityRow(row: Record<string, unknown>): TeamPlanCapacityRow {
+    return {
+        roleType:       (row.role_type as string) ?? '',
+        quantity:       Number(row.quantity ?? 0),
+        monthsMax:      Number(row.months_max ?? 0),
+        hoursBudget:    Number(row.hours_budget ?? 0),
+        hoursSupply:    Number(row.hours_supply ?? 0),
+        hoursShortfall: Number(row.hours_shortfall ?? 0),
+        costBudget:     Number(row.cost_budget ?? 0),
+        costUsed:       Number(row.cost_used ?? 0),
+        costOverrun:    Number(row.cost_overrun ?? 0),
     };
 }
 
@@ -229,6 +280,7 @@ export function usePlanTeamPreview(projectId: string) {
                         xlsxPath:         (allocation.xlsx_path as string | undefined) ?? undefined,
                     }
                     : undefined,
+                capacityCheck: ((data.capacity_check ?? []) as Record<string, unknown>[]).map(toCapacityRow),
             };
         },
         onError: (err) => toast.error(`Team preview failed: ${normalizeError(err).message}`),
@@ -236,13 +288,13 @@ export function usePlanTeamPreview(projectId: string) {
 }
 
 /**
- * Confirm-team payload — only `employeeId` is needed. The backend recomputes
- * `allocated_hours` for the whole team from the project's xlsx, so passing it
- * from the frontend would just be ignored. Kept as a list of objects (not a
- * bare string[]) so we can extend it later without a breaking change.
+ * Confirm-team payload — `employeeId` is required; `ghostRoleId` links the
+ * pick back to the role it fills so the backend can store
+ * allocated_hours = workable_hours × ghost_role.months for that pick.
  */
 export interface ConfirmTeamPick {
     employeeId: string;
+    ghostRoleId?: string;
 }
 
 export function useConfirmTeamPlan(projectId: string) {
@@ -250,7 +302,10 @@ export function useConfirmTeamPlan(projectId: string) {
     return useMutation({
         mutationFn: async (picks: ConfirmTeamPick[]) => {
             const { data } = await api.post(`/projects/${projectId}/confirm-team`, {
-                picks: picks.map((p) => ({ employee_id: p.employeeId })),
+                picks: picks.map((p) => ({
+                    employee_id:   p.employeeId,
+                    ghost_role_id: p.ghostRoleId,
+                })),
             });
             return data as { inserted: number; data: unknown };
         },
@@ -327,10 +382,25 @@ export function useProjectTeam(id: string) {
     });
 }
 
-export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignment[]> {
+/**
+ * Fetches persisted per-phase task assignments for a project.
+ *
+ * Returns the full `{ data, meta: { activePhases } }` payload so every caller
+ * shares one cache slot under `projectKeys.taskAssignments(projectId)`. If
+ * different callers wrote different shapes to the same key, whichever mounted
+ * second would corrupt the cache for the other (`tasks.map is not a function`
+ * vs `cannot read meta.activePhases`).
+ *
+ * Callers that only need the rows should read `.data` off the payload.
+ */
+export async function fetchProjectTaskAssignments(projectId: string): Promise<ProjectTaskAssignmentsPayload> {
     const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
-    const rows = (body.data ?? body ?? []) as Record<string, unknown>[];
-    return rows.map(toTaskAssignment);
+    const rows = (body.data ?? []) as Record<string, unknown>[];
+    const phases = ((body.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
+    return {
+        data: rows.map(toTaskAssignment),
+        meta: { activePhases: phases },
+    };
 }
 
 /**
@@ -399,15 +469,7 @@ export function useProjectTeamMutations(projectId: string) {
 export function useProjectTaskAssignments(projectId: string) {
     return useQuery<ProjectTaskAssignmentsPayload>({
         queryKey: projectKeys.taskAssignments(projectId),
-        queryFn: async () => {
-            const { data: body } = await api.get(`/projects/${projectId}/task-assignments`);
-            const rows = (body.data ?? []) as Record<string, unknown>[];
-            const phases = ((body.meta?.active_phases ?? []) as Record<string, unknown>[]).map(toActivePhase);
-            return {
-                data: rows.map(toTaskAssignment),
-                meta: { activePhases: phases },
-            };
-        },
+        queryFn: () => fetchProjectTaskAssignments(projectId),
         enabled: !!projectId,
         staleTime: 10_000,
     });
