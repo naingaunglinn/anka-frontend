@@ -824,42 +824,50 @@ export default function ForecastPage() {
                             </CardContent>
                         </Card>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                            <Card className="shadow-sm border-slate-100">
-                                <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Income</p>
-                                    <span className="text-2xl font-bold tracking-tight text-blue-600 block mt-2">{formatMoney(totals.income, currency)}</span>
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                                <CardContent className="flex h-full flex-col p-5">
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Income</p>
+                                    <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-blue-600">
+                                        {formatMoney(totals.income, currency)}
+                                    </span>
                                 </CardContent>
                             </Card>
-                            <Card className="shadow-sm border-slate-100">
-                                <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Cost</p>
-                                    <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">{formatMoney(totals.cost, currency)}</span>
+                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                                <CardContent className="flex h-full flex-col p-5">
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Cost</p>
+                                    <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
+                                        {formatMoney(totals.cost, currency)}
+                                    </span>
                                 </CardContent>
                             </Card>
-                            <Card className="shadow-sm border-slate-100">
-                                <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Profit</p>
-                                    <span className={`text-2xl font-bold tracking-tight block mt-2 ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                                <CardContent className="flex h-full flex-col p-5">
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Profit</p>
+                                    <span className={`mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                         {formatMoney(totals.profit, currency)}
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="shadow-sm border-slate-100">
-                                <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">Annual Initial Budget ({forecastFiscalYear})</p>
+                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                                <CardContent className="flex h-full flex-col p-5">
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">Annual Initial Budget ({forecastFiscalYear})</p>
                                     {hasFiscalYearBudget ? (
-                                        <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">{formatMoney(totals.annualInitialBudget, currency)}</span>
+                                        <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
+                                            {formatMoney(totals.annualInitialBudget, currency)}
+                                        </span>
                                     ) : (
-                                        <span className="text-sm text-amber-700 block mt-2">Not set for {forecastFiscalYear}</span>
+                                        <span className="mt-auto block text-sm leading-6 text-amber-700">Not set for {forecastFiscalYear}</span>
                                     )}
                                 </CardContent>
                             </Card>
-                            <Card className="shadow-sm border-slate-100">
-                                <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">{targetGap.label}</p>
-                                    <span className={`text-2xl font-bold tracking-tight block mt-2 ${targetGap.tone}`}>{formatMoney(targetGap.amount, currency)}</span>
-                                    <span className="text-xs text-slate-500 block mt-2">{targetGap.helperText}</span>
+                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                                <CardContent className="flex h-full flex-col p-5">
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{targetGap.label}</p>
+                                    <span className={`mt-1 block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${targetGap.tone}`}>
+                                        {formatMoney(targetGap.amount, currency)}
+                                    </span>
+                                    <span className="mt-auto block text-xs leading-6 text-slate-500">{targetGap.helperText}</span>
                                 </CardContent>
                             </Card>
                         </div>
