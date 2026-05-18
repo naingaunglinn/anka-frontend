@@ -508,6 +508,10 @@ export interface ScheduleTrackingProjectSummary {
     totalProgressHours: number;
     totalUsedHours: number;
     expectedProgressHours: number;
+    /** Plan slice for today only (not cumulative). Sum of per-phase day-of-plan hours. */
+    todayExpectedHours: number;
+    /** Sum of progress_hours from logs dated today (or the as_of override). */
+    todayProgressHours: number;
     varianceHours: number;
     overDeliveredHours: number;
     lateHours: number;

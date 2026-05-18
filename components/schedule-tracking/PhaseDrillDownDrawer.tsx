@@ -55,7 +55,7 @@ export function PhaseDrillDownDrawer({ open, onClose, row, isManager = false }: 
                         <div className="font-medium">{row.variance.expectedProgressHours}h</div>
                     </div>
                     <div className="bg-[#fafbfc] rounded p-2">
-                        <div className="text-[10px] uppercase text-[#8a8a8a]">Variance</div>
+                        <div className="text-[10px] uppercase text-[#8a8a8a]">Progress Status</div>
                         <div className={`font-medium ${row.variance.varianceHours < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                             {row.variance.varianceHours > 0 ? '+' : ''}{row.variance.varianceHours}h
                         </div>
