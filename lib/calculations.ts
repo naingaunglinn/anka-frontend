@@ -17,6 +17,16 @@ export function applySellMarkup(costPerHour: number): number {
     return costPerHour * SELL_PRICE_MULTIPLIER;
 }
 
+// Final client-billing multiplier applied on top of the loaded cost
+// (raw salary/hour × 1.15). On /organization the employee "Sell / Hr"
+// column is loaded_cost × 3, so the agency's quoted hourly rate already
+// includes overhead AND the standard 3× markup.
+export const BILLING_MARKUP_MULTIPLIER = 3;
+
+export function applyBillingMarkup(loadedCostPerHour: number): number {
+    return loadedCostPerHour * BILLING_MARKUP_MULTIPLIER;
+}
+
 export function calculateLaborOverhead(
     baseLaborCost: number,
     pct: number = LABOR_OVERHEAD_PERCENTAGE,

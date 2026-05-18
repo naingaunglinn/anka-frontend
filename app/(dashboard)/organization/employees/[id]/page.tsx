@@ -28,6 +28,7 @@ import {
     isPastMonth, type EmployeeSalaryHistoryRow,
 } from '@/lib/queries/employeeSalaryHistory';
 import { formatMoney } from '@/lib/currency';
+import { applySellMarkup } from '@/lib/calculations';
 import { normalizeError } from '@/lib/errorHandler';
 
 export default function EmployeeDetailPage() {
@@ -179,7 +180,7 @@ export default function EmployeeDetailPage() {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-500">Cost / Hour</span>
-                                <span className="font-medium">{formatMoney(employee.costPerHour ?? 0, currency)}</span>
+                                <span className="font-medium">{formatMoney(applySellMarkup(employee.costPerHour ?? 0), currency)}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -237,7 +238,7 @@ export default function EmployeeDetailPage() {
                                             <TableCell className="text-right font-medium">
                                                 {formatMoney(row.monthlySalary, currency)}
                                             </TableCell>
-                                            <TableCell className="text-right">{formatMoney(row.costPerHour, currency)}</TableCell>
+                                            <TableCell className="text-right">{formatMoney(applySellMarkup(row.costPerHour), currency)}</TableCell>
                                             <TableCell className="text-xs text-slate-500 truncate max-w-[200px]">
                                                 {row.notes ?? '—'}
                                             </TableCell>

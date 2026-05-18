@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type JSX } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, BarChart3, Loader2, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
@@ -34,13 +34,22 @@ type ForecastPoint = {
     profit: number;
 };
 
+type ProfitLinePoint = {
+    x: number | null;
+    y: number | null;
+    payload?: ForecastPoint;
+};
+
+type ForecastTooltipEntry = {
+    payload?: ForecastPoint;
+};
+
 type ForecastSource = {
     id: string;
     name: string;
     rank: ForecastRank;
     probability: number;
     incomeBudget: number;
-    estimatedCost: number;
     timelineMonths: number;
     activeStart: Date;
 };
@@ -89,26 +98,6 @@ function projectedDealValue(deal: Deal, contract?: Contract): number {
     return positiveNumber(deal.clientBudget) || positiveNumber(deal.estimatedValue);
 }
 
-function estimatedDealCost(deal: Deal, incomeBudget: number): number {
-    const explicitCost =
-        positiveNumber(deal.totalEstimatedCost)
-        || positiveNumber(deal.baseLaborCost) + positiveNumber(deal.overheadCost) + positiveNumber(deal.bufferCost);
-
-    if (explicitCost > 0) return explicitCost;
-
-    const targetMargin = positiveNumber(deal.targetMargin);
-    if (targetMargin > 0 && targetMargin < 95 && incomeBudget > 0) {
-        return incomeBudget * (1 - targetMargin / 100);
-    }
-
-    const estimatedGrossProfit = positiveNumber(deal.estimatedGrossProfit);
-    if (estimatedGrossProfit > 0 && incomeBudget > estimatedGrossProfit) {
-        return incomeBudget - estimatedGrossProfit;
-    }
-
-    return 0;
-}
-
 function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, fallback?: Date): Date {
     const sourceDate = project?.startDate
         ?? project?.kickoffDate
@@ -124,6 +113,103 @@ function priorityBadgeClass(priority: AIForecastResult['recommendedActions'][num
     if (priority === 'high') return 'bg-rose-50 text-rose-700 border-rose-200';
     if (priority === 'low') return 'bg-slate-50 text-slate-700 border-slate-200';
     return 'bg-amber-50 text-amber-700 border-amber-200';
+}
+
+function ProfitLineShape(props: { points?: readonly ProfitLinePoint[] }) {
+    const points = (props.points ?? []).filter(
+        (p): p is { x: number; y: number; payload?: ForecastPoint } => p.x != null && p.y != null,
+    );
+    if (points.length < 2) return null;
+
+    const segments: JSX.Element[] = [];
+
+    for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1];
+        const current = points[index];
+        const previousProfit = previous.payload?.profit ?? 0;
+        const currentProfit = current.payload?.profit ?? 0;
+
+        if ((previousProfit >= 0 && currentProfit >= 0) || (previousProfit < 0 && currentProfit < 0)) {
+            segments.push(
+                <line
+                    key={`profit-segment-${index}`}
+                    x1={previous.x}
+                    y1={previous.y}
+                    x2={current.x}
+                    y2={current.y}
+                    stroke={currentProfit >= 0 ? '#10B981' : '#EF4444'}
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            );
+            continue;
+        }
+
+        const ratio = (0 - previousProfit) / (currentProfit - previousProfit);
+        const crossingX = previous.x + ((current.x - previous.x) * ratio);
+        const crossingY = previous.y + ((current.y - previous.y) * ratio);
+
+        segments.push(
+            <Fragment key={`profit-cross-${index}`}>
+                <line
+                    x1={previous.x}
+                    y1={previous.y}
+                    x2={crossingX}
+                    y2={crossingY}
+                    stroke={previousProfit >= 0 ? '#10B981' : '#EF4444'}
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+                <line
+                    x1={crossingX}
+                    y1={crossingY}
+                    x2={current.x}
+                    y2={current.y}
+                    stroke={currentProfit >= 0 ? '#10B981' : '#EF4444'}
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </Fragment>
+        );
+    }
+
+    return <g>{segments}</g>;
+}
+
+function ProfitDot(props: { cx?: number; cy?: number; payload?: ForecastPoint }) {
+    if (props.cx == null || props.cy == null) return null;
+
+    return (
+        <circle
+            cx={props.cx}
+            cy={props.cy}
+            r={4}
+            fill="#FFFFFF"
+            stroke={props.payload?.profit != null && props.payload.profit < 0 ? '#EF4444' : '#10B981'}
+            strokeWidth={2}
+        />
+    );
+}
+
+function ForecastTooltipContent(props: { active?: boolean; payload?: ForecastTooltipEntry[]; currency: Currency }) {
+    const point = props.payload?.[0]?.payload;
+    if (!props.active || !point) return null;
+
+    return (
+        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-lg">
+            <p className="mb-2 text-sm font-semibold text-slate-900">{point.monthLabel}</p>
+            <div className="space-y-1 text-sm">
+                <p className="text-amber-500">{formatMoney(point.cost, props.currency)}</p>
+                <p className="text-blue-600">{formatMoney(point.income, props.currency)}</p>
+                <p className={point.profit < 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                    {formatMoney(point.profit, props.currency)}
+                </p>
+            </div>
+        </div>
+    );
 }
 
 export default function ForecastPage() {
@@ -146,8 +232,14 @@ export default function ForecastPage() {
 
     const monthRange = useMemo(() => {
         const base = startOfUtcMonth(new Date());
-        return Array.from({ length: 6 }, (_, index) => addUtcMonths(base, index));
+        const monthsToYearEnd = 12 - base.getUTCMonth();
+        return Array.from({ length: monthsToYearEnd }, (_, index) => addUtcMonths(base, index));
     }, []);
+
+    const forecastWindowLabel = useMemo(() => {
+        if (monthRange.length <= 1) return 'Current Month';
+        return `${monthRange.length}-Month`;
+    }, [monthRange]);
 
     // Process ①.3 / ⑧: the year of the first displayed month is the fiscal year
     // we're forecasting against. If the user has declared a budget for that
@@ -183,10 +275,9 @@ export default function ForecastPage() {
                 const contract = contractByDealId.get(deal.id);
                 const project = contract ? projectByContractId.get(contract.id) : undefined;
                 const incomeBudget = projectedDealValue(deal, contract);
-                const estimatedCost = estimatedDealCost(deal, incomeBudget);
                 const timelineMonths = Math.max(1, deal.finalContractMonths ?? deal.timelineMonths ?? 6);
 
-                if (incomeBudget <= 0 && estimatedCost <= 0) return null;
+                if (incomeBudget <= 0) return null;
 
                 return {
                     id: deal.id,
@@ -194,7 +285,6 @@ export default function ForecastPage() {
                     rank,
                     probability: STAGE_PROBABILITY[deal.status as keyof typeof STAGE_PROBABILITY] ?? 100,
                     incomeBudget,
-                    estimatedCost,
                     timelineMonths,
                     activeStart: forecastStartDate(deal, contract, project, monthRange[0]),
                 };
@@ -212,11 +302,23 @@ export default function ForecastPage() {
         }));
 
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
+        const monthlyPayroll = store.employees
+            .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
+            .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+        const monthCosts = new Map(
+            monthRange.map((monthDate) => {
+                const month = monthDate.getUTCMonth() + 1;
+                const year = monthDate.getUTCFullYear();
+                const monthlyOverhead = store.globalOverheads
+                    .filter((overhead) => !overhead.effectiveYear || (overhead.effectiveYear === year && overhead.effectiveMonth === month))
+                    .reduce((sum, overhead) => sum + positiveNumber(overhead.monthlyCost), 0);
+                return [toMonthKey(monthDate), monthlyPayroll + monthlyOverhead] as const;
+            }),
+        );
 
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
             const monthlyIncome = (source.incomeBudget / source.timelineMonths) * probabilityWeight;
-            const monthlyEstimatedCost = (source.estimatedCost / source.timelineMonths) * probabilityWeight;
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
@@ -225,15 +327,20 @@ export default function ForecastPage() {
                 if (!row) continue;
 
                 row.income += monthlyIncome;
-                row.cost += monthlyEstimatedCost;
             }
         }
 
-        return rows.map((row) => ({
-            ...row,
-            profit: row.income - row.cost,
-        }));
-    }, [monthRange, forecastSources]);
+        return rows.map((row) => {
+            const cost = monthCosts.get(row.monthKey) ?? monthlyPayroll;
+            const profit = row.income - cost;
+
+            return {
+                ...row,
+                cost,
+                profit,
+            };
+        });
+    }, [forecastSources, monthRange, store.employees, store.globalOverheads]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
@@ -243,7 +350,7 @@ export default function ForecastPage() {
         // missing-year notice in the UI — when no row has been declared for
         // the forecast fiscal year.
         const annualInitialBudget = positiveNumber(fiscalYearBudget?.amount) ?? 0;
-        const comparisonMonth = monthRange[5] ?? monthRange[monthRange.length - 1] ?? startOfUtcMonth(new Date());
+        const comparisonMonth = monthRange[monthRange.length - 1] ?? startOfUtcMonth(new Date());
         const comparisonMonthNumber = comparisonMonth.getUTCMonth() + 1;
         const comparisonMonthLabel = comparisonMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'UTC' });
         const comparisonBudgetTarget = annualInitialBudget * (comparisonMonthNumber / 12);
@@ -285,11 +392,11 @@ export default function ForecastPage() {
             };
         }
         return {
-            text: 'Healthy: 6-month outlook remains profitable.',
+            text: `Healthy: ${forecastWindowLabel.toLowerCase()} outlook remains profitable.`,
             color: 'text-emerald-600',
             bg: 'bg-emerald-50 border-emerald-200',
         };
-    }, [chartData]);
+    }, [chartData, forecastWindowLabel]);
 
     const targetGap = useMemo(() => {
         if (totals.variance < 0) {
@@ -324,8 +431,9 @@ export default function ForecastPage() {
         };
     }, [totals.comparisonMonthLabel, totals.variance]);
 
-    const hasForecastData = forecastSources.length > 0;
-    const monthSix = chartData[5];
+    const hasForecastData = chartData.length > 0;
+    const hasIncomeSources = forecastSources.length > 0;
+    const finalForecastMonth = chartData[chartData.length - 1];
 
     const trailingUtilization = useMemo(() => {
         const ninetyDaysAgoMs = Date.now() - 90 * 86_400_000;
@@ -384,19 +492,21 @@ export default function ForecastPage() {
 
     async function generateForecast() {
         const activeHeadcount = store.employees.filter((employee) => employee.status === 'Active').length;
-        const comparisonMonthDate = monthRange[5] ?? monthRange[monthRange.length - 1] ?? new Date();
+        const comparisonMonthDate = monthRange[monthRange.length - 1] ?? new Date();
         const monthsRemainingInYear = Math.max(0, 12 - (comparisonMonthDate.getUTCMonth() + 1));
 
         const payload: AIForecastInput = {
             currency,
             currentMonth: monthRange[0].toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+            forecastWindowLabel,
+            forecastMonthCount: monthRange.length,
             rankScopeLabel: RANK_SCOPE_OPTIONS.find((option) => option.value === rankScope)?.label ?? 'S Project Only',
             regenerateCount: summaryAttempt,
             headcount: activeHeadcount,
             avgMonthlySalary: avgHireCost,
             trailingMonthlyRevenue: trailingRevenue,
             trailingMonthlyProfit: trailingProfit,
-            sixMonthForecastProfit: totals.profit,
+            forecastProfit: totals.profit,
             comparisonMonthLabel: totals.comparisonMonthLabel,
             comparisonBudgetTarget: totals.comparisonBudgetTarget,
             gapToComparisonTarget: totals.variance,
@@ -468,9 +578,9 @@ export default function ForecastPage() {
         <div className="p-6 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">6-Month Profit Forecast</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Profit Forecast to Year End</h1>
                     <p className="text-slate-500 mt-1">
-                        Profit condition is calculated month by month, then compared against the annual Initial Budget target prorated to the 6th forecast month.
+                        Profit condition is calculated month by month from the current month through year end, then compared against the annual Initial Budget target that should be reached by {totals.comparisonMonthLabel}.
                     </p>
                 </div>
                 <div className="inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
@@ -502,10 +612,18 @@ export default function ForecastPage() {
                                 Forecast Scope
                             </CardTitle>
                             <CardDescription className="text-slate-500">
-                                Annual Initial Budget is stored in company settings and compared against the cumulative target for the 6th forecast month.
+                                Cost uses all Active and On Leave employee payroll plus matching monthly overheads. Income comes from the selected project ranks.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6 pt-6">
+                            {!hasIncomeSources && (
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+                                    <p className="text-sm font-medium text-amber-800">No forecast income sources in this scope</p>
+                                    <p className="mt-1 text-xs text-amber-700">
+                                        Company cost still appears every month because payroll and overhead continue even when no selected project income is active.
+                                    </p>
+                                </div>
+                            )}
                             <div className="grid grid-cols-3 gap-3">
                                 {(['S', 'A', 'B'] as ForecastRank[]).map((rank) => (
                                     <div key={rank} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
@@ -526,7 +644,7 @@ export default function ForecastPage() {
                             </div>
 
                             <div className="rounded-md border border-slate-200 p-4">
-                                <p className="text-xs font-semibold uppercase text-slate-500">6-Month Budget Comparison</p>
+                                <p className="text-xs font-semibold uppercase text-slate-500">Year-End Budget Comparison</p>
                                 {!hasFiscalYearBudget && (
                                     <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
                                         <p className="text-sm font-medium text-amber-800">
@@ -551,7 +669,7 @@ export default function ForecastPage() {
                                         <span className="font-semibold text-slate-900">{formatMoney(totals.comparisonBudgetTarget, currency)}</span>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">6-Month Forecast Profit</span>
+                                        <span className="text-slate-500">{forecastWindowLabel} Forecast Profit</span>
                                         <span className={totals.profit < 0 ? 'font-semibold text-rose-600' : 'font-semibold text-emerald-600'}>
                                             {formatMoney(totals.profit, currency)}
                                         </span>
@@ -623,7 +741,7 @@ export default function ForecastPage() {
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-sm text-slate-500">Click Generate Summary to get AI suggestions for closing the target gap or reaching the year-end initial budget goal.</p>
+                                <p className="text-sm text-slate-500">Click Generate Summary to get AI suggestions for improving the current-month-to-year-end forecast and reaching the year-end initial budget goal.</p>
                             )}
                         </CardContent>
                     </Card>
@@ -632,15 +750,15 @@ export default function ForecastPage() {
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <span>Cost and Profit (Next 6 Months)</span>
-                                    {monthSix?.profit < 0 ? (
-                                        <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> Month 6 Loss</span>
+                                    <span>Income, Cost and Profit (Current Month to Year End)</span>
+                                    {finalForecastMonth?.profit < 0 ? (
+                                        <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> {totals.comparisonMonthLabel} Loss</span>
                                     ) : (
-                                        <span className="text-emerald-500 flex items-center gap-1 text-sm"><TrendingUp className="h-4 w-4" /> Month 6 Profit</span>
+                                        <span className="text-emerald-500 flex items-center gap-1 text-sm"><TrendingUp className="h-4 w-4" /> {totals.comparisonMonthLabel} Profit</span>
                                     )}
                                 </CardTitle>
                                 <CardDescription>
-                                    The graph shows only monthly cost and profit. Initial budget comparison is shown separately below using the cumulative target for {totals.comparisonMonthLabel}.
+                                    Income and cost share the left scale. Net profit uses its own right-side scale so positive months stay above zero and loss months drop below zero.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="pt-4 h-[420px]">
@@ -649,19 +767,58 @@ export default function ForecastPage() {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                         <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
                                         <YAxis
+                                            yAxisId="flow"
                                             tickFormatter={(value) => formatMoneyShort(value, currency)}
                                             axisLine={false}
                                             tickLine={false}
                                             tick={{ fill: '#64748B', fontSize: 12 }}
                                             dx={-10}
+                                            domain={[0, 'auto']}
                                         />
-                                        <Tooltip
-                                            formatter={(value) => [formatMoney(Number(value ?? 0), currency), undefined]}
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        <YAxis
+                                            yAxisId="profit"
+                                            orientation="right"
+                                            tickFormatter={(value) => formatMoneyShort(value, currency)}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#64748B', fontSize: 12 }}
+                                            domain={['auto', 'auto']}
                                         />
-                                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                        <Line type="monotone" name="Cost" dataKey="cost" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
-                                        <Line type="monotone" name="Profit" dataKey="profit" stroke="#10B981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+                                        <ReferenceLine yAxisId="profit" y={0} stroke="#CBD5E1" strokeDasharray="4 4" />
+                                        <Tooltip content={<ForecastTooltipContent currency={currency} />} />
+                                        <Legend
+                                            wrapperStyle={{ paddingTop: '20px' }}
+                                            content={() => (
+                                                <div className="flex items-center justify-center gap-4 pt-5 text-sm">
+                                                    <div className="flex items-center gap-2 text-amber-500">
+                                                        <span className="h-0 w-4 border-t-2 border-amber-500" />
+                                                        <span>Cost</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-blue-600">
+                                                        <span className="h-0 w-4 border-t-2 border-blue-600" />
+                                                        <span>Income</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-emerald-500">
+                                                        <span className="h-0 w-4 border-t-2 border-emerald-500" />
+                                                        <span>Profit</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        />
+                                        <Line yAxisId="flow" type="linear" name="Income" dataKey="income" stroke="#2563EB" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+                                        <Line yAxisId="flow" type="linear" name="Cost" dataKey="cost" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+                                        <Line
+                                            yAxisId="profit"
+                                            type="linear"
+                                            name="Profit"
+                                            dataKey="profit"
+                                            stroke="#10B981"
+                                            strokeWidth={3}
+                                            shape={ProfitLineShape}
+                                            dot={ProfitDot}
+                                            activeDot={false}
+                                            legendType="line"
+                                        />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </CardContent>
@@ -670,13 +827,19 @@ export default function ForecastPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                             <Card className="shadow-sm border-slate-100">
                                 <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">6M Cost</p>
+                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Income</p>
+                                    <span className="text-2xl font-bold tracking-tight text-blue-600 block mt-2">{formatMoney(totals.income, currency)}</span>
+                                </CardContent>
+                            </Card>
+                            <Card className="shadow-sm border-slate-100">
+                                <CardContent className="p-5">
+                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Cost</p>
                                     <span className="text-2xl font-bold tracking-tight text-slate-900 block mt-2">{formatMoney(totals.cost, currency)}</span>
                                 </CardContent>
                             </Card>
                             <Card className="shadow-sm border-slate-100">
                                 <CardContent className="p-5">
-                                    <p className="text-sm font-medium text-slate-500">6M Profit</p>
+                                    <p className="text-sm font-medium text-slate-500">{forecastWindowLabel} Profit</p>
                                     <span className={`text-2xl font-bold tracking-tight block mt-2 ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                         {formatMoney(totals.profit, currency)}
                                     </span>
@@ -705,7 +868,7 @@ export default function ForecastPage() {
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <BarChart3 className="h-5 w-5 text-blue-500" />
-                                    6-Month Profit vs Declared Budget Target
+                                    Forecast Profit vs Declared Budget Target
                                 </CardTitle>
                                 <CardDescription>
                                     Initial Budget is annual, so this comparison uses the amount that should be reached by {totals.comparisonMonthLabel}.
@@ -724,7 +887,7 @@ export default function ForecastPage() {
                                     <TableBody>
                                         <TableRow>
                                             <TableCell className="pl-6 font-medium text-slate-900">
-                                                6-Month Forecast Profit vs {totals.comparisonMonthLabel} Initial Budget Target
+                                                {forecastWindowLabel} Forecast Profit vs {totals.comparisonMonthLabel} Initial Budget Target
                                             </TableCell>
                                             <TableCell className={`text-right font-semibold ${targetGap.tone}`}>
                                                 {formatMoney(targetGap.amount, currency)}
@@ -746,7 +909,7 @@ export default function ForecastPage() {
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg">Monthly Profit Condition</CardTitle>
-                                <CardDescription>Monthly breakdown from current month to next 6 months.</CardDescription>
+                                <CardDescription>Monthly breakdown from the current month through year end.</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
@@ -782,17 +945,7 @@ export default function ForecastPage() {
                         </Card>
                     </div>
                 </div>
-            ) : (
-                <Card className="shadow-sm border-slate-100">
-                    <CardContent className="p-12 text-center">
-                        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-slate-900 mb-2">No Forecast Sources Found</h3>
-                        <p className="text-slate-500 max-w-md mx-auto">
-                            This scope needs at least one active S, A, or B rank deal with contract value or estimated cost data.
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
+            ) : null}
         </div>
     );
 }
