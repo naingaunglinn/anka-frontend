@@ -223,6 +223,9 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             accessorFn: (row) => {
                 if (row.departmentName && row.departmentName !== 'IT') return null;
                 const raw = row.costPerHour;
+                const dept = (row.departmentName ?? '').toLowerCase();
+                const billable = dept === 'it' || dept === 'delivery' || dept === 'engineering';
+                if (!billable) return null;
                 return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
                     ? applyBillingMarkup(applySellMarkup(raw))
                     : null;

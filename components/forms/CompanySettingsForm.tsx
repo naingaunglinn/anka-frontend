@@ -403,10 +403,10 @@ function InitialBudgetsCard({ currency }: { currency: Currency }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-base">Initial Annual Budget (per fiscal year)</CardTitle>
+                <CardTitle className="text-base">Annual Target Profit (per fiscal year)</CardTitle>
                 <CardDescription>
                     Target profit for each fiscal year. Forecast uses the row for the year of the
-                    months being displayed; years with no row show a &ldquo;no budget set&rdquo; notice.
+                    months being displayed; years with no row show a &ldquo;no target set&rdquo; notice.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

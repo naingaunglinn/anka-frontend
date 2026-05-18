@@ -116,7 +116,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="!max-w-none w-fit min-w-[64rem] p-6">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-indigo-500" />
@@ -210,14 +210,14 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                         <TableBody>
                                             {proposed.map((p, i) => (
                                                 <TableRow key={`${p.ghostRoleId}-${p.employeeId}-${i}`}>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         <div className="font-medium">{p.roleType}</div>
                                                         <div className="text-xs text-slate-500">{p.neededRank ?? t('unspecified_rank')}</div>
                                                     </TableCell>
-                                                    <TableCell>{p.employeeName ?? p.employeeId}</TableCell>
-                                                    <TableCell>{p.employeeRank ?? '—'}</TableCell>
-                                                    <TableCell className="text-right">{p.allocatedHours}</TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">{p.employeeName ?? p.employeeId}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{p.employeeRank ?? '—'}</TableCell>
+                                                    <TableCell className="text-right tabular-nums whitespace-nowrap">{p.allocatedHours}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         <Badge variant="outline" className={`text-xs ${RANK_MATCH_VARIANTS[p.rankMatch]}`}>
                                                             {p.rankMatch}
                                                         </Badge>
