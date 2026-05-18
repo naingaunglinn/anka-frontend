@@ -19,7 +19,7 @@ import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { fetchProjectTaskAssignments, projectKeys, useProjectList } from '@/lib/queries/projects';
-import { scheduleTrackingKeys, type ProjectLateHoursResponse } from '@/lib/queries/scheduleTracking';
+import { scheduleTrackingKeys, type ProjectLateHoursResponse, type LateHourEmployeeRow } from '@/lib/queries/scheduleTracking';
 import { dealRank } from '@/lib/dealRanks';
 import api from '@/lib/api';
 import type { Contract, Deal, Employee, Project, ProjectTaskAssignment, TimeEntry } from '@/types/business';
@@ -517,6 +517,57 @@ export default function FinancialPage() {
         lateHoursByProject,
         today,
     ]);
+
+    // Cross-project Late Hours by Member rollup. Sums each employee's
+    // total_late_hours / total_late_cost across every project they appear in.
+    interface LateHoursMemberRow extends LateHourEmployeeRow {
+        projectCount: number;
+        projectNames: string[];
+    }
+
+    const lateHoursByMember = useMemo<LateHoursMemberRow[]>(() => {
+        const bucket = new Map<string, LateHoursMemberRow>();
+        projects.forEach((project) => {
+            const data = lateHoursByProject.get(project.id);
+            if (!data) return;
+            data.byEmployee.forEach((row) => {
+                const existing = bucket.get(row.employeeId);
+                if (!existing) {
+                    bucket.set(row.employeeId, {
+                        ...row,
+                        projectCount: 1,
+                        projectNames: [project.name],
+                    });
+                    return;
+                }
+                existing.totalProgressHours += row.totalProgressHours;
+                existing.totalUsedHours     += row.totalUsedHours;
+                existing.totalLateHours     += row.totalLateHours;
+                existing.totalLateCost      += row.totalLateCost;
+                existing.daysCount          += row.daysCount;
+                existing.projectCount       += 1;
+                existing.projectNames.push(project.name);
+            });
+        });
+        return Array.from(bucket.values())
+            .map((r) => ({
+                ...r,
+                totalProgressHours: Math.round(r.totalProgressHours * 100) / 100,
+                totalUsedHours:     Math.round(r.totalUsedHours * 100) / 100,
+                totalLateHours:     Math.round(r.totalLateHours * 100) / 100,
+                totalLateCost:      Math.round(r.totalLateCost * 100) / 100,
+            }))
+            .sort((a, b) => b.totalLateHours - a.totalLateHours);
+    }, [projects, lateHoursByProject]);
+
+    const lateHoursTotal = useMemo(
+        () => ({
+            hours:   lateHoursByMember.reduce((s, r) => s + r.totalLateHours, 0),
+            cost:    lateHoursByMember.reduce((s, r) => s + r.totalLateCost, 0),
+            members: lateHoursByMember.length,
+        }),
+        [lateHoursByMember],
+    );
 
     const projectSummary = useMemo(() => {
         const totals = projectProfitRows.reduce((acc, row) => {
