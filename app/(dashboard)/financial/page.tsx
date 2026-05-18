@@ -11,14 +11,15 @@ import { ResponsiveContainer, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxi
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney, formatMoneyShort } from '@/lib/currency';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { fetchProjectTaskAssignments, projectKeys, useProjectList } from '@/lib/queries/projects';
-import { scheduleTrackingKeys, type LateHourEmployeeRow, type ProjectLateHoursResponse } from '@/lib/queries/scheduleTracking';
+import { scheduleTrackingKeys, type ProjectLateHoursResponse } from '@/lib/queries/scheduleTracking';
+import { dealRank } from '@/lib/dealRanks';
 import api from '@/lib/api';
 import type { Contract, Deal, Employee, Project, ProjectTaskAssignment, TimeEntry } from '@/types/business';
 
@@ -174,8 +175,14 @@ function getTaskProgress(task: ProjectTaskAssignment, today: Date): number {
     return 0.5;
 }
 
-function getActualProgress(project: Project, tasks: ProjectTaskAssignment[], actualHours: number, today: Date): number {
-    if (tasks.length > 0) {
+function getActualProgress(
+    project: Project,
+    tasks: ProjectTaskAssignment[],
+    actualHours: number,
+    today: Date,
+    useTaskTracking: boolean,
+): number {
+    if (useTaskTracking && tasks.length > 0) {
         const totalWeight = tasks.reduce((sum, task) => sum + Math.max(task.totalHours, 1), 0);
         if (totalWeight > 0) {
             const completedWeight = tasks.reduce((sum, task) => {
@@ -207,8 +214,15 @@ function getPlannedTimeline(project: Project, deal?: Deal, tasks: ProjectTaskAss
     return { plannedStart, plannedEnd };
 }
 
-function getActualStart(project: Project, tasks: ProjectTaskAssignment[], projectEntries: TimeEntry[]): Date | null {
-    const aggregatedActualStart = getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))));
+function getActualStart(
+    project: Project,
+    tasks: ProjectTaskAssignment[],
+    projectEntries: TimeEntry[],
+    useTaskTracking: boolean,
+): Date | null {
+    const aggregatedActualStart = useTaskTracking
+        ? getEarlierDate(...tasks.map((task) => parseDate(taskActualStart(task))))
+        : null;
     const firstEntryDate = getEarlierDate(...projectEntries.map((entry) => parseDate(entry.date)));
     const kickoff = parseDate(project.kickoffDate) ?? parseDate(project.startDate);
     return aggregatedActualStart ?? firstEntryDate ?? kickoff;
@@ -219,23 +233,25 @@ function getOvertimeMetrics(
     overtimeHours: number,
     overtimeCost: number,
     runningMonths: number,
-): { overtimeImpact: number; overtimeRevenue: number } {
+): { overtimeImpact: number; overtimeProfitAdjustment: number } {
     const policy = deal?.otPolicyModel ?? '';
     const rate = positiveNumber(deal?.otRatePerHour);
 
     if (policy === 'customer_pays_per_hour') {
         const recoverable = overtimeHours * (rate > 0 ? rate : overtimeCost / Math.max(overtimeHours, 1));
-        return { overtimeImpact: 0, overtimeRevenue: recoverable };
+        const overtimeProfitAdjustment = Math.max(0, recoverable - overtimeCost);
+        return { overtimeImpact: overtimeProfitAdjustment, overtimeProfitAdjustment };
     }
 
     if (policy === 'capped_then_customer_pays') {
         const included = positiveNumber(deal?.otIncludedHoursPerMonth) * Math.max(1, runningMonths);
         const billableHours = Math.max(0, overtimeHours - included);
         const recoverable = billableHours * (rate > 0 ? rate : overtimeCost / Math.max(overtimeHours, 1));
-        return { overtimeImpact: 0, overtimeRevenue: recoverable };
+        const overtimeProfitAdjustment = Math.max(0, recoverable - overtimeCost);
+        return { overtimeImpact: overtimeProfitAdjustment, overtimeProfitAdjustment };
     }
 
-    return { overtimeImpact: -overtimeCost, overtimeRevenue: 0 };
+    return { overtimeImpact: -overtimeCost, overtimeProfitAdjustment: -overtimeCost };
 }
 
 function getHealth(variance: number, progressDelta: number): { health: ProfitHealth; reason: string } {
@@ -248,10 +264,10 @@ function getHealth(variance: number, progressDelta: number): { health: ProfitHea
     }
 
     if (progressDelta < -0.12) {
-        return { health: 'At Risk', reason: 'Delivery progress is behind the planned running pace.' };
+        return { health: 'At Risk', reason: 'Actual progress is behind schedule.' };
     }
 
-    return { health: 'At Risk', reason: 'Actual profit is trailing the planned profit baseline.' };
+    return { health: 'At Risk', reason: 'Actual profit is below the expected level by today.' };
 }
 
 function getHealthClasses(health: ProfitHealth): string {
@@ -406,6 +422,8 @@ export default function FinancialPage() {
                 const deal = contract ? dealsById.get(contract.dealId) : undefined;
                 const tasks = taskAssignmentsByProject.get(project.id) ?? [];
                 const projectEntries = approvedTimeEntries.filter((entry) => entry.projectId === project.id);
+                const projectRank = deal ? dealRank(deal) : 'C';
+                const useTaskTracking = projectRank === 'S' && tasks.length > 0;
 
                 const planRevenue = estimateProjectRevenue(contract, deal);
                 const planCost = estimateProjectCost(planRevenue, deal);
@@ -413,10 +431,11 @@ export default function FinancialPage() {
                 const planProfit = estimatedGrossProfit ?? (planRevenue - planCost);
 
                 const { plannedStart, plannedEnd } = getPlannedTimeline(project, deal, tasks);
-                const actualStart = getActualStart(project, tasks, projectEntries) ?? plannedStart;
+                const actualStart = getActualStart(project, tasks, projectEntries, useTaskTracking) ?? plannedStart;
                 const plannedDurationDays = plannedStart && plannedEnd ? diffDays(plannedStart, plannedEnd) : Math.max(30, positiveNumber(deal?.timelineMonths || deal?.finalContractMonths) * 30 || 180);
+                const plannedElapsedDays = plannedStart ? diffDays(plannedStart, today < (plannedEnd ?? today) ? today : (plannedEnd ?? today)) : 0;
                 const elapsedDays = actualStart ? diffDays(actualStart, today) : 0;
-                const plannedProgress = plannedStart ? clamp(elapsedDays / plannedDurationDays) : 0;
+                const plannedProgress = plannedStart ? clamp(plannedElapsedDays / plannedDurationDays) : 0;
 
                 const actualHours = projectEntries.reduce((sum, entry) => sum + positiveNumber(entry.hours), 0);
                 const actualLaborCost = projectEntries.reduce((sum, entry) => {
@@ -425,7 +444,7 @@ export default function FinancialPage() {
                     return sum + (positiveNumber(entry.hours) * hourlyCost);
                 }, 0);
 
-                const actualProgress = getActualProgress(project, tasks, actualHours, today);
+                const actualProgress = getActualProgress(project, tasks, actualHours, today, useTaskTracking);
                 const actualRevenue = planRevenue * actualProgress;
 
                 const plannedCostToDate = planCost * plannedProgress;
@@ -450,9 +469,10 @@ export default function FinancialPage() {
                 const overtimeSource: 'progress_logs' | 'time_entries' = hasLogData ? 'progress_logs' : 'time_entries';
 
                 const runningMonths = Math.max(1, Math.ceil(elapsedDays / 30));
-                const { overtimeImpact, overtimeRevenue } = getOvertimeMetrics(deal, overtimeHours, overtimeCost, runningMonths);
+                const { overtimeImpact, overtimeProfitAdjustment } = getOvertimeMetrics(deal, overtimeHours, overtimeCost, runningMonths);
+                const baseLaborCost = Math.max(0, actualLaborCost - overtimeCost);
 
-                const actualProfit = actualRevenue + overtimeRevenue - actualLaborCost;
+                const actualProfit = actualRevenue - baseLaborCost + overtimeProfitAdjustment;
                 const variance = actualProfit - plannedProfitToDate;
                 const progressDelta = actualProgress - plannedProgress;
                 const { health, reason } = getHealth(variance, progressDelta);
@@ -461,7 +481,7 @@ export default function FinancialPage() {
                     id: project.id,
                     name: project.name,
                     client: project.client,
-                    rank: deal?.status === 'won' ? 'S' : deal?.status === 'negotiation' ? 'A' : deal?.status === 'qualified' ? 'B' : 'C',
+                    rank: projectRank,
                     planProfit,
                     planProfitToDate: plannedProfitToDate,
                     actualProfit,
@@ -495,57 +515,6 @@ export default function FinancialPage() {
         lateHoursByProject,
         today,
     ]);
-
-    // Cross-project Late Hours by Member rollup. Sums each employee's
-    // total_late_hours / total_late_cost across every project they appear in.
-    interface LateHoursMemberRow extends LateHourEmployeeRow {
-        projectCount: number;
-        projectNames: string[];
-    }
-
-    const lateHoursByMember = useMemo<LateHoursMemberRow[]>(() => {
-        const bucket = new Map<string, LateHoursMemberRow>();
-        projects.forEach((project) => {
-            const data = lateHoursByProject.get(project.id);
-            if (!data) return;
-            data.byEmployee.forEach((row) => {
-                const existing = bucket.get(row.employeeId);
-                if (!existing) {
-                    bucket.set(row.employeeId, {
-                        ...row,
-                        projectCount: 1,
-                        projectNames: [project.name],
-                    });
-                    return;
-                }
-                existing.totalProgressHours += row.totalProgressHours;
-                existing.totalUsedHours     += row.totalUsedHours;
-                existing.totalLateHours     += row.totalLateHours;
-                existing.totalLateCost      += row.totalLateCost;
-                existing.daysCount          += row.daysCount;
-                existing.projectCount       += 1;
-                existing.projectNames.push(project.name);
-            });
-        });
-        return Array.from(bucket.values())
-            .map((r) => ({
-                ...r,
-                totalProgressHours: Math.round(r.totalProgressHours * 100) / 100,
-                totalUsedHours:     Math.round(r.totalUsedHours * 100) / 100,
-                totalLateHours:     Math.round(r.totalLateHours * 100) / 100,
-                totalLateCost:      Math.round(r.totalLateCost * 100) / 100,
-            }))
-            .sort((a, b) => b.totalLateHours - a.totalLateHours);
-    }, [projects, lateHoursByProject]);
-
-    const lateHoursTotal = useMemo(
-        () => ({
-            hours:   lateHoursByMember.reduce((s, r) => s + r.totalLateHours, 0),
-            cost:    lateHoursByMember.reduce((s, r) => s + r.totalLateCost, 0),
-            members: lateHoursByMember.length,
-        }),
-        [lateHoursByMember],
-    );
 
     const projectSummary = useMemo(() => {
         const totals = projectProfitRows.reduce((acc, row) => {
@@ -629,7 +598,6 @@ export default function FinancialPage() {
                     </Button>
                 </div>
             </div>
-
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
@@ -647,13 +615,13 @@ export default function FinancialPage() {
                 <Card className="border-[#e6e9ee] shadow-sm">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Company Plan Profit (To Date)</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">Expected Profit by Today</p>
                             <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
                         </div>
                         <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
                             {formatMoney(projectSummary.planProfitToDate, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">Baseline based on planned project running time.</p>
+                        <p className="mt-2 text-xs text-[#8a8a8a]">How much profit the company should have reached by today if projects were following plan.</p>
                     </CardContent>
                 </Card>
 
@@ -689,14 +657,19 @@ export default function FinancialPage() {
                 <section className="rounded-lg border border-[#e6e9ee] bg-white">
                     <div className="border-b px-6 py-4">
                         <h2 className="text-lg font-semibold text-[#171717]">Company Profit Snapshot</h2>
-                        <p className="mt-1 text-sm text-[#8a8a8a]">Compare current overall project profit against the planned baseline.</p>
+                        <p className="mt-1 text-sm text-[#8a8a8a]">Compare current company profit with the profit the plan expected by today.</p>
                     </div>
                     <div className="h-[280px] px-4 py-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={companyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <BarChart data={companyChartData} margin={{ top: 10, right: 10, left: 16, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+                                <YAxis
+                                    tickLine={false}
+                                    axisLine={false}
+                                    width={88}
+                                    tickFormatter={(value) => formatMoneyShort(Number(value ?? 0), currency)}
+                                />
                                 <Tooltip formatter={(value) => formatMoney(Number(value ?? 0), currency)} />
                                 <Bar dataKey="amount" radius={[6, 6, 0, 0]} fill="#00a7f4" />
                             </BarChart>
@@ -716,13 +689,16 @@ export default function FinancialPage() {
                     </CardHeader>
                     <CardContent className="space-y-3 pt-0 text-sm text-[#4a4a4a]">
                         <p>
-                            <span className="font-semibold text-[#171717]">Plan Profit</span> comes from the project&apos;s planned revenue and estimated cost, then the dashboard scales it by the planned running timeline to get the expected profit by today.
+                            <span className="font-semibold text-[#171717]">Plan Profit</span> is the full expected profit for the whole project after it finishes.
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">Actual Profit</span> uses current project progress. For S-rank projects, progress is weighted from Task Assign and Tracking rows; otherwise it falls back to approved hours against budget hours.
+                            <span className="font-semibold text-[#171717]">Expected Profit by Today</span> is how much of that plan profit should already be reached by today based on the project timeline.
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">Overtime Impact</span> is only shown as a negative when the contract does not have an OT fee recovery path. If OT fees exist, the impact line stays neutral and any recoverable OT revenue is added back into actual profit.
+                            <span className="font-semibold text-[#171717]">Actual Profit</span> uses current project progress. S-rank projects read their running progress from Task Assign and Tracking first; if that workflow has not started yet, the page falls back to approved hours against budget hours.
+                        </p>
+                        <p>
+                            <span className="font-semibold text-[#171717]">Overtime Impact</span> is only shown as a negative when the contract does not have an OT fee recovery path. If OT fees exist, overtime no longer drags profit below baseline; only a positive recoverable upside is added.
                         </p>
                     </CardContent>
                 </Card>
@@ -740,7 +716,7 @@ export default function FinancialPage() {
                                 <TableHead className="py-4">Project</TableHead>
                                 <TableHead className="py-4">Rank</TableHead>
                                 <TableHead className="text-right py-4">Plan Profit</TableHead>
-                                <TableHead className="text-right py-4">Plan Profit (To Date)</TableHead>
+                                <TableHead className="text-right py-4">Expected Profit by Today</TableHead>
                                 <TableHead className="text-right py-4">Actual Profit</TableHead>
                                 <TableHead className="text-right py-4">Variance</TableHead>
                                 <TableHead className="text-right py-4">OT Impact</TableHead>
@@ -756,7 +732,7 @@ export default function FinancialPage() {
                                         <div className="mt-1 text-xs text-[#8a8a8a]">{row.client}</div>
                                         <div className="mt-1 text-xs text-[#8a8a8a]">OT policy: {row.otPolicy.replaceAll('_', ' ')}</div>
                                         <div className="mt-2 text-xs text-[#8a8a8a]">
-                                            Actual hours {row.actualHours.toFixed(1)} / budget pace {Math.round(row.plannedProgress * 100)}%
+                                            Actual hours {row.actualHours.toFixed(1)} / planned by today {Math.round(row.plannedProgress * 100)}%
                                         </div>
                                     </TableCell>
                                     <TableCell className="py-4">
@@ -783,7 +759,7 @@ export default function FinancialPage() {
                                             {Math.round(row.actualProgress * 100)}%
                                         </div>
                                         <div className={`mt-1 text-xs ${row.progressDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            vs plan {Math.round(row.plannedProgress * 100)}%
+                                            planned by today {Math.round(row.plannedProgress * 100)}%
                                         </div>
                                     </TableCell>
                                     <TableCell className="py-4">
@@ -801,84 +777,6 @@ export default function FinancialPage() {
                                     </TableCell>
                                 </TableRow>
                             )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </section>
-
-            {/* Late Hours by Members — sourced from phase_progress_logs daily
-                self-reports (used_hours − progress_hours, clamped ≥0). Feeds the
-                overtime cost column above when log data is present. */}
-            <section className="space-y-3">
-                <div className="flex items-end justify-between gap-3">
-                    <div>
-                        <h3 className="text-lg font-semibold text-[#171717]">Late Hours by Members</h3>
-                        <p className="text-sm text-[#8a8a8a]">
-                            Daily inefficiency surfaced from My Schedule progress logs. Hours spent beyond delivered work,
-                            multiplied by each member&apos;s cost per hour.
-                        </p>
-                    </div>
-                    <div className="flex gap-6 text-right">
-                        <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Members</div>
-                            <div className="text-lg font-semibold text-[#171717]">{lateHoursTotal.members}</div>
-                        </div>
-                        <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late hrs</div>
-                            <div className="text-lg font-semibold text-rose-700">{lateHoursTotal.hours.toFixed(1)}h</div>
-                        </div>
-                        <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">Total late cost</div>
-                            <div className="text-lg font-semibold text-rose-700">{formatMoney(lateHoursTotal.cost, currency)}</div>
-                        </div>
-                    </div>
-                </div>
-                <div className="overflow-x-auto rounded-md border border-[#e6e9ee] bg-white">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Member</TableHead>
-                                <TableHead>Rank</TableHead>
-                                <TableHead>Capacity role</TableHead>
-                                <TableHead className="text-right">Cost / hr</TableHead>
-                                <TableHead className="text-right">Days logged</TableHead>
-                                <TableHead className="text-right">Progress (h)</TableHead>
-                                <TableHead className="text-right">Used (h)</TableHead>
-                                <TableHead className="text-right">Late (h)</TableHead>
-                                <TableHead className="text-right">Late cost</TableHead>
-                                <TableHead>Projects</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {lateHoursByMember.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={10} className="py-8 text-center text-sm text-[#8a8a8a]">
-                                        No daily progress logs yet. Once members log progress vs. used hours on My Schedule,
-                                        their late hours will surface here.
-                                    </TableCell>
-                                </TableRow>
-                            ) : lateHoursByMember.map((row) => (
-                                <TableRow key={row.employeeId}>
-                                    <TableCell className="font-medium text-[#171717]">{row.employeeName ?? row.employeeId}</TableCell>
-                                    <TableCell>{row.rankCode ?? '—'}</TableCell>
-                                    <TableCell>{row.capacityRole ?? '—'}</TableCell>
-                                    <TableCell className="text-right">{formatMoney(row.costPerHour, currency)}</TableCell>
-                                    <TableCell className="text-right">{row.daysCount}</TableCell>
-                                    <TableCell className="text-right">{row.totalProgressHours.toFixed(1)}</TableCell>
-                                    <TableCell className="text-right">{row.totalUsedHours.toFixed(1)}</TableCell>
-                                    <TableCell className={`text-right font-medium ${row.totalLateHours > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                        {row.totalLateHours > 0 ? '+' : ''}{row.totalLateHours.toFixed(1)}h
-                                    </TableCell>
-                                    <TableCell className={`text-right font-medium ${row.totalLateCost > 0 ? 'text-rose-700' : 'text-[#8a8a8a]'}`}>
-                                        {formatMoney(row.totalLateCost, currency)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-[#8a8a8a]">
-                                        {row.projectCount === 1
-                                            ? row.projectNames[0]
-                                            : `${row.projectCount} projects`}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
                         </TableBody>
                     </Table>
                 </div>
