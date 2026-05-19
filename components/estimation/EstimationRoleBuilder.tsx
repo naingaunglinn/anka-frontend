@@ -176,6 +176,11 @@ export function EstimationRoleBuilder(props: Props) {
         setAccepting(true)
         try {
             await props.onAccept(result.roles)
+            // Clear the AI panel so the role table, cost summary, reasoning
+            // narrative, warnings, Accept / Regenerate buttons all disappear
+            // after a successful save. The deal now owns the roles; rendering
+            // the AI suggestion again would be noise.
+            setResult(null)
         } finally {
             setAccepting(false)
         }
