@@ -52,11 +52,16 @@ export function useTimeEntryList(
         queryFn: async () => {
             const { data: body } = await api.get('/time-entries', { params });
             const timeEntries = (body.data ?? []).map(toTimeEntry);
-            // Only mirror to the global businessStore for unfiltered queries
-            // (the manager Time Tracking page). Filtered/paginated calls — like
-            // the per-tab My Tasks queries — must not overwrite the store, or
-            // the manager view's KPIs would scope to whichever filter ran last.
-            if (Object.keys(params).length === 0) {
+            // Mirror to the global businessStore for unfiltered queries — the
+            // manager Time Tracking page AND the Dashboard / Forecast pages
+            // that need the full tenant time-entry set for P&L math. We treat
+            // ONLY genuine filter params as "filtered" (project, employee,
+            // status, text search, date range). Pagination params (`page`,
+            // `per_page`) don't change the conceptual scope, so a paginated
+            // unfiltered call still populates the store.
+            const FILTER_KEYS = ['project_id', 'employee_id', 'status', 'q', 'date_from', 'date_to'] as const;
+            const isFiltered = FILTER_KEYS.some((key) => params[key] != null && params[key] !== '');
+            if (!isFiltered) {
                 useBusinessStore.setState({ timeEntries });
             }
             return { ...body, data: timeEntries } as PaginatedResponse<TimeEntry>;
