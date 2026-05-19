@@ -20,6 +20,28 @@ interface Props {
     className?: string
 }
 
+/**
+ * Keep the trigger button within the visible viewport so it can never be
+ * dragged out of reach. Falls back to (0, 0) when called during SSR — the
+ * client-side init effect re-sets it once `window` is available.
+ */
+function clampToViewport(x: number, y: number): { x: number; y: number } {
+    if (typeof window === 'undefined') return { x: 0, y: 0 }
+    const maxX = Math.max(0, window.innerWidth - BUTTON_SIZE)
+    const maxY = Math.max(0, window.innerHeight - BUTTON_SIZE)
+    return {
+        x: Math.max(0, Math.min(x, maxX)),
+        y: Math.max(0, Math.min(y, maxY)),
+    }
+}
+
+const BUTTON_SIZE = 56 // h-14 w-14
+const PANEL_WIDTH = 380
+const PANEL_HEIGHT = 540
+const PANEL_GAP = 12
+const POSITION_STORAGE_KEY = 'anka:chatbot:position'
+const DRAG_THRESHOLD_PX = 5
+
 export function ChatBot({ className }: Props) {
     const t = useTranslations()
     const isOpen = useUIStore(s => s.chatbotOpen)
@@ -28,6 +50,119 @@ export function ChatBot({ className }: Props) {
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+
+    // Drag-and-drop position for the floating trigger button. The user can
+    // drag it anywhere on screen; a click without movement still toggles the
+    // chat. Position survives reloads via localStorage.
+    const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+    const [dragging, setDragging] = useState(false)
+    const dragOffsetRef = useRef({ x: 0, y: 0 })
+    const dragStartRef = useRef({ x: 0, y: 0 })
+    const movedDuringDragRef = useRef(false)
+
+    // Initialise position client-side: prefer saved coords, else bottom-right.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const saved = window.localStorage.getItem(POSITION_STORAGE_KEY)
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved) as { x: number; y: number }
+                if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+                    setPosition(clampToViewport(parsed.x, parsed.y))
+                    return
+                }
+            } catch { /* fall through to default */ }
+        }
+        setPosition({
+            x: window.innerWidth - BUTTON_SIZE - 24,
+            y: window.innerHeight - BUTTON_SIZE - 24,
+        })
+    }, [])
+
+    // Keep the button inside the viewport when the window resizes.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        function onResize() {
+            setPosition(prev => prev ? clampToViewport(prev.x, prev.y) : prev)
+        }
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+    }, [])
+
+    // While dragging, track mouse/touch movement on the window.
+    useEffect(() => {
+        if (!dragging) return
+
+        function move(clientX: number, clientY: number) {
+            const dx = clientX - dragStartRef.current.x
+            const dy = clientY - dragStartRef.current.y
+            if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) {
+                movedDuringDragRef.current = true
+            }
+            const nextX = clientX - dragOffsetRef.current.x
+            const nextY = clientY - dragOffsetRef.current.y
+            setPosition(clampToViewport(nextX, nextY))
+        }
+
+        function onMouseMove(e: MouseEvent) { move(e.clientX, e.clientY) }
+        function onTouchMove(e: TouchEvent) {
+            if (e.touches.length === 0) return
+            move(e.touches[0].clientX, e.touches[0].clientY)
+        }
+        function onEnd() {
+            setDragging(false)
+            if (movedDuringDragRef.current) {
+                setPosition(prev => {
+                    if (prev) {
+                        try {
+                            window.localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(prev))
+                        } catch { /* private mode / quota — silently ignore */ }
+                    }
+                    return prev
+                })
+            }
+        }
+
+        window.addEventListener('mousemove', onMouseMove)
+        window.addEventListener('mouseup', onEnd)
+        window.addEventListener('touchmove', onTouchMove, { passive: true })
+        window.addEventListener('touchend', onEnd)
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove)
+            window.removeEventListener('mouseup', onEnd)
+            window.removeEventListener('touchmove', onTouchMove)
+            window.removeEventListener('touchend', onEnd)
+        }
+    }, [dragging])
+
+    function handleDragStart(clientX: number, clientY: number, rect: DOMRect) {
+        dragOffsetRef.current = { x: clientX - rect.left, y: clientY - rect.top }
+        dragStartRef.current = { x: clientX, y: clientY }
+        movedDuringDragRef.current = false
+        setDragging(true)
+    }
+
+    function onButtonMouseDown(e: React.MouseEvent<HTMLButtonElement>) {
+        // Only respond to primary mouse button.
+        if (e.button !== 0) return
+        handleDragStart(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
+    }
+
+    function onButtonTouchStart(e: React.TouchEvent<HTMLButtonElement>) {
+        if (e.touches.length === 0) return
+        const touch = e.touches[0]
+        handleDragStart(touch.clientX, touch.clientY, e.currentTarget.getBoundingClientRect())
+    }
+
+    function onButtonClick() {
+        // Distinguish click from drag: if the pointer moved more than the
+        // threshold we treat it as a drag and DON'T toggle the chat.
+        if (movedDuringDragRef.current) {
+            movedDuringDragRef.current = false
+            return
+        }
+        toggleChatbot()
+    }
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -92,20 +227,51 @@ What would you like to know?`
         }
     }
 
+    // SSR-safe: until the client-side init effect runs, `position` is null
+    // and we render at the natural bottom-right via Tailwind classes. After
+    // mount we switch to inline `top/left` so the user can drag freely.
+    const buttonStyle: React.CSSProperties = position
+        ? { top: position.y, left: position.x, cursor: dragging ? 'grabbing' : 'grab' }
+        : {}
+    const buttonAnchorClass = position ? '' : 'bottom-6 right-6'
+
+    // Position the chat panel adjacent to the button. Anchor on whichever
+    // side keeps the whole panel in the viewport.
+    let panelStyle: React.CSSProperties = { bottom: 24 + BUTTON_SIZE + PANEL_GAP, right: 24 }
+    if (position && typeof window !== 'undefined') {
+        const vw = window.innerWidth
+        const vh = window.innerHeight
+        const openAbove = position.y + BUTTON_SIZE / 2 > vh / 2
+        const top = openAbove
+            ? Math.max(8, position.y - PANEL_HEIGHT - PANEL_GAP)
+            : Math.min(vh - PANEL_HEIGHT - 8, position.y + BUTTON_SIZE + PANEL_GAP)
+        // Prefer same horizontal edge as the button. Clamp so the panel
+        // stays fully inside the viewport horizontally.
+        const anchorLeft = position.x + BUTTON_SIZE / 2 < vw / 2
+        const left = anchorLeft
+            ? Math.min(vw - PANEL_WIDTH - 8, position.x)
+            : Math.max(8, position.x + BUTTON_SIZE - PANEL_WIDTH)
+        panelStyle = { top: Math.max(8, top), left: Math.max(8, left) }
+    }
+
     return (
         <>
-            {/* Floating trigger button */}
+            {/* Floating trigger button — draggable. Click without movement
+                toggles the chat panel. */}
             <Button
-                onClick={toggleChatbot}
-                className={`fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white z-50 ${className ?? ''}`}
+                onClick={onButtonClick}
+                onMouseDown={onButtonMouseDown}
+                onTouchStart={onButtonTouchStart}
+                style={buttonStyle}
+                className={`fixed h-14 w-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white z-50 touch-none select-none ${buttonAnchorClass} ${className ?? ''}`}
                 size="icon"
             >
                 {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
             </Button>
 
-            {/* Chat panel */}
+            {/* Chat panel — positioned adjacent to the dragged button. */}
             {isOpen && (
-                <Card className="fixed bottom-24 right-6 w-[380px] max-h-[540px] shadow-2xl border-indigo-200 flex flex-col z-50">
+                <Card style={panelStyle} className="fixed w-[380px] max-h-[540px] shadow-2xl border-indigo-200 flex flex-col z-50">
                     <CardHeader className="pb-2 bg-indigo-50 rounded-t-xl border-b border-indigo-100">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
