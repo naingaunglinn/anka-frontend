@@ -29,6 +29,7 @@ import { SendEstimateDialog } from '@/components/estimation/SendEstimateDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
+import { dealRank } from '@/lib/dealRanks';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
 import {
@@ -891,6 +892,16 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     const canBuild = (selectedDeal.clientBudget ?? 0) > 0 && (selectedDeal.timelineMonths ?? 0) > 0;
                     type SmartMode = 'build' | 'scope' | 'notes';
                     const mode: SmartMode = !hasRoles ? 'build' : !hasScope ? 'scope' : 'notes';
+                    // Rank C (lead) and B (qualified) — sales still refining
+                    // scope. When roles already exist and the smart progression
+                    // has moved to scope/notes mode, still expose a secondary
+                    // "Rebuild AI Team" button so sales can re-trigger the
+                    // role builder after a workload update without dropping
+                    // the deal back to C. Hidden once the deal hits A
+                    // (negotiation) — the team is contractually locked.
+                    const rank = dealRank(selectedDeal);
+                    const allowSecondaryRebuild =
+                        (rank === 'C' || rank === 'B') && hasRoles && mode !== 'build';
                     const smartBusy = isBuildingTeam || isGeneratingAi;
 
                     const smartConfig: Record<SmartMode, {
@@ -962,6 +973,24 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <p className="text-xs text-[#4a4a4a] text-center">
                                         {t('set_budget_timeline_hint')}
                                     </p>
+                                )}
+                                {allowSecondaryRebuild && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => { void roleBuilderHandleRef.current?.triggerBuild(); }}
+                                        disabled={!canBuild || smartBusy}
+                                        className="w-full gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                                        size="sm"
+                                        title={t('ai_assistant_build_title')}
+                                    >
+                                        {isBuildingTeam ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="h-4 w-4" />
+                                        )}
+                                        {isBuildingTeam ? t('building_ellipsis') : t('build_ai_team_estimate')}
+                                    </Button>
                                 )}
                                 <EstimationRoleBuilder
                                     dealId={selectedDeal.id}
