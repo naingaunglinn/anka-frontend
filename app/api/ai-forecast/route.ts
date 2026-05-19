@@ -35,6 +35,7 @@ function extractFirstJsonObject(text: string): string | null {
 }
 
 export interface AIForecastInput {
+    outputLocale?: 'en' | 'ja' | 'vi';
     currency: string;
     currentMonth: string;            // e.g. "May 2026"
     forecastWindowLabel: string;     // e.g. "8-Month"
@@ -106,7 +107,28 @@ export interface AIForecastResult {
     };
 }
 
-const SYSTEM_PROMPT = `You are a financial forecasting assistant for a software agency SaaS.
+type ForecastOutputLocale = NonNullable<AIForecastInput['outputLocale']>;
+
+const OUTPUT_LANGUAGE_BY_LOCALE: Record<ForecastOutputLocale, string> = {
+    en: 'English',
+    ja: 'Japanese',
+    vi: 'Vietnamese',
+};
+
+const FALLBACK_COPY_BY_LOCALE: Record<ForecastOutputLocale, { summaryTitle: string; actionTitle: string }> = {
+    en: { summaryTitle: 'Forecast Summary', actionTitle: 'Action' },
+    ja: { summaryTitle: '予測サマリー', actionTitle: '対応' },
+    vi: { summaryTitle: 'Tóm tắt dự báo', actionTitle: 'Hành động' },
+};
+
+function normalizeOutputLocale(value: string | undefined): ForecastOutputLocale {
+    return value === 'ja' || value === 'vi' ? value : 'en';
+}
+
+function buildSystemPrompt(outputLocale: ForecastOutputLocale): string {
+    const outputLanguage = OUTPUT_LANGUAGE_BY_LOCALE[outputLocale];
+
+    return `You are a financial forecasting assistant for a software agency SaaS.
 
 Given a snapshot of the agency's current business state, predict three forward-looking risk values for the current-month-to-year-end forecast window and produce a short action summary.
 
@@ -128,6 +150,12 @@ Action-summary rule:
   2. make the actions sharper and more operational,
   3. materially change at least 2 of the 3 actions,
   4. explicitly improve on the previousSummary weaknesses.
+
+Output-language rule:
+- Write every human-readable response value in ${outputLanguage}. This includes summaryTitle, reasoning, recommendedActions.title, recommendedActions.rationale, recommendedActions.expectedImpact, and every signals.* value.
+- Keep JSON property names exactly as shown in the schema.
+- Keep priority enum values exactly "high", "medium", or "low" in English so the UI can parse them.
+- Do not mix languages unless a project name, currency, rank label, or proper noun is already in another language.
 
 Respond with strict JSON only. No prose outside the JSON. Schema:
 
@@ -163,11 +191,15 @@ Respond with strict JSON only. No prose outside the JSON. Schema:
     "capacityInsight": "<one sentence on capacity / hiring signal>"
   }
 }`;
+}
 
-function buildUserPrompt(input: AIForecastInput): string {
+function buildUserPrompt(input: AIForecastInput, outputLocale: ForecastOutputLocale): string {
+    const outputLanguage = OUTPUT_LANGUAGE_BY_LOCALE[outputLocale];
+
     return `Agency snapshot as of ${input.currentMonth} (currency: ${input.currency}):
 
 Scope:
+  Output language: ${outputLanguage}
   Forecast window: ${input.forecastWindowLabel} (${input.forecastMonthCount} month(s), current month through ${input.comparisonMonthLabel})
   Rank filter: ${input.rankScopeLabel}
   Forecast profit through ${input.comparisonMonthLabel}: ${input.forecastProfit.toFixed(0)}
@@ -210,7 +242,9 @@ ${input.previousSummary
 Predict utilizationDrop, delayedDeals, and newHires for this current-month-to-year-end window, then produce a short summary plus 3 recommendedActions that help the agency either close the comparison target gap or finish the year at the full annual target.`;
 }
 
-function clampResult(result: AIForecastResult, pipelineTotal: number): AIForecastResult {
+function clampResult(result: AIForecastResult, pipelineTotal: number, outputLocale: ForecastOutputLocale): AIForecastResult {
+    const fallback = FALLBACK_COPY_BY_LOCALE[outputLocale];
+
     return {
         ...result,
         utilizationDrop: Math.max(0, Math.min(50, Math.round(result.utilizationDrop))),
@@ -222,13 +256,13 @@ function clampResult(result: AIForecastResult, pipelineTotal: number): AIForecas
             ),
         ),
         newHires: Math.max(0, Math.min(10, Math.round(result.newHires))),
-        summaryTitle: result.summaryTitle || 'Forecast Summary',
+        summaryTitle: result.summaryTitle || fallback.summaryTitle,
         recommendedActions: Array.isArray(result.recommendedActions)
             ? result.recommendedActions
                 .filter((action): action is AIForecastAction => !!action && typeof action === 'object')
                 .slice(0, 3)
                 .map((action) => ({
-                    title: action.title || 'Action',
+                    title: action.title || fallback.actionTitle,
                     priority: action.priority === 'high' || action.priority === 'medium' || action.priority === 'low' ? action.priority : 'medium',
                     rationale: action.rationale || '',
                     expectedImpact: action.expectedImpact || '',
@@ -247,6 +281,7 @@ export async function POST(req: NextRequest) {
     } catch {
         return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
+    const outputLocale = normalizeOutputLocale(input.outputLocale);
 
     function logUsage(model: string, inputTokens: number, outputTokens: number, costUsd: number) {
         const sessionToken = req.cookies.get('__session')?.value;
@@ -286,9 +321,9 @@ export async function POST(req: NextRequest) {
             model:       CLAUDE_MODEL,
             max_tokens:  1024,
             temperature: input.regenerateCount && input.regenerateCount > 0 ? 0.7 : 0.4,
-            system:      SYSTEM_PROMPT,
+            system:      buildSystemPrompt(outputLocale),
             messages: [
-                { role: 'user', content: buildUserPrompt(input) },
+                { role: 'user', content: buildUserPrompt(input, outputLocale) },
                 { role: 'assistant', content: '{' },
             ],
         });
@@ -318,7 +353,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'AI returned malformed JSON.' }, { status: 502 });
         }
 
-        return NextResponse.json(clampResult(result, input.pipeline.totalWeightedValue));
+        return NextResponse.json(clampResult(result, input.pipeline.totalWeightedValue, outputLocale));
     } catch (err) {
         console.error('[AI Forecast] error:', err);
         return NextResponse.json(
