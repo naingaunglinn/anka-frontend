@@ -257,7 +257,7 @@ export default function DashboardPage() {
     useProjectList({ per_page: 500 });
     useContractList({ per_page: 500 });
     useInvoiceList({ per_page: 1000 });
-    useTimeEntryList({ per_page: 1000 });
+    useTimeEntryList({ per_page: 1000 }, { mirrorToStore: true });
 
     const taskAssignmentQueries = useQueries({
         queries: store.projects.map((project) => ({

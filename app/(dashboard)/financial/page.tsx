@@ -286,7 +286,7 @@ export default function FinancialPage() {
     const today = useMemo(() => new Date(), []);
 
     useInvoiceList();
-    useTimeEntryList();
+    useTimeEntryList({}, { mirrorToStore: true });
     useOrganizationSync();
     useDealList({ per_page: 500 });
     useContractList({ per_page: 500 });

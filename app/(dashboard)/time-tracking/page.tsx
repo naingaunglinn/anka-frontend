@@ -21,7 +21,7 @@ import { TeamPreviewDialog } from '@/components/time-tracking/TeamPreviewDialog'
 export default function TimeTrackingPage() {
     const t = useTranslations();
     const projectsQuery = useProjectList();
-    const timeEntriesQuery = useTimeEntryList();
+    const timeEntriesQuery = useTimeEntryList({}, { mirrorToStore: true });
     const queryClient = useQueryClient();
     const projects = projectsQuery.data?.data ?? [];
     const timeEntries = timeEntriesQuery.data?.data ?? [];

@@ -45,23 +45,27 @@ export interface TimeEntryListParams {
  */
 export function useTimeEntryList(
     params: TimeEntryListParams = {},
-    options: { enabled?: boolean } = {},
+    options: {
+        enabled?: boolean;
+        /**
+         * When true, the fetched entries are mirrored into the global
+         * `businessStore.timeEntries` for downstream consumers (Dashboard /
+         * Forecast / Financial P&L). Callers MUST only opt in when this query
+         * represents the full tenant set — i.e. no filter params AND a
+         * `per_page` large enough to return everything in one page. Filtered
+         * or paginated-page-N calls must leave this false (default), otherwise
+         * they'll silently overwrite the global set with a partial slice and
+         * break P&L math elsewhere on the app.
+         */
+        mirrorToStore?: boolean;
+    } = {},
 ) {
     return useQuery<PaginatedResponse<TimeEntry>>({
         queryKey: timeEntryKeys.list(params),
         queryFn: async () => {
             const { data: body } = await api.get('/time-entries', { params });
             const timeEntries = (body.data ?? []).map(toTimeEntry);
-            // Mirror to the global businessStore for unfiltered queries — the
-            // manager Time Tracking page AND the Dashboard / Forecast pages
-            // that need the full tenant time-entry set for P&L math. We treat
-            // ONLY genuine filter params as "filtered" (project, employee,
-            // status, text search, date range). Pagination params (`page`,
-            // `per_page`) don't change the conceptual scope, so a paginated
-            // unfiltered call still populates the store.
-            const FILTER_KEYS = ['project_id', 'employee_id', 'status', 'q', 'date_from', 'date_to'] as const;
-            const isFiltered = FILTER_KEYS.some((key) => params[key] != null && params[key] !== '');
-            if (!isFiltered) {
+            if (options.mirrorToStore) {
                 useBusinessStore.setState({ timeEntries });
             }
             return { ...body, data: timeEntries } as PaginatedResponse<TimeEntry>;

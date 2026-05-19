@@ -236,7 +236,7 @@ export default function ForecastPage() {
     useContractList({ per_page: 500 });
     useProjectList({ per_page: 500 });
     useInvoiceList({ per_page: 1000 });
-    useTimeEntryList({ per_page: 1000 });
+    useTimeEntryList({ per_page: 1000 }, { mirrorToStore: true });
 
     const [rankScope, setRankScope] = useState<RankScope>('S');
     const [prediction, setPrediction] = useState<AIForecastResult | null>(null);
