@@ -123,16 +123,24 @@ function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, f
     return fallback ?? startOfUtcMonth(new Date());
 }
 
-function priorityBadgeClass(priority: AIForecastResult['recommendedActions'][number]['priority']): string {
-    if (priority === 'high') return 'bg-rose-50 text-rose-700 border-rose-200';
-    if (priority === 'low') return 'bg-slate-50 text-slate-700 border-slate-200';
+type Severity = 'critical' | 'warning' | 'info';
+
+function severityBadgeClass(severity: Severity): string {
+    if (severity === 'critical') return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (severity === 'info')     return 'bg-slate-50 text-slate-700 border-slate-200';
     return 'bg-amber-50 text-amber-700 border-amber-200';
 }
 
-function priorityLabelKey(priority: AIForecastResult['recommendedActions'][number]['priority']) {
-    if (priority === 'high') return 'forecast_priority_high';
-    if (priority === 'low') return 'forecast_priority_low';
-    return 'forecast_priority_medium';
+function severityCardClass(severity: Severity): string {
+    if (severity === 'critical') return 'border-rose-200 bg-rose-50/40';
+    if (severity === 'info')     return 'border-slate-200 bg-slate-50/40';
+    return 'border-amber-200 bg-amber-50/40';
+}
+
+function severityLabelKey(severity: Severity) {
+    if (severity === 'critical') return 'forecast_severity_critical';
+    if (severity === 'info')     return 'forecast_severity_info';
+    return 'forecast_severity_warning';
 }
 
 function ProfitLineShape(props: { readonly points?: readonly ProfitLinePoint[] }) {
@@ -538,6 +546,138 @@ export default function ForecastPage() {
         return average(monthsWithProfit.slice(0, 3));
     }, [chartData]);
 
+    // ── Per-project / per-deal / per-capacity inputs for the AI ──────
+    // These are the signals that let Claude name specific projects,
+    // deals, and people instead of giving generic advice.
+
+    const forecastProjectsInput = useMemo(() => {
+        return store.projects.map((project) => {
+            const contract = store.contracts.find((c) => c.id === project.contractId);
+            const deal = contract ? store.deals.find((d) => d.id === contract.dealId) : undefined;
+            const entries = store.timeEntries.filter(
+                (e) => e.projectId === project.id && e.status === 'Approved',
+            );
+            const consumedHours = entries.reduce((sum, e) => sum + (e.hours ?? 0), 0);
+            const otHoursLogged = entries
+                .filter((e) => /OT:?/i.test(e.task ?? ''))
+                .reduce((sum, e) => sum + (e.hours ?? 0), 0);
+            const labourCostToDate = entries.reduce((sum, e) => {
+                const emp = store.employees.find((x) => x.id === e.employeeId);
+                const cph = typeof emp?.costPerHour === 'number' ? emp.costPerHour : 0;
+                return sum + (e.hours ?? 0) * cph;
+            }, 0) * 1.15;
+            const budget = positiveNumber(contract?.totalValue) || positiveNumber(deal?.clientBudget);
+            const budgetHours = project.budgetHours || 0;
+            const lifetimeCost = consumedHours > 0
+                ? labourCostToDate * (budgetHours / consumedHours)
+                : labourCostToDate;
+            const marginLifetimePercent = budget > 0
+                ? ((budget - lifetimeCost) / budget) * 100
+                : 0;
+            const team = store.employees.filter((e) =>
+                entries.some((te) => te.employeeId === e.id),
+            );
+            const lead = team.find((e) => e.capacityRole === 'pm') ?? team[0];
+            return {
+                name: project.name ?? deal?.name ?? 'Untitled',
+                client: project.client ?? deal?.client ?? '',
+                status: project.status ?? 'On Track',
+                budget,
+                budgetHours,
+                consumedHours,
+                otHoursLogged,
+                labourCostToDate,
+                revenueRecognized: positiveNumber(contract?.revenueRecognized),
+                cashCollected: positiveNumber(contract?.cashCollected),
+                marginLifetimePercent,
+                teamSize: team.length,
+                ownerName: lead?.name ?? 'Unassigned',
+            };
+        });
+    }, [store.projects, store.contracts, store.deals, store.timeEntries, store.employees]);
+
+    const forecastPipelineDealsInput = useMemo(() => {
+        const today = Date.now();
+        return store.deals
+            .filter((d) => d.status !== 'won' && d.status !== 'lost' && d.lifecycleStatus !== 'dropped')
+            .map((d) => {
+                const stage = (d.status as 'lead' | 'qualified' | 'negotiation');
+                const rankMap: Record<string, 'C' | 'B' | 'A'> = {
+                    lead: 'C',
+                    qualified: 'B',
+                    negotiation: 'A',
+                };
+                const value = projectedDealValue(d, contractByDealId.get(d.id));
+                // Deal type doesn't expose created/updated timestamps; approximate
+                // daysInStage from expectedCloseDate (early proxy) — Claude uses it
+                // as a relative signal, not an exact metric.
+                const proxyStageDate = d.expectedCloseDate
+                    ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime() - 30 * 86_400_000
+                    : today - 30 * 86_400_000;
+                const daysInStage = Math.max(0, Math.floor((today - proxyStageDate) / 86_400_000));
+                const expectedClose = d.expectedCloseDate
+                    ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime()
+                    : null;
+                const daysPastExpectedClose = expectedClose && today > expectedClose
+                    ? Math.floor((today - expectedClose) / 86_400_000)
+                    : 0;
+                return {
+                    name: d.name,
+                    client: d.client ?? '',
+                    rank: rankMap[stage] ?? 'C' as const,
+                    stage,
+                    value,
+                    winProbability: d.winProbability ?? STAGE_PROBABILITY[stage] ?? 0,
+                    daysInStage,
+                    daysPastExpectedClose,
+                    ownerName: d.contactName ?? '',
+                };
+            });
+    }, [store.deals, contractByDealId]);
+
+    const forecastCapacityHotspotsInput = useMemo(() => {
+        const today = new Date();
+        const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const ninetyDaysAgoMs = today.getTime() - 90 * 86_400_000;
+        const roles: Record<string, { workable: number; booked: number; ot: number; names: string[]; activeNames: string[] }> = {};
+        for (const emp of store.employees) {
+            if (emp.status !== 'Active') continue;
+            const role = emp.capacityRole ?? 'unassigned';
+            if (!roles[role]) roles[role] = { workable: 0, booked: 0, ot: 0, names: [], activeNames: [] };
+            roles[role].workable += emp.workableHours || 0;
+            roles[role].names.push(emp.name);
+            // booked this month (approved time entries)
+            const monthEntries = store.timeEntries.filter(
+                (e) => e.employeeId === emp.id && e.status === 'Approved' && e.date?.startsWith(thisMonth),
+            );
+            const bookedThisMonth = monthEntries.reduce((s, e) => s + (e.hours ?? 0), 0);
+            roles[role].booked += bookedThisMonth;
+            if (bookedThisMonth > 0) roles[role].activeNames.push(emp.name);
+            // OT last 90 days
+            const otEntries = store.timeEntries.filter(
+                (e) => e.employeeId === emp.id
+                    && e.status === 'Approved'
+                    && /OT:?/i.test(e.task ?? '')
+                    && new Date(e.date).getTime() >= ninetyDaysAgoMs,
+            );
+            roles[role].ot += otEntries.reduce((s, e) => s + (e.hours ?? 0), 0);
+        }
+        return Object.entries(roles).map(([role, stats]) => {
+            const utilizationPercent = stats.workable > 0 ? (stats.booked / stats.workable) * 100 : 0;
+            const sole = stats.activeNames.length === 1 ? stats.activeNames[0] : null;
+            const bench = stats.names.filter((n) => !stats.activeNames.includes(n));
+            return {
+                role,
+                utilizationPercent,
+                workableHoursThisMonth: stats.workable,
+                bookedHoursThisMonth: stats.booked,
+                otHoursLast90Days: stats.ot,
+                soleEmployeeName: sole,
+                bench,
+            };
+        }).filter((row) => row.workableHoursThisMonth > 0);
+    }, [store.employees, store.timeEntries]);
+
     async function generateForecast() {
         const activeHeadcount = store.employees.filter((employee) => employee.status === 'Active').length;
         const comparisonMonthDate = monthRange.at(-1) ?? new Date();
@@ -590,10 +730,17 @@ export default function ForecastPage() {
                 overdueCount: pipelineTotals.overdueCount,
                 meanLateDays: currentTenant?.paymentDaysLate ?? 0,
             },
+            projects: forecastProjectsInput,
+            pipelineDeals: forecastPipelineDealsInput,
+            capacityHotspots: forecastCapacityHotspotsInput,
             previousSummary: prediction ? {
                 summaryTitle: prediction.summaryTitle,
-                reasoning: prediction.reasoning,
-                recommendedActionTitles: prediction.recommendedActions.map((action) => action.title),
+                headline: prediction.headline,
+                priorAlertTargets: [
+                    ...prediction.projectAlerts.map((a) => a.projectName),
+                    ...prediction.peopleAlerts.map((a) => a.target),
+                    ...prediction.pipelineAlerts.map((a) => a.dealName),
+                ],
             } : null,
         };
 
@@ -749,40 +896,96 @@ export default function ForecastPage() {
 
                             {prediction ? (
                                 <div className="space-y-3 text-sm">
+                                    {/* TL;DR */}
                                     <div className="rounded-md border p-3 bg-slate-50">
                                         <p className="text-xs font-semibold text-slate-700 mb-1">{t('forecast_ai_summary')}</p>
-                                        <p className="text-sm font-semibold text-slate-900">{prediction.summaryTitle}</p>
-                                        <p className="text-sm text-slate-600 mt-2">{prediction.reasoning}</p>
+                                        <p className="text-sm font-bold text-slate-900">{prediction.summaryTitle}</p>
+                                        <p className="text-sm text-slate-700 mt-2 leading-relaxed">{prediction.headline}</p>
                                     </div>
-                                    {prediction.recommendedActions.length > 0 && (
-                                        <div className="rounded-md border p-3 bg-white">
-                                            <p className="text-xs font-semibold text-slate-700 mb-2">{t('forecast_suggested_actions')}</p>
-                                            <div className="space-y-3">
-                                                {prediction.recommendedActions.map((action, index) => (
-                                                    <div key={`${index}-${action.title}`} className="rounded-md border border-slate-200 p-3">
+
+                                    {/* Project alerts */}
+                                    {prediction.projectAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">⚠️ {t('forecast_project_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.projectAlerts.map((alert, i) => (
+                                                    <div key={`p-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
                                                         <div className="flex items-start justify-between gap-3">
-                                                            <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                                                            <Badge variant="outline" className={priorityBadgeClass(action.priority)}>
-                                                                {t(priorityLabelKey(action.priority))}
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.projectName}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
                                                             </Badge>
                                                         </div>
-                                                        <p className="mt-2 text-sm text-slate-600">{action.rationale}</p>
-                                                        <p className="mt-2 text-xs text-slate-500">{t('forecast_expected_impact')}{action.expectedImpact}</p>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                        {alert.ownerName ? (
+                                                            <p className="mt-1 text-[11px] text-slate-500">{t('forecast_owner_label')}: {alert.ownerName}</p>
+                                                        ) : null}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex justify-between"><span>{t('forecast_utilization_drop')}</span><span className="font-semibold text-rose-600">{prediction.utilizationDrop}%</span></div>
-                                    <div className="flex justify-between"><span>{t('forecast_delayed_deals')}</span><span className="font-semibold text-amber-600">{formatMoney(prediction.delayedDeals, currency)}</span></div>
-                                    <div className="flex justify-between"><span>{t('forecast_new_hires')}</span><span className="font-semibold text-blue-600">{prediction.newHires}</span></div>
-                                    <div className="rounded-md border p-3 bg-slate-50">
-                                        <p className="text-xs font-semibold text-slate-700 mb-1">{t('forecast_signal_notes')}</p>
-                                        <div className="space-y-2 text-sm text-slate-600">
-                                            <p>{prediction.signals.utilizationInsight}</p>
-                                            <p>{prediction.signals.pipelineInsight}</p>
-                                            <p>{prediction.signals.capacityInsight}</p>
+
+                                    {/* People alerts */}
+                                    {prediction.peopleAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">👥 {t('forecast_people_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.peopleAlerts.map((alert, i) => (
+                                                    <div key={`pe-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.target}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
+                                    )}
+
+                                    {/* Pipeline alerts */}
+                                    {prediction.pipelineAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">📈 {t('forecast_pipeline_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.pipelineAlerts.map((alert, i) => (
+                                                    <div key={`pl-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.dealName}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {prediction.projectAlerts.length === 0
+                                        && prediction.peopleAlerts.length === 0
+                                        && prediction.pipelineAlerts.length === 0 ? (
+                                        <p className="text-xs text-slate-500 italic">{t('forecast_no_alerts')}</p>
+                                    ) : null}
+
+                                    {/* KPI strip */}
+                                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                                        <div className="flex justify-between"><span>{t('forecast_utilization_drop')}</span><span className="font-semibold text-rose-600">{prediction.utilizationDrop}%</span></div>
+                                        <div className="flex justify-between"><span>{t('forecast_delayed_deals')}</span><span className="font-semibold text-amber-600">{formatMoney(prediction.delayedDeals, currency)}</span></div>
+                                        <div className="flex justify-between"><span>{t('forecast_new_hires')}</span><span className="font-semibold text-blue-600">{prediction.newHires}</span></div>
                                     </div>
                                 </div>
                             ) : (
