@@ -123,7 +123,7 @@ export function ProjectTeamPanel({ projectId, assignments, onAssignmentsChange }
     const totalAssignedHours = assignments.reduce((sum, a) => sum + a.allocatedHours, 0)
 
     return (
-        <Card className="border-slate-200 shadow-sm">
+        <Card variant="plain">
             <CardHeader className="pb-3 bg-slate-50/80 border-b border-slate-100 rounded-t-xl">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">

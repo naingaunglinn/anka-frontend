@@ -336,7 +336,7 @@ export function KanbanBoard({
                                                                 {t('contract_sent')}
                                                             </Badge>
                                                         ) : deal.activeContractDraftId ? (
-                                                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px] border-0">
+                                                            <Badge className="bg-[var(--color-ai-100)] text-[var(--color-ai-700)] hover:bg-[var(--color-ai-100)] text-[10px] border-0">
                                                                 {t('drafting')}
                                                             </Badge>
                                                         ) : null}

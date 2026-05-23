@@ -63,7 +63,7 @@ export default function TenantRolesPage() {
                 </Button>
             </div>
 
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader>
                     <CardTitle className="text-base font-semibold">Tenant roles</CardTitle>
                 </CardHeader>

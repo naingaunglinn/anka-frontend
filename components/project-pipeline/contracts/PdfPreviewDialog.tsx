@@ -108,7 +108,7 @@ export function PdfPreviewDialog({
                 <DialogHeader className="px-6 py-4 border-b flex flex-row items-start justify-between gap-4 shrink-0">
                     <div>
                         <DialogTitle className="flex items-center gap-2 text-base">
-                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <FileText className="h-4 w-4 text-[var(--color-ai-600)]" />
                             {title}
                         </DialogTitle>
                         <DialogDescription className="text-xs">

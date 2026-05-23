@@ -688,7 +688,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -720,7 +720,7 @@ export default function EmployeesPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Estimation Defaults</CardTitle>
                                 <CardDescription>

@@ -620,8 +620,8 @@ export default function FinancialPage() {
         <div className="p-6 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('financial_performance')}</h1>
-                    <p className="mt-1 text-[#8a8a8a]">{t('financial_subtitle')}</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-default)]">{t('financial_performance')}</h1>
+                    <p className="mt-1 text-[var(--color-text-muted)]">{t('financial_subtitle')}</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2">
@@ -632,7 +632,7 @@ export default function FinancialPage() {
                             placeholder={t('from')}
                             className="w-40"
                         />
-                        <span className="text-sm text-[#8a8a8a]">{t('to')}</span>
+                        <span className="text-sm text-[var(--color-text-muted)]">{t('to')}</span>
                         <Input
                             type="month"
                             value={dateTo}
@@ -652,65 +652,65 @@ export default function FinancialPage() {
                 </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('company_actual_profit')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('company_actual_profit')}</p>
                             <DollarSign className={`h-4 w-4 ${projectSummary.actualProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${projectSummary.actualProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {formatMoney(projectSummary.actualProfit, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">{projectSummary.statusLabel}</p>
+                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{projectSummary.statusLabel}</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('company_plan_profit_to_date')}</p>
-                            <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('company_plan_profit_to_date')}</p>
+                            <TrendingUp className="h-4 w-4 text-[var(--color-brand-500)]" />
                         </div>
-                        <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
+                        <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {formatMoney(projectSummary.planProfitToDate, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('baseline_based_on_planned_time')}</p>
+                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{t('baseline_based_on_planned_time')}</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('profit_variance')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('profit_variance')}</p>
                             <TrendingDown className={`h-4 w-4 ${projectSummary.variance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${projectSummary.variance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {formatMoney(projectSummary.variance, currency)}
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('actual_minus_plan_helper')}</p>
+                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{t('actual_minus_plan_helper')}</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('projects_needing_attention')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('projects_needing_attention')}</p>
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
                         </div>
                         <div className="mt-2 flex items-end gap-3">
-                            <span className="text-3xl font-bold tracking-tight text-[#171717]">{projectSummary.atRisk}</span>
-                            <span className="pb-1 text-sm text-[#8a8a8a]">{t('watch_count', { count: projectSummary.watch })}</span>
+                            <span className="text-3xl font-bold tracking-tight text-[var(--color-text-default)]">{projectSummary.atRisk}</span>
+                            <span className="pb-1 text-sm text-[var(--color-text-muted)]">{t('watch_count', { count: projectSummary.watch })}</span>
                         </div>
-                        <p className="mt-2 text-xs text-[#8a8a8a]">{t('projects_behind_plan')}</p>
+                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{t('projects_behind_plan')}</p>
                     </CardContent>
                 </Card>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.2fr,1fr]">
-                <section className="rounded-lg border border-[#e6e9ee] bg-white">
+                <section className="rounded-lg border border-[var(--color-border-default)] bg-white">
                     <div className="border-b px-6 py-4">
-                        <h2 className="text-lg font-semibold text-[#171717]">{t('company_profit_snapshot')}</h2>
-                        <p className="mt-1 text-sm text-[#8a8a8a]">{t('company_profit_snapshot_subtitle')}</p>
+                        <h2 className="text-lg font-semibold text-[var(--color-text-default)]">{t('company_profit_snapshot')}</h2>
+                        <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('company_profit_snapshot_subtitle')}</p>
                     </div>
                     <div className="h-[280px] px-4 py-4">
                         <ResponsiveContainer width="100%" height="100%">
@@ -732,32 +732,32 @@ export default function FinancialPage() {
 
                 <Card className="border-[#00a7f4]/20 bg-[#00a7f4]/[0.03] shadow-sm">
                     <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-2 text-base text-[#171717]">
-                            <Info className="h-4 w-4 text-[#00a7f4]" />
+                        <CardTitle className="flex items-center gap-2 text-base text-[var(--color-text-default)]">
+                            <Info className="h-4 w-4 text-[var(--color-brand-500)]" />
                             {t('profit_logic')}
                         </CardTitle>
-                        <CardDescription className="text-[#8a8a8a]">
+                        <CardDescription className="text-[var(--color-text-muted)]">
                             {t('profit_logic_desc')}
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3 pt-0 text-sm text-[#4a4a4a]">
+                    <CardContent className="space-y-3 pt-0 text-sm text-[var(--color-text-subtle)]">
                         <p>
-                            <span className="font-semibold text-[#171717]">{t('plan_profit')}</span> {t('plan_profit_explain')}
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('plan_profit')}</span> {t('plan_profit_explain')}
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">{t('actual_profit')}</span> {t('actual_profit_explain')}
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('actual_profit')}</span> {t('actual_profit_explain')}
                         </p>
                         <p>
-                            <span className="font-semibold text-[#171717]">{t('overtime_impact_label')}</span> {t('overtime_impact_explain')}
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('overtime_impact_label')}</span> {t('overtime_impact_explain')}
                         </p>
                     </CardContent>
                 </Card>
             </div>
 
-            <section className="rounded-lg border border-[#e6e9ee] bg-white">
+            <section className="rounded-lg border border-[var(--color-border-default)] bg-white">
                 <div className="border-b px-6 py-4">
-                    <h2 className="text-lg font-semibold text-[#171717]">{t('project_profit_comparison')}</h2>
-                    <p className="mt-1 text-sm text-[#8a8a8a]">{t('project_profit_comparison_subtitle')}</p>
+                    <h2 className="text-lg font-semibold text-[var(--color-text-default)]">{t('project_profit_comparison')}</h2>
+                    <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('project_profit_comparison_subtitle')}</p>
                 </div>
                 <div className="overflow-x-auto">
                     <Table>
@@ -778,15 +778,15 @@ export default function FinancialPage() {
                             {projectProfitRows.map((row) => (
                                 <TableRow key={row.id} className="align-top hover:bg-slate-50/50">
                                     <TableCell className="py-4">
-                                        <div className="font-semibold text-[#171717]">{row.name}</div>
-                                        <div className="mt-1 text-xs text-[#8a8a8a]">{row.client}</div>
-                                        <div className="mt-1 text-xs text-[#8a8a8a]">{t('ot_policy_label', { policy: row.otPolicy.replaceAll('_', ' ') })}</div>
-                                        <div className="mt-2 text-xs text-[#8a8a8a]">
+                                        <div className="font-semibold text-[var(--color-text-default)]">{row.name}</div>
+                                        <div className="mt-1 text-xs text-[var(--color-text-muted)]">{row.client}</div>
+                                        <div className="mt-1 text-xs text-[var(--color-text-muted)]">{t('ot_policy_label', { policy: row.otPolicy.replaceAll('_', ' ') })}</div>
+                                        <div className="mt-2 text-xs text-[var(--color-text-muted)]">
                                             {t('actual_hours_vs_budget_pace', { hours: row.actualHours.toFixed(1), pct: Math.round(row.plannedProgress * 100) })}
                                         </div>
                                     </TableCell>
                                     <TableCell className="py-4">
-                                        <Badge variant="outline" className="border-[#d9e7f2] bg-slate-50 text-slate-700">
+                                        <Badge variant="outline" className="border-[var(--color-brand-100)] bg-slate-50 text-slate-700">
                                             {row.rank}
                                         </Badge>
                                     </TableCell>
@@ -801,11 +801,11 @@ export default function FinancialPage() {
                                     <TableCell className={`text-right py-4 ${row.overtimeImpact < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
                                         {formatMoney(row.overtimeImpact, currency)}
                                         {row.overtimeHours > 0 && (
-                                            <div className="mt-1 text-xs text-[#8a8a8a]">{t('ot_hrs_short', { hours: row.overtimeHours.toFixed(1) })}</div>
+                                            <div className="mt-1 text-xs text-[var(--color-text-muted)]">{t('ot_hrs_short', { hours: row.overtimeHours.toFixed(1) })}</div>
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right py-4">
-                                        <div className="font-medium text-[#171717]">
+                                        <div className="font-medium text-[var(--color-text-default)]">
                                             {Math.round(row.actualProgress * 100)}%
                                         </div>
                                         <div className={`mt-1 text-xs ${row.progressDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -816,13 +816,13 @@ export default function FinancialPage() {
                                         <Badge variant="outline" className={getHealthClasses(row.health)}>
                                             {row.health}
                                         </Badge>
-                                        <div className="mt-2 max-w-[220px] text-xs text-[#8a8a8a]">{row.healthReason}</div>
+                                        <div className="mt-2 max-w-[220px] text-xs text-[var(--color-text-muted)]">{row.healthReason}</div>
                                     </TableCell>
                                 </TableRow>
                             ))}
                             {projectProfitRows.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="py-8 text-center text-[#8a8a8a]">
+                                    <TableCell colSpan={9} className="py-8 text-center text-[var(--color-text-muted)]">
                                         {t('no_project_profit_data')}
                                     </TableCell>
                                 </TableRow>
@@ -838,27 +838,27 @@ export default function FinancialPage() {
             <section className="space-y-3">
                 <div className="flex items-end justify-between gap-3">
                     <div>
-                        <h3 className="text-lg font-semibold text-[#171717]">{t('late_hours_by_members')}</h3>
-                        <p className="text-sm text-[#8a8a8a]">
+                        <h3 className="text-lg font-semibold text-[var(--color-text-default)]">{t('late_hours_by_members')}</h3>
+                        <p className="text-sm text-[var(--color-text-muted)]">
                             {t('late_hours_subtitle')}
                         </p>
                     </div>
                     <div className="flex gap-6 text-right">
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('members')}</div>
-                            <div className="text-lg font-semibold text-[#171717]">{lateHoursTotal.members}</div>
+                            <div className="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">{t('members')}</div>
+                            <div className="text-lg font-semibold text-[var(--color-text-default)]">{lateHoursTotal.members}</div>
                         </div>
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('total_late_hrs')}</div>
+                            <div className="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">{t('total_late_hrs')}</div>
                             <div className="text-lg font-semibold text-rose-700">{lateHoursTotal.hours.toFixed(1)}h</div>
                         </div>
                         <div>
-                            <div className="text-xs uppercase tracking-wide text-[#8a8a8a]">{t('total_late_cost')}</div>
+                            <div className="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">{t('total_late_cost')}</div>
                             <div className="text-lg font-semibold text-rose-700">{formatMoney(lateHoursTotal.cost, currency)}</div>
                         </div>
                     </div>
                 </div>
-                <div className="overflow-x-auto rounded-md border border-[#e6e9ee] bg-white">
+                <div className="overflow-x-auto rounded-md border border-[var(--color-border-default)] bg-white">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -877,13 +877,13 @@ export default function FinancialPage() {
                         <TableBody>
                             {lateHoursByMember.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="py-8 text-center text-sm text-[#8a8a8a]">
+                                    <TableCell colSpan={10} className="py-8 text-center text-sm text-[var(--color-text-muted)]">
                                         {t('no_late_hours_logs')}
                                     </TableCell>
                                 </TableRow>
                             ) : lateHoursByMember.map((row) => (
                                 <TableRow key={row.employeeId}>
-                                    <TableCell className="font-medium text-[#171717]">{row.employeeName ?? row.employeeId}</TableCell>
+                                    <TableCell className="font-medium text-[var(--color-text-default)]">{row.employeeName ?? row.employeeId}</TableCell>
                                     <TableCell>{row.rankCode ?? '—'}</TableCell>
                                     <TableCell>{row.capacityRole ?? '—'}</TableCell>
                                     <TableCell className="text-right">{formatMoney(row.costPerHour, currency)}</TableCell>
@@ -893,10 +893,10 @@ export default function FinancialPage() {
                                     <TableCell className={`text-right font-medium ${row.totalLateHours > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                                         {row.totalLateHours > 0 ? '+' : ''}{row.totalLateHours.toFixed(1)}h
                                     </TableCell>
-                                    <TableCell className={`text-right font-medium ${row.totalLateCost > 0 ? 'text-rose-700' : 'text-[#8a8a8a]'}`}>
+                                    <TableCell className={`text-right font-medium ${row.totalLateCost > 0 ? 'text-rose-700' : 'text-[var(--color-text-muted)]'}`}>
                                         {formatMoney(row.totalLateCost, currency)}
                                     </TableCell>
-                                    <TableCell className="text-xs text-[#8a8a8a]">
+                                    <TableCell className="text-xs text-[var(--color-text-muted)]">
                                         {row.projectCount === 1
                                             ? row.projectNames[0]
                                             : t('projects_count', { count: row.projectCount })}
@@ -909,34 +909,34 @@ export default function FinancialPage() {
             </section>
 
             <div className="grid gap-6 md:grid-cols-4">
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_recognized_revenue')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('total_recognized_revenue')}</p>
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
-                        <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
+                        <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {formatMoney(monthlySummary.totalRev, currency)}
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_costs_labor_overhead')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('total_costs_labor_overhead')}</p>
                             <TrendingDown className="h-4 w-4 text-rose-500" />
                         </div>
-                        <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
+                        <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {formatMoney(monthlySummary.totalCost, currency)}
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('operating_profit_label')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('operating_profit_label')}</p>
                             <TrendingUp className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className={`mt-2 text-3xl font-bold tracking-tight ${monthlySummary.totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -945,15 +945,15 @@ export default function FinancialPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">{t('overall_profit_margin')}</p>
+                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('overall_profit_margin')}</p>
                             <div className="flex h-4 w-4 items-center justify-center rounded-full bg-[#00a7f4]/10">
-                                <span className="text-[10px] font-bold text-[#00a7f4]">%</span>
+                                <span className="text-[10px] font-bold text-[var(--color-brand-500)]">%</span>
                             </div>
                         </div>
-                        <div className="mt-2 text-3xl font-bold tracking-tight text-[#171717]">
+                        <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {monthlySummary.overallMargin.toFixed(1)}%
                         </div>
                     </CardContent>
@@ -962,37 +962,37 @@ export default function FinancialPage() {
 
             <Card className="border-[#00a7f4]/20 bg-[#00a7f4]/[0.03] shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base text-[#171717]">
-                        <Info className="h-4 w-4 text-[#00a7f4]" />
+                    <CardTitle className="flex items-center gap-2 text-base text-[var(--color-text-default)]">
+                        <Info className="h-4 w-4 text-[var(--color-brand-500)]" />
                         {t('monthly_pnl_logic')}
                     </CardTitle>
-                    <CardDescription className="text-[#8a8a8a]">
+                    <CardDescription className="text-[var(--color-text-muted)]">
                         {t('monthly_pnl_logic_desc')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
                     <div className="grid gap-x-8 gap-y-3 text-sm md:grid-cols-2">
                         <div>
-                            <span className="font-semibold text-[#171717]">{t('recognized_revenue')}</span>
-                            <p className="mt-0.5 text-xs text-[#8a8a8a]">
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('recognized_revenue')}</span>
+                            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                                 {t('recognized_revenue_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">{t('direct_labor')}</span>
-                            <p className="mt-0.5 text-xs text-[#8a8a8a]">
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('direct_labor')}</span>
+                            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                                 {t('direct_labor_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">{t('global_overhead_label')}</span>
-                            <p className="mt-0.5 text-xs text-[#8a8a8a]">
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('global_overhead_label')}</span>
+                            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                                 {t('global_overhead_desc')}
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[#171717]">{t('net_margin')}</span>
-                            <p className="mt-0.5 text-xs text-[#8a8a8a]">
+                            <span className="font-semibold text-[var(--color-text-default)]">{t('net_margin')}</span>
+                            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                                 {t('net_margin_desc', { rate: (taxRate * 100).toFixed(0) })}
                             </p>
                         </div>
@@ -1000,7 +1000,7 @@ export default function FinancialPage() {
                 </CardContent>
             </Card>
 
-            <Card className="border-[#e6e9ee] shadow-sm">
+            <Card variant="plain">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">{t('monthly_pnl_statement')}</CardTitle>
                     <CardDescription>{t('monthly_pnl_statement_desc')}</CardDescription>
@@ -1023,12 +1023,12 @@ export default function FinancialPage() {
                                 const margin = row.revenue > 0 ? (row.netProfit / row.revenue) * 100 : 0;
                                 return (
                                     <TableRow key={index} className="hover:bg-slate-50/50">
-                                        <TableCell className="py-4 font-semibold text-[#171717]">{row.month}</TableCell>
-                                        <TableCell className="py-4 text-right text-[#4a4a4a]">{formatMoney(row.revenue, currency)}</TableCell>
+                                        <TableCell className="py-4 font-semibold text-[var(--color-text-default)]">{row.month}</TableCell>
+                                        <TableCell className="py-4 text-right text-[var(--color-text-subtle)]">{formatMoney(row.revenue, currency)}</TableCell>
                                         <TableCell className="py-4 text-right text-rose-600">-{formatMoney(row.directLabor, currency)}</TableCell>
-                                        <TableCell className="py-4 text-right font-medium text-[#171717]">{formatMoney(row.grossProfit, currency)}</TableCell>
+                                        <TableCell className="py-4 text-right font-medium text-[var(--color-text-default)]">{formatMoney(row.grossProfit, currency)}</TableCell>
                                         <TableCell className="py-4 text-right text-rose-600">-{formatMoney(row.overhead, currency)}</TableCell>
-                                        <TableCell className="py-4 text-right font-bold text-[#171717]">{formatMoney(row.operatingProfit, currency)}</TableCell>
+                                        <TableCell className="py-4 text-right font-bold text-[var(--color-text-default)]">{formatMoney(row.operatingProfit, currency)}</TableCell>
                                         <TableCell className="py-4 text-right">
                                             <Badge
                                                 variant="outline"
@@ -1048,7 +1048,7 @@ export default function FinancialPage() {
                             })}
                             {pnlData.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="py-8 text-center text-[#8a8a8a]">
+                                    <TableCell colSpan={7} className="py-8 text-center text-[var(--color-text-muted)]">
                                         {t('no_financial_data_pnl')}
                                     </TableCell>
                                 </TableRow>

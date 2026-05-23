@@ -69,7 +69,7 @@ export default function AdminAuditPage() {
             </div>
 
             {/* Filters */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardContent className="p-4">
                     <div className="flex flex-wrap items-end gap-4">
                         <div className="space-y-1.5">
@@ -77,7 +77,7 @@ export default function AdminAuditPage() {
                             <select
                                 value={filters.tenantId || ''}
                                 onChange={(e) => updateFilter('tenantId', e.target.value)}
-                                className="text-sm border border-[#e6e9ee] rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+                                className="text-sm border border-[#e6e9ee] rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]/30 w-48"
                             >
                                 <option value="">{t('all_tenants_option')}</option>
                                 {tenants?.map((tenant) => (
@@ -91,7 +91,7 @@ export default function AdminAuditPage() {
                             <select
                                 value={filters.level || ''}
                                 onChange={(e) => updateFilter('level', e.target.value)}
-                                className="text-sm border border-[#e6e9ee] rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+                                className="text-sm border border-[#e6e9ee] rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]/30 w-36"
                             >
                                 <option value="">{t('all_levels_option')}</option>
                                 <option value="info">{t('level_info')}</option>
@@ -129,7 +129,7 @@ export default function AdminAuditPage() {
             </Card>
 
             {/* Logs Table */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">
                         {t('activity_log_title')}
@@ -234,24 +234,26 @@ export default function AdminAuditPage() {
                     {/* Pagination */}
                     {data?.meta && data.meta.last_page > 1 && (
                         <div className="flex items-center justify-between px-4 py-3 border-t">
-                            <div className="text-sm text-[#8a8a8a]">
+                            <div className="text-sm text-[var(--color-text-muted)]">
                                 {t('page_x_of_y', { current: data.meta.current_page, total: data.meta.last_page })}
                             </div>
                             <div className="flex gap-2">
-                                <button
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => setFilters((p) => ({ ...p, page: Math.max(1, (p.page ?? 1) - 1) }))}
                                     disabled={(filters.page ?? 1) <= 1}
-                                    className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-white"
                                 >
                                     {t('previous')}
-                                </button>
-                                <button
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => setFilters((p) => ({ ...p, page: Math.min(data.meta.last_page, (p.page ?? 1) + 1) }))}
                                     disabled={(filters.page ?? 1) >= data.meta.last_page}
-                                    className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-white"
                                 >
                                     {t('next')}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     )}

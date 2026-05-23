@@ -5,7 +5,7 @@ import type { DraftStatus } from '@/lib/queries/contractDrafts';
 const STATUS_CONFIG: Record<DraftStatus, { label: string; className: string; Icon: typeof FileEdit }> = {
     draft: {
         label: 'Draft',
-        className: 'bg-slate-100 text-slate-700 hover:bg-slate-100',
+        className: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-default)] hover:bg-[var(--color-bg-subtle)]',
         Icon: FileEdit,
     },
     sent_to_customer: {
@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<DraftStatus, { label: string; className: string; Ico
     },
     superseded: {
         label: 'Superseded',
-        className: 'bg-slate-50 text-slate-500 hover:bg-slate-50 line-through',
+        className: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] line-through',
         Icon: Archive,
     },
 };

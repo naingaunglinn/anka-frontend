@@ -383,7 +383,7 @@ export function ContractDraftWizard({
                         onClick={handleGenerate}
                         disabled={!templateId || generateMutation.isPending}
                         size="lg"
-                        className="bg-indigo-600 hover:bg-indigo-700"
+                        className="bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)]"
                     >
                         {generateMutation.isPending ? (
                             <>
@@ -498,7 +498,7 @@ export function ContractDraftWizard({
                             onClick={() => setStep('send')}
                             disabled={!draft}
                             size="lg"
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                            className="bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)]"
                         >
                             {draft?.status === 'sent_to_customer' ? t('go_to_send') : t('continue_to_send')}
                             <ArrowRight className="h-4 w-4" />
@@ -578,7 +578,7 @@ export function ContractDraftWizard({
                             type="button"
                             onClick={handleSend}
                             disabled={!emailTo || isSigned || sendMutation.isPending}
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                            className="bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)]"
                         >
                             {sendMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                             <Mail className="h-3.5 w-3.5" />

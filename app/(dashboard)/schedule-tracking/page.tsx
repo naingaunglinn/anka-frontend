@@ -143,7 +143,7 @@ export default function ScheduleTrackingPage() {
 
             {/* Project rollup strip */}
             {summary && (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-4 grid grid-cols-2 md:grid-cols-8 gap-3 text-sm">
                         <Stat label="Estimated" value={`${summary.totalEstimatedHours}h`} />
                         <Stat label="Progress"  value={`${summary.totalProgressHours}h`} />
@@ -177,7 +177,7 @@ export default function ScheduleTrackingPage() {
             )}
 
             {/* Data list */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader className="bg-white">
@@ -238,7 +238,7 @@ export default function ScheduleTrackingPage() {
 
             {/* Per-assignee rollup */}
             {byAssignee.data && byAssignee.data.length > 0 && (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-0">
                         <div className="px-4 py-3 border-b border-[#e6e9ee] bg-[#fafbfc]">
                             <h2 className="font-semibold">{t('by_assignee')}</h2>
