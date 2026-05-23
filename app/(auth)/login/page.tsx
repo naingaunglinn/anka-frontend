@@ -88,13 +88,13 @@ function LoginFormContent() {
                 </section>
 
                 <section>
-                    <Card className="mx-auto w-full max-w-md border-[#00a7f4]/20 bg-white/92 shadow-[0_25px_70px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+                    <Card className="mx-auto w-full max-w-md border-[var(--color-brand-500)]/20 bg-white/92 shadow-[var(--shadow-xl)] backdrop-blur-sm">
                         <CardHeader className="space-y-2 pb-6">
-                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00a7f4] text-white shadow-lg">
+                            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-brand-500)] text-white shadow-lg">
                                 <LogIn className="h-6 w-6" />
                             </div>
                             <CardTitle className="text-2xl font-bold">{t('sign_in_to_anka')}</CardTitle>
-                            <CardDescription className="text-[#171717]/65">
+                            <CardDescription className="text-[var(--color-text-default)]/65">
                                 {t('continue_to_workspace')}
                             </CardDescription>
                         </CardHeader>
@@ -106,12 +106,12 @@ function LoginFormContent() {
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">{t('work_email')}</FormLabel>
+                                                <FormLabel className="text-[var(--color-text-default)]/90">{t('work_email')}</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         placeholder={t('placeholder_email_co')}
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
+                                                        className="h-11 border-[var(--color-text-default)]/20 bg-white focus-visible:ring-[3px] focus-visible:ring-[var(--color-brand-500)]/30"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -123,13 +123,13 @@ function LoginFormContent() {
                                         name="password"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[#171717]/90">{t('password')}</FormLabel>
+                                                <FormLabel className="text-[var(--color-text-default)]/90">{t('password')}</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="password"
                                                         placeholder={t('placeholder_password_stars')}
                                                         {...field}
-                                                        className="h-11 border-[#171717]/20 bg-white focus-visible:ring-2 focus-visible:ring-[#00a7f4]"
+                                                        className="h-11 border-[var(--color-text-default)]/20 bg-white focus-visible:ring-[3px] focus-visible:ring-[var(--color-brand-500)]/30"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -139,7 +139,8 @@ function LoginFormContent() {
 
                                     <Button
                                         type="submit"
-                                        className="h-11 w-full bg-[#00a7f4] text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,167,244,0.35)] hover:bg-[#0599df]"
+                                        variant="primary"
+                                        className="h-11 w-full text-base font-semibold"
                                         disabled={isLoggingIn}
                                     >
                                         {isLoggingIn ? t('signing_in') : t('enter_anka')}
@@ -148,8 +149,8 @@ function LoginFormContent() {
                                 </form>
                             </Form>
 
-                            <p className="mt-5 text-center text-sm text-[#171717]/70">
-                                <Link href="/" className="font-semibold text-[#00a7f4] hover:underline">
+                            <p className="mt-5 text-center text-sm text-[var(--color-text-default)]/70">
+                                <Link href="/" className="font-semibold text-[var(--color-brand-500)] hover:underline">
                                     {t('back_to_home')}
                                 </Link>
                             </p>

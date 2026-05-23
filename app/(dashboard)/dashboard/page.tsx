@@ -463,12 +463,12 @@ export default function DashboardPage() {
                         </div>
                         <div className="h-2.5 overflow-hidden rounded-full bg-muted">
                             <div
-                                className={`h-full rounded-full transition-all duration-500 ${annualTargetGap >= 0 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#00a7f4] to-blue-500'}`}
+                                className={`h-full rounded-full transition-all duration-500 ${annualTargetGap >= 0 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[var(--color-brand-500)] to-blue-500'}`}
                                 style={{ width: `${Math.min(annualTargetCoverage * 100, 100)}%` }}
                             />
                         </div>
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3.5 w-3.5 text-[#00a7f4]" /> {t('plan_to_date')} {formatMoney(projectSummary.planProfitToDate, currency)}</span>
+                            <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3.5 w-3.5 text-[var(--color-brand-500)]" /> {t('plan_to_date')} {formatMoney(projectSummary.planProfitToDate, currency)}</span>
                             <span className={`inline-flex items-center gap-1 ${projectSummary.variance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                 {projectSummary.variance >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />} {t('variance')} {formatMoney(projectSummary.variance, currency)}
                             </span>
@@ -478,7 +478,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-                    <Card className="border-slate-200 shadow-sm">
+                    <Card variant="plain">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">{t('ytd_revenue')}</CardTitle>
                         </CardHeader>
@@ -489,7 +489,7 @@ export default function DashboardPage() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-200 shadow-sm">
+                    <Card variant="plain">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">{t('operating_profit_ytd')}</CardTitle>
                         </CardHeader>
@@ -498,11 +498,11 @@ export default function DashboardPage() {
                                 <div className={`text-2xl font-bold ${ytdSummary.operatingProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     {formatMoney(ytdSummary.operatingProfit, currency)}
                                 </div>
-                                <TrendingUp className="h-4 w-4 text-[#00a7f4]" />
+                                <TrendingUp className="h-4 w-4 text-[var(--color-brand-500)]" />
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-200 shadow-sm">
+                    <Card variant="plain">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">{t('weighted_pipeline')}</CardTitle>
                         </CardHeader>
@@ -513,7 +513,7 @@ export default function DashboardPage() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-200 shadow-sm">
+                    <Card variant="plain">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">{t('profit_margin')}</CardTitle>
                         </CardHeader>
@@ -522,7 +522,7 @@ export default function DashboardPage() {
                                 <div className={`text-2xl font-bold ${ytdSummary.profitMargin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     {ytdSummary.profitMargin.toFixed(1)}%
                                 </div>
-                                <Percent className="h-4 w-4 text-[#00a7f4]" />
+                                <Percent className="h-4 w-4 text-[var(--color-brand-500)]" />
                             </div>
                             <div className="text-sm text-muted-foreground">
                                 {t('active_projects_count', { count: activeProjectsCount })}
@@ -533,7 +533,7 @@ export default function DashboardPage() {
             </section>
 
             <section className="grid gap-6 lg:grid-cols-2">
-                <Card className="border-slate-200 shadow-sm">
+                <Card variant="plain">
                     <CardHeader>
                         <CardTitle>{t('projects_needing_attention')}</CardTitle>
                         <CardDescription>{t('attention_description')}</CardDescription>
@@ -555,7 +555,7 @@ export default function DashboardPage() {
                                         <div className="flex items-center gap-2">
                                             <span className="w-10 text-xs text-muted-foreground">{t('actual')}</span>
                                             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                                                <div className="h-full rounded-full bg-[#00a7f4]" style={{ width: `${Math.round(project.actualProgress * 100)}%` }} />
+                                                <div className="h-full rounded-full bg-[var(--color-brand-500)]" style={{ width: `${Math.round(project.actualProgress * 100)}%` }} />
                                             </div>
                                             <span className="w-8 text-right text-xs text-muted-foreground">{Math.round(project.actualProgress * 100)}%</span>
                                         </div>
@@ -578,7 +578,7 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-slate-200 shadow-sm">
+                <Card variant="plain">
                     <CardHeader>
                         <CardTitle>{t('strongest_profit_contributors')}</CardTitle>
                         <CardDescription>{t('strongest_contributors_description')}</CardDescription>
@@ -630,7 +630,7 @@ export default function DashboardPage() {
             </section>
 
             <section className="grid gap-6 lg:grid-cols-2">
-                <Card className="border-slate-200 shadow-sm">
+                <Card variant="plain">
                     <CardHeader>
                         <CardTitle>{t('monthly_pnl_trend')}</CardTitle>
                         <CardDescription>{t('revenue_vs_operating_profit')}</CardDescription>
@@ -656,7 +656,7 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-slate-200 shadow-sm">
+                <Card variant="plain">
                     <CardHeader>
                         <CardTitle>{t('top_pipeline_deals')}</CardTitle>
                         <CardDescription>{t('top_pipeline_description')}</CardDescription>

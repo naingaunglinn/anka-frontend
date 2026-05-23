@@ -40,10 +40,10 @@ export function HolidaysTab() {
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[#e6e9ee]">
+            <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-[var(--color-border-default)]">
                 <div>
-                    <h3 className="text-xl font-bold tracking-tight text-[#171717]">Public Holidays</h3>
-                    <p className="text-[#4a4a4a] text-sm mt-1">
+                    <h3 className="text-xl font-bold tracking-tight text-[var(--color-text-default)]">Public Holidays</h3>
+                    <p className="text-[var(--color-text-default)]/80 text-sm mt-1">
                         Days the AI scheduler will skip, and that reduce each month&apos;s available team capacity.
                     </p>
                 </div>
@@ -51,7 +51,7 @@ export function HolidaysTab() {
                     <select
                         value={yearFilter}
                         onChange={(e) => setYearFilter(e.target.value)}
-                        className="h-9 rounded border border-slate-200 px-3 text-sm"
+                        className="h-9 rounded border border-[var(--color-border-default)] px-3 text-sm"
                     >
                         <option value="all">All years</option>
                         {years.map((y) => (
@@ -60,7 +60,7 @@ export function HolidaysTab() {
                     </select>
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
-                            <Button className="gap-2 bg-[#171717] hover:bg-[#00a7f4]">
+                            <Button className="gap-2 bg-[var(--color-text-default)] hover:bg-[var(--color-brand-500)]">
                                 <Plus className="w-4 h-4" /> Add Holiday
                             </Button>
                         </DialogTrigger>
@@ -89,32 +89,32 @@ export function HolidaysTab() {
                 </div>
             </div>
 
-            <Card className="p-0 overflow-hidden border-[#e6e9ee]">
+            <Card className="p-0 overflow-hidden border-[var(--color-border-default)]">
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="bg-[var(--color-bg-subtle)] border-b border-[var(--color-border-default)]">
                         <tr>
-                            <th className="px-4 py-3 text-left font-medium text-slate-700">Date</th>
-                            <th className="px-4 py-3 text-left font-medium text-slate-700">Name</th>
-                            <th className="px-4 py-3 text-left font-medium text-slate-700">Recurring</th>
-                            <th className="px-4 py-3 text-right font-medium text-slate-700 w-[140px]">Actions</th>
+                            <th className="px-4 py-3 text-left font-medium text-[var(--color-text-default)]">Date</th>
+                            <th className="px-4 py-3 text-left font-medium text-[var(--color-text-default)]">Name</th>
+                            <th className="px-4 py-3 text-left font-medium text-[var(--color-text-default)]">Recurring</th>
+                            <th className="px-4 py-3 text-right font-medium text-[var(--color-text-default)] w-[140px]">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading…</td></tr>
+                            <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--color-text-muted)]">Loading…</td></tr>
                         ) : filtered.length === 0 ? (
-                            <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No holidays. Add one to start.</td></tr>
+                            <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--color-text-muted)]">No holidays. Add one to start.</td></tr>
                         ) : filtered.map((h) => (
-                            <tr key={h.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                                <td className="px-4 py-2.5 font-mono text-slate-700">{h.date}</td>
-                                <td className="px-4 py-2.5 text-slate-800">{h.name}</td>
+                            <tr key={h.id} className="border-b border-[var(--color-border-default)]/60 hover:bg-[var(--color-bg-subtle)]/50">
+                                <td className="px-4 py-2.5 font-mono text-[var(--color-text-default)]">{h.date}</td>
+                                <td className="px-4 py-2.5 text-[var(--color-text-default)]">{h.name}</td>
                                 <td className="px-4 py-2.5">
                                     {h.isRecurring ? (
-                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 gap-1">
+                                        <Badge variant="outline" className="bg-[var(--color-info-50)] text-[var(--color-info-700)] border-[var(--color-info-100)] gap-1">
                                             <RotateCcw className="h-3 w-3" /> Every year
                                         </Badge>
                                     ) : (
-                                        <span className="text-slate-400 text-xs">One-off</span>
+                                        <span className="text-[var(--color-text-subtle)] text-xs">One-off</span>
                                     )}
                                 </td>
                                 <td className="px-4 py-2.5 text-right">
@@ -198,14 +198,14 @@ function HolidayForm({
             className="space-y-4"
         >
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Date</label>
+                <label className="text-sm font-medium text-[var(--color-text-default)]">Date</label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Name</label>
+                <label className="text-sm font-medium text-[var(--color-text-default)]">Name</label>
                 <Input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 元日, Independence Day" required maxLength={150} />
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-default)]">
                 <input
                     type="checkbox"
                     checked={isRecurring}
@@ -216,7 +216,7 @@ function HolidayForm({
             </label>
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-                <Button type="submit" className="bg-[#171717] hover:bg-[#00a7f4]" disabled={submitting}>
+                <Button type="submit" className="bg-[var(--color-text-default)] hover:bg-[var(--color-brand-500)]" disabled={submitting}>
                     {submitting ? 'Saving…' : 'Save'}
                 </Button>
             </DialogFooter>

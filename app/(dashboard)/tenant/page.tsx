@@ -106,7 +106,7 @@ function OrgTenantSettings() {
             {tenantQuery.isLoading && <div className="h-48 animate-pulse bg-slate-100 rounded-xl" />}
 
             {tenantQuery.isError && (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
                         <p className="text-sm text-[#4a4a4a]">{t('could_not_load_tenant')}</p>
                         <Button variant="outline" onClick={() => tenantQuery.refetch()}>{t('retry')}</Button>
@@ -117,7 +117,7 @@ function OrgTenantSettings() {
             {tenantQuery.data && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-1 space-y-6">
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <Building2 className="w-5 h-5 text-[#8a8a8a]" />
@@ -196,7 +196,7 @@ function OrgTenantSettings() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <DollarSign className="w-5 h-5 text-[#8a8a8a]" />
@@ -244,7 +244,7 @@ function OrgTenantSettings() {
                     </div>
 
                     <div className="lg:col-span-2">
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle className="text-lg">{t('tenant_information')}</CardTitle>
                                 <CardDescription>{t('tenant_information_desc')}</CardDescription>
@@ -681,25 +681,25 @@ function SuperAdminTenantManagement() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <p className="text-sm text-[#8a8a8a]">Total Tenants</p>
                         <p className="text-3xl font-bold mt-1">{tenants.length}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <p className="text-sm text-[#8a8a8a]">Active</p>
                         <p className="text-3xl font-bold mt-1 text-emerald-600">{activeCount}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <p className="text-sm text-[#8a8a8a]">Inactive</p>
                         <p className="text-3xl font-bold mt-1 text-rose-600">{inactiveCount}</p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <p className="text-sm text-[#8a8a8a]">Total Users</p>
                         <p className="text-3xl font-bold mt-1 text-[#00a7f4]">{totalUsers}</p>
@@ -720,16 +720,16 @@ function SuperAdminTenantManagement() {
 
             {/* Tenant table */}
             {tenantsQuery.isLoading ? (
-                <Card className="h-48 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
+                <Card variant="plain" className="h-48 animate-pulse bg-slate-100" />
             ) : tenantsQuery.isError ? (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
                         <p className="text-sm text-[#4a4a4a]">Could not load tenants.</p>
                         <Button variant="outline" onClick={() => tenantsQuery.refetch()}>Retry</Button>
                     </CardContent>
                 </Card>
             ) : (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <Table>
                         <TableHeader className="bg-white">
                             <TableRow>

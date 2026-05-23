@@ -70,7 +70,7 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
     const [openPhase, setOpenPhase] = useState<ProjectTaskPhaseAssignment | null>(null);
 
     return (
-        <Card className="shadow-sm border-[#e6e9ee]">
+        <Card variant="plain">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>

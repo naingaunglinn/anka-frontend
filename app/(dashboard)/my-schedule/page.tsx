@@ -83,7 +83,7 @@ export default function MySchedulePage() {
                     ) : projectId ? (
                         <MyScheduleEmployeeTable projectId={projectId} employeeId={employeeId} />
                     ) : (
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardContent className="p-6 text-sm text-[#8a8a8a]">
                                 {t('pick_project_to_see_phases')}
                             </CardContent>

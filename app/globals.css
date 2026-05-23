@@ -55,8 +55,9 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* OQ-6: --primary realigned from shadcn near-black to brand cyan #00a7f4. */
+  --primary: #00a7f4;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -80,6 +81,81 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ---------------------------------------------------------------
+   * Anka design tokens — Phase 1 (additive). See docs/ui-audit.md §5.
+   * All values derived from current codebase usage (no new colors).
+   * ---------------------------------------------------------------- */
+
+  /* Brand cyan family (OQ-1: kept distinct from AI tokens) */
+  --color-brand-50: #f0f9ff;
+  --color-brand-100: #d9e7f2;
+  --color-brand-500: #00a7f4;
+  --color-brand-600: #0599df;
+  --color-brand-700: #0086c4;
+
+  /* AI accent family — indigo (OQ-1: separate from brand) */
+  --color-ai-50: #eef2ff;
+  --color-ai-100: #e0e7ff;
+  --color-ai-500: #6366f1;
+  --color-ai-600: #4f46e5;
+  --color-ai-700: #4338ca;
+
+  /* Text colors (OQ-3: muted darkened from #8a8a8a to #737373 for WCAG AA) */
+  --color-text-default: #171717;
+  --color-text-muted: #737373;
+  --color-text-subtle: #4a4a4a;
+
+  /* Background surfaces */
+  --color-bg-page: #f8fafc;
+  --color-bg-surface: #ffffff;
+  --color-bg-subtle: #fafcfe;
+
+  /* Borders */
+  --color-border-default: #e6e9ee;
+  --color-border-strong: #171717;
+
+  /* Status — success (emerald) */
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  /* Status — warning (amber) */
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+
+  /* Status — error (rose) */
+  --color-error-50: #fff1f2;
+  --color-error-100: #ffe4e6;
+  --color-error-500: #f43f5e;
+  --color-error-600: #e11d48;
+  --color-error-700: #be123c;
+
+  /* Status — info (blue) */
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+  --color-info-500: #3b82f6;
+  --color-info-600: #2563eb;
+  --color-info-700: #1d4ed8;
+
+  /* Radii (semantic names; shadcn-derived radius-* aliases in @theme remain) */
+  --radius-pill: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+
+  /* Motion */
+  --motion-duration-fast: 150ms;
+  --motion-duration-base: 200ms;
+  --motion-easing-default: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark {
@@ -89,8 +165,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* OQ-6: brand cyan retained in dark mode for consistency of primary surface. */
+  --primary: #00a7f4;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -114,6 +191,59 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Dark-mode counterparts for Anka design tokens (Phase 1). */
+  --color-brand-50: #0b2230;
+  --color-brand-100: #103247;
+  --color-brand-500: #00a7f4;
+  --color-brand-600: #0599df;
+  --color-brand-700: #38bdf8;
+
+  --color-ai-50: #1e1b4b;
+  --color-ai-100: #2a2a6b;
+  --color-ai-500: #818cf8;
+  --color-ai-600: #6366f1;
+  --color-ai-700: #4f46e5;
+
+  --color-text-default: #fafafa;
+  --color-text-muted: #a1a1a1;
+  --color-text-subtle: #d4d4d4;
+
+  --color-bg-page: #0a0a0a;
+  --color-bg-surface: #171717;
+  --color-bg-subtle: #1f1f1f;
+
+  --color-border-default: #2a2a2a;
+  --color-border-strong: #fafafa;
+
+  --color-success-50: #052e1d;
+  --color-success-100: #064e34;
+  --color-success-500: #10b981;
+  --color-success-600: #34d399;
+  --color-success-700: #6ee7b7;
+
+  --color-warning-50: #2e1c00;
+  --color-warning-100: #4a2c00;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #fbbf24;
+  --color-warning-700: #fcd34d;
+
+  --color-error-50: #2e0a13;
+  --color-error-100: #4a0f1d;
+  --color-error-500: #f43f5e;
+  --color-error-600: #fb7185;
+  --color-error-700: #fda4af;
+
+  --color-info-50: #0a1e3a;
+  --color-info-100: #112a52;
+  --color-info-500: #3b82f6;
+  --color-info-600: #60a5fa;
+  --color-info-700: #93c5fd;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
 }
 
 @layer base {

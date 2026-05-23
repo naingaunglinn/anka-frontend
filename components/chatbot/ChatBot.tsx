@@ -263,7 +263,7 @@ What would you like to know?`
                 onMouseDown={onButtonMouseDown}
                 onTouchStart={onButtonTouchStart}
                 style={buttonStyle}
-                className={`fixed h-14 w-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white z-50 touch-none select-none ${buttonAnchorClass} ${className ?? ''}`}
+                className={`fixed h-14 w-14 rounded-full shadow-xl bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white z-50 touch-none select-none ${buttonAnchorClass} ${className ?? ''}`}
                 size="icon"
             >
                 {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
@@ -271,24 +271,24 @@ What would you like to know?`
 
             {/* Chat panel — positioned adjacent to the dragged button. */}
             {isOpen && (
-                <Card style={panelStyle} className="fixed w-[380px] max-h-[540px] shadow-2xl border-indigo-200 flex flex-col z-50">
-                    <CardHeader className="pb-2 bg-indigo-50 rounded-t-xl border-b border-indigo-100">
+                <Card style={panelStyle} className="fixed w-[380px] max-h-[540px] shadow-2xl border-[var(--color-ai-100)] flex flex-col z-50">
+                    <CardHeader className="pb-2 bg-[var(--color-ai-50)] rounded-t-xl border-b border-[var(--color-ai-100)]">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <Bot className="h-5 w-5 text-indigo-600" />
+                                <Bot className="h-5 w-5 text-[var(--color-ai-600)]" />
                                 <CardTitle className="text-base">{t('anka_assistant')}</CardTitle>
                             </div>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleChatbot}>
                                 <ChevronDown className="h-4 w-4" />
                             </Button>
                         </div>
-                        <p className="text-xs text-indigo-600/70">{t('anka_assistant_subtitle')}</p>
+                        <p className="text-xs text-[var(--color-ai-600)]/70">{t('anka_assistant_subtitle')}</p>
                     </CardHeader>
 
                     <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
                         {messages.length === 0 && (
                             <div className="text-center py-6 text-slate-500">
-                                <Bot className="h-8 w-8 mx-auto mb-2 text-indigo-300" />
+                                <Bot className="h-8 w-8 mx-auto mb-2 text-[var(--color-ai-500)]/60" />
                                 <p className="text-sm">{t('ask_me_anything')}</p>
                                 <p className="text-xs mt-1">{t('chatbot_examples')}</p>
                             </div>
@@ -298,7 +298,7 @@ What would you like to know?`
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                                     msg.role === 'user'
-                                        ? 'bg-indigo-600 text-white'
+                                        ? 'bg-[var(--color-ai-600)] text-white'
                                         : 'bg-slate-100 text-slate-800'
                                 }`}>
                                     <p className="whitespace-pre-wrap">{msg.content}</p>
