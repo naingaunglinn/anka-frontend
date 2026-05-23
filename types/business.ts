@@ -289,6 +289,9 @@ export interface Deal {
     /** ID of the most recent non-superseded contract draft. Used to open
      *  the draft directly from the Kanban card dropdown. */
     activeContractDraftId?: string | null;
+    /** Server timestamp of the deal's last write. Used by the Forecast page
+     *  as a "days in stage" proxy until stage_entered_at tracking lands. */
+    updatedAt?: string;
 }
 
 // --- Contracts & Billing ---

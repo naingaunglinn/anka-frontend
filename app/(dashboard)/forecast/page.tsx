@@ -101,10 +101,11 @@ function projectedDealValue(deal: Deal, contract?: Contract): number {
 
 function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, fallback?: Date): Date {
     // Won deals: use the actual project / contract start (work is happening).
-    // Non-won deals: estimate from expectedCloseDate. We add +1 day because
-    // close-date conventionally lands the day before kickoff, so without the
-    // bump a deal whose close is Jun 30 would be plotted from June instead
-    // of the intended July project window.
+    // Non-won deals: use expectedCloseDate verbatim — the UI labels this field
+    // "Expected Start Date" and sales reps enter the kick-off day. The legacy
+    // +1 day offset (close-date conventionally lands the day before kickoff)
+    // was removed once EstimationAI's verbatim interpretation was confirmed
+    // as the intended semantic.
     //
     // `finalConfirmedAt` is intentionally NOT in the chain — it marks when
     // the estimate was locked, not when work begins. Including it caused
@@ -115,9 +116,7 @@ function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, f
     }
 
     if (deal.expectedCloseDate) {
-        const closeDate = new Date(deal.expectedCloseDate);
-        const dayAfterClose = new Date(closeDate.getTime() + 24 * 60 * 60 * 1000);
-        return startOfUtcMonth(dayAfterClose);
+        return startOfUtcMonth(new Date(deal.expectedCloseDate));
     }
 
     return fallback ?? startOfUtcMonth(new Date());
@@ -608,13 +607,14 @@ export default function ForecastPage() {
                     negotiation: 'A',
                 };
                 const value = projectedDealValue(d, contractByDealId.get(d.id));
-                // Deal type doesn't expose created/updated timestamps; approximate
-                // daysInStage from expectedCloseDate (early proxy) — Claude uses it
-                // as a relative signal, not an exact metric.
-                const proxyStageDate = d.expectedCloseDate
-                    ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime() - 30 * 86_400_000
+                // Days-in-stage proxy: use the deal's most-recent mutation
+                // timestamp. Real stage_entered_at tracking is a future feature;
+                // updated_at is close enough (changes on any deal write) and far
+                // better than the legacy `expectedCloseDate - 30 days` fabrication.
+                const stageProxyMs = d.updatedAt
+                    ? new Date(d.updatedAt).getTime()
                     : today - 30 * 86_400_000;
-                const daysInStage = Math.max(0, Math.floor((today - proxyStageDate) / 86_400_000));
+                const daysInStage = Math.max(0, Math.floor((today - stageProxyMs) / 86_400_000));
                 const expectedClose = d.expectedCloseDate
                     ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime()
                     : null;
