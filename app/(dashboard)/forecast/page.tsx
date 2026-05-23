@@ -370,12 +370,31 @@ export default function ForecastPage() {
             }),
         );
 
+        // Past months (everything before the current month) show actual
+        // cash collected from paid invoices, not the pipeline projection.
+        // Current month and future months stay on the probability-weighted
+        // pipeline projection — current month isn't done yet, so partial
+        // actuals would look misleadingly low. Cost line is unchanged
+        // (full-company payroll + overhead) — represents the whole agency's
+        // money commitment regardless of past/future split.
+        const currentMonthStart = startOfUtcMonth(new Date());
+
+        for (const invoice of store.invoices) {
+            if (!invoice.paidAt || !invoice.paidAmount) continue;
+            const paidMonth = startOfUtcMonth(new Date(invoice.paidAt));
+            if (paidMonth >= currentMonthStart) continue;
+            const row = rowMap.get(toMonthKey(paidMonth));
+            if (!row) continue;
+            row.income += invoice.paidAmount;
+        }
+
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
             const monthlyIncome = (source.incomeBudget / source.timelineMonths) * probabilityWeight;
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
+                if (monthDate < currentMonthStart) continue;
                 if (monthDate < source.activeStart || monthDate > activeEnd) continue;
                 const row = rowMap.get(toMonthKey(monthDate));
                 if (!row) continue;
@@ -394,7 +413,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
