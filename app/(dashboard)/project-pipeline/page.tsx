@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { KanbanBoard } from '@/components/crm/KanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DollarSign, Search, Target, TrendingUp, Plus, X, EyeOff, Eye } from 'lucide-react';
@@ -99,7 +100,7 @@ export default function CRMPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                <Card className="bg-white border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">{t('total_pipeline_value')}</CardTitle>
                         <DollarSign className="h-4 w-4 text-[#00a7f4]" />
@@ -114,7 +115,7 @@ export default function CRMPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">{t('weighted_revenue')}</CardTitle>
                         <Target className="h-4 w-4 text-emerald-600" />
@@ -129,7 +130,7 @@ export default function CRMPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">{t('forecasted_yield')}</CardTitle>
                         <TrendingUp className="h-4 w-4 text-indigo-600" />
@@ -230,15 +231,17 @@ export default function CRMPage() {
                         <Button variant="outline" onClick={() => dealsQuery.refetch()}>{t('retry')}</Button>
                     </div>
                 ) : deals.length === 0 ? (
-                    <div className="flex h-96 flex-col items-center justify-center gap-3 text-center">
-                        {hasActiveFilters ? (
-                            <>
-                                <p className="text-sm text-[#8a8a8a]">{t('no_deals_match_filters')}</p>
-                                <Button variant="outline" onClick={clearFilters}>{t('clear_filters')}</Button>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-sm text-[#8a8a8a]">{t('no_deals_yet')}</p>
+                    hasActiveFilters ? (
+                        <EmptyState
+                            className="h-96"
+                            title={t('no_deals_match_filters')}
+                            action={<Button variant="outline" onClick={clearFilters}>{t('clear_filters')}</Button>}
+                        />
+                    ) : (
+                        <EmptyState
+                            className="h-96"
+                            title={t('no_deals_yet')}
+                            action={
                                 <PermissionGuard permission="manage_crm">
                                     <Link href="/project-pipeline/new">
                                         <Button>
@@ -246,9 +249,9 @@ export default function CRMPage() {
                                         </Button>
                                     </Link>
                                 </PermissionGuard>
-                            </>
-                        )}
-                    </div>
+                            }
+                        />
+                    )
                 ) : (
                     <KanbanBoard deals={deals} onMetricsUpdate={handleMetricsUpdate} showDropped={showDropped} />
                 )}

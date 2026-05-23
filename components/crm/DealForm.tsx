@@ -82,7 +82,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         <DialogTitle>{initialData ? t('edit_deal_button') : t('add_new_deal')}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <p className="text-xs text-[#4a4a4a] col-span-4">
+                        <p className="text-xs text-[var(--color-text-default)]/80 col-span-4">
                             {t('fields_required_explainer')} <span className="text-destructive">*</span> {t('are_required_short')}
                         </p>
                         <div className="grid grid-cols-4 items-start gap-4">
@@ -103,7 +103,7 @@ export function DealForm({ isOpen, onClose, onSave, initialData }: DealFormProps
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="client" className="text-right">
-                                {t('client')} <span className="text-[#4a4a4a] text-xs font-normal">{t('opt_short')}</span>
+                                {t('client')} <span className="text-[var(--color-text-default)]/80 text-xs font-normal">{t('opt_short')}</span>
                             </Label>
                             <Input id="client" value={client} onChange={e => setClient(e.target.value)} className="col-span-3" placeholder={t('placeholder_acme_client')} />
                         </div>

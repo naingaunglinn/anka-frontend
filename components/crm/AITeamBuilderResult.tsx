@@ -65,10 +65,10 @@ export function AITeamBuilderResultPanel({
     return (
         <div className="space-y-4 mt-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
             {/* — Recommended Team — */}
-            <Card className="border-[#e6e9ee] shadow-sm">
+            <Card variant="plain">
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
-                        <User className="h-4 w-4 text-indigo-600" />
+                        <User className="h-4 w-4 text-[var(--color-ai-600)]" />
                         Recommended Team
                     </CardTitle>
                 </CardHeader>
@@ -80,7 +80,7 @@ export function AITeamBuilderResultPanel({
                                 className="flex flex-col gap-1.5 p-3 rounded-lg border border-[#e6e9ee] bg-white shadow-sm hover:shadow-md transition-shadow"
                             >
                                 <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
+                                    <div className="h-8 w-8 rounded-full bg-[var(--color-ai-100)] flex items-center justify-center text-[var(--color-ai-700)] text-xs font-bold">
                                         {member.name
                                             .split(' ')
                                             .map(w => w[0])
@@ -107,7 +107,7 @@ export function AITeamBuilderResultPanel({
             </Card>
 
             {/* — P&L Estimate — */}
-            <Card className="border-[#e6e9ee] shadow-sm">
+            <Card variant="plain">
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base">P&amp;L Estimate</CardTitle>
                 </CardHeader>
@@ -172,7 +172,7 @@ export function AITeamBuilderResultPanel({
             </Card>
 
             {/* — AI Reasoning — */}
-            <Card className="border-[#e6e9ee] shadow-sm">
+            <Card variant="plain">
                 <CardHeader className="pb-3 bg-slate-50/80 border-b border-[#e6e9ee] rounded-t-xl">
                     <CardTitle className="text-base flex items-center gap-2">
                         <MessageSquare className="h-4 w-4 text-purple-600" />

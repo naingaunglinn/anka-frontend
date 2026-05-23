@@ -316,7 +316,7 @@ export default function DealDetailPage() {
                 show. Same gate as the right-rail Financial Summary card. */}
             {hasFinancials && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="shadow-sm border-slate-100">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">{t('client_budget')}</p>
@@ -327,7 +327,7 @@ export default function DealDetailPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">{t('est_total_cost')}</p>
@@ -338,7 +338,7 @@ export default function DealDetailPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">{t('gross_profit')}</p>
@@ -356,7 +356,7 @@ export default function DealDetailPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-slate-100">
+                <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-slate-500">{t('win_probability')}</p>
@@ -373,7 +373,7 @@ export default function DealDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-6">
                     {/* Deal Overview */}
-                    <Card className="shadow-sm border-slate-100">
+                    <Card variant="plain">
                         <CardHeader className="border-b bg-slate-50/50">
                             <CardTitle className="text-lg">{t('deal_overview')}</CardTitle>
                         </CardHeader>
@@ -436,7 +436,7 @@ export default function DealDetailPage() {
                     <RequirementsChecklist deal={dealToEdit} dealId={dealId} canEdit={canManageCrm} />
 
                     {/* Ghost Roles */}
-                    <Card className="shadow-sm border-slate-100">
+                    <Card variant="plain">
                         <CardHeader className="border-b bg-slate-50/50">
                             <CardTitle className="text-lg">{t('ghost_roles_staffing')}</CardTitle>
                             <CardDescription>{t('estimated_team_composition')}</CardDescription>
@@ -489,7 +489,7 @@ export default function DealDetailPage() {
 
                     {/* Linked Records — only show if we have any */}
                     {(linkedContract || linkedProject) && (
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="border-b bg-slate-50/50">
                                 <CardTitle className="text-lg">{t('linked_records')}</CardTitle>
                                 <CardDescription>{t('auto_created_when_won')}</CardDescription>
@@ -546,7 +546,7 @@ export default function DealDetailPage() {
                 {/* Sidebar */}
                 <div className="space-y-6">
                     {hasFinancials && (
-                        <Card className="shadow-sm border-slate-100 sticky top-6">
+                        <Card variant="plain" className="sticky top-6">
                             <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100">
                                 <CardTitle className="text-lg">{t('financial_summary')}</CardTitle>
                                 <CardDescription>{t('live_from_estimation')}</CardDescription>

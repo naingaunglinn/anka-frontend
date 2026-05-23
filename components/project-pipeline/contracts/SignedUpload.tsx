@@ -133,7 +133,7 @@ export function SignedUpload({
                         {verify.isPending ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                            <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                            <Sparkles className="h-3.5 w-3.5 text-[var(--color-ai-600)]" />
                         )}
                         {verify.isPending ? 'Verifying (5–10s)…' : 'Verify signed PDF'}
                     </Button>

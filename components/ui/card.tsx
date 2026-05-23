@@ -1,15 +1,40 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+const cardVariants = cva(
+  "text-card-foreground flex flex-col gap-6 rounded-xl border py-6",
+  {
+    variants: {
+      variant: {
+        // Default keeps the existing brand-cyan gradient + soft shadow (OQ-4).
+        default:
+          "bg-gradient-to-br from-white via-[var(--color-bg-subtle)] to-[var(--color-brand-50)] shadow-[0_8px_30px_-12px_rgba(23,23,23,0.08)]",
+        // Plain surface for dashboard pages that don't want the gradient.
+        plain:
+          "bg-[var(--color-bg-surface)] border-[var(--color-border-default)] shadow-sm",
+        // Same as default, but explicit alias for token-routed call sites.
+        "brand-accent":
+          "bg-gradient-to-br from-white via-[var(--color-bg-subtle)] to-[var(--color-brand-50)] shadow-[0_8px_30px_-12px_rgba(23,23,23,0.08)]",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+function Card({
+  className,
+  variant,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof cardVariants>) {
   return (
     <div
       data-slot="card"
-      className={cn(
-        "bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-[0_8px_30px_-12px_rgba(23,23,23,0.08)]",
-        className
-      )}
+      data-variant={variant ?? "default"}
+      className={cn(cardVariants({ variant }), className)}
       {...props}
     />
   )
@@ -89,4 +114,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  cardVariants,
 }

@@ -32,7 +32,7 @@ export default function ProjectsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-[#8a8a8a]">Active Projects</p>
@@ -43,7 +43,7 @@ export default function ProjectsPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-[#8a8a8a]">Total Budgeted Hours</p>
@@ -56,7 +56,7 @@ export default function ProjectsPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-[#8a8a8a]">Total Consumed Hours</p>
@@ -72,16 +72,16 @@ export default function ProjectsPage() {
             </div>
 
             {projectsQuery.isLoading ? (
-                <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
+                <Card variant="plain" className="h-64 animate-pulse bg-slate-100" />
             ) : projectsQuery.isError ? (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <div className="flex h-64 flex-col items-center justify-center gap-3">
                         <p className="text-sm text-[#4a4a4a]">Could not load projects.</p>
                         <Button variant="outline" onClick={() => projectsQuery.refetch()}>Retry</Button>
                     </div>
                 </Card>
             ) : (
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <Table>
                     <TableHeader className="bg-white">
                         <TableRow>

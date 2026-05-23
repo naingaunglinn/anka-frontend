@@ -803,7 +803,7 @@ export default function ForecastPage() {
 
             {hasForecastData ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <Card className="shadow-sm border-slate-100 lg:col-span-1 bg-white text-slate-900">
+                    <Card variant="plain" className="lg:col-span-1 text-slate-900">
                         <CardHeader className="pb-4 border-b border-slate-100">
                             <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
                                 <Sparkles className="h-5 w-5 text-blue-500" />
@@ -995,7 +995,7 @@ export default function ForecastPage() {
                     </Card>
 
                     <div className="lg:col-span-2 space-y-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <span>{t('forecast_chart_title')}</span>
@@ -1058,7 +1058,7 @@ export default function ForecastPage() {
                         </Card>
 
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_income_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-blue-600">
@@ -1066,7 +1066,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_cost_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
@@ -1074,7 +1074,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_profit_kpi', { window: forecastWindowLabel })}</p>
                                     <span className={`mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -1082,7 +1082,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_year_end_profit_label', { year: forecastFiscalYear })}</p>
                                     {hasFiscalYearBudget ? (
@@ -1094,7 +1094,7 @@ export default function ForecastPage() {
                                     )}
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{targetGap.label}</p>
                                     <span className={`mt-1 block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${targetGap.tone}`}>
@@ -1105,7 +1105,7 @@ export default function ForecastPage() {
                             </Card>
                         </div>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <BarChart3 className="h-5 w-5 text-blue-500" />
@@ -1147,7 +1147,7 @@ export default function ForecastPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg">{t('forecast_monthly_title')}</CardTitle>
                                 <CardDescription>{t('forecast_monthly_desc')}</CardDescription>

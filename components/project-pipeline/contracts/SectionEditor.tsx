@@ -88,7 +88,7 @@ export function SectionEditor({
                             size="sm"
                             onClick={() => onSave(content)}
                             disabled={isSaving}
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                            className="bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)]"
                         >
                             {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                         </Button>

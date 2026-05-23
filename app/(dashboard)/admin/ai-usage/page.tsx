@@ -74,7 +74,7 @@ export default function AdminAIUsagePage() {
             </div>
 
             {/* Cost Per Tenant Chart */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg">{t('cost_per_tenant')}</CardTitle>
                 </CardHeader>
@@ -102,7 +102,7 @@ export default function AdminAIUsagePage() {
             </Card>
 
             {/* Per-Tenant Breakdown Table */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">{t('per_tenant_breakdown')}</CardTitle>
                 </CardHeader>
@@ -162,7 +162,7 @@ function KpiCard({
     iconColor: string;
 }) {
     return (
-        <Card className="shadow-sm border-[#e6e9ee]">
+        <Card variant="plain">
             <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-[#8a8a8a]">{title}</p>
