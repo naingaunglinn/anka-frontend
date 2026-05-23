@@ -19,6 +19,7 @@ import { useProjectList } from '@/lib/queries/projects';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { useInitialBudget } from '@/lib/queries/initialBudgets';
+import { useAllSalaryHistory, type EmployeeSalaryHistoryRow } from '@/lib/queries/employeeSalaryHistory';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
 import type { Contract, Deal, Project } from '@/types/business';
@@ -86,6 +87,27 @@ function invoiceTotal(invoice: { total?: number; amount: number; tax: number }):
 
 function positiveNumber(value: number | null | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * For a sparse salary-history timeline (rows created on each change,
+ * not every month), find the row that applied at `monthStart`: the
+ * most-recent row whose target_month is on or before that date.
+ * Returns null when the employee had no history row at or before that
+ * month — caller decides the fallback (we use the employee's current
+ * monthly_salary so tenants without populated history don't get ¥0).
+ */
+function applicableSalaryAt(history: EmployeeSalaryHistoryRow[], monthStart: Date): number | null {
+    let latest: EmployeeSalaryHistoryRow | null = null;
+    for (const row of history) {
+        const rowMonth = new Date(`${row.targetMonth}T00:00:00Z`);
+        if (rowMonth.getTime() <= monthStart.getTime()) {
+            if (!latest || new Date(`${latest.targetMonth}T00:00:00Z`).getTime() < rowMonth.getTime()) {
+                latest = row;
+            }
+        }
+    }
+    return latest ? latest.monthlySalary : null;
 }
 
 function projectedDealValue(deal: Deal, contract?: Contract): number {
@@ -272,6 +294,7 @@ export default function ForecastPage() {
     useProjectList({ per_page: 500 });
     useInvoiceList({ per_page: 1000 });
     useTimeEntryList({ per_page: 1000 });
+    const { data: salaryHistoryData = [] } = useAllSalaryHistory();
 
     const [rankScope, setRankScope] = useState<RankScope>('S');
     const [prediction, setPrediction] = useState<AIForecastResult | null>(null);
@@ -356,9 +379,43 @@ export default function ForecastPage() {
         }));
 
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
-        const monthlyPayroll = store.employees
+        const currentMonthStart = startOfUtcMonth(new Date());
+
+        // Today's headcount × today's salary — used for current + future
+        // months. Past months derive payroll per-month from the salary
+        // history below (with a fallback to this number when an employee
+        // has no applicable history row).
+        const currentMonthlyPayroll = store.employees
             .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
             .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+
+        // Index sparse salary-history rows by employee for cheap per-month
+        // lookup. Rows are created on salary changes (not every month), so
+        // applicableSalaryAt picks the most-recent row whose target_month
+        // is on or before the queried month.
+        const salaryHistoryByEmployee = new Map<string, EmployeeSalaryHistoryRow[]>();
+        for (const row of salaryHistoryData) {
+            const list = salaryHistoryByEmployee.get(row.employeeId);
+            if (list) {
+                list.push(row);
+            } else {
+                salaryHistoryByEmployee.set(row.employeeId, [row]);
+            }
+        }
+
+        // Hoisted out of the monthCosts .map() callback so we don't end up
+        // nesting filter+reduce inside a map inside the memo (SonarLint S2004).
+        const payrollForPastMonth = (monthDate: Date): number => {
+            let total = 0;
+            for (const employee of store.employees) {
+                if (employee.status !== 'Active' && employee.status !== 'On Leave') continue;
+                const history = salaryHistoryByEmployee.get(employee.id);
+                const applicable = history ? applicableSalaryAt(history, monthDate) : null;
+                total += applicable ?? positiveNumber(employee.monthlySalary);
+            }
+            return total;
+        };
+
         const monthCosts = new Map(
             monthRange.map((monthDate) => {
                 const month = monthDate.getUTCMonth() + 1;
@@ -366,7 +423,16 @@ export default function ForecastPage() {
                 const monthlyOverhead = store.globalOverheads
                     .filter((overhead) => !overhead.effectiveYear || (overhead.effectiveYear === year && overhead.effectiveMonth === month))
                     .reduce((sum, overhead) => sum + positiveNumber(overhead.monthlyCost), 0);
-                return [toMonthKey(monthDate), monthlyPayroll + monthlyOverhead] as const;
+
+                // Past months: per-employee historical salary, with a
+                // fallback to current monthly_salary when no history exists
+                // (e.g., tenants who haven't populated employee_salary_history).
+                // Current + future: today's payroll snapshot.
+                const payrollForMonth = monthDate.getTime() < currentMonthStart.getTime()
+                    ? payrollForPastMonth(monthDate)
+                    : currentMonthlyPayroll;
+
+                return [toMonthKey(monthDate), payrollForMonth + monthlyOverhead] as const;
             }),
         );
 
@@ -374,11 +440,7 @@ export default function ForecastPage() {
         // cash collected from paid invoices, not the pipeline projection.
         // Current month and future months stay on the probability-weighted
         // pipeline projection — current month isn't done yet, so partial
-        // actuals would look misleadingly low. Cost line is unchanged
-        // (full-company payroll + overhead) — represents the whole agency's
-        // money commitment regardless of past/future split.
-        const currentMonthStart = startOfUtcMonth(new Date());
-
+        // actuals would look misleadingly low.
         for (const invoice of store.invoices) {
             if (!invoice.paidAt || !invoice.paidAmount) continue;
             const paidMonth = startOfUtcMonth(new Date(invoice.paidAt));
@@ -404,7 +466,7 @@ export default function ForecastPage() {
         }
 
         return rows.map((row) => {
-            const cost = monthCosts.get(row.monthKey) ?? monthlyPayroll;
+            const cost = monthCosts.get(row.monthKey) ?? currentMonthlyPayroll;
             const profit = row.income - cost;
 
             return {
@@ -413,7 +475,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices, salaryHistoryData]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
