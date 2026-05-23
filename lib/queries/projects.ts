@@ -91,7 +91,56 @@ export const projectKeys = {
     team: (id: string) => [...projectKeys.detail(id), 'team'] as const,
     taskAssignments: (id: string) => [...projectKeys.detail(id), 'task-assignments'] as const,
     teamPlanPreview: (id: string) => [...projectKeys.detail(id), 'team-plan-preview'] as const,
+    availableEmployees: (id: string) => [...projectKeys.detail(id), 'available-employees'] as const,
 };
+
+// ── Idle employee pool (TeamPreviewDialog manual picker) ─────────────────────
+
+/**
+ * An employee returned by `GET /projects/:id/available-employees` — an active
+ * full-timer (≥160h workable) with zero rows in `project_team_assignments`.
+ * Same shape as a `TeamPlanProposed` row's display fields so the dialog can
+ * render them in the same `Manual` Select that holds the AI's pick.
+ */
+export interface AvailableEmployee {
+    employeeId: string;
+    name: string;
+    rankCode: string | null;
+    rankName: string | null;
+    capacityRole: string | null;
+    workableHours: number;
+    monthlySalary: number;
+}
+
+function toAvailableEmployee(row: Record<string, unknown>): AvailableEmployee {
+    return {
+        employeeId:     row.employee_id as string,
+        name:           (row.name as string) ?? '',
+        rankCode:       (row.rank_code as string | null) ?? null,
+        rankName:       (row.rank_name as string | null) ?? null,
+        capacityRole:   (row.capacity_role as string | null) ?? null,
+        workableHours:  Number(row.workable_hours ?? 0),
+        monthlySalary:  Number(row.monthly_salary ?? 0),
+    };
+}
+
+/**
+ * Idle full-time employees the manager can pick from to override an AI
+ * proposal or add a manual row in `TeamPreviewDialog`. Server-side filter
+ * mirrors the new pool the AI itself draws from.
+ */
+export function useAvailableEmployees(projectId: string) {
+    return useQuery<AvailableEmployee[]>({
+        queryKey: projectKeys.availableEmployees(projectId),
+        enabled: !!projectId,
+        staleTime: 10_000,
+        queryFn: async () => {
+            const { data } = await api.get(`/projects/${projectId}/available-employees`);
+            const rows = (data.data ?? []) as Record<string, unknown>[];
+            return rows.map(toAvailableEmployee);
+        },
+    });
+}
 
 // ── Team plan preview (AI Task Assignment new flow) ──────────────────────────
 
@@ -291,10 +340,14 @@ export function usePlanTeamPreview(projectId: string) {
  * Confirm-team payload — `employeeId` is required; `ghostRoleId` links the
  * pick back to the role it fills so the backend can store
  * allocated_hours = workable_hours × ghost_role.months for that pick.
+ * `allocatedHours` is optional and only used by manual additions where the
+ * user wants to override the engagement-window default (e.g. assigning a
+ * shared expert for fewer hours than a full ghost-role engagement).
  */
 export interface ConfirmTeamPick {
     employeeId: string;
     ghostRoleId?: string;
+    allocatedHours?: number;
 }
 
 export function useConfirmTeamPlan(projectId: string) {
@@ -305,6 +358,9 @@ export function useConfirmTeamPlan(projectId: string) {
                 picks: picks.map((p) => ({
                     employee_id:   p.employeeId,
                     ghost_role_id: p.ghostRoleId,
+                    // Only include when explicitly set — otherwise the backend
+                    // falls back to workable_hours × ghost_role.months.
+                    ...(p.allocatedHours !== undefined ? { allocated_hours: p.allocatedHours } : {}),
                 })),
             });
             return data as { inserted: number; data: unknown };
