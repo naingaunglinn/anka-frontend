@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, ListTree, Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Loader2, ListTree, Search, X, Users } from 'lucide-react';
 import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
@@ -71,6 +73,7 @@ export function MasterAssignTable({ projectId }: Props) {
     }, [trackingQuery.data]);
 
     const [drillRow, setDrillRow] = useState<ScheduleTrackingRow | null>(null);
+    const [showTeamStructure, setShowTeamStructure] = useState(false);
 
     // Phase reassignment with conflict detection
     const checkReassignment = useCheckReassignment(projectId);
@@ -78,12 +81,17 @@ export function MasterAssignTable({ projectId }: Props) {
     const [pendingReassignment, setPendingReassignment] = useState<{
         phaseId: string;
         phaseName: string;
+        functionName: string;
+        currentAssigneeName: string;
+        currentPlannedStart: string | null;
+        currentPlannedEnd: string | null;
+        currentEstimatedHours: number;
         newAssigneeId: string;
         newAssigneeName: string;
         check: ReassignmentCheck;
     } | null>(null);
 
-    const handleAssigneeChange = (cell: ProjectTaskPhaseAssignment, newAssigneeId: string | null) => {
+    const handleAssigneeChange = (cell: ProjectTaskPhaseAssignment, newAssigneeId: string | null, functionName: string) => {
         if (!newAssigneeId || newAssigneeId === cell.assigneeId) {
             if (!newAssigneeId) update(cell.id, { assigneeId: null });
             return;
@@ -103,6 +111,11 @@ export function MasterAssignTable({ projectId }: Props) {
                         setPendingReassignment({
                             phaseId: cell.id,
                             phaseName: `${cell.phaseName}`,
+                            functionName,
+                            currentAssigneeName: cell.assigneeName ?? '—',
+                            currentPlannedStart: cell.plannedStart,
+                            currentPlannedEnd: cell.plannedEnd,
+                            currentEstimatedHours: cell.estimatedHours,
                             newAssigneeId,
                             newAssigneeName: member?.employeeName ?? newAssigneeId,
                             check: result,
@@ -219,9 +232,21 @@ export function MasterAssignTable({ projectId }: Props) {
                             {t('master_assign_desc')}
                         </CardDescription>
                     </div>
-                    {tasksQuery.isFetching && (
-                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                    )}
+                    <div className="flex items-center gap-2">
+                        {tasksQuery.isFetching && (
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                        )}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-xs"
+                            onClick={() => setShowTeamStructure(true)}
+                            disabled={teamQuery.isLoading}
+                        >
+                            <Users className="h-3.5 w-3.5" />
+                            {t('view_team_structure')}
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -367,7 +392,7 @@ export function MasterAssignTable({ projectId }: Props) {
                                                         <td className="px-1.5 py-1 min-w-[150px]">
                                                             <Select
                                                                 value={cell.assigneeId ?? ''}
-                                                                onValueChange={(v) => handleAssigneeChange(cell, v || null)}
+                                                                onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
                                                             >
                                                                 <SelectTrigger className="h-7 text-xs">
                                                                     <SelectValue placeholder={t('unassigned_short')}>
@@ -475,19 +500,14 @@ export function MasterAssignTable({ projectId }: Props) {
                     open
                     check={pendingReassignment.check}
                     phaseName={pendingReassignment.phaseName}
+                    functionName={pendingReassignment.functionName}
+                    currentAssigneeName={pendingReassignment.currentAssigneeName}
+                    currentPlannedStart={pendingReassignment.currentPlannedStart}
+                    currentPlannedEnd={pendingReassignment.currentPlannedEnd}
+                    currentEstimatedHours={pendingReassignment.currentEstimatedHours}
                     newAssigneeName={pendingReassignment.newAssigneeName}
                     isLoading={reassignPhase.isPending}
                     onCancel={() => setPendingReassignment(null)}
-                    onReadjust={() => {
-                        reassignPhase.mutate(
-                            {
-                                phaseAssignmentId: pendingReassignment.phaseId,
-                                assigneeId: pendingReassignment.newAssigneeId,
-                                mode: 'readjust',
-                            },
-                            { onSettled: () => setPendingReassignment(null) },
-                        );
-                    }}
                     onSwap={(conflictPhaseId) => {
                         reassignPhase.mutate(
                             {
@@ -501,7 +521,124 @@ export function MasterAssignTable({ projectId }: Props) {
                     }}
                 />
             )}
+            <TeamStructureDialog
+                open={showTeamStructure}
+                onClose={() => setShowTeamStructure(false)}
+                team={team}
+                isLoading={teamQuery.isLoading}
+            />
         </Card>
+    );
+}
+
+// ── Team Structure Dialog ────────────────────────────────────────────────────
+
+function TeamStructureDialog({
+    open,
+    onClose,
+    team,
+    isLoading,
+}: {
+    open: boolean;
+    onClose: () => void;
+    team: import('@/types/business').ProjectTeamAssignment[];
+    isLoading: boolean;
+}) {
+    const t = useTranslations();
+
+    const grouped = useMemo(() => {
+        const map = new Map<string, typeof team>();
+        for (const m of team) {
+            const dept = m.departmentName ?? t('no_department');
+            if (!map.has(dept)) map.set(dept, []);
+            map.get(dept)!.push(m);
+        }
+        return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    }, [team, t]);
+
+    return (
+        <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-[560px] p-0 gap-0 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 border-b border-slate-200">
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            <Users className="h-4.5 w-4.5 text-indigo-600" />
+                            {t('view_team_structure')}
+                        </DialogTitle>
+                        <DialogDescription className="text-[13px]">
+                            {team.length} {t('members')}
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
+                <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
+                    {isLoading ? (
+                        <div className="py-10 text-center text-slate-400 text-sm">
+                            <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                            {t('loading')}...
+                        </div>
+                    ) : team.length === 0 ? (
+                        <div className="py-10 text-center text-slate-400 text-sm">
+                            {t('no_team_members')}
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {grouped.map(([dept, members]) => (
+                                <div key={dept}>
+                                    <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                        {dept}
+                                    </div>
+                                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-50 border-b border-slate-200">
+                                                    <th className="text-left px-3 py-2 font-medium text-slate-600">{t('name')}</th>
+                                                    <th className="text-left px-3 py-2 font-medium text-slate-600">{t('rank')}</th>
+                                                    <th className="text-right px-3 py-2 font-medium text-slate-600">{t('allocated_hours')}</th>
+                                                    <th className="text-left px-3 py-2 font-medium text-slate-600">{t('source')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {members.map((m, i) => (
+                                                    <tr
+                                                        key={m.id}
+                                                        className={i < members.length - 1 ? 'border-b border-slate-100' : ''}
+                                                    >
+                                                        <td className="px-3 py-2.5 font-medium text-slate-800">
+                                                            {m.employeeName ?? m.employeeId}
+                                                        </td>
+                                                        <td className="px-3 py-2.5 text-slate-600">
+                                                            {m.rankName ?? '—'}
+                                                            {m.rankCode && (
+                                                                <span className="ml-1 text-[10px] text-slate-400">({m.rankCode})</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-2.5 text-right font-mono text-slate-700">
+                                                            {m.allocatedHours}h
+                                                        </td>
+                                                        <td className="px-3 py-2.5">
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={
+                                                                    m.assignmentSource === 'ai'
+                                                                        ? 'text-[10px] border-indigo-200 text-indigo-600 bg-indigo-50'
+                                                                        : 'text-[10px] border-slate-200 text-slate-500'
+                                                                }
+                                                            >
+                                                                {m.assignmentSource === 'ai' ? 'AI' : m.assignmentSource === 'deal_transfer' ? 'Deal' : 'Manual'}
+                                                            </Badge>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 

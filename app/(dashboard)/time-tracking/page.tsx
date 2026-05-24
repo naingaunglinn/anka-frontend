@@ -103,16 +103,7 @@ export default function TimeTrackingPage() {
         [timeEntries, runningProjectIds],
     );
 
-    // Total Hours Logged is sourced from phase_progress_logs and scoped to the
-    // project picked in the Master Assign Table selector below. Filterable by
-    // date range + phase status via the controls inside the KPI card itself.
-    const [hoursDateFrom, setHoursDateFrom] = useState<string>('');
-    const [hoursDateTo,   setHoursDateTo]   = useState<string>('');
-    const [hoursPhaseStatus, setHoursPhaseStatus] = useState<'all' | '未着手' | '進行中' | '完了'>('all');
     const hoursSummaryQuery = useProgressLogSummary({
-        dateFrom:    hoursDateFrom || undefined,
-        dateTo:      hoursDateTo   || undefined,
-        phaseStatus: hoursPhaseStatus === 'all' ? undefined : hoursPhaseStatus,
         projectId:   tableProjectId || undefined,
     });
     const totalHoursLogged = hoursSummaryQuery.data?.totalUsedHours ?? 0;
@@ -150,39 +141,6 @@ export default function TimeTrackingPage() {
                         <p className="mt-1 text-xs text-[#8a8a8a] truncate" title={selectedProjectName ?? ''}>
                             {selectedProjectName ? `For ${selectedProjectName}` : 'Pick a project below to scope'}
                         </p>
-                        <div className="mt-4 space-y-2">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="date"
-                                    value={hoursDateFrom}
-                                    onChange={(e) => setHoursDateFrom(e.target.value)}
-                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
-                                    aria-label={t('from_date')}
-                                />
-                                <span className="text-xs text-[#8a8a8a]">{t('to')}</span>
-                                <input
-                                    type="date"
-                                    value={hoursDateTo}
-                                    onChange={(e) => setHoursDateTo(e.target.value)}
-                                    className="h-7 text-xs px-2 border border-[#e6e9ee] rounded flex-1 min-w-0"
-                                    aria-label={t('to_date')}
-                                />
-                            </div>
-                            <Select
-                                value={hoursPhaseStatus}
-                                onValueChange={(v) => setHoursPhaseStatus(v as 'all' | '未着手' | '進行中' | '完了')}
-                            >
-                                <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">{t('all_phase_statuses')}</SelectItem>
-                                    <SelectItem value="未着手">{t('phase_not_started')}</SelectItem>
-                                    <SelectItem value="進行中">{t('phase_in_progress')}</SelectItem>
-                                    <SelectItem value="完了">{t('phase_done')}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
                     </CardContent>
                 </Card>
                 <Card className="shadow-sm border-[#e6e9ee]">
@@ -219,9 +177,9 @@ export default function TimeTrackingPage() {
                 </Card>
             ) : (
                 <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <div className="flex flex-col items-start gap-y-3">
                         <div className="flex items-center gap-3">
-                            <label className="text-sm font-medium text-[#4a4a4a]">{t('project_label')}</label>
+                            <label className="text-sm font-semibold text-slate-800">{t('project_label')}</label>
                             <Select value={tableProjectId} onValueChange={setTableProjectId}>
                                 <SelectTrigger className="w-auto max-w-[min(100%,520px)]">
                                     <SelectValue placeholder={t('select_project_to_view_tasks')} />
@@ -235,8 +193,8 @@ export default function TimeTrackingPage() {
                                     {runningProjects.length === 0 && (
                                         <div className="px-2 py-3 text-sm text-[#8a8a8a]">{t('no_running_projects')}</div>
                                     )}
-                            </SelectContent>
-                        </Select>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="flex items-center">
                             <SimulatedDateBar />
@@ -287,22 +245,21 @@ function AutoAssignCard({
     const t = useTranslations();
     return (
         <Card className="shadow-sm border-[#e6e9ee]">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-[#00a7f4]" />
-                    {t('ai_task_assignment')}
-                </CardTitle>
-                <CardDescription>
-                    <span className="block">
-                        {t('ai_task_assignment_description')}
-                    </span>
-                    <span className="block mt-1">
-                        {t('assign_tasks_only_description')}
-                    </span>
+            <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 shrink-0">
+                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                        </div>
+                        {t('ai_task_assignment')}
+                    </CardTitle>
+                </div>
+                <CardDescription className="text-xs mt-1">
+                    {t('ai_task_assignment_description')}
                 </CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="space-y-3">
+            <CardContent className="pt-0">
+                <div className="space-y-2">
                     {projects.map(project => (
                         <AutoAssignProjectRow
                             key={project.id}
@@ -341,47 +298,35 @@ function AutoAssignProjectRow({
     const isBusy = autoAssignLoading === project.id;
 
     return (
-        <div className="flex items-center justify-between rounded-lg border border-[#e6e9ee] bg-white p-4">
-            <div>
-                <p className="text-sm font-medium text-[#171717]">{project.name}</p>
-                <p className="text-xs text-[#8a8a8a]">
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3">
+            <div className="min-w-0">
+                <p className="text-sm font-medium text-[#171717] truncate">{project.name}</p>
+                <p className="text-xs text-[#8a8a8a] mt-0.5">
                     {project.client} · {project.status}
                     {!teamQuery.isLoading && (
-                        <span className="ml-2 text-[#8a8a8a]">
+                        <span className="ml-1.5">
                             · {t(teamCount === 1 ? 'team_member_singular' : 'team_member_plural', { count: teamCount })}
                         </span>
                     )}
                 </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 ml-4">
                 <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2"
-                    onClick={() => onAssignTasksOnly(project.id)}
-                    disabled={isBusy || teamQuery.isLoading || !hasTeam}
-                    title={!hasTeam ? t('add_team_members_before_assigning') : t('skip_team_build_tooltip')}
+                    className="gap-1.5 text-xs h-8 opacity-40 cursor-not-allowed"
+                    disabled
                 >
-                    {isBusy ? (
-                        <Clock className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <FastForward className="h-4 w-4" />
-                    )}
+                    <FastForward className="h-3.5 w-3.5" />
                     Assign tasks with AI
                 </Button>
                 <Button
                     size="sm"
-                    className="gap-2 bg-[#171717] hover:bg-[#00a7f4]"
-                    onClick={() => onAutoAssign(project.id)}
-                    disabled={isBusy || teamQuery.isLoading}
-                    title={t('preview_ai_team_tooltip')}
+                    className="gap-1.5 text-xs h-8 bg-[#171717] opacity-40 cursor-not-allowed"
+                    disabled
                 >
-                    {isBusy ? (
-                        <Clock className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Sparkles className="h-4 w-4" />
-                    )}
-                    Build the team and assign tasks with AI
+                    <Sparkles className="h-3.5 w-3.5" />
+                    AI team build + assign tasks
                 </Button>
             </div>
         </div>

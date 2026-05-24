@@ -380,6 +380,9 @@ export interface ProjectTeamAssignment {
     projectId: string;
     employeeId: string;
     employeeName?: string;
+    departmentName?: string;
+    rankName?: string;
+    rankCode?: string;
     allocatedHours: number;
     assignmentSource: 'manual' | 'ai' | 'deal_transfer';
     costPerHour?: number;
