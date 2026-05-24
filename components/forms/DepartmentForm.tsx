@@ -13,6 +13,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
     Select,
     SelectContent,
@@ -41,8 +42,9 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
         // Explicit normalization so a `null` managerId from the API doesn't trip
         // Zod's `.optional()` validator (which rejects null).
         defaultValues: {
-            name:      initialData?.name ?? '',
-            managerId: initialData?.managerId ?? undefined,
+            name:               initialData?.name ?? '',
+            managerId:          initialData?.managerId ?? undefined,
+            isDeliveryEligible: initialData?.isDeliveryEligible ?? true,
         },
     });
 
@@ -112,6 +114,22 @@ export function DepartmentForm({ initialData, employees = [], onSubmit, onCancel
                                 </SelectContent>
                             </Select>
                             <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="isDeliveryEligible"
+                    render={({ field }) => (
+                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-sm font-medium">{t('delivery_eligible')}</FormLabel>
+                                <p className="text-xs text-[#4a4a4a]">{t('delivery_eligible_hint')}</p>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
                         </FormItem>
                     )}
                 />

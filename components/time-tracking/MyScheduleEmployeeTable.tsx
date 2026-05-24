@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { Loader2, ListTree, PencilLine } from 'lucide-react';
+import { Loader2, ListTree, PencilLine, Pencil, Trash2 } from 'lucide-react';
 import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
@@ -17,6 +17,8 @@ import {
 import {
     useScheduleTrackingList,
     useLogProgress,
+    useUpdateProgressLog,
+    useDeleteProgressLog,
     usePhaseProgressLogs,
 } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
@@ -246,37 +248,63 @@ function LogProgressModal({
     const [note, setNote]              = useState('');
     const [actualStart, setActualStart] = useState<string>('');
     const [actualEnd, setActualEnd]     = useState<string>('');
+    const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
-    // Reset form when a new phase opens.
-    useEffect(() => {
-        if (!phase) return;
+    const resetForm = () => {
         setLogDate(today);
         setProgress('');
         setUsed('');
         setNote('');
+        setEditingLogId(null);
+    };
+
+    // Reset form when a new phase opens.
+    useEffect(() => {
+        if (!phase) return;
+        resetForm();
         setActualStart(phase.actualStart ?? '');
         setActualEnd(phase.actualEnd ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase?.id]);
 
     const logProgress = useLogProgress();
+    const updateProgress = useUpdateProgressLog();
+    const deleteProgress = useDeleteProgressLog();
     const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
 
-    // Prior progress logs for this phase. Hook is gated on null when the modal
-    // is closed (see usePhaseProgressLogs.enabled), so no request fires until
-    // the user actually opens the modal for a phase. After save, useLogProgress
-    // invalidates the same query key, so reopening the modal shows the new row.
     const { data: prevLogs = [], isLoading: logsLoading } =
         usePhaseProgressLogs(open && phase ? phase.id : null);
 
     if (!phase) return null;
+
+    const startEdit = (log: typeof prevLogs[number]) => {
+        setEditingLogId(log.id);
+        setLogDate(log.logDate);
+        setProgress(String(log.progressHours));
+        setUsed(String(log.usedHours));
+        setNote(log.note ?? '');
+    };
+
+    const cancelEdit = () => resetForm();
+
+    const handleDelete = (logId: string) => {
+        if (!window.confirm(t('confirm_delete_log'))) return;
+        deleteProgress.mutate(logId);
+    };
 
     const save = () => {
         const p = parseFloat(progressHours);
         const u = parseFloat(usedHours);
         if (Number.isNaN(p) || Number.isNaN(u) || p < 0 || u < 0) return;
 
-        // Always post today's progress log.
+        if (editingLogId) {
+            updateProgress.mutate(
+                { id: editingLogId, logDate, progressHours: p, usedHours: u, note: note || null },
+                { onSuccess: () => resetForm() },
+            );
+            return;
+        }
+
         logProgress.mutate(
             {
                 phaseAssignmentId: phase.id,
@@ -287,14 +315,11 @@ function LogProgressModal({
             },
             {
                 onSuccess: () => {
-                    // If actual_start or actual_end changed, PATCH the phase row too.
                     const updates: Record<string, string | null> = {};
                     const normStart = actualStart || null;
                     const normEnd   = actualEnd   || null;
                     if (normStart !== (phase.actualStart ?? null)) updates.actualStart = normStart as never;
                     if (normEnd   !== (phase.actualEnd   ?? null)) updates.actualEnd   = normEnd   as never;
-                    // Setting an actual_end means the phase is done — auto-flip
-                    // status to 完了 so the employee doesn't have to do it manually.
                     if (normEnd && phase.status !== '完了') {
                         updates.status = '完了' as never;
                     }
@@ -307,7 +332,7 @@ function LogProgressModal({
         );
     };
 
-    const inFlight = logProgress.isPending || updatePhaseAssignment.isPending;
+    const inFlight = logProgress.isPending || updateProgress.isPending || updatePhaseAssignment.isPending;
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -332,24 +357,58 @@ function LogProgressModal({
                                 {t('no_prior_entries')}
                             </p>
                         ) : (
-                            <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200">
+                            <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="h-8 text-xs">{t('date')}</TableHead>
                                             <TableHead className="h-8 text-xs text-right">{t('progress_h')}</TableHead>
                                             <TableHead className="h-8 text-xs text-right">{t('used_h')}</TableHead>
+                                            <TableHead className="h-8 text-xs text-right">{t('extra_h')}</TableHead>
                                             <TableHead className="h-8 text-xs">{t('note_col')}</TableHead>
+                                            <TableHead className="h-8 text-xs w-[60px]" />
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {prevLogs.map((log) => (
-                                            <TableRow key={log.id}>
+                                            <TableRow key={log.id} className={editingLogId === log.id ? 'bg-emerald-50' : ''}>
                                                 <TableCell className="py-1.5 text-xs font-mono">{log.logDate}</TableCell>
                                                 <TableCell className="py-1.5 text-xs text-right">{log.progressHours}</TableCell>
                                                 <TableCell className="py-1.5 text-xs text-right">{log.usedHours}</TableCell>
+                                                <TableCell className={`py-1.5 text-xs text-right ${log.lateHours > 0 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                                                    {log.lateHours > 0 ? `+${log.lateHours}` : '0'}
+                                                </TableCell>
                                                 <TableCell className="py-1.5 text-xs text-slate-600">
-                                                    {log.note ? (log.note.length > 40 ? log.note.slice(0, 40) + '…' : log.note) : '—'}
+                                                    {log.note ? (log.note.length > 30 ? log.note.slice(0, 30) + '…' : log.note) : '—'}
+                                                </TableCell>
+                                                <TableCell className="py-1 text-right">
+                                                    {!log.isLocked ? (
+                                                        <div className="flex items-center gap-0.5 justify-end">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-6 w-6 p-0"
+                                                                onClick={() => startEdit(log)}
+                                                                title={t('edit_action')}
+                                                            >
+                                                                <Pencil className="h-3 w-3 text-slate-500" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-6 w-6 p-0"
+                                                                onClick={() => handleDelete(log.id)}
+                                                                disabled={deleteProgress.isPending}
+                                                                title={t('delete_action')}
+                                                            >
+                                                                <Trash2 className="h-3 w-3 text-red-400" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-slate-50 text-slate-400">
+                                                            {t('locked')}
+                                                        </Badge>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -358,6 +417,16 @@ function LogProgressModal({
                             </div>
                         )}
                     </div>
+
+                    {editingLogId && (
+                        <div className="flex items-center gap-2 rounded-md bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs text-emerald-700">
+                            <Pencil className="h-3 w-3" />
+                            {t('editing_existing_log')}
+                            <Button size="sm" variant="ghost" className="h-5 ml-auto text-xs px-2" onClick={cancelEdit}>
+                                {t('cancel_edit')}
+                            </Button>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
@@ -400,27 +469,29 @@ function LogProgressModal({
                         />
                     </div>
 
-                    <div className="border-t border-slate-200 pt-3">
-                        <div className="text-xs font-medium text-slate-700 mb-2">{t('phase_milestones_optional')}</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-600">{t('actual_start_date_label')}</label>
-                                <Input type="date" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">{t('actual_start_help')}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-600">{t('actual_end_date_label')}</label>
-                                <Input type="date" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">{t('actual_end_help')}</p>
+                    {!editingLogId && (
+                        <div className="border-t border-slate-200 pt-3">
+                            <div className="text-xs font-medium text-slate-700 mb-2">{t('phase_milestones_optional')}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-600">{t('actual_start_date_label')}</label>
+                                    <Input type="date" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
+                                    <p className="text-[10px] text-slate-400">{t('actual_start_help')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-600">{t('actual_end_date_label')}</label>
+                                    <Input type="date" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
+                                    <p className="text-[10px] text-slate-400">{t('actual_end_help')}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={onClose} disabled={inFlight}>{t('cancel')}</Button>
                     <Button onClick={save} disabled={inFlight || progressHours === '' || usedHours === ''}>
-                        {inFlight ? t('saving') : t('save_log')}
+                        {inFlight ? t('saving') : editingLogId ? t('update_log') : t('save_log')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

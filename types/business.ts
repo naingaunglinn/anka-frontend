@@ -20,6 +20,7 @@ export interface Department {
     name: string;
     managerId?: string;    // FK → employees.id
     managerName?: string;  // denormalized display name (eager-loaded server-side)
+    isDeliveryEligible?: boolean; // when false, employees are excluded from the AI Team Builder idle pool
     headcount: number;     // computed server-side as employees_count
 }
 
