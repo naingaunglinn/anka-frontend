@@ -11,13 +11,17 @@ import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
     useProjectTeam,
+    useCheckReassignment,
+    useReassignPhase,
 } from '@/lib/queries/projects';
 import { useScheduleTrackingList } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
+import { ReassignConflictDialog } from '@/components/time-tracking/ReassignConflictDialog';
 import type {
     ProjectTaskPhaseAssignment,
+    ReassignmentCheck,
     ScheduleTrackingRow,
     TaskDifficulty,
     TaskStatus,
@@ -67,6 +71,47 @@ export function MasterAssignTable({ projectId }: Props) {
     }, [trackingQuery.data]);
 
     const [drillRow, setDrillRow] = useState<ScheduleTrackingRow | null>(null);
+
+    // Phase reassignment with conflict detection
+    const checkReassignment = useCheckReassignment(projectId);
+    const reassignPhase = useReassignPhase(projectId);
+    const [pendingReassignment, setPendingReassignment] = useState<{
+        phaseId: string;
+        phaseName: string;
+        newAssigneeId: string;
+        newAssigneeName: string;
+        check: ReassignmentCheck;
+    } | null>(null);
+
+    const handleAssigneeChange = (cell: ProjectTaskPhaseAssignment, newAssigneeId: string | null) => {
+        if (!newAssigneeId || newAssigneeId === cell.assigneeId) {
+            if (!newAssigneeId) update(cell.id, { assigneeId: null });
+            return;
+        }
+        checkReassignment.mutate(
+            { phaseAssignmentId: cell.id, assigneeId: newAssigneeId },
+            {
+                onSuccess: (result) => {
+                    if (!result.hasConflicts) {
+                        reassignPhase.mutate({
+                            phaseAssignmentId: cell.id,
+                            assigneeId: newAssigneeId,
+                            mode: 'direct',
+                        });
+                    } else {
+                        const member = team.find((m) => m.employeeId === newAssigneeId);
+                        setPendingReassignment({
+                            phaseId: cell.id,
+                            phaseName: `${cell.phaseName}`,
+                            newAssigneeId,
+                            newAssigneeName: member?.employeeName ?? newAssigneeId,
+                            check: result,
+                        });
+                    }
+                },
+            },
+        );
+    };
 
     // Client-side filters. Search by FunctionID/機能名, narrow to rows that
     // touch a specific assignee (or "Unassigned"), or to rows where at least
@@ -322,7 +367,7 @@ export function MasterAssignTable({ projectId }: Props) {
                                                         <td className="px-1.5 py-1 min-w-[150px]">
                                                             <Select
                                                                 value={cell.assigneeId ?? ''}
-                                                                onValueChange={(v) => update(cell.id, { assigneeId: v || null })}
+                                                                onValueChange={(v) => handleAssigneeChange(cell, v || null)}
                                                             >
                                                                 <SelectTrigger className="h-7 text-xs">
                                                                     <SelectValue placeholder={t('unassigned_short')}>
@@ -425,6 +470,37 @@ export function MasterAssignTable({ projectId }: Props) {
                 row={drillRow}
                 isManager
             />
+            {pendingReassignment && (
+                <ReassignConflictDialog
+                    open
+                    check={pendingReassignment.check}
+                    phaseName={pendingReassignment.phaseName}
+                    newAssigneeName={pendingReassignment.newAssigneeName}
+                    isLoading={reassignPhase.isPending}
+                    onCancel={() => setPendingReassignment(null)}
+                    onReadjust={() => {
+                        reassignPhase.mutate(
+                            {
+                                phaseAssignmentId: pendingReassignment.phaseId,
+                                assigneeId: pendingReassignment.newAssigneeId,
+                                mode: 'readjust',
+                            },
+                            { onSettled: () => setPendingReassignment(null) },
+                        );
+                    }}
+                    onSwap={(conflictPhaseId) => {
+                        reassignPhase.mutate(
+                            {
+                                phaseAssignmentId: pendingReassignment.phaseId,
+                                assigneeId: pendingReassignment.newAssigneeId,
+                                mode: 'swap',
+                                swapWithId: conflictPhaseId,
+                            },
+                            { onSettled: () => setPendingReassignment(null) },
+                        );
+                    }}
+                />
+            )}
         </Card>
     );
 }

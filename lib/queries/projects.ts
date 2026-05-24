@@ -594,6 +594,80 @@ export function useProjectTaskMutations(projectId: string) {
     return { assignTasks, updatePhaseAssignment };
 }
 
+// ── Phase Reassignment ──────────────────────────────────────────────────────
+
+export function useCheckReassignment(projectId: string) {
+    return useMutation({
+        mutationFn: async ({ phaseAssignmentId, assigneeId }: { phaseAssignmentId: string; assigneeId: string }) => {
+            const { data } = await api.post(
+                `/projects/${projectId}/task-phase-assignments/${phaseAssignmentId}/check-reassignment`,
+                { assignee_id: assigneeId },
+            );
+            const d = data as Record<string, unknown>;
+            const conflicts = (d.conflicts as Record<string, unknown>[] ?? []).map((c) => ({
+                phaseAssignmentId: c.phase_assignment_id as string,
+                phaseName:         c.phase_name as string,
+                phaseCode:         c.phase_code as string,
+                functionName:      c.function_name as string,
+                projectName:       c.project_name as string,
+                plannedStart:      c.planned_start as string,
+                plannedEnd:        c.planned_end as string,
+                estimatedHours:    Number(c.estimated_hours ?? 0),
+            }));
+            const rd = d.readjusted_dates as Record<string, unknown> | null;
+            const cascade = (d.cascade_preview as Record<string, unknown>[] ?? []).map((c) => ({
+                phaseAssignmentId: c.phase_assignment_id as string,
+                phaseName:         c.phase_name as string,
+                functionName:      c.function_name as string,
+                originalStart:     c.original_start as string,
+                originalEnd:       c.original_end as string,
+                newStart:          c.new_start as string,
+                newEnd:            c.new_end as string,
+            }));
+            return {
+                hasConflicts:    Boolean(d.has_conflicts),
+                conflicts,
+                readjustedDates: rd ? { plannedStart: rd.planned_start as string, plannedEnd: rd.planned_end as string } : null,
+                cascadePreview:  cascade,
+                warnings:        (d.warnings as string[]) ?? [],
+                remainingHours:  Number(d.remaining_hours ?? 0),
+            };
+        },
+    });
+}
+
+export function useReassignPhase(projectId: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: {
+            phaseAssignmentId: string;
+            assigneeId: string;
+            mode: 'direct' | 'readjust' | 'swap';
+            swapWithId?: string;
+        }) => {
+            const { data } = await api.post(
+                `/projects/${projectId}/task-phase-assignments/${input.phaseAssignmentId}/reassign`,
+                {
+                    assignee_id: input.assigneeId,
+                    mode: input.mode,
+                    swap_with_phase_assignment_id: input.swapWithId,
+                },
+            );
+            return data;
+        },
+        onSuccess: () => {
+            toast.success('Phase reassigned successfully');
+        },
+        onError: (err) => {
+            toast.error(`Reassignment failed: ${normalizeError(err).message}`);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.taskAssignments(projectId) });
+            queryClient.invalidateQueries({ queryKey: scheduleTrackingKeys.all });
+        },
+    });
+}
+
 // ── Mutation hooks ───────────────────────────────────────────────────────────
 
 /**

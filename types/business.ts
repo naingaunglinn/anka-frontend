@@ -542,3 +542,34 @@ export interface MyScheduleTodayItem {
     todayLog: PhaseProgressLog | null;
 }
 
+// --- Phase Reassignment ---
+export interface ReassignmentConflict {
+    phaseAssignmentId: string;
+    phaseName: string;
+    phaseCode: string;
+    functionName: string;
+    projectName: string;
+    plannedStart: string;
+    plannedEnd: string;
+    estimatedHours: number;
+}
+
+export interface CascadeShiftPreview {
+    phaseAssignmentId: string;
+    phaseName: string;
+    functionName: string;
+    originalStart: string;
+    originalEnd: string;
+    newStart: string;
+    newEnd: string;
+}
+
+export interface ReassignmentCheck {
+    hasConflicts: boolean;
+    conflicts: ReassignmentConflict[];
+    readjustedDates: { plannedStart: string; plannedEnd: string } | null;
+    cascadePreview: CascadeShiftPreview[];
+    warnings: string[];
+    remainingHours: number;
+}
+
