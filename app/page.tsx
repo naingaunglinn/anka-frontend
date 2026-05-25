@@ -57,7 +57,7 @@ export default async function Home() {
         <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-brand-700)]">{t('ai_powered_label')}</p>
         <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">{t('ai_section_heading')}</h2>
         <p className="mt-5 max-w-3xl text-lg text-[var(--color-text-subtle)]">{t('ai_section_subtitle')}</p>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
+        <div className="mt-12 grid gap-5 md:grid-cols-3 lg:grid-cols-5">
           <AIFeatureCard
             icon={<Sparkles className="h-5 w-5" />}
             title={t('ai_team_builder_title')}
@@ -69,6 +69,18 @@ export default async function Home() {
             title={t('ai_auto_assign_title')}
             description={t('ai_auto_assign_desc')}
             cta={t('ai_auto_assign_cta')}
+          />
+          <AIFeatureCard
+            icon={<FileText className="h-5 w-5" />}
+            title={t('ai_contract_draft_title')}
+            description={t('ai_contract_draft_desc')}
+            cta={t('ai_contract_draft_cta')}
+          />
+          <AIFeatureCard
+            icon={<TrendingUp className="h-5 w-5" />}
+            title={t('ai_forecast_title')}
+            description={t('ai_forecast_desc')}
+            cta={t('ai_forecast_cta')}
           />
           <AIFeatureCard
             icon={<MessageSquare className="h-5 w-5" />}
