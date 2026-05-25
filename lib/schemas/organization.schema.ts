@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 export const departmentSchema = z.object({
-    name:      z.string().min(2, 'Name must be at least 2 characters').max(100),
-    managerId: z.string().uuid().optional(),
+    name:                z.string().min(2, 'Name must be at least 2 characters').max(100),
+    managerId:           z.string().uuid().optional(),
+    isDeliveryEligible:  z.boolean().default(true),
     // headcount is computed server-side; not a user-entered field
 });
 
