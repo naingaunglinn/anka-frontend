@@ -176,8 +176,8 @@ export default function TimeTrackingPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="space-y-3">
-                    <div className="flex flex-col items-start gap-y-3">
+                <div className="space-y-10">
+                    <div className="flex flex-wrap items-center justify-between gap-y-3">
                         <div className="flex items-center gap-3">
                             <label className="text-sm font-semibold text-slate-800">{t('project_label')}</label>
                             <Select value={tableProjectId} onValueChange={setTableProjectId}>
@@ -244,7 +244,7 @@ function AutoAssignCard({
 }) {
     const t = useTranslations();
     return (
-        <Card className="shadow-sm border-[#e6e9ee]">
+        <Card className="shadow-sm mb-10 border-[#e6e9ee]">
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -298,7 +298,7 @@ function AutoAssignProjectRow({
     const isBusy = autoAssignLoading === project.id;
 
     return (
-        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3">
+        <div className="flex flex-wrap justify-between item-center rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 space-y-2">
             <div className="min-w-0">
                 <p className="text-sm font-medium text-[#171717] truncate">{project.name}</p>
                 <p className="text-xs text-[#8a8a8a] mt-0.5">
@@ -310,7 +310,7 @@ function AutoAssignProjectRow({
                     )}
                 </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0 ml-4">
+            <div className="flex flex-wrap gap-2">
                 <Button
                     size="sm"
                     variant="outline"
