@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, ListTree, Search, X, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
@@ -20,10 +21,11 @@ import { useScheduleTrackingList } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
-import { ReassignConflictDialog } from '@/components/time-tracking/ReassignConflictDialog';
+import { DirectAssignDialog, ConflictConfirmDialog, SwapWarningDialog } from '@/components/time-tracking/ReassignConflictDialog';
 import type {
     ProjectTaskPhaseAssignment,
     ReassignmentCheck,
+    ReassignmentConflict,
     ScheduleTrackingRow,
     TaskDifficulty,
     TaskStatus,
@@ -86,10 +88,25 @@ export function MasterAssignTable({ projectId }: Props) {
     const [drillRow, setDrillRow] = useState<ScheduleTrackingRow | null>(null);
     const [showTeamStructure, setShowTeamStructure] = useState(false);
 
-    // Phase reassignment with conflict detection
+    // Phase reassignment — multi-step flow with confirmations
     const checkReassignment = useCheckReassignment(projectId);
     const reassignPhase = useReassignPhase(projectId);
-    const [pendingReassignment, setPendingReassignment] = useState<{
+
+    // Step 0 state: no conflicts, simple confirmation
+    const [directAssign, setDirectAssign] = useState<{
+        phaseId: string;
+        phaseName: string;
+        functionName: string;
+        currentAssigneeName: string;
+        plannedStart: string | null;
+        plannedEnd: string | null;
+        estimatedHours: number;
+        newAssigneeId: string;
+        newAssigneeName: string;
+    } | null>(null);
+
+    // Step 1 state: conflict detected, ask user Swap / Assign Anyway / Cancel
+    const [conflictConfirm, setConflictConfirm] = useState<{
         phaseId: string;
         phaseName: string;
         functionName: string;
@@ -102,6 +119,21 @@ export function MasterAssignTable({ projectId }: Props) {
         check: ReassignmentCheck;
     } | null>(null);
 
+    // Step 2 state: swap selected, show reverse conflict warnings if any
+    const [swapWarning, setSwapWarning] = useState<{
+        phaseId: string;
+        phaseName: string;
+        functionName: string;
+        currentAssigneeName: string;
+        currentPlannedStart: string | null;
+        currentPlannedEnd: string | null;
+        currentEstimatedHours: number;
+        newAssigneeId: string;
+        newAssigneeName: string;
+        swapConflict: ReassignmentConflict;
+        check: ReassignmentCheck;
+    } | null>(null);
+
     const handleAssigneeChange = (cell: ProjectTaskPhaseAssignment, newAssigneeId: string | null, functionName: string) => {
         if (!newAssigneeId || newAssigneeId === cell.assigneeId) {
             if (!newAssigneeId) update(cell.id, { assigneeId: null });
@@ -111,15 +143,23 @@ export function MasterAssignTable({ projectId }: Props) {
             { phaseAssignmentId: cell.id, assigneeId: newAssigneeId },
             {
                 onSuccess: (result) => {
+                    const member = team.find((m) => m.employeeId === newAssigneeId);
+                    const assigneeName = member?.employeeName ?? newAssigneeId;
+
                     if (!result.hasConflicts) {
-                        reassignPhase.mutate({
-                            phaseAssignmentId: cell.id,
-                            assigneeId: newAssigneeId,
-                            mode: 'direct',
+                        setDirectAssign({
+                            phaseId: cell.id,
+                            phaseName: `${cell.phaseName}`,
+                            functionName,
+                            currentAssigneeName: cell.assigneeName ?? '—',
+                            plannedStart: cell.plannedStart,
+                            plannedEnd: cell.plannedEnd,
+                            estimatedHours: cell.estimatedHours,
+                            newAssigneeId,
+                            newAssigneeName: assigneeName,
                         });
                     } else {
-                        const member = team.find((m) => m.employeeId === newAssigneeId);
-                        setPendingReassignment({
+                        setConflictConfirm({
                             phaseId: cell.id,
                             phaseName: `${cell.phaseName}`,
                             functionName,
@@ -128,11 +168,81 @@ export function MasterAssignTable({ projectId }: Props) {
                             currentPlannedEnd: cell.plannedEnd,
                             currentEstimatedHours: cell.estimatedHours,
                             newAssigneeId,
-                            newAssigneeName: member?.employeeName ?? newAssigneeId,
+                            newAssigneeName: assigneeName,
                             check: result,
                         });
                     }
                 },
+            },
+        );
+    };
+
+    const handleTrySwap = (conflict: ReassignmentConflict) => {
+        if (!conflictConfirm) return;
+        setSwapWarning({
+            ...conflictConfirm,
+            swapConflict: conflict,
+            check: conflictConfirm.check,
+        });
+        setConflictConfirm(null);
+    };
+
+    const handleConfirmSwap = () => {
+        if (!swapWarning) return;
+        reassignPhase.mutate(
+            {
+                phaseAssignmentId: swapWarning.phaseId,
+                assigneeId: swapWarning.newAssigneeId,
+                mode: 'swap',
+                swapWithId: swapWarning.swapConflict.phaseAssignmentId,
+            },
+            {
+                onSuccess: (data) => {
+                    const warnings = (data as { warnings?: string[] })?.warnings ?? [];
+                    if (warnings.length > 0) {
+                        toast(t('swap_completed_with_warnings'), { icon: '⚠️' });
+                    } else {
+                        toast.success(t('swap_success', {
+                            nameA: swapWarning.currentAssigneeName,
+                            nameB: swapWarning.newAssigneeName,
+                        }));
+                    }
+                    setSwapWarning(null);
+                },
+                onError: () => setSwapWarning(null),
+            },
+        );
+    };
+
+    const handleDirectAssign = () => {
+        if (!directAssign) return;
+        reassignPhase.mutate(
+            {
+                phaseAssignmentId: directAssign.phaseId,
+                assigneeId: directAssign.newAssigneeId,
+                mode: 'direct',
+            },
+            {
+                onSuccess: () => setDirectAssign(null),
+                onError: () => setDirectAssign(null),
+            },
+        );
+    };
+
+    const handleAssignAnyway = () => {
+        if (!conflictConfirm) return;
+        reassignPhase.mutate(
+            {
+                phaseAssignmentId: conflictConfirm.phaseId,
+                assigneeId: conflictConfirm.newAssigneeId,
+                mode: 'assign_anyway',
+            },
+            {
+                onSuccess: () => {
+                    toast.success(t('assign_anyway_success', { name: conflictConfirm.newAssigneeName }));
+                    setConflictConfirm(null);
+                },
+                onError: () => setConflictConfirm(null),
             },
         );
     };
@@ -497,30 +607,48 @@ export function MasterAssignTable({ projectId }: Props) {
                 row={drillRow}
                 isManager
             />
-            {pendingReassignment && (
-                <ReassignConflictDialog
+            {directAssign && (
+                <DirectAssignDialog
                     open
-                    check={pendingReassignment.check}
-                    phaseName={pendingReassignment.phaseName}
-                    functionName={pendingReassignment.functionName}
-                    currentAssigneeName={pendingReassignment.currentAssigneeName}
-                    currentPlannedStart={pendingReassignment.currentPlannedStart}
-                    currentPlannedEnd={pendingReassignment.currentPlannedEnd}
-                    currentEstimatedHours={pendingReassignment.currentEstimatedHours}
-                    newAssigneeName={pendingReassignment.newAssigneeName}
+                    phaseName={directAssign.phaseName}
+                    functionName={directAssign.functionName}
+                    currentAssigneeName={directAssign.currentAssigneeName}
+                    newAssigneeName={directAssign.newAssigneeName}
+                    plannedStart={directAssign.plannedStart}
+                    plannedEnd={directAssign.plannedEnd}
+                    estimatedHours={directAssign.estimatedHours}
                     isLoading={reassignPhase.isPending}
-                    onCancel={() => setPendingReassignment(null)}
-                    onSwap={(conflictPhaseId) => {
-                        reassignPhase.mutate(
-                            {
-                                phaseAssignmentId: pendingReassignment.phaseId,
-                                assigneeId: pendingReassignment.newAssigneeId,
-                                mode: 'swap',
-                                swapWithId: conflictPhaseId,
-                            },
-                            { onSettled: () => setPendingReassignment(null) },
-                        );
-                    }}
+                    onCancel={() => setDirectAssign(null)}
+                    onConfirm={handleDirectAssign}
+                />
+            )}
+            {conflictConfirm && (
+                <ConflictConfirmDialog
+                    open
+                    conflicts={conflictConfirm.check.conflicts}
+                    newAssigneeName={conflictConfirm.newAssigneeName}
+                    phaseName={conflictConfirm.phaseName}
+                    isLoading={reassignPhase.isPending}
+                    onCancel={() => setConflictConfirm(null)}
+                    onSwap={(conflict) => handleTrySwap(conflict)}
+                    onAssignAnyway={handleAssignAnyway}
+                />
+            )}
+            {swapWarning && (
+                <SwapWarningDialog
+                    open
+                    currentAssigneeName={swapWarning.currentAssigneeName}
+                    newAssigneeName={swapWarning.newAssigneeName}
+                    phaseName={swapWarning.phaseName}
+                    functionName={swapWarning.functionName}
+                    currentPlannedStart={swapWarning.currentPlannedStart}
+                    currentPlannedEnd={swapWarning.currentPlannedEnd}
+                    currentEstimatedHours={swapWarning.currentEstimatedHours}
+                    swapConflict={swapWarning.swapConflict}
+                    reverseConflicts={swapWarning.check.reverseConflicts}
+                    isLoading={reassignPhase.isPending}
+                    onCancel={() => setSwapWarning(null)}
+                    onConfirmSwap={handleConfirmSwap}
                 />
             )}
             <TeamStructureDialog
