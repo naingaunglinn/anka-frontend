@@ -127,7 +127,7 @@ export default function TimeTrackingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-[#8a8a8a]">{t('total_hours_logged')}</p>
@@ -143,7 +143,7 @@ export default function TimeTrackingPage() {
                         </p>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-[#8a8a8a]">{t('active_projects_receiving_time')}</p>
@@ -167,9 +167,9 @@ export default function TimeTrackingPage() {
             )}
 
             {isLoading ? (
-                <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
+                <Card variant="plain" className="h-64 animate-pulse bg-slate-100" />
             ) : isError ? (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="flex h-64 flex-col items-center justify-center gap-3">
                         <p className="text-sm text-[#4a4a4a]">{t('could_not_load_projects')}</p>
                         <Button variant="outline" onClick={retry}>{t('retry')}</Button>
@@ -203,7 +203,7 @@ export default function TimeTrackingPage() {
                     {tableProjectId ? (
                         <MasterAssignTable projectId={tableProjectId} />
                     ) : (
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardContent className="py-10 text-center text-sm text-[#8a8a8a]">
                                 {t('select_project_for_assign_table')}
                             </CardContent>

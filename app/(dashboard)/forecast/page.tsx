@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useMemo, useState, type JSX } from 'react';
+import { Fragment, useEffect, useMemo, useState, type JSX } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import { useProjectList } from '@/lib/queries/projects';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { useInitialBudget } from '@/lib/queries/initialBudgets';
+import { useAllSalaryHistory, type EmployeeSalaryHistoryRow } from '@/lib/queries/employeeSalaryHistory';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
 import type { Contract, Deal, Project } from '@/types/business';
@@ -54,10 +56,10 @@ type ForecastSource = {
     activeStart: Date;
 };
 
-const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; label: string; ranks: ForecastRank[] }> = [
-    { value: 'S', label: 'S Project Only', ranks: ['S'] },
-    { value: 'SA', label: 'S, A Project Only', ranks: ['S', 'A'] },
-    { value: 'SAB', label: 'S, A, B Project Only', ranks: ['S', 'A', 'B'] },
+const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; labelKey: string; ranks: ForecastRank[] }> = [
+    { value: 'S', labelKey: 'forecast_scope_s_only', ranks: ['S'] },
+    { value: 'SA', labelKey: 'forecast_scope_sa_only', ranks: ['S', 'A'] },
+    { value: 'SAB', labelKey: 'forecast_scope_sab_only', ranks: ['S', 'A', 'B'] },
 ];
 
 function toMonthKey(date: Date): string {
@@ -87,6 +89,27 @@ function positiveNumber(value: number | null | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/**
+ * For a sparse salary-history timeline (rows created on each change,
+ * not every month), find the row that applied at `monthStart`: the
+ * most-recent row whose target_month is on or before that date.
+ * Returns null when the employee had no history row at or before that
+ * month — caller decides the fallback (we use the employee's current
+ * monthly_salary so tenants without populated history don't get ¥0).
+ */
+function applicableSalaryAt(history: EmployeeSalaryHistoryRow[], monthStart: Date): number | null {
+    let latest: EmployeeSalaryHistoryRow | null = null;
+    for (const row of history) {
+        const rowMonth = new Date(`${row.targetMonth}T00:00:00Z`);
+        if (rowMonth.getTime() <= monthStart.getTime()) {
+            if (!latest || new Date(`${latest.targetMonth}T00:00:00Z`).getTime() < rowMonth.getTime()) {
+                latest = row;
+            }
+        }
+    }
+    return latest ? latest.monthlySalary : null;
+}
+
 function projectedDealValue(deal: Deal, contract?: Contract): number {
     const contractValue = positiveNumber(contract?.totalValue);
     if (contractValue > 0) return contractValue;
@@ -100,10 +123,11 @@ function projectedDealValue(deal: Deal, contract?: Contract): number {
 
 function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, fallback?: Date): Date {
     // Won deals: use the actual project / contract start (work is happening).
-    // Non-won deals: estimate from expectedCloseDate. We add +1 day because
-    // close-date conventionally lands the day before kickoff, so without the
-    // bump a deal whose close is Jun 30 would be plotted from June instead
-    // of the intended July project window.
+    // Non-won deals: use expectedCloseDate verbatim — the UI labels this field
+    // "Expected Start Date" and sales reps enter the kick-off day. The legacy
+    // +1 day offset (close-date conventionally lands the day before kickoff)
+    // was removed once EstimationAI's verbatim interpretation was confirmed
+    // as the intended semantic.
     //
     // `finalConfirmedAt` is intentionally NOT in the chain — it marks when
     // the estimate was locked, not when work begins. Including it caused
@@ -114,21 +138,33 @@ function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, f
     }
 
     if (deal.expectedCloseDate) {
-        const closeDate = new Date(deal.expectedCloseDate);
-        const dayAfterClose = new Date(closeDate.getTime() + 24 * 60 * 60 * 1000);
-        return startOfUtcMonth(dayAfterClose);
+        return startOfUtcMonth(new Date(deal.expectedCloseDate));
     }
 
     return fallback ?? startOfUtcMonth(new Date());
 }
 
-function priorityBadgeClass(priority: AIForecastResult['recommendedActions'][number]['priority']): string {
-    if (priority === 'high') return 'bg-rose-50 text-rose-700 border-rose-200';
-    if (priority === 'low') return 'bg-slate-50 text-slate-700 border-slate-200';
+type Severity = 'critical' | 'warning' | 'info';
+
+function severityBadgeClass(severity: Severity): string {
+    if (severity === 'critical') return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (severity === 'info')     return 'bg-slate-50 text-slate-700 border-slate-200';
     return 'bg-amber-50 text-amber-700 border-amber-200';
 }
 
-function ProfitLineShape(props: { points?: readonly ProfitLinePoint[] }) {
+function severityCardClass(severity: Severity): string {
+    if (severity === 'critical') return 'border-rose-200 bg-rose-50/40';
+    if (severity === 'info')     return 'border-slate-200 bg-slate-50/40';
+    return 'border-amber-200 bg-amber-50/40';
+}
+
+function severityLabelKey(severity: Severity) {
+    if (severity === 'critical') return 'forecast_severity_critical';
+    if (severity === 'info')     return 'forecast_severity_info';
+    return 'forecast_severity_warning';
+}
+
+function ProfitLineShape(props: { readonly points?: readonly ProfitLinePoint[] }) {
     const points = (props.points ?? []).filter(
         (p): p is { x: number; y: number; payload?: ForecastPoint } => p.x != null && p.y != null,
     );
@@ -192,7 +228,7 @@ function ProfitLineShape(props: { points?: readonly ProfitLinePoint[] }) {
     return <g>{segments}</g>;
 }
 
-function ProfitDot(props: { cx?: number; cy?: number; payload?: ForecastPoint }) {
+function ProfitDot(props: { readonly cx?: number; readonly cy?: number; readonly payload?: ForecastPoint }) {
     if (props.cx == null || props.cy == null) return null;
 
     return (
@@ -207,7 +243,26 @@ function ProfitDot(props: { cx?: number; cy?: number; payload?: ForecastPoint })
     );
 }
 
-function ForecastTooltipContent(props: { active?: boolean; payload?: ForecastTooltipEntry[]; currency: Currency }) {
+function ForecastChartLegend(props: { readonly costLabel: string; readonly incomeLabel: string; readonly profitLabel: string }) {
+    return (
+        <div className="flex items-center justify-center gap-4 pt-5 text-sm">
+            <div className="flex items-center gap-2 text-amber-500">
+                <span className="h-0 w-4 border-t-2 border-amber-500" />
+                <span>{props.costLabel}</span>
+            </div>
+            <div className="flex items-center gap-2 text-blue-600">
+                <span className="h-0 w-4 border-t-2 border-blue-600" />
+                <span>{props.incomeLabel}</span>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-500">
+                <span className="h-0 w-4 border-t-2 border-emerald-500" />
+                <span>{props.profitLabel}</span>
+            </div>
+        </div>
+    );
+}
+
+function ForecastTooltipContent(props: { readonly active?: boolean; readonly payload?: ForecastTooltipEntry[]; readonly currency: Currency }) {
     const point = props.payload?.[0]?.payload;
     if (!props.active || !point) return null;
 
@@ -226,6 +281,8 @@ function ForecastTooltipContent(props: { active?: boolean; payload?: ForecastToo
 }
 
 export default function ForecastPage() {
+    const t = useTranslations();
+    const locale = useLocale();
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const token = useAuthStore((s) => s.token);
@@ -237,11 +294,17 @@ export default function ForecastPage() {
     useProjectList({ per_page: 500 });
     useInvoiceList({ per_page: 1000 });
     useTimeEntryList({ per_page: 1000 });
+    const { data: salaryHistoryData = [] } = useAllSalaryHistory();
 
     const [rankScope, setRankScope] = useState<RankScope>('S');
     const [prediction, setPrediction] = useState<AIForecastResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [summaryAttempt, setSummaryAttempt] = useState(0);
+
+    useEffect(() => {
+        setPrediction(null);
+        setSummaryAttempt(0);
+    }, [locale]);
 
     const monthRange = useMemo(() => {
         // Full fiscal year — Jan through Dec of the current year, 12 months.
@@ -251,9 +314,9 @@ export default function ForecastPage() {
     }, []);
 
     const forecastWindowLabel = useMemo(() => {
-        if (monthRange.length <= 1) return 'Current Month';
-        return `${monthRange.length}-Month`;
-    }, [monthRange]);
+        if (monthRange.length <= 1) return t('forecast_current_month');
+        return t('forecast_window_label', { count: monthRange.length });
+    }, [monthRange, t]);
 
     // Process ①.3 / ⑧: the year of the first displayed month is the fiscal year
     // we're forecasting against. If the user has declared a budget for that
@@ -309,16 +372,50 @@ export default function ForecastPage() {
     const chartData = useMemo<ForecastPoint[]>(() => {
         const rows = monthRange.map((monthDate) => ({
             monthKey: toMonthKey(monthDate),
-            monthLabel: monthDate.toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+            monthLabel: monthDate.toLocaleString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' }),
             income: 0,
             cost: 0,
             profit: 0,
         }));
 
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
-        const monthlyPayroll = store.employees
+        const currentMonthStart = startOfUtcMonth(new Date());
+
+        // Today's headcount × today's salary — used for current + future
+        // months. Past months derive payroll per-month from the salary
+        // history below (with a fallback to this number when an employee
+        // has no applicable history row).
+        const currentMonthlyPayroll = store.employees
             .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
             .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+
+        // Index sparse salary-history rows by employee for cheap per-month
+        // lookup. Rows are created on salary changes (not every month), so
+        // applicableSalaryAt picks the most-recent row whose target_month
+        // is on or before the queried month.
+        const salaryHistoryByEmployee = new Map<string, EmployeeSalaryHistoryRow[]>();
+        for (const row of salaryHistoryData) {
+            const list = salaryHistoryByEmployee.get(row.employeeId);
+            if (list) {
+                list.push(row);
+            } else {
+                salaryHistoryByEmployee.set(row.employeeId, [row]);
+            }
+        }
+
+        // Hoisted out of the monthCosts .map() callback so we don't end up
+        // nesting filter+reduce inside a map inside the memo (SonarLint S2004).
+        const payrollForPastMonth = (monthDate: Date): number => {
+            let total = 0;
+            for (const employee of store.employees) {
+                if (employee.status !== 'Active' && employee.status !== 'On Leave') continue;
+                const history = salaryHistoryByEmployee.get(employee.id);
+                const applicable = history ? applicableSalaryAt(history, monthDate) : null;
+                total += applicable ?? positiveNumber(employee.monthlySalary);
+            }
+            return total;
+        };
+
         const monthCosts = new Map(
             monthRange.map((monthDate) => {
                 const month = monthDate.getUTCMonth() + 1;
@@ -326,9 +423,32 @@ export default function ForecastPage() {
                 const monthlyOverhead = store.globalOverheads
                     .filter((overhead) => !overhead.effectiveYear || (overhead.effectiveYear === year && overhead.effectiveMonth === month))
                     .reduce((sum, overhead) => sum + positiveNumber(overhead.monthlyCost), 0);
-                return [toMonthKey(monthDate), monthlyPayroll + monthlyOverhead] as const;
+
+                // Past months: per-employee historical salary, with a
+                // fallback to current monthly_salary when no history exists
+                // (e.g., tenants who haven't populated employee_salary_history).
+                // Current + future: today's payroll snapshot.
+                const payrollForMonth = monthDate.getTime() < currentMonthStart.getTime()
+                    ? payrollForPastMonth(monthDate)
+                    : currentMonthlyPayroll;
+
+                return [toMonthKey(monthDate), payrollForMonth + monthlyOverhead] as const;
             }),
         );
+
+        // Past months (everything before the current month) show actual
+        // cash collected from paid invoices, not the pipeline projection.
+        // Current month and future months stay on the probability-weighted
+        // pipeline projection — current month isn't done yet, so partial
+        // actuals would look misleadingly low.
+        for (const invoice of store.invoices) {
+            if (!invoice.paidAt || !invoice.paidAmount) continue;
+            const paidMonth = startOfUtcMonth(new Date(invoice.paidAt));
+            if (paidMonth >= currentMonthStart) continue;
+            const row = rowMap.get(toMonthKey(paidMonth));
+            if (!row) continue;
+            row.income += invoice.paidAmount;
+        }
 
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
@@ -336,6 +456,7 @@ export default function ForecastPage() {
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
+                if (monthDate < currentMonthStart) continue;
                 if (monthDate < source.activeStart || monthDate > activeEnd) continue;
                 const row = rowMap.get(toMonthKey(monthDate));
                 if (!row) continue;
@@ -345,7 +466,7 @@ export default function ForecastPage() {
         }
 
         return rows.map((row) => {
-            const cost = monthCosts.get(row.monthKey) ?? monthlyPayroll;
+            const cost = monthCosts.get(row.monthKey) ?? currentMonthlyPayroll;
             const profit = row.income - cost;
 
             return {
@@ -354,7 +475,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, monthRange, store.employees, store.globalOverheads]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices, salaryHistoryData]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
@@ -364,9 +485,9 @@ export default function ForecastPage() {
         // missing-year notice in the UI — when no row has been declared for
         // the forecast fiscal year.
         const annualInitialBudget = positiveNumber(fiscalYearBudget?.amount) ?? 0;
-        const comparisonMonth = monthRange[monthRange.length - 1] ?? startOfUtcMonth(new Date());
+        const comparisonMonth = monthRange.at(-1) ?? startOfUtcMonth(new Date());
         const comparisonMonthNumber = comparisonMonth.getUTCMonth() + 1;
-        const comparisonMonthLabel = comparisonMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        const comparisonMonthLabel = comparisonMonth.toLocaleString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
         const comparisonBudgetTarget = annualInitialBudget * (comparisonMonthNumber / 12);
 
         return {
@@ -380,7 +501,7 @@ export default function ForecastPage() {
             variance: profit - comparisonBudgetTarget,
             budgetCoveragePercent: comparisonBudgetTarget > 0 ? (profit / comparisonBudgetTarget) * 100 : 0,
         };
-    }, [chartData, monthRange, fiscalYearBudget]);
+    }, [chartData, locale, monthRange, fiscalYearBudget]);
 
     const sourceCounts = useMemo(() => {
         return forecastSources.reduce<Record<ForecastRank, number>>(
@@ -393,61 +514,62 @@ export default function ForecastPage() {
         const lowestProfit = chartData.length > 0 ? Math.min(...chartData.map((item) => item.profit)) : 0;
         if (lowestProfit < 0) {
             return {
-                text: 'Critical: At least one forecast month goes into loss.',
+                text: t('forecast_critical'),
                 color: 'text-rose-600',
                 bg: 'bg-rose-50 border-rose-200',
             };
         }
         if (lowestProfit < 20000) {
             return {
-                text: 'Warning: Profit remains positive but margin is thin.',
+                text: t('forecast_warning'),
                 color: 'text-amber-600',
                 bg: 'bg-amber-50 border-amber-200',
             };
         }
         return {
-            text: `Healthy: ${forecastWindowLabel.toLowerCase()} outlook remains profitable.`,
+            text: t('forecast_healthy', { window: forecastWindowLabel.toLowerCase() }),
             color: 'text-emerald-600',
             bg: 'bg-emerald-50 border-emerald-200',
         };
-    }, [chartData, forecastWindowLabel]);
+    }, [chartData, forecastWindowLabel, t]);
 
     const targetGap = useMemo(() => {
         if (totals.variance < 0) {
             return {
-                label: 'Needed to Hit Target',
+                label: t('forecast_needed_hit_target'),
                 amount: Math.abs(totals.variance),
                 tone: 'text-rose-600',
-                badge: 'Behind Target',
+                badge: t('forecast_behind_target'),
                 badgeClassName: 'bg-rose-50 text-rose-700 border-rose-200',
-                helperText: `More profit needed to reach the ${totals.comparisonMonthLabel} target.`,
+                helperText: t('forecast_helper_behind', { month: totals.comparisonMonthLabel }),
             };
         }
 
         if (totals.variance > 0) {
             return {
-                label: 'Above Target',
+                label: t('forecast_above_target'),
                 amount: totals.variance,
                 tone: 'text-emerald-600',
-                badge: 'Ahead of Target',
+                badge: t('forecast_ahead_of_target'),
                 badgeClassName: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                helperText: `Forecast profit is already above the ${totals.comparisonMonthLabel} target.`,
+                helperText: t('forecast_helper_ahead', { month: totals.comparisonMonthLabel }),
             };
         }
 
         return {
-            label: 'On Target',
+            label: t('forecast_on_target'),
             amount: 0,
             tone: 'text-blue-600',
-            badge: 'On Target',
+            badge: t('forecast_on_target'),
             badgeClassName: 'bg-blue-50 text-blue-700 border-blue-200',
-            helperText: `Forecast profit is exactly on the ${totals.comparisonMonthLabel} target.`,
+            helperText: t('forecast_helper_on', { month: totals.comparisonMonthLabel }),
         };
-    }, [totals.comparisonMonthLabel, totals.variance]);
+    }, [totals.comparisonMonthLabel, totals.variance, t]);
 
     const hasForecastData = chartData.length > 0;
     const hasIncomeSources = forecastSources.length > 0;
-    const finalForecastMonth = chartData[chartData.length - 1];
+    const finalForecastMonth = chartData.at(-1);
+    const finalForecastMonthProfit = finalForecastMonth?.profit ?? 0;
 
     const trailingUtilization = useMemo(() => {
         const ninetyDaysAgoMs = Date.now() - 90 * 86_400_000;
@@ -504,17 +626,153 @@ export default function ForecastPage() {
         return average(monthsWithProfit.slice(0, 3));
     }, [chartData]);
 
+    // ── Per-project / per-deal / per-capacity inputs for the AI ──────
+    // These are the signals that let Claude name specific projects,
+    // deals, and people instead of giving generic advice.
+
+    const forecastProjectsInput = useMemo(() => {
+        return store.projects.map((project) => {
+            const contract = store.contracts.find((c) => c.id === project.contractId);
+            const deal = contract ? store.deals.find((d) => d.id === contract.dealId) : undefined;
+            const entries = store.timeEntries.filter(
+                (e) => e.projectId === project.id && e.status === 'Approved',
+            );
+            const consumedHours = entries.reduce((sum, e) => sum + (e.hours ?? 0), 0);
+            const otHoursLogged = entries
+                .filter((e) => /OT:?/i.test(e.task ?? ''))
+                .reduce((sum, e) => sum + (e.hours ?? 0), 0);
+            const labourCostToDate = entries.reduce((sum, e) => {
+                const emp = store.employees.find((x) => x.id === e.employeeId);
+                const cph = typeof emp?.costPerHour === 'number' ? emp.costPerHour : 0;
+                return sum + (e.hours ?? 0) * cph;
+            }, 0) * 1.15;
+            const budget = positiveNumber(contract?.totalValue) || positiveNumber(deal?.clientBudget);
+            const budgetHours = project.budgetHours || 0;
+            const lifetimeCost = consumedHours > 0
+                ? labourCostToDate * (budgetHours / consumedHours)
+                : labourCostToDate;
+            const marginLifetimePercent = budget > 0
+                ? ((budget - lifetimeCost) / budget) * 100
+                : 0;
+            const team = store.employees.filter((e) =>
+                entries.some((te) => te.employeeId === e.id),
+            );
+            const lead = team.find((e) => e.capacityRole === 'pm') ?? team[0];
+            return {
+                name: project.name ?? deal?.name ?? 'Untitled',
+                client: project.client ?? deal?.client ?? '',
+                status: project.status ?? 'On Track',
+                budget,
+                budgetHours,
+                consumedHours,
+                otHoursLogged,
+                labourCostToDate,
+                revenueRecognized: positiveNumber(contract?.revenueRecognized),
+                cashCollected: positiveNumber(contract?.cashCollected),
+                marginLifetimePercent,
+                teamSize: team.length,
+                ownerName: lead?.name ?? 'Unassigned',
+            };
+        });
+    }, [store.projects, store.contracts, store.deals, store.timeEntries, store.employees]);
+
+    const forecastPipelineDealsInput = useMemo(() => {
+        const today = Date.now();
+        return store.deals
+            .filter((d) => d.status !== 'won' && d.status !== 'lost' && d.lifecycleStatus !== 'dropped')
+            .map((d) => {
+                const stage = (d.status as 'lead' | 'qualified' | 'negotiation');
+                const rankMap: Record<string, 'C' | 'B' | 'A'> = {
+                    lead: 'C',
+                    qualified: 'B',
+                    negotiation: 'A',
+                };
+                const value = projectedDealValue(d, contractByDealId.get(d.id));
+                // Days-in-stage proxy: use the deal's most-recent mutation
+                // timestamp. Real stage_entered_at tracking is a future feature;
+                // updated_at is close enough (changes on any deal write) and far
+                // better than the legacy `expectedCloseDate - 30 days` fabrication.
+                const stageProxyMs = d.updatedAt
+                    ? new Date(d.updatedAt).getTime()
+                    : today - 30 * 86_400_000;
+                const daysInStage = Math.max(0, Math.floor((today - stageProxyMs) / 86_400_000));
+                const expectedClose = d.expectedCloseDate
+                    ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime()
+                    : null;
+                const daysPastExpectedClose = expectedClose && today > expectedClose
+                    ? Math.floor((today - expectedClose) / 86_400_000)
+                    : 0;
+                return {
+                    name: d.name,
+                    client: d.client ?? '',
+                    rank: rankMap[stage] ?? 'C' as const,
+                    stage,
+                    value,
+                    winProbability: d.winProbability ?? STAGE_PROBABILITY[stage] ?? 0,
+                    daysInStage,
+                    daysPastExpectedClose,
+                    ownerName: d.contactName ?? '',
+                };
+            });
+    }, [store.deals, contractByDealId]);
+
+    const forecastCapacityHotspotsInput = useMemo(() => {
+        const today = new Date();
+        const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const ninetyDaysAgoMs = today.getTime() - 90 * 86_400_000;
+        const roles: Record<string, { workable: number; booked: number; ot: number; names: string[]; activeNames: string[] }> = {};
+        for (const emp of store.employees) {
+            if (emp.status !== 'Active') continue;
+            const role = emp.capacityRole ?? 'unassigned';
+            if (!roles[role]) roles[role] = { workable: 0, booked: 0, ot: 0, names: [], activeNames: [] };
+            roles[role].workable += emp.workableHours || 0;
+            roles[role].names.push(emp.name);
+            // booked this month (approved time entries)
+            const monthEntries = store.timeEntries.filter(
+                (e) => e.employeeId === emp.id && e.status === 'Approved' && e.date?.startsWith(thisMonth),
+            );
+            const bookedThisMonth = monthEntries.reduce((s, e) => s + (e.hours ?? 0), 0);
+            roles[role].booked += bookedThisMonth;
+            if (bookedThisMonth > 0) roles[role].activeNames.push(emp.name);
+            // OT last 90 days
+            const otEntries = store.timeEntries.filter(
+                (e) => e.employeeId === emp.id
+                    && e.status === 'Approved'
+                    && /OT:?/i.test(e.task ?? '')
+                    && new Date(e.date).getTime() >= ninetyDaysAgoMs,
+            );
+            roles[role].ot += otEntries.reduce((s, e) => s + (e.hours ?? 0), 0);
+        }
+        return Object.entries(roles).map(([role, stats]) => {
+            const utilizationPercent = stats.workable > 0 ? (stats.booked / stats.workable) * 100 : 0;
+            const sole = stats.activeNames.length === 1 ? stats.activeNames[0] : null;
+            const bench = stats.names.filter((n) => !stats.activeNames.includes(n));
+            return {
+                role,
+                utilizationPercent,
+                workableHoursThisMonth: stats.workable,
+                bookedHoursThisMonth: stats.booked,
+                otHoursLast90Days: stats.ot,
+                soleEmployeeName: sole,
+                bench,
+            };
+        }).filter((row) => row.workableHoursThisMonth > 0);
+    }, [store.employees, store.timeEntries]);
+
     async function generateForecast() {
         const activeHeadcount = store.employees.filter((employee) => employee.status === 'Active').length;
-        const comparisonMonthDate = monthRange[monthRange.length - 1] ?? new Date();
+        const comparisonMonthDate = monthRange.at(-1) ?? new Date();
         const monthsRemainingInYear = Math.max(0, 12 - (comparisonMonthDate.getUTCMonth() + 1));
+        const scopeOption = RANK_SCOPE_OPTIONS.find((option) => option.value === rankScope);
+        const rankScopeLabel = scopeOption ? t(scopeOption.labelKey as Parameters<typeof t>[0]) : t('forecast_scope_s_only');
 
         const payload: AIForecastInput = {
+            outputLocale: locale as AIForecastInput['outputLocale'],
             currency,
-            currentMonth: monthRange[0].toLocaleString('default', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+            currentMonth: monthRange[0].toLocaleString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' }),
             forecastWindowLabel,
             forecastMonthCount: monthRange.length,
-            rankScopeLabel: RANK_SCOPE_OPTIONS.find((option) => option.value === rankScope)?.label ?? 'S Project Only',
+            rankScopeLabel,
             regenerateCount: summaryAttempt,
             headcount: activeHeadcount,
             avgMonthlySalary: avgHireCost,
@@ -553,10 +811,17 @@ export default function ForecastPage() {
                 overdueCount: pipelineTotals.overdueCount,
                 meanLateDays: currentTenant?.paymentDaysLate ?? 0,
             },
+            projects: forecastProjectsInput,
+            pipelineDeals: forecastPipelineDealsInput,
+            capacityHotspots: forecastCapacityHotspotsInput,
             previousSummary: prediction ? {
                 summaryTitle: prediction.summaryTitle,
-                reasoning: prediction.reasoning,
-                recommendedActionTitles: prediction.recommendedActions.map((action) => action.title),
+                headline: prediction.headline,
+                priorAlertTargets: [
+                    ...prediction.projectAlerts.map((a) => a.projectName),
+                    ...prediction.peopleAlerts.map((a) => a.target),
+                    ...prediction.pipelineAlerts.map((a) => a.dealName),
+                ],
             } : null,
         };
 
@@ -592,9 +857,9 @@ export default function ForecastPage() {
         <div className="p-6 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Profit Forecast to Year End</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">{t('forecast_page_title')}</h1>
                     <p className="text-slate-500 mt-1">
-                        Profit condition is calculated month by month from the current month through year end, then compared against the annual Initial Budget target that should be reached by {totals.comparisonMonthLabel}.
+                        {t('forecast_page_desc', { month: totals.comparisonMonthLabel })}
                     </p>
                 </div>
                 <div className="inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
@@ -611,7 +876,7 @@ export default function ForecastPage() {
                                 setSummaryAttempt(0);
                             }}
                         >
-                            {option.label}
+                            {t(option.labelKey as Parameters<typeof t>[0])}
                         </Button>
                     ))}
                 </div>
@@ -619,29 +884,29 @@ export default function ForecastPage() {
 
             {hasForecastData ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <Card className="shadow-sm border-slate-100 lg:col-span-1 bg-white text-slate-900">
+                    <Card variant="plain" className="lg:col-span-1 text-slate-900">
                         <CardHeader className="pb-4 border-b border-slate-100">
                             <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
                                 <Sparkles className="h-5 w-5 text-blue-500" />
-                                Forecast Scope
+                                {t('forecast_scope')}
                             </CardTitle>
                             <CardDescription className="text-slate-500">
-                                Cost uses all Active and On Leave employee payroll plus matching monthly overheads. Income comes from the selected project ranks.
+                                {t('forecast_scope_card_desc')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6 pt-6">
                             {!hasIncomeSources && (
                                 <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-                                    <p className="text-sm font-medium text-amber-800">No forecast income sources in this scope</p>
+                                    <p className="text-sm font-medium text-amber-800">{t('forecast_no_income_title')}</p>
                                     <p className="mt-1 text-xs text-amber-700">
-                                        Company cost still appears every month because payroll and overhead continue even when no selected project income is active.
+                                        {t('forecast_no_income_desc')}
                                     </p>
                                 </div>
                             )}
                             <div className="grid grid-cols-3 gap-3">
                                 {(['S', 'A', 'B'] as ForecastRank[]).map((rank) => (
                                     <div key={rank} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                                        <p className="text-xs font-medium text-slate-500">Rank {rank}</p>
+                                        <p className="text-xs font-medium text-slate-500">{t('forecast_rank_label', { rank })}</p>
                                         <p className="mt-1 text-lg font-bold text-slate-900">{sourceCounts[rank]}</p>
                                     </div>
                                 ))}
@@ -651,35 +916,33 @@ export default function ForecastPage() {
                                 <div className="flex items-start gap-3">
                                     <AlertTriangle className={`h-5 w-5 ${analysis.color} mt-0.5`} />
                                     <div>
-                                        <h4 className={`text-sm font-bold ${analysis.color}`}>Profit Condition</h4>
+                                        <h4 className={`text-sm font-bold ${analysis.color}`}>{t('forecast_profit_condition')}</h4>
                                         <p className={`text-sm mt-1 leading-snug ${analysis.color} opacity-90`}>{analysis.text}</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="rounded-md border border-slate-200 p-4">
-                                <p className="text-xs font-semibold uppercase text-slate-500">Year-End Budget Comparison</p>
+                                <p className="text-xs font-semibold uppercase text-slate-500">{t('forecast_year_end_budget')}</p>
                                 {!hasFiscalYearBudget && (
                                     <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
                                         <p className="text-sm font-medium text-amber-800">
-                                            No budget set for {forecastFiscalYear}
+                                            {t('forecast_no_budget_title', { year: forecastFiscalYear })}
                                         </p>
                                         <p className="text-xs text-amber-700 mt-1">
-                                            Declare an Initial Budget for {forecastFiscalYear} on the
-                                            Company Settings page (Organization → Company) to enable
-                                            budget-vs-actual comparison for this forecast.
+                                            {t('forecast_no_budget_desc', { year: forecastFiscalYear })}
                                         </p>
                                     </div>
                                 )}
                                 <div className="mt-3 space-y-3 text-sm">
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">Year End Expected Total Profit ({forecastFiscalYear})</span>
+                                        <span className="text-slate-500">{t('forecast_year_end_profit_label', { year: forecastFiscalYear })}</span>
                                         <span className="font-semibold text-slate-900">
                                             {hasFiscalYearBudget ? formatMoney(totals.annualInitialBudget, currency) : '—'}
                                         </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-slate-500">{forecastWindowLabel} Forecast Profit</span>
+                                        <span className="text-slate-500">{t('forecast_window_profit_label', { window: forecastWindowLabel })}</span>
                                         <span className={totals.profit < 0 ? 'font-semibold text-rose-600' : 'font-semibold text-emerald-600'}>
                                             {formatMoney(totals.profit, currency)}
                                         </span>
@@ -702,73 +965,129 @@ export default function ForecastPage() {
                                 {isLoading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Generating Summary...
+                                        {t('forecast_generating')}
                                     </>
                                 ) : (
                                     <>
                                         <Sparkles className="h-4 w-4 mr-2" />
-                                        {prediction ? 'Regenerate Summary' : 'Generate Summary'}
+                                        {prediction ? t('forecast_regenerate') : t('forecast_generate')}
                                     </>
                                 )}
                             </Button>
 
                             {prediction ? (
                                 <div className="space-y-3 text-sm">
+                                    {/* TL;DR */}
                                     <div className="rounded-md border p-3 bg-slate-50">
-                                        <p className="text-xs font-semibold text-slate-700 mb-1">AI Summary</p>
-                                        <p className="text-sm font-semibold text-slate-900">{prediction.summaryTitle}</p>
-                                        <p className="text-sm text-slate-600 mt-2">{prediction.reasoning}</p>
+                                        <p className="text-xs font-semibold text-slate-700 mb-1">{t('forecast_ai_summary')}</p>
+                                        <p className="text-sm font-bold text-slate-900">{prediction.summaryTitle}</p>
+                                        <p className="text-sm text-slate-700 mt-2 leading-relaxed">{prediction.headline}</p>
                                     </div>
-                                    {prediction.recommendedActions.length > 0 && (
-                                        <div className="rounded-md border p-3 bg-white">
-                                            <p className="text-xs font-semibold text-slate-700 mb-2">Suggested Next Actions</p>
-                                            <div className="space-y-3">
-                                                {prediction.recommendedActions.map((action, index) => (
-                                                    <div key={`${index}-${action.title}`} className="rounded-md border border-slate-200 p-3">
+
+                                    {/* Project alerts */}
+                                    {prediction.projectAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">⚠️ {t('forecast_project_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.projectAlerts.map((alert, i) => (
+                                                    <div key={`p-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
                                                         <div className="flex items-start justify-between gap-3">
-                                                            <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                                                            <Badge variant="outline" className={priorityBadgeClass(action.priority)}>
-                                                                {action.priority}
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.projectName}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
                                                             </Badge>
                                                         </div>
-                                                        <p className="mt-2 text-sm text-slate-600">{action.rationale}</p>
-                                                        <p className="mt-2 text-xs text-slate-500">Expected impact: {action.expectedImpact}</p>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                        {alert.ownerName ? (
+                                                            <p className="mt-1 text-[11px] text-slate-500">{t('forecast_owner_label')}: {alert.ownerName}</p>
+                                                        ) : null}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex justify-between"><span>Utilization Drop</span><span className="font-semibold text-rose-600">{prediction.utilizationDrop}%</span></div>
-                                    <div className="flex justify-between"><span>Delayed Deals</span><span className="font-semibold text-amber-600">{formatMoney(prediction.delayedDeals, currency)}</span></div>
-                                    <div className="flex justify-between"><span>Recommended New Hires</span><span className="font-semibold text-blue-600">{prediction.newHires}</span></div>
-                                    <div className="rounded-md border p-3 bg-slate-50">
-                                        <p className="text-xs font-semibold text-slate-700 mb-1">Signal Notes</p>
-                                        <div className="space-y-2 text-sm text-slate-600">
-                                            <p>{prediction.signals.utilizationInsight}</p>
-                                            <p>{prediction.signals.pipelineInsight}</p>
-                                            <p>{prediction.signals.capacityInsight}</p>
+
+                                    {/* People alerts */}
+                                    {prediction.peopleAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">👥 {t('forecast_people_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.peopleAlerts.map((alert, i) => (
+                                                    <div key={`pe-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.target}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
+                                    )}
+
+                                    {/* Pipeline alerts */}
+                                    {prediction.pipelineAlerts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700 mb-2">📈 {t('forecast_pipeline_alerts')}</p>
+                                            <div className="space-y-2">
+                                                {prediction.pipelineAlerts.map((alert, i) => (
+                                                    <div key={`pl-${i}`} className={`rounded-md border p-3 ${severityCardClass(alert.severity)}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="text-sm font-semibold text-slate-900">{alert.dealName}</p>
+                                                            <Badge variant="outline" className={severityBadgeClass(alert.severity)}>
+                                                                {t(severityLabelKey(alert.severity))} · {alert.type}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-slate-700">{alert.diagnosis}</p>
+                                                        {alert.suggestedAction ? (
+                                                            <p className="mt-2 text-xs text-slate-600">→ {alert.suggestedAction}</p>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {prediction.projectAlerts.length === 0
+                                        && prediction.peopleAlerts.length === 0
+                                        && prediction.pipelineAlerts.length === 0 ? (
+                                        <p className="text-xs text-slate-500 italic">{t('forecast_no_alerts')}</p>
+                                    ) : null}
+
+                                    {/* KPI strip */}
+                                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                                        <div className="flex justify-between"><span>{t('forecast_utilization_drop')}</span><span className="font-semibold text-rose-600">{prediction.utilizationDrop}%</span></div>
+                                        <div className="flex justify-between"><span>{t('forecast_delayed_deals')}</span><span className="font-semibold text-amber-600">{formatMoney(prediction.delayedDeals, currency)}</span></div>
+                                        <div className="flex justify-between"><span>{t('forecast_new_hires')}</span><span className="font-semibold text-blue-600">{prediction.newHires}</span></div>
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-sm text-slate-500">Click Generate Summary to get AI suggestions for improving the current-month-to-year-end forecast and reaching the year-end initial budget goal.</p>
+                                <p className="text-sm text-slate-500">{t('forecast_generate_hint')}</p>
                             )}
                         </CardContent>
                     </Card>
 
                     <div className="lg:col-span-2 space-y-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <span>Income, Cost and Profit (Full Fiscal Year — Jan to Dec)</span>
-                                    {finalForecastMonth?.profit < 0 ? (
-                                        <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> {totals.comparisonMonthLabel} Loss</span>
+                                    <span>{t('forecast_chart_title')}</span>
+                                    {finalForecastMonthProfit < 0 ? (
+                                        <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> {t('forecast_chart_loss', { month: totals.comparisonMonthLabel })}</span>
                                     ) : (
-                                        <span className="text-emerald-500 flex items-center gap-1 text-sm"><TrendingUp className="h-4 w-4" /> {totals.comparisonMonthLabel} Profit</span>
+                                        <span className="text-emerald-500 flex items-center gap-1 text-sm"><TrendingUp className="h-4 w-4" /> {t('forecast_chart_profit_indicator', { month: totals.comparisonMonthLabel })}</span>
                                     )}
                                 </CardTitle>
                                 <CardDescription>
-                                    Income and cost share the left scale. Net profit uses its own right-side scale so positive months stay above zero and loss months drop below zero.
+                                    {t('forecast_chart_desc')}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="pt-4 h-[420px]">
@@ -798,29 +1117,14 @@ export default function ForecastPage() {
                                         <Tooltip content={<ForecastTooltipContent currency={currency} />} />
                                         <Legend
                                             wrapperStyle={{ paddingTop: '20px' }}
-                                            content={() => (
-                                                <div className="flex items-center justify-center gap-4 pt-5 text-sm">
-                                                    <div className="flex items-center gap-2 text-amber-500">
-                                                        <span className="h-0 w-4 border-t-2 border-amber-500" />
-                                                        <span>Cost</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-blue-600">
-                                                        <span className="h-0 w-4 border-t-2 border-blue-600" />
-                                                        <span>Income</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-emerald-500">
-                                                        <span className="h-0 w-4 border-t-2 border-emerald-500" />
-                                                        <span>Profit</span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            content={<ForecastChartLegend costLabel={t('forecast_cost')} incomeLabel={t('forecast_income')} profitLabel={t('forecast_profit')} />}
                                         />
-                                        <Line yAxisId="flow" type="linear" name="Income" dataKey="income" stroke="#2563EB" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
-                                        <Line yAxisId="flow" type="linear" name="Cost" dataKey="cost" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+                                        <Line yAxisId="flow" type="linear" name={t('forecast_income')} dataKey="income" stroke="#2563EB" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+                                        <Line yAxisId="flow" type="linear" name={t('forecast_cost')} dataKey="cost" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
                                         <Line
                                             yAxisId="profit"
                                             type="linear"
-                                            name="Profit"
+                                            name={t('forecast_profit')}
                                             dataKey="profit"
                                             stroke="#10B981"
                                             strokeWidth={3}
@@ -835,43 +1139,43 @@ export default function ForecastPage() {
                         </Card>
 
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
-                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Income</p>
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_income_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-blue-600">
                                         {formatMoney(totals.income, currency)}
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
-                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Cost</p>
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_cost_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
                                         {formatMoney(totals.cost, currency)}
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
-                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{forecastWindowLabel} Profit</p>
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_profit_kpi', { window: forecastWindowLabel })}</p>
                                     <span className={`mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                         {formatMoney(totals.profit, currency)}
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
-                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">Year End Expected Total Profit ({forecastFiscalYear})</p>
+                                    <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_year_end_profit_label', { year: forecastFiscalYear })}</p>
                                     {hasFiscalYearBudget ? (
                                         <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
                                             {formatMoney(totals.annualInitialBudget, currency)}
                                         </span>
                                     ) : (
-                                        <span className="mt-auto block text-sm leading-6 text-amber-700">Not set for {forecastFiscalYear}</span>
+                                        <span className="mt-auto block text-sm leading-6 text-amber-700">{t('forecast_not_set', { year: forecastFiscalYear })}</span>
                                     )}
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{targetGap.label}</p>
                                     <span className={`mt-1 block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${targetGap.tone}`}>
@@ -882,30 +1186,30 @@ export default function ForecastPage() {
                             </Card>
                         </div>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <BarChart3 className="h-5 w-5 text-blue-500" />
-                                    Forecast Profit vs Declared Budget Target
+                                    {t('forecast_budget_vs_target_title')}
                                 </CardTitle>
                                 <CardDescription>
-                                    Initial Budget is annual, so this comparison uses the amount that should be reached by {totals.comparisonMonthLabel}.
+                                    {t('forecast_budget_vs_target_desc', { month: totals.comparisonMonthLabel })}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="pl-6">Metric</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                            <TableHead className="text-right">Condition</TableHead>
-                                            <TableHead className="text-right pr-6">Coverage</TableHead>
+                                            <TableHead className="pl-6">{t('forecast_metric')}</TableHead>
+                                            <TableHead className="text-right">{t('forecast_amount')}</TableHead>
+                                            <TableHead className="text-right">{t('forecast_condition')}</TableHead>
+                                            <TableHead className="text-right pr-6">{t('forecast_coverage')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow>
                                             <TableCell className="pl-6 font-medium text-slate-900">
-                                                {forecastWindowLabel} Forecast Profit vs {totals.comparisonMonthLabel} Initial Budget Target
+                                                {t('forecast_vs_target_row', { window: forecastWindowLabel, month: totals.comparisonMonthLabel })}
                                             </TableCell>
                                             <TableCell className={`text-right font-semibold ${targetGap.tone}`}>
                                                 {formatMoney(targetGap.amount, currency)}
@@ -924,19 +1228,19 @@ export default function ForecastPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-lg">Monthly Profit Condition</CardTitle>
-                                <CardDescription>Monthly breakdown for the full fiscal year, Jan through Dec.</CardDescription>
+                                <CardTitle className="text-lg">{t('forecast_monthly_title')}</CardTitle>
+                                <CardDescription>{t('forecast_monthly_desc')}</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="pl-6">Month</TableHead>
-                                            <TableHead className="text-right">Cost</TableHead>
-                                            <TableHead className="text-right">Profit</TableHead>
-                                            <TableHead className="text-right pr-6">Condition</TableHead>
+                                            <TableHead className="pl-6">{t('forecast_month_header')}</TableHead>
+                                            <TableHead className="text-right">{t('forecast_cost')}</TableHead>
+                                            <TableHead className="text-right">{t('forecast_profit')}</TableHead>
+                                            <TableHead className="text-right pr-6">{t('forecast_condition')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -952,7 +1256,7 @@ export default function ForecastPage() {
                                                         variant="outline"
                                                         className={row.profit < 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}
                                                     >
-                                                        {row.profit < 0 ? 'Loss' : 'Profit'}
+                                                        {row.profit < 0 ? t('forecast_loss') : t('forecast_profit')}
                                                     </Badge>
                                                 </TableCell>
                                             </TableRow>

@@ -58,6 +58,23 @@ export function useEmployeeSalaryHistory(employeeId: string | null | undefined) 
     });
 }
 
+/**
+ * Tenant-wide salary timeline — every row for every employee in the
+ * active tenant. Used by the Forecast page to compute past-month payroll
+ * from applicable historical salaries instead of today's salary applied
+ * retroactively.
+ */
+export function useAllSalaryHistory() {
+    return useQuery<EmployeeSalaryHistoryRow[]>({
+        queryKey: salaryHistoryKeys.all,
+        queryFn: async () => {
+            const { data } = await api.get('/employee-salary-history');
+            return (data.data ?? []).map(toRow);
+        },
+        staleTime: 30_000,
+    });
+}
+
 export interface AddSalaryRowInput {
     employeeId: string;
     targetMonth: string;       // YYYY-MM-01 or any parseable date (server coerces to start-of-month)

@@ -494,7 +494,7 @@ export default function EmployeesPage() {
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
+                            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
@@ -572,7 +572,7 @@ export default function EmployeesPage() {
                     />
 
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
-                        <DialogContent className="sm:max-w-[500px]">
+                        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Edit Employee</DialogTitle>
                                 <DialogDescription>Update the details for {editingEmployee?.name}.</DialogDescription>
@@ -690,7 +690,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -722,7 +722,7 @@ export default function EmployeesPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Estimation Defaults</CardTitle>
                                 <CardDescription>

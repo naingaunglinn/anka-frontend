@@ -75,7 +75,7 @@ export default function AdminDashboardPage() {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Signups Over Time */}
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">{t('tenant_signups_6mo')}</CardTitle>
                     </CardHeader>
@@ -102,7 +102,7 @@ export default function AdminDashboardPage() {
                 </Card>
 
                 {/* Plan Distribution */}
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">{t('plan_distribution')}</CardTitle>
                     </CardHeader>
@@ -141,7 +141,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Recent Signups Table */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">{t('recent_signups')}</CardTitle>
                 </CardHeader>
@@ -215,7 +215,7 @@ function KpiCard({
     trendValue?: string;
 }) {
     return (
-        <Card className="shadow-sm border-[#e6e9ee]">
+        <Card variant="plain">
             <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-[#8a8a8a]">{title}</p>
@@ -259,12 +259,12 @@ function DashboardSkeleton() {
                 ))}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6 h-[300px]">
                         <div className="h-full w-full bg-slate-200 rounded animate-pulse" />
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6 h-[300px]">
                         <div className="h-full w-full bg-slate-200 rounded animate-pulse" />
                     </CardContent>

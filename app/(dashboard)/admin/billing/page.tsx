@@ -96,7 +96,7 @@ export default function AdminBillingPage() {
                     </Card>
                 ))}
                 {planStats.length === 0 && (
-                    <Card className="shadow-sm border-[#e6e9ee] col-span-full">
+                    <Card variant="plain" className="col-span-full">
                         <CardContent className="p-4 text-center text-[#8a8a8a] text-sm">
                             {t('no_tenant_data')}
                         </CardContent>
@@ -105,7 +105,7 @@ export default function AdminBillingPage() {
             </div>
 
             {/* Tenant Billing Table */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
                     <CardTitle className="text-lg">{t('tenant_plans_title')}</CardTitle>
                 </CardHeader>
@@ -137,7 +137,7 @@ export default function AdminBillingPage() {
                                                 value={tenant.plan ?? 'free'}
                                                 onChange={(e) => handlePlanChange(tenant.id, e.target.value)}
                                                 disabled={updatingId === tenant.id}
-                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]/30 disabled:opacity-50"
                                             >
                                                 {PLANS.map((plan) => (
                                                     <option key={plan} value={plan}>
@@ -151,7 +151,7 @@ export default function AdminBillingPage() {
                                                 value={getTenantCurrency(tenant.id)}
                                                 onChange={(e) => handleCurrencyChange(tenant.id, e.target.value as Currency)}
                                                 disabled={updatingId === tenant.id}
-                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                className="text-sm border border-[#e6e9ee] rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]/30 disabled:opacity-50"
                                             >
                                                 {CURRENCIES.map((c) => (
                                                     <option key={c} value={c}>

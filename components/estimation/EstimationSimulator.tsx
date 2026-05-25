@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -29,6 +30,7 @@ import { SendEstimateDialog } from '@/components/estimation/SendEstimateDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
+import { dealRank } from '@/lib/dealRanks';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
 import {
@@ -716,7 +718,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-                <Card className="shadow-sm border-slate-100 bg-slate-50">
+                <Card variant="plain" className="bg-slate-50">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-sm uppercase tracking-wider text-slate-500">{t('target_deal')}</CardTitle>
                     </CardHeader>
@@ -744,7 +746,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 </Card>
 
                 {selectedDealId && (
-                    <Card className="shadow-sm border-slate-100">
+                    <Card variant="plain">
                         <CardHeader className="pb-3 border-b">
                             <div className="flex justify-between items-center flex-wrap gap-3">
                                 <div>
@@ -757,14 +759,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <span className="font-medium text-slate-700">
                                             v{currentVersion?.versionNumber ?? 0}{hasUnsavedChanges ? '+' : ''}
                                         </span>
-                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-                                            style={{
-                                                background: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
-                                                color: hasUnsavedChanges ? '#92400e' : '#065f46',
-                                            }}
-                                        >
+                                        <Chip variant={hasUnsavedChanges ? 'warning' : 'success'} size="sm">
                                             {hasUnsavedChanges ? t('draft') : t('saved')}
-                                        </span>
+                                        </Chip>
                                         {lastSavedAt && (
                                             <span className="text-slate-400">· {lastSavedAt}</span>
                                         )}
@@ -813,20 +810,21 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-semibold text-slate-800">v{v.versionNumber}</span>
-                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-medium">
+                                                <Chip variant="default" size="sm">
                                                     {t('resources_and_overheads', { r: v.resourceCount, o: v.overheadCount })}
-                                                </span>
+                                                </Chip>
                                                 {idx === 0 && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-medium">{t('latest')}</span>
+                                                    <Chip variant="success" size="sm">{t('latest')}</Chip>
                                                 )}
                                                 {v.hasContextNotes && (
-                                                    <span
-                                                        className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium inline-flex items-center gap-1"
+                                                    <Chip
+                                                        variant="warning"
+                                                        size="sm"
                                                         title={v.contextNotes ?? t('has_meeting_notes')}
                                                     >
                                                         <MessageSquareText className="h-3 w-3" />
                                                         {t('notes_short')}
-                                                    </span>
+                                                    </Chip>
                                                 )}
                                             </div>
                                             {v.notes && (
@@ -891,6 +889,16 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     const canBuild = (selectedDeal.clientBudget ?? 0) > 0 && (selectedDeal.timelineMonths ?? 0) > 0;
                     type SmartMode = 'build' | 'scope' | 'notes';
                     const mode: SmartMode = !hasRoles ? 'build' : !hasScope ? 'scope' : 'notes';
+                    // Rank C (lead) and B (qualified) — sales still refining
+                    // scope. When roles already exist and the smart progression
+                    // has moved to scope/notes mode, still expose a secondary
+                    // "Rebuild AI Team" button so sales can re-trigger the
+                    // role builder after a workload update without dropping
+                    // the deal back to C. Hidden once the deal hits A
+                    // (negotiation) — the team is contractually locked.
+                    const rank = dealRank(selectedDeal);
+                    const allowSecondaryRebuild =
+                        (rank === 'C' || rank === 'B') && hasRoles && mode !== 'build';
                     const smartBusy = isBuildingTeam || isGeneratingAi;
 
                     const smartConfig: Record<SmartMode, {
@@ -906,7 +914,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             icon: 'sparkles',
                             title: t('ai_assistant_build_title'),
                             disabled: !canBuild || smartBusy,
-                            className: 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md',
+                            className: 'bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white shadow-md',
                             onClick: () => { void roleBuilderHandleRef.current?.triggerBuild(); },
                         },
                         scope: {
@@ -929,10 +937,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     const cfg = smartConfig[mode];
 
                     return (
-                    <Card className="shadow-sm border-slate-100">
+                    <Card variant="plain">
                         <CardHeader className="pb-4 border-b">
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <Sparkles className="h-4 w-4 text-indigo-600" />
+                                <Sparkles className="h-4 w-4 text-[var(--color-ai-600)]" />
                                 {t('ai_project_planner')}
                             </CardTitle>
                             <CardDescription>
@@ -959,9 +967,27 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     {cfg.label}
                                 </Button>
                                 {mode === 'build' && !canBuild && (
-                                    <p className="text-xs text-[#4a4a4a] text-center">
+                                    <p className="text-xs text-[var(--color-text-subtle)] text-center">
                                         {t('set_budget_timeline_hint')}
                                     </p>
+                                )}
+                                {allowSecondaryRebuild && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => { void roleBuilderHandleRef.current?.triggerBuild(); }}
+                                        disabled={!canBuild || smartBusy}
+                                        className="w-full gap-2 border-[var(--color-ai-100)] text-[var(--color-ai-700)] hover:bg-[var(--color-ai-50)] disabled:opacity-60"
+                                        size="sm"
+                                        title={t('ai_assistant_build_title')}
+                                    >
+                                        {isBuildingTeam ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="h-4 w-4" />
+                                        )}
+                                        {isBuildingTeam ? t('building_ellipsis') : t('build_ai_team_estimate')}
+                                    </Button>
                                 )}
                                 <EstimationRoleBuilder
                                     dealId={selectedDeal.id}
@@ -1005,7 +1031,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 })()}
 
                 {selectedDeal && (selectedDeal.ghostRoles?.length ?? 0) > 0 && (
-                    <Card className="shadow-sm border-slate-100">
+                    <Card variant="plain">
                         <CardHeader className="pb-4 border-b">
                             <CardTitle className="text-lg">{t('project_roles')}</CardTitle>
                             <CardDescription>
@@ -1037,8 +1063,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         return (
                                             <TableRow key={gr.id || `gr-${i}`}>
                                                 <TableCell>
-                                                    <div className="font-medium text-[#171717]">{labelByRoleType[gr.roleType] ?? gr.roleType}</div>
-                                                    <div className="text-[10px] uppercase tracking-wider text-[#8a8a8a]">{gr.roleType}</div>
+                                                    <div className="font-medium text-[var(--color-text-default)]">{labelByRoleType[gr.roleType] ?? gr.roleType}</div>
+                                                    <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{gr.roleType}</div>
                                                 </TableCell>
                                                 <TableCell className="text-right">{gr.quantity}</TableCell>
                                                 <TableCell className="text-right">{gr.months}</TableCell>
@@ -1057,7 +1083,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </Card>
                 )}
 
-                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Card variant="plain" className={!selectedDealId ? 'opacity-50 pointer-events-none' : ''}>
                     <CardHeader className="pb-4 border-b">
                         <CardTitle className="text-lg">{t('project_scope_labor')}</CardTitle>
                         <CardDescription>{t('project_scope_desc')}</CardDescription>
@@ -1129,14 +1155,14 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">{t('hours_col')}</label>
                                 <Input type="number" min="1" value={newHours} onChange={e => setNewHours(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAdd} className="h-9 bg-[#171717] gap-2">
+                            <Button onClick={handleAdd} className="h-9 bg-[var(--color-text-default)] gap-2">
                                 <Plus className="h-4 w-4" /> {t('add')}
                             </Button>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className={`shadow-sm border-slate-100 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Card variant="plain" className={!selectedDealId ? 'opacity-50 pointer-events-none' : ''}>
                     <CardHeader className="pb-4 border-b">
                         <CardTitle className="text-lg">{t('project_specific_overhead')}</CardTitle>
                         <CardDescription>{t('project_overhead_desc')}</CardDescription>
@@ -1179,7 +1205,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <label className="text-xs font-medium text-slate-500">{t('cost_with_symbol', { symbol })}</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
                             </div>
-                            <Button onClick={handleAddOverhead} className="h-9 bg-[#171717] gap-2">
+                            <Button onClick={handleAddOverhead} className="h-9 bg-[var(--color-text-default)] gap-2">
                                 <Plus className="h-4 w-4" /> {t('add')}
                             </Button>
                         </div>
@@ -1188,7 +1214,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             </div>
 
             <div className={`space-y-6 ${!selectedDealId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <Card className="shadow-sm border-slate-100 bg-white">
+                <Card variant="plain">
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Calculator className="h-5 w-5 text-blue-500" />
