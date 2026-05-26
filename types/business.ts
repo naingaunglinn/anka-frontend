@@ -208,6 +208,9 @@ export interface Deal {
     contactName?: string;
     contactEmail?: string;
     contactPhone?: string;
+    /** Customer postal address rendered in the Invoice XLSX "To," block.
+     *  Optional — invoices for deals without one show only the customer name. */
+    customerAddress?: string;
     estimatedValue?: number;
     winProbability?: number;
     // 4-stage pipeline (D removed in chg-009 — Dropped is now a status flag).
