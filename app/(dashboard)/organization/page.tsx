@@ -242,11 +242,12 @@ export default function EmployeesPage() {
     const handleAddDepartment = async (data: DepartmentFormValues) => {
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.addDepartment({
-            id:          crypto.randomUUID(),
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
-            headcount:   0,
+            id:                  crypto.randomUUID(),
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
+            headcount:           0,
         });
         setIsDeptDialogOpen(false);
     };
@@ -255,9 +256,10 @@ export default function EmployeesPage() {
         if (!editingDepartment) return;
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.updateDepartment(editingDepartment.id, {
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
         });
         setEditingDepartment(null);
     };
@@ -423,7 +425,7 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
-                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId }}
+                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId, isDeliveryEligible: editingDepartment.isDeliveryEligible ?? true }}
                                     employees={store.employees}
                                     onSubmit={handleEditDepartment}
                                     onCancel={() => setEditingDepartment(null)}
@@ -492,7 +494,7 @@ export default function EmployeesPage() {
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
+                            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
@@ -570,7 +572,7 @@ export default function EmployeesPage() {
                     />
 
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
-                        <DialogContent className="sm:max-w-[500px]">
+                        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Edit Employee</DialogTitle>
                                 <DialogDescription>Update the details for {editingEmployee?.name}.</DialogDescription>

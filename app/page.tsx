@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { ArrowRight, BarChart3, Briefcase, Clock3, FileText, Layers, MessageSquare, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, BarChart3, Briefcase, Clock3, FileText, Layers, LineChart, MessageSquare, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 export default async function Home() {
@@ -57,7 +57,7 @@ export default async function Home() {
         <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-brand-700)]">{t('ai_powered_label')}</p>
         <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">{t('ai_section_heading')}</h2>
         <p className="mt-5 max-w-3xl text-lg text-[var(--color-text-subtle)]">{t('ai_section_subtitle')}</p>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
+        <div className="mt-12 grid gap-5 md:grid-cols-3 lg:grid-cols-5">
           <AIFeatureCard
             icon={<Sparkles className="h-5 w-5" />}
             title={t('ai_team_builder_title')}
@@ -69,6 +69,18 @@ export default async function Home() {
             title={t('ai_auto_assign_title')}
             description={t('ai_auto_assign_desc')}
             cta={t('ai_auto_assign_cta')}
+          />
+          <AIFeatureCard
+            icon={<FileText className="h-5 w-5" />}
+            title={t('ai_contract_draft_title')}
+            description={t('ai_contract_draft_desc')}
+            cta={t('ai_contract_draft_cta')}
+          />
+          <AIFeatureCard
+            icon={<TrendingUp className="h-5 w-5" />}
+            title={t('ai_forecast_title')}
+            description={t('ai_forecast_desc')}
+            cta={t('ai_forecast_cta')}
           />
           <AIFeatureCard
             icon={<MessageSquare className="h-5 w-5" />}
@@ -84,13 +96,14 @@ export default async function Home() {
         <div className="mx-auto w-full max-w-7xl">
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-brand-700)]">{t('platform_modules_label')}</p>
           <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">{t('modules_heading')}</h2>
-          <div className="mt-12 grid gap-5 md:grid-cols-12">
-            <FeatureCard className="md:col-span-4" icon={<Layers className="h-5 w-5" />} title={t('module_pipeline_title')} description={t('module_pipeline_desc')} />
-            <FeatureCard className="md:col-span-4" icon={<BarChart3 className="h-5 w-5" />} title={t('module_estimation_title')} description={t('module_estimation_desc')} />
-            <FeatureCard className="md:col-span-4" icon={<FileText className="h-5 w-5" />} title={t('module_contracts_title')} description={t('module_contracts_desc')} />
-            <FeatureCard className="md:col-span-4" icon={<Briefcase className="h-5 w-5" />} title={t('module_delivery_title')} description={t('module_delivery_desc')} />
-            <FeatureCard className="md:col-span-4" icon={<Clock3 className="h-5 w-5" />} title={t('module_time_title')} description={t('module_time_desc')} />
-            <FeatureCard className="md:col-span-4" icon={<TrendingUp className="h-5 w-5" />} title={t('module_financials_title')} description={t('module_financials_desc')} />
+          <div className="mt-12 grid gap-5 md:grid-cols-3 lg:grid-cols-4">
+            <FeatureCard icon={<Layers className="h-5 w-5" />} title={t('module_pipeline_title')} description={t('module_pipeline_desc')} />
+            <FeatureCard icon={<BarChart3 className="h-5 w-5" />} title={t('module_estimation_title')} description={t('module_estimation_desc')} />
+            <FeatureCard icon={<FileText className="h-5 w-5" />} title={t('module_contracts_title')} description={t('module_contracts_desc')} />
+            <FeatureCard icon={<Briefcase className="h-5 w-5" />} title={t('module_delivery_title')} description={t('module_delivery_desc')} />
+            <FeatureCard icon={<Clock3 className="h-5 w-5" />} title={t('module_time_title')} description={t('module_time_desc')} />
+            <FeatureCard icon={<TrendingUp className="h-5 w-5" />} title={t('module_financials_title')} description={t('module_financials_desc')} />
+            <FeatureCard icon={<LineChart className="h-5 w-5" />} title={t('module_forecast_title')} description={t('module_forecast_desc')} />
           </div>
         </div>
       </section>
@@ -100,12 +113,14 @@ export default async function Home() {
         <div className="mx-auto w-full max-w-7xl">
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-brand-500)]">{t('the_flow_label')}</p>
           <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">{t('how_heading')}</h2>
-          <div className="mt-12 grid gap-8 md:grid-cols-5">
+          <div className="mt-12 grid gap-8 md:grid-cols-3 lg:grid-cols-4">
             <Step n="1" stepLabel={t('step_word')} title={t('step_capture_title')} text={t('step_capture_text')} />
             <Step n="2" stepLabel={t('step_word')} title={t('step_estimate_title')} text={t('step_estimate_text')} />
-            <Step n="3" stepLabel={t('step_word')} title={t('step_win_title')} text={t('step_win_text')} />
-            <Step n="4" stepLabel={t('step_word')} title={t('step_deliver_title')} text={t('step_deliver_text')} />
-            <Step n="5" stepLabel={t('step_word')} title={t('step_bill_title')} text={t('step_bill_text')} />
+            <Step n="3" stepLabel={t('step_word')} title={t('step_draft_title')} text={t('step_draft_text')} />
+            <Step n="4" stepLabel={t('step_word')} title={t('step_win_title')} text={t('step_win_text')} />
+            <Step n="5" stepLabel={t('step_word')} title={t('step_deliver_title')} text={t('step_deliver_text')} />
+            <Step n="6" stepLabel={t('step_word')} title={t('step_bill_title')} text={t('step_bill_text')} />
+            <Step n="7" stepLabel={t('step_word')} title={t('step_forecast_title')} text={t('step_forecast_text')} />
           </div>
         </div>
       </section>

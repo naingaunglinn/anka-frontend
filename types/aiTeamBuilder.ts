@@ -144,6 +144,18 @@ export interface AITeamBuilderResult {
      * and the user can save it back to the deal if they want.
      */
     estimatedTotalHours?: number
+    /**
+     * Role mode only. Σ (quantity × months × 160) across all suggested roles.
+     * The prompt requires this to be ≥ estimatedTotalHours and ≤ 1.15× it.
+     */
+    totalCapacityHours?: number
+    /**
+     * Role mode only. totalCapacityHours / estimatedTotalHours, rounded to 2dp.
+     * Coverage check: a value < 1.0 means the suggested team cannot deliver
+     * the workload in the timeline — the server-side validator retries when
+     * this happens, and the frontend surfaces a warning if it still slips.
+     */
+    coverageRatio?: number
     baseLaborCost: number
     overheadCost: number
     bufferCost: number

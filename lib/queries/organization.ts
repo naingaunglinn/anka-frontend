@@ -23,11 +23,12 @@ function optNum(v: unknown): number | undefined {
 
 function toDepartment(row: Record<string, unknown>): Department {
     return {
-        id:          row.id as string,
-        name:        row.name as string,
-        managerId:   optStr(row.manager_id),
-        managerName: optStr(row.manager_name),
-        headcount:   row.headcount as number,
+        id:                  row.id as string,
+        name:                row.name as string,
+        managerId:           optStr(row.manager_id),
+        managerName:         optStr(row.manager_name),
+        isDeliveryEligible:  row.is_delivery_eligible !== false,
+        headcount:           row.headcount as number,
     }
 }
 
@@ -156,16 +157,18 @@ export async function fetchAllOrganizationData(): Promise<{
 
 export async function insertDepartment(d: Department): Promise<void> {
     await api.post('/departments', {
-        id:         d.id,
-        name:       d.name,
-        manager_id: d.managerId ?? null,
+        id:                    d.id,
+        name:                  d.name,
+        manager_id:            d.managerId ?? null,
+        is_delivery_eligible:  d.isDeliveryEligible ?? true,
     })
 }
 
 export async function updateDepartmentDB(d: Department): Promise<void> {
     await api.put(`/departments/${d.id}`, {
-        name:       d.name,
-        manager_id: d.managerId ?? null,
+        name:                  d.name,
+        manager_id:            d.managerId ?? null,
+        is_delivery_eligible:  d.isDeliveryEligible ?? true,
     })
 }
 

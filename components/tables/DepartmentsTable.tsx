@@ -58,7 +58,16 @@ export function DepartmentsTable({ data, onEdit, onDelete }: DepartmentsTablePro
                     </Button>
                 )
             },
-            cell: ({ row }) => <div className="font-medium text-[#171717]">{row.getValue('name')}</div>,
+            cell: ({ row }) => (
+                <div className="flex items-center gap-2">
+                    <span className="font-medium text-[#171717]">{row.getValue('name')}</span>
+                    {row.original.isDeliveryEligible === false && (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                            {t('non_delivery')}
+                        </span>
+                    )}
+                </div>
+            ),
         },
         {
             accessorKey: 'managerName',

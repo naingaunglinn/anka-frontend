@@ -20,6 +20,41 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
  * `{ "note": "}{" }` doesn't confuse it. Returns null if no balanced object
  * is found — caller falls back to JSON.parse on the original text.
  */
+/**
+ * Coverage check for role-mode results. The prompt's HARD RULE is that
+ * Σ (quantity × months × 160) across all suggested roles MUST be ≥
+ * totalWorkloadHours (so the team can physically deliver the scope in
+ * the given timeline). The AI sometimes slips through the rule despite
+ * Step 3's self-check — this guard catches the slip server-side and
+ * triggers a corrective retry.
+ *
+ * Returns:
+ *  - capacity: Σ (q × m × 160) across the result's roles
+ *  - workload: estimatedTotalHours (or the input workloadHours if the AI
+ *              forgot to echo it back)
+ *  - ratio:    capacity / workload, rounded to 2dp
+ *  - undercovered: ratio < 0.95 — the threshold below which we retry
+ */
+function evaluateRoleCoverage(
+    result: AITeamBuilderResult,
+    input: AITeamBuilderInput,
+): { capacity: number; workload: number; ratio: number; undercovered: boolean } {
+    const roles = result.roles ?? []
+    const capacity = roles.reduce((sum, r) => {
+        const q = Number(r.quantity) || 0
+        const m = Number(r.months)   || 0
+        return sum + q * m * 160
+    }, 0)
+    const workload = Number(result.estimatedTotalHours) > 0
+        ? Number(result.estimatedTotalHours)
+        : (Number(input.workloadHours) > 0 ? Number(input.workloadHours) : 0)
+    if (workload <= 0) {
+        return { capacity, workload: 0, ratio: 1, undercovered: false }
+    }
+    const ratio = Math.round((capacity / workload) * 100) / 100
+    return { capacity, workload, ratio, undercovered: ratio < 0.95 }
+}
+
 function extractFirstJsonObject(text: string): string | null {
     const start = text.indexOf('{')
     if (start === -1) return null
@@ -93,20 +128,26 @@ function generateRoleDemoResult(input: AITeamBuilderInput): AITeamBuilderResult 
         const min = bracketVals.length > 0 ? Math.min(...bracketVals) : fallbackBrackets[key][0]
         const max = bracketVals.length > 0 ? Math.max(...bracketVals) : fallbackBrackets[key][1]
         const avg = (min + max) / 2
-        const cost = Math.round(avg * months)
+        // Quantity must cover the bucket's allocatedHours within `months` at
+        // 160h/person/month. Mirrors the prompt's HARD coverage rule so the
+        // demo path doesn't produce undersized teams either.
+        const quantity = Math.max(1, Math.ceil(allocated / (months * 160)))
+        const cost = Math.round(avg * months * quantity)
         roles.push({
             roleType: key,
             label: labels[key],
-            quantity: 1,
+            quantity,
             months,
             allocatedHours: allocated,
             minMonthlySalary: min,
             maxMonthlySalary: max,
             estimatedCost: cost,
-            reasoning: `Demo fallback — projected ${allocated}h over ${months} month${months === 1 ? '' : 's'} based on description keywords.`,
+            reasoning: `Demo fallback — projected ${allocated}h over ${months} month${months === 1 ? '' : 's'} based on description keywords. ${quantity > 1 ? `Sized for ${quantity} engineers to cover the workload within timeline.` : ''}`.trim(),
         })
         baseLaborCost += cost
     }
+    const demoTotalCapacity = roles.reduce((sum, r) => sum + r.quantity * r.months * 160, 0)
+    const demoCoverageRatio = totalHours > 0 ? Math.round((demoTotalCapacity / totalHours) * 100) / 100 : 1
 
     const overheadPct = (input.companySettings?.overheadPercentage ?? 20) / 100
     const bufferPct   = (input.companySettings?.bufferPercentage ?? 10) / 100
@@ -121,6 +162,8 @@ function generateRoleDemoResult(input: AITeamBuilderInput): AITeamBuilderResult 
         team: [],
         roles,
         estimatedTotalHours: totalHours,
+        totalCapacityHours: demoTotalCapacity,
+        coverageRatio: demoCoverageRatio,
         baseLaborCost: Math.round(baseLaborCost),
         overheadCost: Math.round(overheadCost),
         bufferCost: Math.round(bufferCost),
@@ -392,9 +435,86 @@ export async function POST(req: NextRequest) {
         // Fire-and-forget usage log — never blocks the AI response
         logUsage('ai_team_builder', message.model, message.usage.input_tokens, message.usage.output_tokens, estimateCost(message.usage.input_tokens, message.usage.output_tokens))
 
-        // Role mode: no skill-coverage enforcement (it operates on per-employee
-        // picks). Return Claude's role-shaped output as-is.
+        // Role mode: validate coverage (Σ q×m×160 ≥ totalWorkloadHours) and
+        // do ONE corrective retry if the AI ignored Step 3 of the prompt.
+        // Background: even with a HARD RULE in the system prompt, Claude
+        // occasionally slips and proposes a team whose capacity can't cover
+        // the workload (see the Wayne demo where 4503h scope was being
+        // sized for 2240h capacity). The retry is cheap insurance.
         if (isRoleMode) {
+            let coverage = evaluateRoleCoverage(result, input)
+
+            if (coverage.undercovered && coverage.workload > 0) {
+                console.warn(
+                    `[AI Team Builder] Role result undercovered (capacity=${coverage.capacity}h vs workload=${coverage.workload}h, ratio=${coverage.ratio}). Asking AI to revise.`,
+                )
+                try {
+                    const retryMessage = await client.messages.create({
+                        model: CLAUDE_MODEL,
+                        max_tokens: 4096,
+                        temperature: 0.2,
+                        system: systemPrompt,
+                        messages: [
+                            { role: 'user', content: userPrompt },
+                            { role: 'assistant', content: clean },
+                            { role: 'user', content:
+                                `Your suggested team is undersized and violates the HARD RULE in Step 2. ` +
+                                `Coverage check: Σ(quantity × months × 160) = ${coverage.capacity}h but totalWorkloadHours = ${coverage.workload}h ` +
+                                `(coverage ratio ${coverage.ratio}, must be ≥ 1.00). ` +
+                                `Revise the team using the iteration order from Step 2: ` +
+                                `(1) increase months on long-running buckets first, ` +
+                                `(2) then increase quantity on the heaviest bucket, ` +
+                                `(3) add a missing bucket only if every existing bucket is already at quantity ≥ 2 and months = timelineMonths. ` +
+                                `Target band is [1.00, 1.15]. Return ONLY the revised JSON object (no markdown fences, no commentary).`,
+                            },
+                            { role: 'assistant', content: '{' },
+                        ],
+                    })
+                    const retryRawText = retryMessage.content[0]?.type === 'text' ? retryMessage.content[0].text : ''
+                    logUsage('ai_team_builder', retryMessage.model, retryMessage.usage.input_tokens, retryMessage.usage.output_tokens, estimateCost(retryMessage.usage.input_tokens, retryMessage.usage.output_tokens))
+
+                    if (retryRawText) {
+                        let retryClean = extractFirstJsonObject(retryRawText) ?? extractFirstJsonObject('{' + retryRawText) ?? retryRawText
+                        try {
+                            const retryResult = JSON.parse(retryClean) as AITeamBuilderResult
+                            const retryCoverage = evaluateRoleCoverage(retryResult, input)
+                            // Keep whichever result is closer to ratio 1.0. If
+                            // the retry is even worse (rare), keep the first.
+                            const firstDistance = Math.abs(coverage.ratio - 1.0)
+                            const retryDistance = Math.abs(retryCoverage.ratio - 1.0)
+                            if (retryDistance < firstDistance) {
+                                console.log(`[AI Team Builder] Retry improved coverage: ${coverage.ratio} → ${retryCoverage.ratio}`)
+                                result = retryResult
+                                coverage = retryCoverage
+                            } else {
+                                console.warn(`[AI Team Builder] Retry did not improve coverage (${retryCoverage.ratio}). Keeping original.`)
+                            }
+                        } catch {
+                            console.warn('[AI Team Builder] Retry returned non-JSON. Keeping original result.')
+                        }
+                    }
+                } catch (retryErr) {
+                    console.warn('[AI Team Builder] Retry call failed:', retryErr instanceof Error ? retryErr.message : retryErr)
+                }
+            }
+
+            // Stamp the server-computed coverage values on the result. The AI
+            // may have computed these per Step 3, but server-computed is the
+            // source of truth — it cannot lie about its own roles array.
+            result.totalCapacityHours = coverage.capacity
+            result.coverageRatio = coverage.ratio
+
+            // Surface a warning when the team still can't cover the workload
+            // after the retry. The frontend already renders `warnings` —
+            // operator sees it without us needing to change the UI.
+            if (coverage.undercovered && coverage.workload > 0) {
+                const note =
+                    `Suggested team capacity (${coverage.capacity}h) is below the workload (${coverage.workload}h). ` +
+                    `Coverage ratio ${coverage.ratio} — the team likely cannot deliver the scope in ${input.timelineMonths} months. ` +
+                    `Increase months/quantity on the heaviest bucket, or set workload_hours on the deal before re-running.`
+                result.warnings = [...(result.warnings ?? []), note]
+            }
+
             return NextResponse.json(result)
         }
 

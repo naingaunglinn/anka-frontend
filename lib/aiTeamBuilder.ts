@@ -23,20 +23,46 @@ The tenant's role buckets are constrained to these five:
 
 Choose a subset of these buckets for the project. DO NOT invent new buckets.
 
-**Workload hours — handle this case carefully.**
+**STEP 1 — Lock in \`totalWorkloadHours\` BEFORE designing the team.**
 
-The user's brief may or may not include a "Total Workload" hour figure.
-  - **If the brief says "Total Workload: 0 hours" or "Total Workload: not specified"**: the user doesn't know yet, and they want you to estimate. Propose a total hour count yourself based on the project description, the client budget (using the company's overhead/buffer settings to back into a feasible labor cost), and the timeline. Return your proposed number as **\`estimatedTotalHours\`** in the result. Use this estimate when sizing roles.
-  - **If the brief gives a real number** (≥ 1): use it as-is. Echo it back in \`estimatedTotalHours\` for symmetry.
+This is the anchor for every downstream decision. Establish it FIRST.
+  - **If the brief gives a real number** (≥ 1): use it exactly. Echo it in \`estimatedTotalHours\`.
+  - **If "Total Workload: 0 hours" or "not specified"**: estimate from the project description, complexity score, and timeline. Underestimating the workload produces undersized teams that miss deadlines — when uncertain, lean higher rather than lower. Sanity-check: workload × avg loaded hourly rate × 3 (sell markup) should be ≤ client budget. If the budget is impossibly tight at any realistic effort, propose the lowest defensible workload and flag the budget-feasibility issue in \`warnings\`.
 
-When proposing hours from scratch, sanity-check against feasibility: total hours × the average cost-per-hour implied by the salary brackets should leave room for overhead + buffer under the client budget. If the budget is impossibly tight at any realistic effort, propose the lowest defensible hour count and flag the budget-feasibility issue in \`warnings\`.
+Treat \`totalWorkloadHours\` as a hard input to Step 2 — do NOT pick a team shape and then back-fit hours.
+
+**STEP 2 — Size the team to COVER the workload.**
+
+For each role bucket, compute **capacity_hours = quantity × months × 160**.
+Across the project, **total_capacity = Σ capacity_hours over all roles**.
+
+**HARD RULE — coverage:** \`total_capacity ≥ totalWorkloadHours\`. A team that cannot physically deliver the workload in the given timeline is invalid.
+
+**TARGET BAND:** \`totalWorkloadHours ≤ total_capacity ≤ totalWorkloadHours × 1.15\` — cover the workload with at most 15% slack. Don't pad more than that; you'll quote too high.
+
+If your first draft of roles has \`total_capacity < totalWorkloadHours\`, iterate in this order:
+  1. Increase \`months\` on buckets whose work spans the whole timeline (typically pm, backend). \`months\` is capped at \`timelineMonths\`.
+  2. If every relevant bucket is already at \`months = timelineMonths\`, increase \`quantity\` on the heaviest bucket (the one with the largest \`allocatedHours\`).
+  3. If every bucket is already quantity ≥ 2 and you're still short, add a missing bucket consistent with the project's nature (e.g. a second backend, or qa if you'd dropped it).
+
+**Distribution guidance — how to split \`totalWorkloadHours\` across buckets.**
+For a typical full-stack web/mobile project, allocate roughly:
+  - ~50% backend
+  - ~30% frontend
+  - ~10% qa
+  - ~7% pm
+  - ~3% design
+
+Adjust these weights based on signals in the description (e.g., heavy AI/ML → more backend; design-led product → more design; SaaS dashboard → more frontend). The weights should still sum to ~100% across the buckets you actually chose.
+
+Each bucket's \`allocatedHours\` = its share of \`totalWorkloadHours\` per the weights above. The bucket's \`quantity × months × 160\` must be ≥ its own \`allocatedHours\`.
 
 For each chosen bucket, output:
   - roleType (one of the five above)
   - label (human-readable, e.g. "Backend Engineer")
   - quantity (integer ≥ 1)
   - months (integer ≤ project timeline; shorter when the role only contributes in late stages)
-  - allocatedHours (TOTAL hours for this bucket across all quantity slots over the role's months — should roughly sum across all roles to the project's total workload hours)
+  - allocatedHours (TOTAL hours for this bucket across all quantity slots over the role's months — equals the bucket's share of \`totalWorkloadHours\` per the distribution guidance above. The sum of \`allocatedHours\` across all roles MUST equal \`totalWorkloadHours\` — not "roughly", exactly. The bucket's \`quantity × months × 160\` MUST be ≥ its own \`allocatedHours\`.)
   - minMonthlySalary / maxMonthlySalary — pulled from the engineers (salary brackets) list provided. Pick a bracket that fits the seniority you're suggesting; min/max can span more than one bracket if you want a range. **Never invent salary numbers outside the bracket list — use what the tenant has.**
   - estimatedCost (quantity × months × ((min+max)/2))
   - reasoning (1-2 sentences justifying the bucket + quantity + seniority)
@@ -46,7 +72,20 @@ For each chosen bucket, output:
   - medium (2.6–5.5): **3-4 buckets** covering main workstreams + 1 PM if coordination signals are clear.
   - hard (> 5.5): **5 buckets** typically (all of frontend / backend / design / qa / pm).
 
-**Quantity guidance:** for software projects, quantities are usually 1 per bucket. Only suggest quantity ≥ 2 when the workload is genuinely too heavy for one person at the chosen seniority (e.g. 1500h of backend work over 3 months → 2 backend engineers).
+**Quantity guidance:** for software projects, default to 1 per bucket. Raise to quantity ≥ 2 whenever the bucket's \`allocatedHours\` exceeds \`timelineMonths × 160\` for a single person, OR whenever Step 2's iteration loop tells you to. Two backend engineers for 1500h over 3 months is a typical example.
+
+**STEP 3 — Self-check BEFORE returning the JSON.**
+
+Compute these and put them in your output:
+  - \`totalCapacityHours\` = Σ (quantity × months × 160) across all roles
+  - \`coverageRatio\` = totalCapacityHours / totalWorkloadHours, rounded to 2 decimals
+
+Then verify:
+  - If \`coverageRatio < 1.00\`: you have VIOLATED the HARD RULE. Go back to Step 2, iterate, recompute. Do not return undersized teams.
+  - If \`coverageRatio > 1.15\`: you have over-padded. Reduce months or quantity on the lightest-loaded bucket until you're inside the band.
+  - If \`1.00 ≤ coverageRatio ≤ 1.15\`: you're good — return the JSON.
+
+Also append a line to \`aiReasoning\` stating: "Coverage: total_capacity = {X}h vs totalWorkloadHours = {Y}h (ratio {Z})".
 
 **Cost & Pricing Model — read carefully, this REPLACES the old overhead+buffer math.**
 
@@ -87,6 +126,8 @@ Note: each role's \`estimatedCost\` field stays at the cost-basis level: quantit
   ],
   "team": [],
   "estimatedTotalHours": number,
+  "totalCapacityHours": number,
+  "coverageRatio": number,
   "baseLaborCost": number,
   "overheadCost": number,
   "bufferCost": number,
