@@ -399,6 +399,7 @@
   "contract_terms_confirmed": "Contract terms confirmed",
   "contract_value": "Contract value",
   "contracts": "Contracts",
+  "invoices": "Invoices",
   "contracts_amp_billing": "Contracts & Billing",
   "contracts_billing": "Contracts & Billing",
   "contracts_count": "{count, plural, one {contract} other {contracts}}",

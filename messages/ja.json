@@ -399,6 +399,7 @@
   "contract_terms_confirmed": "契約条件が確定",
   "contract_value": "契約金額",
   "contracts": "契約一覧",
+  "invoices": "請求書",
   "contracts_amp_billing": "契約と請求",
   "contracts_billing": "契約と請求",
   "contracts_count": "契約 {count} 件",

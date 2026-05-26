@@ -337,6 +337,19 @@ export interface Invoice {
     sentToEmail?: string;
     reminderSentCount?: number;
     notes?: string;
+    /** New Invoice menu fields (template XLSX export). */
+    memo?: string;
+    billingPeriodLabel?: string;
+    lineItems?: InvoiceLineItemSnapshot[];
+}
+
+/** Snapshot of one invoice line item, frozen at save time. */
+export interface InvoiceLineItemSnapshot {
+    kind: 'resource' | 'overhead';
+    label: string;
+    quantity: number;
+    cost: number;
+    amount: number;
 }
 
 export interface Milestone {

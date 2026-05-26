@@ -172,6 +172,9 @@ interface ApiInvoice {
     total?: number | string | null;
     status: Invoice['status'];
     paid_at?: string | null;
+    memo?: string | null;
+    billing_period_label?: string | null;
+    line_items?: Array<{ kind: 'resource' | 'overhead'; label: string; quantity: number; cost: number; amount: number }> | null;
     issued_at?: string | null;
     sent_to_email?: string | null;
     reminder_sent_count?: number;
@@ -345,6 +348,9 @@ export function toInvoice(row: ApiInvoice): Invoice {
         sentToEmail: row.sent_to_email ?? undefined,
         reminderSentCount: row.reminder_sent_count ?? 0,
         notes: row.notes ?? undefined,
+        memo: row.memo ?? undefined,
+        billingPeriodLabel: row.billing_period_label ?? undefined,
+        lineItems: row.line_items ?? undefined,
     };
 }
 
