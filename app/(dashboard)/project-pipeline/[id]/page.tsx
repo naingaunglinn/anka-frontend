@@ -26,7 +26,7 @@ import { useContractDrafts } from '@/lib/queries/contractDrafts';
 import { Sparkles } from 'lucide-react';
 import { RequirementsChecklist, formatOtSummary } from '@/components/project-pipeline/RequirementsChecklist';
 import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
-import { calculateOverhead, calculateRiskBuffer } from '@/lib/calculations';
+import { calculateOverhead, calculateRiskBuffer, applySellMarkup } from '@/lib/calculations';
 import type { EstimationResource } from '@/types/business';
 
 // Stage colors (label is resolved via translation: t(STAGE_LABEL_KEY[stage])).
@@ -89,17 +89,11 @@ export default function DealDetailPage() {
         [projects, linkedContract]
     );
 
-    // Ghost-role labor cost — feeds the "Ghost Roles" table footer only.
-    // `GhostRole.months` is the allocation PERCENTAGE (1–100), not a month count —
-    // legacy naming. Convert to a fraction and multiply by the deal's actual
-    // timelineMonths to get the lifetime labor cost (not just one month's worth).
     const ghostLaborCost = useMemo(() => {
         if (!dealToEdit?.ghostRoles) return 0;
-        const months = dealToEdit.timelineMonths || 1;
         return dealToEdit.ghostRoles.reduce((sum, r) => {
-            const avgSalary  = ((r.minMonthlySalary || 0) + (r.maxMonthlySalary || 0)) / 2;
-            const allocFrac  = (r.months || 100) / 100;
-            return sum + (r.quantity || 0) * allocFrac * months * avgSalary;
+            const avgSalary = ((r.minMonthlySalary || 0) + (r.maxMonthlySalary || 0)) / 2;
+            return sum + (r.quantity || 0) * (r.months || 0) * avgSalary;
         }, 0);
     }, [dealToEdit]);
 
@@ -124,20 +118,21 @@ export default function DealDetailPage() {
             if (rates.length > 0) {
                 const sorted = [...rates].sort((a, b) => a - b);
                 const mid = Math.floor(sorted.length / 2);
-                return sorted.length % 2 === 0
+                const median = sorted.length % 2 === 0
                     ? (sorted[mid - 1] + sorted[mid]) / 2
                     : sorted[mid];
+                return applySellMarkup(median);
             }
             const role = store.roles.find(r => r.id === roleId);
-            if (role && role.rate > 0) return role.rate * costToBillRatio;
-            return fallbackHourlyCost;
+            if (role && role.rate > 0) return applySellMarkup(role.rate * costToBillRatio);
+            return applySellMarkup(fallbackHourlyCost);
         };
 
         const costRateForResource = (res: EstimationResource): number => {
             if (res.employeeId) {
                 const emp = store.employees.find(e => e.id === res.employeeId);
                 if (emp && typeof emp.costPerHour === 'number' && Number.isFinite(emp.costPerHour) && emp.costPerHour > 0) {
-                    return emp.costPerHour;
+                    return applySellMarkup(emp.costPerHour);
                 }
             }
             return costRateForRole(res.roleId);
@@ -448,7 +443,7 @@ export default function DealDetailPage() {
                                         <TableRow>
                                             <TableHead>{t('role')}</TableHead>
                                             <TableHead className="text-right">{t('quantity')}</TableHead>
-                                            <TableHead className="text-right">{t('alloc_pct')}</TableHead>
+                                            <TableHead className="text-right">{t('months_col')}</TableHead>
                                             <TableHead className="text-right">{t('monthly_salary')}</TableHead>
                                             <TableHead className="text-right">{t('subtotal')}</TableHead>
                                         </TableRow>
@@ -456,18 +451,17 @@ export default function DealDetailPage() {
                                     <TableBody>
                                         {dealToEdit.ghostRoles.map((role, i) => {
                                             const avgSalary = ((role.minMonthlySalary || 0) + (role.maxMonthlySalary || 0)) / 2;
-                                            const allocFrac = (role.months || 100) / 100;
-                                            const tlMonths  = dealToEdit.timelineMonths || 1;
+                                            const total = (role.quantity || 0) * (role.months || 0) * avgSalary;
                                             return (
                                                 <TableRow key={role.id ?? i}>
                                                     <TableCell className="font-medium capitalize">{role.roleType}</TableCell>
                                                     <TableCell className="text-right">{role.quantity}</TableCell>
-                                                    <TableCell className="text-right">{role.months}%</TableCell>
+                                                    <TableCell className="text-right">{role.months}</TableCell>
                                                     <TableCell className="text-right">
                                                         {formatMoney(role.minMonthlySalary ?? 0, currency)} – {formatMoney(role.maxMonthlySalary ?? 0, currency)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium">
-                                                        {formatMoney(role.quantity * allocFrac * tlMonths * avgSalary, currency)}
+                                                        {formatMoney(total, currency)}
                                                     </TableCell>
                                                 </TableRow>
                                             );

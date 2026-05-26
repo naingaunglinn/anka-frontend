@@ -1052,7 +1052,8 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <TableBody>
                                     {(selectedDeal.ghostRoles ?? []).map((gr, i) => {
                                         const avg = ((gr.minMonthlySalary ?? 0) + (gr.maxMonthlySalary ?? 0)) / 2
-                                        const total = gr.quantity * gr.months * avg
+                                        const rawCost = gr.quantity * gr.months * avg
+                                        const total = applyBillingMarkup(applySellMarkup(rawCost))
                                         const labelByRoleType: Record<string, string> = {
                                             frontend: t('role_type_frontend'),
                                             backend: t('role_type_backend'),
