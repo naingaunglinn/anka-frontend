@@ -18,7 +18,7 @@ import {
     useGenerateAIEstimationDelta,
     type AIEstimationDelta,
 } from '@/lib/queries/estimationVersions';
-import type { EstimationResource, ProjectOverhead } from '@/types/business';
+import type { EstimationResource, ProjectOverhead, GhostRole } from '@/types/business';
 import type { Currency } from '@/lib/currencyConfig';
 import { formatMoney } from '@/lib/currency';
 import toast from 'react-hot-toast';
@@ -30,6 +30,9 @@ interface SelectionState {
     overheadAdds: boolean[];
     overheadRemoves: boolean[];
     overheadModifies: boolean[];
+    roleAdds: boolean[];
+    roleRemoves: boolean[];
+    roleModifies: boolean[];
 }
 
 interface SuggestChangesFromNotesDialogProps {
@@ -38,17 +41,32 @@ interface SuggestChangesFromNotesDialogProps {
     dealId: string;
     currentResources: EstimationResource[];
     currentOverheads: ProjectOverhead[];
+    currentRoles: GhostRole[];
     currency: Currency;
     /**
      * Called once the user accepts a subset of the AI delta. Receives the
-     * applied resources/overheads (already merged) plus the verbatim notes
-     * that produced them — caller saves them as the next version.
+     * applied resources/overheads/roles (already merged) plus the verbatim
+     * notes that produced them — caller saves them as the next version.
      */
     onApply: (params: {
         resources: EstimationResource[];
         overheads: ProjectOverhead[];
+        roles: GhostRole[];
         contextNotes: string;
     }) => Promise<void> | void;
+}
+
+// Human-friendly label for a capacity-role code. Falls back to the raw code
+// for tenant-custom roles that aren't in the standard set.
+function roleLabel(code: string): string {
+    const known: Record<string, string> = {
+        frontend: 'Frontend',
+        backend: 'Backend',
+        pm: 'PM',
+        qa: 'QA',
+        design: 'Design',
+    };
+    return known[code.toLowerCase().trim()] ?? code;
 }
 
 function buildDefaultSelection(delta: AIEstimationDelta | null): SelectionState {
@@ -56,6 +74,7 @@ function buildDefaultSelection(delta: AIEstimationDelta | null): SelectionState 
         return {
             resourceAdds: [], resourceRemoves: [], resourceModifies: [],
             overheadAdds: [], overheadRemoves: [], overheadModifies: [],
+            roleAdds: [], roleRemoves: [], roleModifies: [],
         };
     }
     return {
@@ -65,6 +84,9 @@ function buildDefaultSelection(delta: AIEstimationDelta | null): SelectionState 
         overheadAdds: delta.overheads.add.map(() => true),
         overheadRemoves: delta.overheads.remove.map(() => true),
         overheadModifies: delta.overheads.modify.map(() => true),
+        roleAdds: delta.roles.add.map(() => true),
+        roleRemoves: delta.roles.remove.map(() => true),
+        roleModifies: delta.roles.modify.map(() => true),
     };
 }
 
@@ -73,9 +95,10 @@ function applyDelta(
     selection: SelectionState,
     baseResources: EstimationResource[],
     baseOverheads: ProjectOverhead[],
+    baseRoles: GhostRole[],
     rolesByTitle: Map<string, string>,
     fallbackRoleId: string,
-): { resources: EstimationResource[]; overheads: ProjectOverhead[] } {
+): { resources: EstimationResource[]; overheads: ProjectOverhead[]; roles: GhostRole[] } {
     // Start by removing the accepted "remove" items (matched by feature_name).
     const removedFeatureNames = new Set(
         delta.resources.remove
@@ -131,9 +154,47 @@ function applyDelta(
             cost: a.cost,
         }));
 
+    // ── Roles (ghost roles) — matched by role_type ──────────────────────────
+    const removedRoleTypes = new Set(
+        delta.roles.remove
+            .filter((_, i) => selection.roleRemoves[i])
+            .map(r => r.roleType.toLowerCase().trim()),
+    );
+    let roles = baseRoles.filter(r => !removedRoleTypes.has(r.roleType.toLowerCase().trim()));
+
+    const roleModifies = new Map(
+        delta.roles.modify
+            .filter((_, i) => selection.roleModifies[i])
+            .map(m => [m.roleType.toLowerCase().trim(), m]),
+    );
+    roles = roles.map(r => {
+        const m = roleModifies.get(r.roleType.toLowerCase().trim());
+        return m
+            ? {
+                ...r,
+                quantity: m.newQuantity,
+                months: m.newMonths,
+                minMonthlySalary: m.newMinMonthlySalary,
+                maxMonthlySalary: m.newMaxMonthlySalary,
+            }
+            : r;
+    });
+
+    const newRoles: GhostRole[] = delta.roles.add
+        .filter((_, i) => selection.roleAdds[i])
+        .map(a => ({
+            id: '',
+            roleType: a.roleType as GhostRole['roleType'],
+            quantity: a.quantity,
+            months: a.months,
+            minMonthlySalary: a.minMonthlySalary,
+            maxMonthlySalary: a.maxMonthlySalary,
+        }));
+
     return {
         resources: [...resources, ...newResources],
         overheads: [...overheads, ...newOverheads],
+        roles: [...roles, ...newRoles],
     };
 }
 
@@ -143,6 +204,7 @@ export function SuggestChangesFromNotesDialog({
     dealId,
     currentResources,
     currentOverheads,
+    currentRoles,
     currency,
     onApply,
 }: SuggestChangesFromNotesDialogProps) {
@@ -180,6 +242,7 @@ export function SuggestChangesFromNotesDialog({
     const totalChanges = delta
         ? delta.resources.add.length + delta.resources.remove.length + delta.resources.modify.length
             + delta.overheads.add.length + delta.overheads.remove.length + delta.overheads.modify.length
+            + delta.roles.add.length + delta.roles.remove.length + delta.roles.modify.length
         : 0;
     const acceptedCount = delta
         ? selection.resourceAdds.filter(Boolean).length
@@ -188,6 +251,9 @@ export function SuggestChangesFromNotesDialog({
             + selection.overheadAdds.filter(Boolean).length
             + selection.overheadRemoves.filter(Boolean).length
             + selection.overheadModifies.filter(Boolean).length
+            + selection.roleAdds.filter(Boolean).length
+            + selection.roleRemoves.filter(Boolean).length
+            + selection.roleModifies.filter(Boolean).length
         : 0;
 
     const handleSuggest = async () => {
@@ -205,6 +271,13 @@ export function SuggestChangesFromNotesDialog({
                     hours: r.hours,
                 })),
                 currentOverheads.map(o => ({ name: o.name, cost: o.cost })),
+                currentRoles.map(r => ({
+                    roleType: r.roleType,
+                    quantity: r.quantity,
+                    months: r.months,
+                    minMonthlySalary: r.minMonthlySalary,
+                    maxMonthlySalary: r.maxMonthlySalary,
+                })),
             );
             setDelta(result);
             setSelection(buildDefaultSelection(result));
@@ -226,6 +299,7 @@ export function SuggestChangesFromNotesDialog({
                 selection,
                 currentResources,
                 currentOverheads,
+                currentRoles,
                 rolesByTitle,
                 fallbackRoleId,
             );
@@ -274,7 +348,8 @@ export function SuggestChangesFromNotesDialog({
                     </DialogTitle>
                     <DialogDescription>
                         Paste the meeting minutes or chat history below. AI will compare it to the current
-                        estimation and propose a structured diff (add / remove / modify) for you to review.
+                        estimation and propose a structured diff across scope, roles, and overhead
+                        (add / remove / modify) for you to review.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -411,6 +486,55 @@ export function SuggestChangesFromNotesDialog({
                                             checked={selection.overheadRemoves[i]}
                                             onToggle={() => toggle('overheadRemoves', i)}
                                             warning={!exists ? 'No matching overhead in current list — nothing to remove.' : undefined}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Role changes (project staffing mix) */}
+                        {(delta.roles.add.length + delta.roles.remove.length + delta.roles.modify.length) > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Role changes</p>
+                                {delta.roles.add.map((r, i) => (
+                                    <DiffRow
+                                        key={`role-add-${i}`}
+                                        kind="add"
+                                        title={roleLabel(r.roleType)}
+                                        meta={`${r.quantity}× · ${r.months}mo · ${formatMoney(r.minMonthlySalary, currency)}–${formatMoney(r.maxMonthlySalary, currency)}/mo`}
+                                        reason={r.reason}
+                                        checked={selection.roleAdds[i]}
+                                        onToggle={() => toggle('roleAdds', i)}
+                                    />
+                                ))}
+                                {delta.roles.modify.map((r, i) => {
+                                    const old = currentRoles.find(x => x.roleType.toLowerCase().trim() === r.roleType.toLowerCase().trim());
+                                    const newMeta = `${r.newQuantity}× · ${r.newMonths}mo · ${formatMoney(r.newMinMonthlySalary, currency)}–${formatMoney(r.newMaxMonthlySalary, currency)}/mo`;
+                                    return (
+                                        <DiffRow
+                                            key={`role-mod-${i}`}
+                                            kind="modify"
+                                            title={roleLabel(r.roleType)}
+                                            meta={old ? `${old.quantity}× · ${old.months}mo → ${newMeta}` : `→ ${newMeta}`}
+                                            reason={r.reason}
+                                            checked={selection.roleModifies[i]}
+                                            onToggle={() => toggle('roleModifies', i)}
+                                            warning={!old ? 'No matching role in the current mix — change will be skipped.' : undefined}
+                                        />
+                                    );
+                                })}
+                                {delta.roles.remove.map((r, i) => {
+                                    const exists = currentRoles.some(x => x.roleType.toLowerCase().trim() === r.roleType.toLowerCase().trim());
+                                    return (
+                                        <DiffRow
+                                            key={`role-rem-${i}`}
+                                            kind="remove"
+                                            title={roleLabel(r.roleType)}
+                                            meta="drop"
+                                            reason={r.reason}
+                                            checked={selection.roleRemoves[i]}
+                                            onToggle={() => toggle('roleRemoves', i)}
+                                            warning={!exists ? 'No matching role in the current mix — nothing to remove.' : undefined}
                                         />
                                     );
                                 })}

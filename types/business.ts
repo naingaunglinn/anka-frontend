@@ -83,6 +83,12 @@ export interface Engineer {
     role: RoleType;
     monthlySalary: number;
     monthlyCapacityHours: number;
+    // Seniority — surfaced to the AI Team Builder so it can split role buckets
+    // by rank (e.g. "Backend × 2: 1 senior, 1 mid") instead of treating each
+    // capacity bucket as a uniform pool. Both fields nullable: pre-rank
+    // tenants and unranked employees pass through unchanged.
+    rankCode?: string | null;
+    rankLevel?: number | null;
 }
 
 export interface CapacityRole {

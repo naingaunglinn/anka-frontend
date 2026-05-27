@@ -1,0 +1,142 @@
+Context: You are helping a digital agency size and cost a software project at the ROLE level. You are NOT picking specific people — you are suggesting how many of each role bucket the project needs, AT WHAT SENIORITY, and what the going salary range is for each (role × rank) cohort.
+
+IMPORTANT: All monetary values in this prompt are in USD. The system normalised everything to USD upstream — do NOT convert.
+
+The tenant has defined {{BUCKET_COUNT}} role bucket{{BUCKET_PLURAL}} in /organization → Capacity Roles. You MUST pick from this list — only employees from delivery-eligible departments are included, so any bucket here is staffable:
+{{BUCKET_LIST}}
+
+Choose a subset of these buckets for the project. DO NOT invent new buckets — use the exact `code` values shown above as the `roleType` in your output.
+
+**Seniority ranks (from /organization → Ranks).** The tenant has defined {{RANK_COUNT}} rank{{RANK_PLURAL}}, ordered most-senior → most-junior:
+{{RANK_LIST}}
+
+Each row of your output represents ONE (roleType × rankCode) cohort. When a bucket needs more than one person and they are not all the same seniority, **emit one row per rank** — e.g. "backend × 1 at {{TOP_RANK_CODE}}" + "backend × 1 at {{LOW_RANK_CODE}}" as two separate rows, NOT "backend × 2" with no rank. Use the exact `code` value from the list above for `rankCode` (case-sensitive).
+
+**Rank-mix reasoning — apply these rules when choosing ranks:**
+  - **Architecture, system design, ambiguous specs, client-facing technical decisions, and high-risk integrations** are {{TOP_RANK_CODE}}-level work. Anchor each chosen role bucket with at least one {{TOP_RANK_CODE}} or near-{{TOP_RANK_CODE}} person, unless the project is genuinely trivial.
+  - **Routine implementation, well-specified CRUD, copy components, and test scaffolding** are appropriate for {{LOW_RANK_CODE}}-level capacity. Use the cheaper rank to stretch the budget — a small senior + several juniors team often beats an all-senior team for the same money on a delivery-shaped project.
+  - **PM / coordination buckets** should default to mid-to-senior (a junior PM rarely works for client-facing agency engagements). Pick the highest rank with available capacity in the PM bucket.
+  - **Single-person buckets** (quantity = 1): pick the rank that matches the riskiest decision in that role's scope. Bias up, not down — one junior owning a whole subsystem is a delivery risk.
+  - **Don't pad seniors for budget**: if the project's quote is over the client budget, look at downshifting one row from a higher to a lower rank BEFORE cutting scope or quantity. Note the trade-off in `reasoning`.
+
+If the tenant did NOT pass ranks (you'll see a single `Unranked` entry above), still emit a `rankCode` field with the value `"Unranked"` — don't omit it.
+
+**STEP 1 — Lock in `totalWorkloadHours` BEFORE designing the team.**
+
+This is the anchor for every downstream decision. Establish it FIRST.
+  - **If the brief gives a real number** (≥ 1): use it exactly. Echo it in `estimatedTotalHours`.
+  - **If "Total Workload: 0 hours" or "not specified"**: estimate from the project description, complexity score, and timeline. Underestimating the workload produces undersized teams that miss deadlines — when uncertain, lean higher rather than lower. Sanity-check: workload × avg loaded hourly rate × 3 (sell markup) should be ≤ client budget. If the budget is impossibly tight at any realistic effort, propose the lowest defensible workload and flag the budget-feasibility issue in `warnings`.
+
+Treat `totalWorkloadHours` as a hard input to Step 2 — do NOT pick a team shape and then back-fit hours.
+
+**STEP 2 — Size the team to COVER the workload.**
+
+Each person works **{{HOURS_PER_MONTH}} hours/month** (the tenant's configured capacity).
+
+For each role bucket, compute **capacity_hours = quantity × months × {{HOURS_PER_MONTH}}**.
+Across the project, **total_capacity = Σ capacity_hours over all roles**.
+
+**HARD RULE — coverage:** `total_capacity ≥ totalWorkloadHours`. A team that cannot physically deliver the workload in the given timeline is invalid.
+
+**TARGET BAND:** `totalWorkloadHours ≤ total_capacity ≤ totalWorkloadHours × 1.15` — cover the workload with at most 15% slack. Don't pad more than that; you'll quote too high.
+
+**REASONABLENESS RULE — max quantity per bucket is 5.** No single role bucket should have more than 5 people — larger teams have coordination overhead that makes them slower, not faster. If coverage requires more than 5 in any bucket, you MUST extend `months` beyond `timelineMonths` instead. When you extend months, add a warning: "Timeline extended from {timelineMonths} to {actualMonths} months — the scope cannot be reasonably delivered in the original timeline."
+
+**DEADLINE CONSTRAINT:** If the user prompt includes an "Expected End Date", the extended months MUST NOT push the project past that date. Calculate the maximum allowed months from today to that date. If even the maximum months with 5 people per bucket cannot cover the workload, flag it in warnings and propose the best-fit plan within the deadline.
+
+If your first draft of roles has `total_capacity < totalWorkloadHours`, iterate in this order:
+  1. Increase `months` on buckets whose work spans the whole timeline (typically pm, backend). `months` starts capped at `timelineMonths` but CAN exceed it if the reasonableness rule would be violated.
+  2. If every relevant bucket is already at sufficient months, increase `quantity` on the heaviest bucket (the one with the largest `allocatedHours`) — but never above 5.
+  3. If every bucket is already quantity ≥ 2 and you're still short, add a missing bucket consistent with the project's nature (e.g. a second backend, or qa if you'd dropped it).
+  4. If you still can't cover after steps 1–3, extend `months` further. A realistic 6-month plan is always better than an impossible 1-month plan with 20 engineers.
+
+{{SCOPE_BREAKDOWN_BLOCK}}
+
+Each bucket's `allocatedHours` = its share of `totalWorkloadHours`. The bucket's `quantity × months × {{HOURS_PER_MONTH}}` must be ≥ its own `allocatedHours`.
+
+For each (role × rank) cohort, output:
+  - roleType (one of the {{BUCKET_COUNT}} `code` values listed above — exact string match required)
+  - rankCode (one of {{RANK_CODE_UNION}} — exact string match required; do NOT invent ranks)
+  - label (human-readable, e.g. "Senior Backend Engineer" — include the rank in the label)
+  - quantity (integer ≥ 1 — count of people in THIS (role × rank) cohort, not the whole role bucket)
+  - months (integer ≤ project timeline; shorter when the role only contributes in late stages)
+  - allocatedHours (TOTAL hours for this bucket across all quantity slots over the role's months — equals the bucket's share of `totalWorkloadHours` per the distribution guidance above. The sum of `allocatedHours` across all roles MUST equal `totalWorkloadHours` — not "roughly", exactly. The bucket's `quantity × months × 160` MUST be ≥ its own `allocatedHours`.)
+  - minMonthlySalary / maxMonthlySalary — pulled from the engineers (salary brackets) list provided. Pick a bracket that fits the seniority you're suggesting; min/max can span more than one bracket if you want a range. **Never invent salary numbers outside the bracket list — use what the tenant has.**
+  - estimatedCost (quantity × months × ((min+max)/2))
+  - reasoning (1-2 sentences justifying the bucket + quantity + seniority)
+
+**Team-shape rules — apply the complexity band first.** Scale these to the number of available buckets (`{{BUCKET_COUNT}}`). The targets below assume a 5-bucket setup; if the tenant has fewer or more, scale proportionally and never exceed `{{BUCKET_COUNT}}`:
+  - easy (score ≤ 2.5): aim for **2 role buckets** total — 1 hands-on bucket matching the project + 1 leadership-flavoured bucket (e.g. a backend / engineering bucket plus pm or design).
+  - medium (2.6–5.5): **3-4 buckets** covering main workstreams + 1 coordination/PM bucket if signals are clear.
+  - hard (> 5.5): use **all {{BUCKET_COUNT}} buckets** (full coverage: {{ALL_CODES}}).
+
+**Quantity guidance:** for software projects, default to 1 per bucket. Raise to quantity ≥ 2 (max 5) whenever the bucket's `allocatedHours` exceeds `months × {{HOURS_PER_MONTH}}` for a single person, OR whenever Step 2's iteration loop tells you to. Two backend engineers for 1500h over 3 months is a typical example.
+
+**STEP 3 — Self-check BEFORE returning the JSON.**
+
+Compute these and put them in your output:
+  - `totalCapacityHours` = Σ (quantity × months × {{HOURS_PER_MONTH}}) across all roles
+  - `coverageRatio` = totalCapacityHours / totalWorkloadHours, rounded to 2 decimals
+
+Then verify:
+  - If `coverageRatio < 1.00`: you have VIOLATED the HARD RULE. Go back to Step 2, iterate, recompute. Do not return undersized teams.
+  - If `coverageRatio > 1.15`: you have over-padded. Reduce months or quantity on the lightest-loaded bucket until you're inside the band.
+  - If `1.00 ≤ coverageRatio ≤ 1.15`: you're good — return the JSON.
+
+Also append a line to `aiReasoning` stating: "Coverage: total_capacity = {X}h vs totalWorkloadHours = {Y}h (ratio {Z})".
+
+**Cost & Pricing Model — read carefully, this REPLACES the old overhead+buffer math.**
+
+The agency uses a fixed pricing rule:
+  - **Loaded monthly salary** = raw monthly salary × 1.15 (raw + 15% absorbed company overhead). Use this as the cost basis.
+  - **Sell rate** = Loaded cost × 3 (what we bill the client for that labor).
+
+**Cost rules:**
+  - rawAvgMonthlySalary = (min + max) / 2 — pulled straight from the bracket.
+  - loadedAvgMonthlySalary = rawAvgMonthlySalary × 1.15
+  - **baseLaborCost = sum over roles of (quantity × months × loadedAvgMonthlySalary)** — the agency's labor cost basis.
+  - overheadCost = 0  (the 15% is already absorbed into Loaded cost above; do NOT add it twice)
+  - bufferCost = 0   (margin comes from the 3× sell markup, not a buffer line)
+  - totalEstimatedCost = baseLaborCost  (cost basis, NOT the quoted price)
+  - **suggestedQuote = baseLaborCost × 3** — the price we'd quote the client.
+  - estimatedGrossProfit = suggestedQuote − totalEstimatedCost
+  - profitMarginPercent = (estimatedGrossProfit / suggestedQuote) × 100   (under this fixed model this is always ~66.7%)
+  - isFeasible = **suggestedQuote ≤ clientBudget**  (compare the QUOTE to the budget, not the cost basis)
+  - feasibilityNote: if feasible say "Quote ($X) fits client budget"; else state how much the QUOTE exceeds the budget by
+  - aiReasoning: 2–4 sentences on the role mix, seniority choices, and how the **quoted price** stacks up to budget
+  - warnings: budget overage on the quote, missing critical bucket the project description implies but you couldn't fit
+
+Note: each role's `estimatedCost` field stays at the cost-basis level: quantity × months × loadedAvgMonthlySalary. Do NOT multiply per-role estimatedCost by 3.
+
+**Output schema (return ONLY this JSON, no prose):**
+{
+  "roles": [
+    { "roleType": {{CODE_UNION}},
+      "rankCode": {{RANK_CODE_UNION}},
+      "label": string,
+      "quantity": number,
+      "months": number,
+      "allocatedHours": number,
+      "minMonthlySalary": number,
+      "maxMonthlySalary": number,
+      "estimatedCost": number,
+      "reasoning": string
+    }
+  ],
+  "team": [],
+  "estimatedTotalHours": number,
+  "totalCapacityHours": number,
+  "coverageRatio": number,
+  "baseLaborCost": number,
+  "overheadCost": number,
+  "bufferCost": number,
+  "totalEstimatedCost": number,
+  "estimatedGrossProfit": number,
+  "profitMarginPercent": number,
+  "isFeasible": boolean,
+  "feasibilityNote": string,
+  "aiReasoning": string,
+  "warnings": string[]
+}
+
+`team` MUST be an empty array — role mode does not pick employees. The frontend renders `roles` only.
