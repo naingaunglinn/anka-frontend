@@ -10,11 +10,46 @@ export interface TenantSettings {
     logoUrl: string | null;
     signatoryName: string | null;
     signatoryTitle: string | null;
+    /** Postal address rendered in the Invoice XLSX company block. */
+    address: string | null;
+    /** Phone rendered in the Invoice XLSX company block ("Tel: …"). */
+    phone: string | null;
     taxRate: number;
     deliveryLagMonths: number;
     paymentDaysLate: number;
     isActive: boolean;
     exchangeRates?: Record<string, number>;
+    bankAccounts?: BankAccount[];
+}
+
+/**
+ * Tenant bank account rendered at the bottom of the Invoice XLSX export.
+ * N per tenant — CRUD via the Org → Company → Bank Accounts panel.
+ */
+export interface BankAccount {
+    id: string;
+    label: string;
+    accountName: string | null;
+    accountNo: string | null;
+    branchName: string | null;
+    branchAddress: string | null;
+    branchNo: string | null;
+    swiftCode: string | null;
+    sortOrder: number;
+}
+
+function toBankAccount(row: Record<string, unknown>): BankAccount {
+    return {
+        id:            row.id as string,
+        label:         (row.label as string) ?? '',
+        accountName:   (row.account_name as string | null) ?? null,
+        accountNo:     (row.account_no as string | null) ?? null,
+        branchName:    (row.branch_name as string | null) ?? null,
+        branchAddress: (row.branch_address as string | null) ?? null,
+        branchNo:      (row.branch_no as string | null) ?? null,
+        swiftCode:     (row.swift_code as string | null) ?? null,
+        sortOrder:     typeof row.sort_order === 'number' ? row.sort_order : Number(row.sort_order ?? 0),
+    };
 }
 
 function toTenant(row: Record<string, unknown>): TenantSettings {
@@ -30,11 +65,16 @@ function toTenant(row: Record<string, unknown>): TenantSettings {
         logoUrl:           (row.logo_url as string | null) ?? null,
         signatoryName:     (row.signatory_name as string | null) ?? null,
         signatoryTitle:    (row.signatory_title as string | null) ?? null,
+        address:           (row.address as string | null) ?? null,
+        phone:             (row.phone as string | null) ?? null,
         taxRate:           typeof rawTax === 'number' ? rawTax : rawTax != null ? Number(rawTax) : 0.20,
         deliveryLagMonths: typeof rawLag === 'number' ? rawLag : rawLag != null ? Number(rawLag) : 1,
         paymentDaysLate:   typeof rawDays === 'number' ? rawDays : rawDays != null ? Number(rawDays) : 0,
         isActive:          row.is_active as boolean,
         exchangeRates:     row.exchange_rates as Record<string, number> | undefined,
+        bankAccounts:      Array.isArray(row.bank_accounts)
+            ? (row.bank_accounts as Record<string, unknown>[]).map(toBankAccount)
+            : undefined,
     };
 }
 
@@ -63,6 +103,8 @@ export function useTenantMutations() {
             slug?: string;
             signatory_name?: string | null;
             signatory_title?: string | null;
+            address?: string | null;
+            phone?: string | null;
             tax_rate?: number;
             avg_delivery_lag_months?: number;
             avg_payment_days_late?: number;
@@ -72,6 +114,57 @@ export function useTenantMutations() {
         },
         onSuccess: (data) => {
             queryClient.setQueryData(tenantKeys.current(), data);
+        },
+    });
+
+    // Bank accounts (Org → Company → Bank Accounts panel) — separate CRUD
+    // hooks so the form can mutate individual rows without re-saving the
+    // entire tenant settings block.
+    const createBankAccount = useMutation({
+        mutationFn: async (payload: {
+            label: string;
+            account_name?: string | null;
+            account_no?: string | null;
+            branch_name?: string | null;
+            branch_address?: string | null;
+            branch_no?: string | null;
+            swift_code?: string | null;
+            sort_order?: number;
+        }) => {
+            const { data: body } = await api.post('/tenant/bank-accounts', payload);
+            return toBankAccount(body.data ?? body);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: tenantKeys.current() });
+        },
+    });
+
+    const updateBankAccount = useMutation({
+        mutationFn: async ({ id, ...payload }: {
+            id: string;
+            label?: string;
+            account_name?: string | null;
+            account_no?: string | null;
+            branch_name?: string | null;
+            branch_address?: string | null;
+            branch_no?: string | null;
+            swift_code?: string | null;
+            sort_order?: number;
+        }) => {
+            const { data: body } = await api.put(`/tenant/bank-accounts/${id}`, payload);
+            return toBankAccount(body.data ?? body);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: tenantKeys.current() });
+        },
+    });
+
+    const deleteBankAccount = useMutation({
+        mutationFn: async (id: string) => {
+            await api.delete(`/tenant/bank-accounts/${id}`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: tenantKeys.current() });
         },
     });
 
@@ -116,5 +209,13 @@ export function useTenantMutations() {
         },
     });
 
-    return { updateTenant, updateExchangeRate, uploadLogo, deleteLogo };
+    return {
+        updateTenant,
+        updateExchangeRate,
+        uploadLogo,
+        deleteLogo,
+        createBankAccount,
+        updateBankAccount,
+        deleteBankAccount,
+    };
 }

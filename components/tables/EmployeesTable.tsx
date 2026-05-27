@@ -185,15 +185,14 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
             cell: ({ row }) => <div>{formatMoneyOrDash(row.getValue('monthlySalary'), currency)}</div>,
         },
         {
-            id: 'costPerHour',
-            // Loaded cost = raw salary/hour × (1 + LABOR_OVERHEAD_PERCENTAGE/100).
-            // The DB column `cost_per_hour` is the raw rate (monthly_salary /
-            // workable_hours); the +15% absorbs company overhead so this column
-            // reflects what the employee actually costs the agency per hour.
+            id: 'costPerMonth',
+            // Loaded monthly cost = monthly_salary × (1 + LABOR_OVERHEAD_PERCENTAGE/100).
+            // The +15% absorbs company overhead so this column reflects what
+            // the employee actually costs the agency per month.
             accessorFn: (row) => {
-                const raw = row.costPerHour;
-                return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
-                    ? applySellMarkup(raw)
+                const monthly = row.monthlySalary;
+                return typeof monthly === 'number' && Number.isFinite(monthly) && monthly > 0
+                    ? applySellMarkup(monthly)
                     : null;
             },
             header: ({ column }) => (
@@ -201,33 +200,31 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
-                    title={`Raw hourly salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead.`}
+                    title={`Monthly salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead.`}
                 >
-                    Cost / Hr
+                    Cost / Mo
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
             cell: ({ row }) => (
-                <div>{formatMoneyOrDash(row.getValue('costPerHour') as number | null, currency)}</div>
+                <div>{formatMoneyOrDash(row.getValue('costPerMonth') as number | null, currency)}</div>
             ),
         },
         {
-            id: 'sellPerHour',
-            // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (3×). What we
-            // quote clients per hour of this employee's time.
+            id: 'sellPerMonth',
+            // Sell = loaded monthly cost × BILLING_MARKUP_MULTIPLIER (3×).
+            // What we quote clients per month of this employee's time.
             //
             // Only billable departments get a sell price. Non-IT staff
             // (Sales, HR, etc.) still incur cost (column above) but are
-            // never quoted to clients — sell column shows "—" for them,
-            // matching the spec sheet's greyed-out sellPrice cells.
+            // never quoted to clients — sell column shows "—" for them.
             accessorFn: (row) => {
-                if (row.departmentName && row.departmentName !== 'IT') return null;
-                const raw = row.costPerHour;
+                const monthly = row.monthlySalary;
                 const dept = (row.departmentName ?? '').toLowerCase();
                 const billable = dept === 'it' || dept === 'delivery' || dept === 'engineering';
                 if (!billable) return null;
-                return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
-                    ? applyBillingMarkup(applySellMarkup(raw))
+                return typeof monthly === 'number' && Number.isFinite(monthly) && monthly > 0
+                    ? applyBillingMarkup(applySellMarkup(monthly))
                     : null;
             },
             header: ({ column }) => (
@@ -235,73 +232,17 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
-                    title={`Cost / Hr × ${BILLING_MARKUP_MULTIPLIER}. Quoted hourly rate to clients.`}
+                    title={`Cost / Mo × ${BILLING_MARKUP_MULTIPLIER}. Quoted monthly rate to clients.`}
                 >
-                    Sell / Hr
+                    Sell / Mo
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
             cell: ({ row }) => (
                 <div className="text-emerald-700 font-medium">
-                    {formatMoneyOrDash(row.getValue('sellPerHour') as number | null, currency)}
+                    {formatMoneyOrDash(row.getValue('sellPerMonth') as number | null, currency)}
                 </div>
             ),
-        },
-        {
-            accessorKey: 'workableHours',
-            header: ({ column }) => (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                    className="-ml-4 h-8 px-4"
-                >
-                    {t('total_hours_per_mo')}
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-            cell: ({ row }) => {
-                const raw = Number(row.getValue('workableHours'));
-                if (!Number.isFinite(raw) || raw <= 0) {
-                    return <span className="text-[#8a8a8a]">—</span>;
-                }
-                return <div className="font-medium">{raw}h</div>;
-            },
-        },
-        {
-            id: 'availableHours',
-            // accessorFn lets sorting work on the *computed* number even though
-            // it isn't a real field on the Employee. row.original is still the
-            // full Employee inside the cell renderer.
-            accessorFn: (row) => (row.workableHours ?? 0) - (assignedByEmployee.get(row.id) ?? 0),
-            header: ({ column }) => (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                    className="-ml-4 h-8 px-4"
-                >
-                    {t('available_hours_col')}
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-            cell: ({ row }) => {
-                const total = Number(row.original.workableHours);
-                if (!Number.isFinite(total) || total <= 0) {
-                    return <span className="text-[#8a8a8a]">—</span>;
-                }
-                const assigned   = assignedByEmployee.get(row.original.id) ?? 0;
-                const available  = total - assigned;
-                const overbooked = available < 0;
-                return (
-                    <div className={overbooked ? 'text-rose-600 font-medium' : ''}>
-                        {available}h
-                        {assigned > 0 && (
-                            <span className="ml-1 text-xs text-[#8a8a8a]">
-                                {t('hours_assigned', { hours: assigned })}
-                            </span>
-                        )}
-                    </div>
-                );
-            },
         },
         {
             id: 'skills',

@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Building2, Loader2, Plus, Trash2, Upload } from 'lucide-react';
-import { useTenantSettings, useTenantMutations } from '@/lib/queries/tenant';
+import { Textarea } from '@/components/ui/textarea';
+import { useTenantSettings, useTenantMutations, type BankAccount } from '@/lib/queries/tenant';
 import { useInitialBudgets, useUpsertInitialBudget, useDeleteInitialBudget } from '@/lib/queries/initialBudgets';
 import { normalizeError, firstFieldError } from '@/lib/errorHandler';
 import { SignatoryPicker } from '@/components/forms/SignatoryPicker';
@@ -38,6 +39,8 @@ export function CompanySettingsForm() {
     const [nameDraft, setNameDraft] = useState('');
     const [signatoryNameDraft, setSignatoryNameDraft] = useState('');
     const [signatoryTitleDraft, setSignatoryTitleDraft] = useState('');
+    const [addressDraft, setAddressDraft] = useState('');
+    const [phoneDraft, setPhoneDraft] = useState('');
 
     // Sync local drafts with whatever the server says once it loads.
     // Reset only when the tenant id changes so background refetches don't
@@ -52,6 +55,12 @@ export function CompanySettingsForm() {
         if (signatoryTitleDraft === '') {
             setSignatoryTitleDraft(tenant?.signatoryTitle ?? '');
         }
+        if (addressDraft === '') {
+            setAddressDraft(tenant?.address ?? '');
+        }
+        if (phoneDraft === '') {
+            setPhoneDraft(tenant?.phone ?? '');
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenant?.id]);
 
@@ -59,6 +68,10 @@ export function CompanySettingsForm() {
     const signatoryDirty = tenant && (
         signatoryNameDraft.trim() !== (tenant.signatoryName ?? '').trim()
         || signatoryTitleDraft.trim() !== (tenant.signatoryTitle ?? '').trim()
+    );
+    const contactDirty = tenant && (
+        addressDraft.trim() !== (tenant.address ?? '').trim()
+        || phoneDraft.trim() !== (tenant.phone ?? '').trim()
     );
 
     const handleFileSelected = async (file: File) => {
@@ -100,6 +113,20 @@ export function CompanySettingsForm() {
                 signatory_title: signatoryTitleDraft.trim() || null,
             });
             toast.success(t('signatory_updated'));
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleSaveContact = async () => {
+        if (!contactDirty) return;
+        try {
+            await updateTenant.mutateAsync({
+                address: addressDraft.trim() || null,
+                phone: phoneDraft.trim() || null,
+            });
+            toast.success(t('contact_info_updated'));
         } catch (err) {
             const normalized = normalizeError(err);
             toast.error(firstFieldError(normalized) ?? normalized.message);
@@ -222,6 +249,49 @@ export function CompanySettingsForm() {
                     </div>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">{t('contact_info_title')}</CardTitle>
+                    <CardDescription>{t('contact_info_desc')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="company-address">{t('address_label')}</Label>
+                        <Textarea
+                            id="company-address"
+                            value={addressDraft}
+                            onChange={(e) => setAddressDraft(e.target.value)}
+                            placeholder={t('placeholder_company_address')}
+                            rows={3}
+                            maxLength={1000}
+                            className="bg-white"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="company-phone">{t('phone_label')}</Label>
+                        <Input
+                            id="company-phone"
+                            value={phoneDraft}
+                            onChange={(e) => setPhoneDraft(e.target.value)}
+                            placeholder={t('placeholder_company_phone')}
+                            maxLength={50}
+                            className="bg-white"
+                        />
+                    </div>
+                    <div className="flex justify-end">
+                        <Button
+                            onClick={handleSaveContact}
+                            disabled={!contactDirty || updateTenant.isPending}
+                            size="sm"
+                        >
+                            {updateTenant.isPending ? t('saving') : t('save_contact_info')}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <BankAccountsCard bankAccounts={tenant.bankAccounts ?? []} />
 
             <InitialBudgetsCard currency={currency} />
 
@@ -493,6 +563,309 @@ function InitialBudgetsCard({ currency }: { currency: Currency }) {
                         </div>
                     </div>
                 )}
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * Tenant bank accounts rendered at the bottom of the Invoice XLSX export.
+ * N accounts per tenant — operators add/edit/remove rows here. The form
+ * matches the layout the XLSX renderer reads, so what you see here is
+ * what the customer sees on the invoice.
+ *
+ * Each row is its own draft state map; saving a row hits PUT directly
+ * (no batch save) so an operator editing two rows can save them
+ * independently without losing the other.
+ */
+function BankAccountsCard({ bankAccounts }: { bankAccounts: BankAccount[] }) {
+    const t = useTranslations();
+    const { createBankAccount, updateBankAccount, deleteBankAccount } = useTenantMutations();
+
+    type Draft = {
+        label: string;
+        account_name: string;
+        account_no: string;
+        branch_name: string;
+        branch_address: string;
+        branch_no: string;
+        swift_code: string;
+    };
+
+    const emptyDraft: Draft = {
+        label: '', account_name: '', account_no: '', branch_name: '',
+        branch_address: '', branch_no: '', swift_code: '',
+    };
+
+    const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+    const [newDraft, setNewDraft] = useState<Draft>(emptyDraft);
+
+    const draftFor = (b: BankAccount): Draft => {
+        return drafts[b.id] ?? {
+            label: b.label,
+            account_name: b.accountName ?? '',
+            account_no: b.accountNo ?? '',
+            branch_name: b.branchName ?? '',
+            branch_address: b.branchAddress ?? '',
+            branch_no: b.branchNo ?? '',
+            swift_code: b.swiftCode ?? '',
+        };
+    };
+
+    const isRowDirty = (b: BankAccount): boolean => {
+        const d = drafts[b.id];
+        if (!d) return false;
+        return d.label !== b.label
+            || d.account_name !== (b.accountName ?? '')
+            || d.account_no !== (b.accountNo ?? '')
+            || d.branch_name !== (b.branchName ?? '')
+            || d.branch_address !== (b.branchAddress ?? '')
+            || d.branch_no !== (b.branchNo ?? '')
+            || d.swift_code !== (b.swiftCode ?? '');
+    };
+
+    const setDraftField = (id: string, key: keyof Draft, value: string, base: BankAccount) => {
+        setDrafts((prev) => ({
+            ...prev,
+            [id]: { ...draftFor(base), [key]: value },
+        }));
+    };
+
+    const handleSaveRow = async (b: BankAccount) => {
+        const d = draftFor(b);
+        if (!d.label.trim()) {
+            toast.error(t('bank_label_required'));
+            return;
+        }
+        try {
+            await updateBankAccount.mutateAsync({
+                id: b.id,
+                label: d.label.trim(),
+                account_name: d.account_name.trim() || null,
+                account_no: d.account_no.trim() || null,
+                branch_name: d.branch_name.trim() || null,
+                branch_address: d.branch_address.trim() || null,
+                branch_no: d.branch_no.trim() || null,
+                swift_code: d.swift_code.trim() || null,
+            });
+            setDrafts((prev) => {
+                const next = { ...prev };
+                delete next[b.id];
+                return next;
+            });
+            toast.success(t('bank_saved'));
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleDeleteRow = async (b: BankAccount) => {
+        if (!window.confirm(t('bank_delete_confirm', { label: b.label }))) return;
+        try {
+            await deleteBankAccount.mutateAsync(b.id);
+            toast.success(t('bank_deleted'));
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    const handleAddNew = async () => {
+        if (!newDraft.label.trim()) {
+            toast.error(t('bank_label_required'));
+            return;
+        }
+        try {
+            await createBankAccount.mutateAsync({
+                label: newDraft.label.trim(),
+                account_name: newDraft.account_name.trim() || null,
+                account_no: newDraft.account_no.trim() || null,
+                branch_name: newDraft.branch_name.trim() || null,
+                branch_address: newDraft.branch_address.trim() || null,
+                branch_no: newDraft.branch_no.trim() || null,
+                swift_code: newDraft.swift_code.trim() || null,
+                sort_order: bankAccounts.length,
+            });
+            setNewDraft(emptyDraft);
+            toast.success(t('bank_added'));
+        } catch (err) {
+            const normalized = normalizeError(err);
+            toast.error(firstFieldError(normalized) ?? normalized.message);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">{t('bank_accounts_title')}</CardTitle>
+                <CardDescription>{t('bank_accounts_desc')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {bankAccounts.length === 0 && (
+                    <p className="text-sm text-slate-500">{t('no_bank_accounts_yet')}</p>
+                )}
+
+                {bankAccounts.map((b) => {
+                    const d = draftFor(b);
+                    const dirty = isRowDirty(b);
+                    return (
+                        <div key={b.id} className="rounded-lg border border-slate-200 p-4 space-y-3 bg-white">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>{t('bank_label_field')}</Label>
+                                    <Input
+                                        value={d.label}
+                                        onChange={(e) => setDraftField(b.id, 'label', e.target.value, b)}
+                                        maxLength={255}
+                                        placeholder={t('placeholder_bank_label')}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>{t('bank_account_name')}</Label>
+                                    <Input
+                                        value={d.account_name}
+                                        onChange={(e) => setDraftField(b.id, 'account_name', e.target.value, b)}
+                                        maxLength={255}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>{t('bank_account_no')}</Label>
+                                    <Input
+                                        value={d.account_no}
+                                        onChange={(e) => setDraftField(b.id, 'account_no', e.target.value, b)}
+                                        maxLength={100}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>{t('bank_branch_name')}</Label>
+                                    <Input
+                                        value={d.branch_name}
+                                        onChange={(e) => setDraftField(b.id, 'branch_name', e.target.value, b)}
+                                        maxLength={255}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>{t('bank_branch_no')}</Label>
+                                    <Input
+                                        value={d.branch_no}
+                                        onChange={(e) => setDraftField(b.id, 'branch_no', e.target.value, b)}
+                                        maxLength={50}
+                                    />
+                                </div>
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>{t('bank_branch_address')}</Label>
+                                    <Input
+                                        value={d.branch_address}
+                                        onChange={(e) => setDraftField(b.id, 'branch_address', e.target.value, b)}
+                                        maxLength={500}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>{t('bank_swift_code')}</Label>
+                                    <Input
+                                        value={d.swift_code}
+                                        onChange={(e) => setDraftField(b.id, 'swift_code', e.target.value, b)}
+                                        maxLength={50}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteRow(b)}
+                                    disabled={deleteBankAccount.isPending}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-2"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" /> {t('remove')}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleSaveRow(b)}
+                                    disabled={!dirty || updateBankAccount.isPending}
+                                >
+                                    {updateBankAccount.isPending ? t('saving') : t('save')}
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* Add-new row */}
+                <div className="rounded-lg border border-dashed border-slate-300 p-4 space-y-3 bg-slate-50/40">
+                    <p className="text-sm font-medium text-slate-700">{t('add_bank_account')}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5 sm:col-span-2">
+                            <Label>{t('bank_label_field')}</Label>
+                            <Input
+                                value={newDraft.label}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, label: e.target.value }))}
+                                maxLength={255}
+                                placeholder={t('placeholder_bank_label')}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('bank_account_name')}</Label>
+                            <Input
+                                value={newDraft.account_name}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, account_name: e.target.value }))}
+                                maxLength={255}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('bank_account_no')}</Label>
+                            <Input
+                                value={newDraft.account_no}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, account_no: e.target.value }))}
+                                maxLength={100}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('bank_branch_name')}</Label>
+                            <Input
+                                value={newDraft.branch_name}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, branch_name: e.target.value }))}
+                                maxLength={255}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('bank_branch_no')}</Label>
+                            <Input
+                                value={newDraft.branch_no}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, branch_no: e.target.value }))}
+                                maxLength={50}
+                            />
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                            <Label>{t('bank_branch_address')}</Label>
+                            <Input
+                                value={newDraft.branch_address}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, branch_address: e.target.value }))}
+                                maxLength={500}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('bank_swift_code')}</Label>
+                            <Input
+                                value={newDraft.swift_code}
+                                onChange={(e) => setNewDraft((p) => ({ ...p, swift_code: e.target.value }))}
+                                maxLength={50}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <Button
+                            size="sm"
+                            onClick={handleAddNew}
+                            disabled={createBankAccount.isPending || !newDraft.label.trim()}
+                            className="gap-2"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            {createBankAccount.isPending ? t('saving') : t('add_bank_account')}
+                        </Button>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );

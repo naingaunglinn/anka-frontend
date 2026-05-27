@@ -109,19 +109,19 @@ export function KanbanBoard({
     }, [deals, showDropped]);
 
     useEffect(() => {
-        // Pipeline value reflects ACTIVE opportunities only. Won is already
-        // booked revenue; dropped deals are out of pipeline.
+        // Income reflects B/A/S deals. C (lead) is excluded because estimation
+        // hasn't started there yet, dropped/lost are out of pipeline.
         let totalValue = 0;
         let weightedRevenue = 0;
 
         Object.entries(columns).forEach(([columnId, col]) => {
-            if (columnId === 'won') return;
+            if (columnId === 'lead') return;
             col.deals.forEach(deal => {
                 if (deal.lifecycleStatus === 'dropped' || deal.status === 'lost') return;
-                const budget = deal.clientBudget || deal.estimatedValue || 0;
+                const estimated = deal.estimatedValue || 0;
                 const winProb = deal.winProbability || 0;
-                totalValue += budget;
-                weightedRevenue += budget * (winProb / 100);
+                totalValue += estimated;
+                weightedRevenue += estimated * (winProb / 100);
             });
         });
 
