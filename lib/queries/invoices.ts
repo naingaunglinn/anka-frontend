@@ -153,3 +153,86 @@ export function useInvoiceMutations() {
 
     return { createInvoice, updateInvoice, payInvoice, deleteInvoice, sendInvoice };
 }
+
+// ── New Invoice menu (template XLSX export) ──────────────────────────────────
+
+export type InvoiceLineItem = {
+    kind: 'resource' | 'overhead';
+    label: string;
+    quantity: number;
+    cost: number;
+    amount: number;
+};
+
+export type InvoicePreview = {
+    line_items: InvoiceLineItem[];
+    sub_total: number;
+    vat_rate: number;
+    vat_amount: number;
+    total: number;
+};
+
+/**
+ * Returns a mutation that fetches the proposed line items + totals for a
+ * given contract's deal. Used by the New Invoice form to populate its
+ * editable preview table. Mutation (not useQuery) because the form calls
+ * it on demand when the user picks a project; refetching when the user
+ * adjusts the period is part of the same intent.
+ */
+export function useInvoicePreview() {
+    return useMutation<InvoicePreview, Error, { contractId: string }>({
+        mutationFn: async ({ contractId }) => {
+            const { data: body } = await api.post(`/contracts/${contractId}/invoices/preview`);
+            return body.data as InvoicePreview;
+        },
+    });
+}
+
+/**
+ * POSTs a new invoice with the line_items snapshot. amount + tax are
+ * derived server-side from the line_items (VAT hardcoded 5%); we send
+ * the line items the user adjusted in the preview UI.
+ */
+export function useCreateInvoiceWithLineItems() {
+    const queryClient = useQueryClient();
+    return useMutation<Invoice, Error, {
+        contract_id: string;
+        issue_date: string;
+        due_date?: string;
+        memo?: string;
+        billing_period_label?: string;
+        line_items: InvoiceLineItem[];
+    }>({
+        mutationFn: async (payload) => {
+            const { data: body } = await api.post('/invoices', payload);
+            return toInvoice(body.data ?? body);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+        },
+    });
+}
+
+/**
+ * Triggers a download of the invoice as an .xlsx file matching the
+ * template layout. Uses the api axios instance so the Bearer token +
+ * X-Tenant-ID header are attached automatically; responseType='blob'
+ * because the endpoint returns a binary stream.
+ */
+export async function downloadInvoiceXlsx(invoiceId: string, invoiceNumber?: string): Promise<void> {
+    const response = await api.get(`/invoices/${invoiceId}/export.xlsx`, {
+        responseType: 'blob',
+    });
+    const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filenameStem = invoiceNumber ?? `invoice-${invoiceId}`;
+    a.download = `${filenameStem}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}

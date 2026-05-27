@@ -71,6 +71,7 @@ export default function EditDealPage() {
             contactName: dealToEdit?.contactName || "",
             contactEmail: dealToEdit?.contactEmail || "",
             contactPhone: dealToEdit?.contactPhone || "",
+            customerAddress: dealToEdit?.customerAddress || "",
             expectedCloseDate: dealToEdit?.expectedCloseDate || "",
             leadSource: dealToEdit?.leadSource,
             clientBudget: dealToEdit?.clientBudget || 0,
@@ -108,6 +109,7 @@ export default function EditDealPage() {
             contactName: dealToEdit.contactName || "",
             contactEmail: dealToEdit.contactEmail || "",
             contactPhone: dealToEdit.contactPhone || "",
+            customerAddress: dealToEdit.customerAddress || "",
             expectedCloseDate: dealToEdit.expectedCloseDate || "",
             leadSource: dealToEdit.leadSource,
             clientBudget: dealToEdit.clientBudget || 0,
@@ -153,6 +155,7 @@ export default function EditDealPage() {
                 contactName: data.contactName,
                 contactEmail: data.contactEmail,
                 contactPhone: data.contactPhone,
+                customerAddress: data.customerAddress?.trim() || undefined,
                 expectedCloseDate: data.expectedCloseDate || undefined,
                 leadSource: data.leadSource,
                 clientBudget: data.clientBudget,
@@ -335,6 +338,27 @@ export default function EditDealPage() {
                                     )}
                                 />
                             </div>
+
+                            <FormField
+                                control={form.control}
+                                name="customerAddress"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>{t('customer_address_label')} <span className="text-xs font-normal text-[var(--color-text-default)]/80">{t('opt_short')}</span></FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder={t('placeholder_customer_address')}
+                                                rows={2}
+                                                maxLength={1000}
+                                                className="bg-white"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
 
                             <div className="grid grid-cols-2 gap-6">
                                 <FormField
