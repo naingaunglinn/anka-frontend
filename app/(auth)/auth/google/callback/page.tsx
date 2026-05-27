@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
+import { fallbackPathFor } from '@/lib/route-permissions';
 
 function mapApiUser(raw: Record<string, unknown>): AuthUser {
     const tenant = raw.tenant as Record<string, unknown> | null | undefined;
@@ -76,7 +77,7 @@ function GoogleCallbackContent() {
                 });
 
                 useAuthStore.getState().login(user, token);
-                router.replace(user.isSuperAdmin ? '/tenant' : '/dashboard');
+                router.replace(user.isSuperAdmin ? '/tenant' : fallbackPathFor(user));
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Google login failed.';
                 setStatus(message);
