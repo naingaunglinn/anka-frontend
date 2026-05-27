@@ -44,6 +44,10 @@ function toRole(row: Record<string, unknown>): Role {
 
 function toEmployee(row: Record<string, unknown>): Employee {
     const rankRaw = row.rank as Record<string, unknown> | null | undefined;
+    const basicSalary = Number(row.basic_salary ?? row.monthly_salary ?? 0);
+    const allowance = Number(row.allowance ?? 0);
+    const monthlySalary = Number(row.monthly_salary ?? (basicSalary + allowance));
+    const workableHours = Number(row.workable_hours ?? 0);
     return {
         id:               row.id as string,
         name:             row.name as string,
@@ -62,11 +66,11 @@ function toEmployee(row: Record<string, unknown>): Employee {
             code:  rankRaw.code as string,
             level: rankRaw.level as number,
         } : null,
-        basicSalary:      Number(row.basic_salary ?? row.monthly_salary ?? 0),
-        allowance:        Number(row.allowance ?? 0),
-        monthlySalary:    row.monthly_salary as number,
-        workableHours:    row.workable_hours as number,
-        costPerHour:      row.cost_per_hour as number,
+        basicSalary,
+        allowance,
+        monthlySalary,
+        workableHours,
+        costPerHour:      Number(row.cost_per_hour ?? (workableHours > 0 ? monthlySalary / workableHours : 0)),
         status:           row.status as Employee['status'],
         email:            optStr(row.email),
         skills:           toEmployeeSkillsArray(row.skills),
