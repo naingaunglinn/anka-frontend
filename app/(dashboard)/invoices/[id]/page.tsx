@@ -92,8 +92,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <Badge variant="outline">{invoice.status}</Badge>
+                <div className="flex gap-2 items-center">
+                    <Badge
+                        variant="outline"
+                        className={invoice.status === 'Paid'
+                            ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-600 px-3 py-1 text-sm'
+                            : 'px-3 py-1 text-sm'}
+                    >
+                        {invoice.status}
+                    </Badge>
                     <Button onClick={handleExport} className="gap-2">
                         <FileDown className="h-4 w-4" /> Export XLSX
                     </Button>

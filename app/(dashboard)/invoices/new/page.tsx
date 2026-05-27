@@ -61,20 +61,15 @@ export default function NewInvoicePage() {
         return d.toISOString().slice(0, 10);
     });
     const [memo, setMemo] = useState<string>('Thank you for your order');
-    const [periodMonth, setPeriodMonth] = useState<string>(() => {
-        // Defaults to current month per spec OQ-6
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    });
     const [lines, setLines] = useState<InvoiceLineItem[]>([]);
 
+    // Billing period is locked to the current month per spec — operators
+    // can't backfill or pre-bill. The backend also overwrites whatever the
+    // client sends, so this label is purely a UI preview.
     const billingPeriodLabel = useMemo(() => {
-        // "Fee for Aug 2024" — system-generated per OQ-6/OQ-3
-        if (!periodMonth) return '';
-        const [year, month] = periodMonth.split('-');
-        const date = new Date(Number(year), Number(month) - 1, 1);
-        return `Fee for ${date.toLocaleString(locale, { month: 'short', year: 'numeric' })}`;
-    }, [periodMonth, locale]);
+        const d = new Date();
+        return `Fee for ${d.toLocaleString(locale, { month: 'short', year: 'numeric' })}`;
+    }, [locale]);
 
     const selectedProject = useMemo(
         () => projectsData?.data.find((p) => p.id === projectId),
@@ -202,14 +197,12 @@ export default function NewInvoicePage() {
                     </div>
                     <div className="space-y-1.5">
                         <Label>Billing month</Label>
-                        <Input
-                            type="month"
-                            value={periodMonth}
-                            onChange={(e) => setPeriodMonth(e.target.value)}
-                        />
-                        {billingPeriodLabel && (
-                            <p className="text-xs text-slate-500">Renders as: &ldquo;{billingPeriodLabel}&rdquo;</p>
-                        )}
+                        <div className="h-9 px-3 flex items-center rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                            {billingPeriodLabel}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            Locked to the current month. Invoices for past or future months aren&apos;t supported.
+                        </p>
                     </div>
                 </CardContent>
             </Card>
