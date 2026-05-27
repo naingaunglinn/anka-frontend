@@ -66,7 +66,7 @@ interface EmployeesTableProps {
      * Time entries to compute "assigned hours" against. Optional; when omitted,
      * the table falls back to whatever is already in businessStore.timeEntries.
      * Pass an explicit list when the caller needs current-month accuracy
-     * (the store may be empty if /time-tracking hasn't been visited yet).
+     * (the store may be empty if /team-assignment hasn't been visited yet).
      */
     timeEntries?: TimeEntry[];
     onEdit: (employee: Employee) => void;
@@ -202,7 +202,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     className="-ml-4 h-8 px-4"
                     title={`Monthly salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead.`}
                 >
-                    Cost / Mo
+                    {t('cost_price')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
@@ -232,9 +232,9 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
-                    title={`Cost / Mo × ${BILLING_MARKUP_MULTIPLIER}. Quoted monthly rate to clients.`}
+                    title={`${t('cost_price')} × ${BILLING_MARKUP_MULTIPLIER}. Quoted monthly rate to clients.`}
                 >
-                    Sell / Mo
+                    {t('sell_price')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),

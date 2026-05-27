@@ -7,7 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { LoadingState } from '@/components/LoadingState';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectList } from '@/lib/queries/projects';
-import { MyScheduleEmployeeTable } from '@/components/time-tracking/MyScheduleEmployeeTable';
+import { MyScheduleEmployeeTable } from '@/components/team-assignment/MyScheduleEmployeeTable';
 import { SimulatedDateBar, SimulatedDateBanner } from '@/components/SimulatedDateBar';
 import { AlertTriangle } from 'lucide-react';
 

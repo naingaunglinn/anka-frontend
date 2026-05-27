@@ -14,9 +14,9 @@ import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/proje
 import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
-import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
+import { MasterAssignTable } from '@/components/team-assignment/MasterAssignTable';
 import { SimulatedDateBar, SimulatedDateBanner } from '@/components/SimulatedDateBar';
-import { TeamPreviewDialog } from '@/components/time-tracking/TeamPreviewDialog';
+import { TeamPreviewDialog } from '@/components/team-assignment/TeamPreviewDialog';
 
 export default function TimeTrackingPage() {
     const t = useTranslations();

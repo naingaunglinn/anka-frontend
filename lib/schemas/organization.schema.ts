@@ -69,9 +69,9 @@ export const rankSchema = z.object({
         .min(1, 'Code is required')
         .max(50)
         .regex(/^[A-Za-z0-9_-]+$/, 'Code may only contain letters, numbers, "_" and "-"'),
-    // Level orders ranks (higher = more senior). 0-100 gives plenty of room
-    // for tenants to insert custom ranks between the defaults.
-    level: z.coerce.number().int('Level must be a whole number').min(0).max(100),
+    // Level orders ranks (higher = more senior). Single-digit 0-9 keeps the
+    // ranking compact and easy to scan.
+    level: z.coerce.number().int('Level must be a whole number').min(0).max(9),
 });
 
 export const globalOverheadSchema = z.object({

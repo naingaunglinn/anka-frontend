@@ -35,7 +35,7 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
         defaultValues: {
             name: initialData?.name ?? '',
             code: initialData?.code ?? '',
-            level: initialData?.level ?? 20,
+            level: initialData?.level ?? 1,
         },
     });
 
@@ -97,7 +97,7 @@ export function RankForm({ initialData, onSubmit, onCancel }: RankFormProps) {
                         <FormItem>
                             <FormLabel>{t('seniority_level')} <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                                <Input type="number" min={0} max={100} step={1} {...field} />
+                                <Input type="number" min={0} max={9} step={1} {...field} />
                             </FormControl>
                             <FormMessage />
                             <p className="text-xs text-muted-foreground mt-1">
