@@ -242,11 +242,12 @@ export default function EmployeesPage() {
     const handleAddDepartment = async (data: DepartmentFormValues) => {
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.addDepartment({
-            id:          crypto.randomUUID(),
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
-            headcount:   0,
+            id:                  crypto.randomUUID(),
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
+            headcount:           0,
         });
         setIsDeptDialogOpen(false);
     };
@@ -255,9 +256,10 @@ export default function EmployeesPage() {
         if (!editingDepartment) return;
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.updateDepartment(editingDepartment.id, {
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
         });
         setEditingDepartment(null);
     };
@@ -423,7 +425,7 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
-                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId }}
+                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId, isDeliveryEligible: editingDepartment.isDeliveryEligible ?? true }}
                                     employees={store.employees}
                                     onSubmit={handleEditDepartment}
                                     onCancel={() => setEditingDepartment(null)}

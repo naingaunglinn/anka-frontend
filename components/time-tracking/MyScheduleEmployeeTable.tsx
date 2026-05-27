@@ -2,14 +2,13 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { Loader2, ListTree, PencilLine } from 'lucide-react';
+import { Loader2, ListTree, PencilLine, Pencil, Trash2 } from 'lucide-react';
 import {
     useProjectTaskAssignments,
     useProjectTaskMutations,
@@ -17,6 +16,8 @@ import {
 import {
     useScheduleTrackingList,
     useLogProgress,
+    useUpdateProgressLog,
+    useDeleteProgressLog,
     usePhaseProgressLogs,
 } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
@@ -28,6 +29,17 @@ import type {
     TaskDifficulty,
     TaskStatus,
 } from '@/types/business';
+
+const PHASE_BG: Record<string, string> = {
+    development:   'bg-blue-100',
+    basic_doc:     'bg-violet-100',
+    detail_doc:    'bg-purple-100',
+    requirement:   'bg-teal-100',
+    system_arch:   'bg-cyan-100',
+    unit_test:     'bg-amber-100',
+    combine_test:  'bg-orange-100',
+    system_test:   'bg-emerald-100',
+};
 
 const DIFFICULTY_VARIANTS: Record<TaskDifficulty, string> = {
     '簡単':   'bg-slate-100 text-slate-700 border-slate-200',
@@ -70,46 +82,39 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
     const [openPhase, setOpenPhase] = useState<ProjectTaskPhaseAssignment | null>(null);
 
     return (
-        <Card variant="plain">
-            <CardHeader>
+        <Card className="shadow-sm border-[#e6e9ee]">
+            <div className="px-6 pt-3 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2 text-base">
-                            <ListTree className="h-4 w-4 text-emerald-600" />
-                            {t('my_schedule')}
-                        </CardTitle>
-                        <CardDescription>
-                            {t('my_schedule_card_desc')}
-                        </CardDescription>
-                    </div>
-                    {(tasksQuery.isFetching || trackingQuery.isFetching) && (
-                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                    )}
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <ListTree className="h-4 w-4 text-emerald-600" />
+                        {t('my_schedule')}
+                        {(tasksQuery.isFetching || trackingQuery.isFetching) && (
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                        )}
+                    </CardTitle>
                 </div>
-            </CardHeader>
-            <CardContent>
                 {tasksQuery.isLoading ? (
-                    <div className="py-10 text-center text-slate-500 text-sm">{t('loading_your_schedule')}</div>
+                    <div className="py-10 text-center text-slate-400 text-sm">{t('loading_your_schedule')}</div>
                 ) : myTasks.length === 0 ? (
-                    <div className="py-10 text-center text-slate-500 text-sm">
+                    <div className="py-10 text-center text-slate-400 text-sm">
                         {t('nothing_assigned_to_you')}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-lg border-2 border-slate-300">
                         <table className="w-full border-collapse text-xs">
                             <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[50px]">{t('col_no')}</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[110px]">{t('col_function_id')}</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 min-w-[160px]">{t('col_function_name_jp')}</th>
-                                    <th rowSpan={2} className="px-2 py-2 border-r border-slate-200 text-left font-medium text-slate-700 w-[70px]">{t('col_difficulty')}</th>
+                                <tr className="border-b-2 border-slate-300">
+                                    <th rowSpan={2} className="px-3 py-2.5 border-r-2 border-slate-300 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] bg-slate-50 w-[50px]">{t('col_no')}</th>
+                                    <th rowSpan={2} className="px-3 py-2.5 border-r-2 border-slate-300 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] bg-slate-50 w-[110px]">{t('col_function_id')}</th>
+                                    <th rowSpan={2} className="px-3 py-2.5 border-r-2 border-slate-300 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] bg-slate-50 min-w-[160px]">{t('col_function_name_jp')}</th>
+                                    <th rowSpan={2} className="px-3 py-2.5 border-r-2 border-slate-300 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] bg-slate-50 w-[70px]">{t('col_difficulty')}</th>
                                     {activePhases.map((p) => (
-                                        <th key={p.code} colSpan={7} className="px-2 py-2 border-l-2 border-slate-300 border-r border-slate-200 text-center font-semibold text-emerald-700 bg-emerald-50/40">
+                                        <th key={p.code} colSpan={7} className={`px-2 py-2.5 border-l-2 border-slate-300 text-center font-semibold text-slate-700 text-[11px] ${PHASE_BG[p.code] ?? 'bg-slate-100'}`}>
                                             {p.name}
                                         </th>
                                     ))}
                                 </tr>
-                                <tr className="bg-slate-50 border-b border-slate-200">
+                                <tr className="border-b-2 border-slate-300 bg-slate-50/80">
                                     {activePhases.map((p) => (
                                         <PhaseSubHeaders key={p.code} />
                                     ))}
@@ -130,7 +135,7 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
                         </table>
                     </div>
                 )}
-            </CardContent>
+            </div>
 
             <LogProgressModal
                 open={!!openPhase}
@@ -159,7 +164,7 @@ function TaskRow({
     const byCode = new Map(task.phases.map((p) => [p.phaseCode, p]));
 
     return (
-        <tr className="border-b border-slate-100 hover:bg-slate-50/30">
+        <tr className="border-b border-slate-100 hover:bg-slate-50/50">
             <td className="px-2 py-1.5 border-r border-slate-100 font-mono text-slate-500">{task.rowNo}</td>
             <td className="px-2 py-1.5 border-r border-slate-100 font-mono">{task.functionId ?? '—'}</td>
             <td className="px-2 py-1.5 border-r border-slate-100 font-medium text-slate-700">{task.functionName}</td>
@@ -172,7 +177,7 @@ function TaskRow({
                 const cell = byCode.get(p.code as ProjectTaskPhaseAssignment['phaseCode']);
                 if (!cell) {
                     return (
-                        <td key={p.code} colSpan={7} className="px-2 py-1.5 border-l-2 border-slate-200 border-r border-slate-100 text-center text-slate-300">
+                        <td key={p.code} colSpan={7} className="px-2 py-1.5 border-l-2 border-slate-300 border-r border-slate-100 text-center text-slate-300">
                             —
                         </td>
                     );
@@ -182,7 +187,7 @@ function TaskRow({
 
                 return (
                     <Fragment key={p.code}>
-                        <td className="px-2 py-1 border-l-2 border-slate-200 text-right tabular-nums text-slate-600 w-[60px]">
+                        <td className="px-2 py-1 border-l-2 border-slate-300 text-right tabular-nums text-slate-600 w-[60px]">
                             <div className="flex items-center justify-end gap-1">
                                 <span>{cell.estimatedHours}</span>
                                 {tracking && tracking.variance.scheduleState !== 'pending' && (
@@ -246,37 +251,62 @@ function LogProgressModal({
     const [note, setNote]              = useState('');
     const [actualStart, setActualStart] = useState<string>('');
     const [actualEnd, setActualEnd]     = useState<string>('');
+    const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
-    // Reset form when a new phase opens.
-    useEffect(() => {
-        if (!phase) return;
+    const resetForm = () => {
         setLogDate(today);
         setProgress('');
         setUsed('');
         setNote('');
+        setEditingLogId(null);
+    };
+
+    useEffect(() => {
+        if (!phase) return;
+        resetForm();
         setActualStart(phase.actualStart ?? '');
         setActualEnd(phase.actualEnd ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase?.id]);
 
     const logProgress = useLogProgress();
+    const updateProgress = useUpdateProgressLog();
+    const deleteProgress = useDeleteProgressLog();
     const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
 
-    // Prior progress logs for this phase. Hook is gated on null when the modal
-    // is closed (see usePhaseProgressLogs.enabled), so no request fires until
-    // the user actually opens the modal for a phase. After save, useLogProgress
-    // invalidates the same query key, so reopening the modal shows the new row.
     const { data: prevLogs = [], isLoading: logsLoading } =
         usePhaseProgressLogs(open && phase ? phase.id : null);
 
     if (!phase) return null;
+
+    const startEdit = (log: typeof prevLogs[number]) => {
+        setEditingLogId(log.id);
+        setLogDate(log.logDate);
+        setProgress(String(log.progressHours));
+        setUsed(String(log.usedHours));
+        setNote(log.note ?? '');
+    };
+
+    const cancelEdit = () => resetForm();
+
+    const handleDelete = (logId: string) => {
+        if (!window.confirm(t('confirm_delete_log'))) return;
+        deleteProgress.mutate(logId);
+    };
 
     const save = () => {
         const p = parseFloat(progressHours);
         const u = parseFloat(usedHours);
         if (Number.isNaN(p) || Number.isNaN(u) || p < 0 || u < 0) return;
 
-        // Always post today's progress log.
+        if (editingLogId) {
+            updateProgress.mutate(
+                { id: editingLogId, logDate, progressHours: p, usedHours: u, note: note || null },
+                { onSuccess: () => resetForm() },
+            );
+            return;
+        }
+
         logProgress.mutate(
             {
                 phaseAssignmentId: phase.id,
@@ -287,14 +317,11 @@ function LogProgressModal({
             },
             {
                 onSuccess: () => {
-                    // If actual_start or actual_end changed, PATCH the phase row too.
                     const updates: Record<string, string | null> = {};
                     const normStart = actualStart || null;
                     const normEnd   = actualEnd   || null;
                     if (normStart !== (phase.actualStart ?? null)) updates.actualStart = normStart as never;
                     if (normEnd   !== (phase.actualEnd   ?? null)) updates.actualEnd   = normEnd   as never;
-                    // Setting an actual_end means the phase is done — auto-flip
-                    // status to 完了 so the employee doesn't have to do it manually.
                     if (normEnd && phase.status !== '完了') {
                         updates.status = '完了' as never;
                     }
@@ -307,65 +334,113 @@ function LogProgressModal({
         );
     };
 
-    const inFlight = logProgress.isPending || updatePhaseAssignment.isPending;
+    const inFlight = logProgress.isPending || updateProgress.isPending || updatePhaseAssignment.isPending;
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        {t('log_progress_title')}
-                        <Badge variant="outline" className="text-xs">{phase.phaseName}</Badge>
-                    </DialogTitle>
-                    <DialogDescription>
-                        {t('estimated_planned_summary', { hours: phase.estimatedHours, start: phase.plannedStart ?? '—', end: phase.plannedEnd ?? '—' })}
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
+                {/* Modal header */}
+                <div className="bg-emerald-50 border-b border-emerald-200 px-6 pt-5 pb-4">
+                    <DialogHeader className="gap-1.5">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            {t('log_progress_title')}
+                            <Badge variant="outline" className="text-[10px] font-normal border-emerald-300 text-emerald-700">{phase.phaseName}</Badge>
+                        </DialogTitle>
+                        <DialogDescription className="text-[13px] text-emerald-700/70">
+                            {t('estimated_planned_summary', { hours: phase.estimatedHours, start: phase.plannedStart ?? '—', end: phase.plannedEnd ?? '—' })}
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
 
-                <div className="space-y-4 mt-2">
-                    <div className="space-y-1.5">
-                        <div className="text-xs font-medium text-slate-700">{t('previous_entries')}</div>
+                {/* Modal body */}
+                <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+                    {/* Previous entries */}
+                    <div className="space-y-2">
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('previous_entries')}</div>
                         {logsLoading ? (
-                            <div className="h-12 animate-pulse bg-slate-100 rounded-md" />
+                            <div className="h-12 animate-pulse bg-slate-100 rounded-lg" />
                         ) : prevLogs.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">
-                                {t('no_prior_entries')}
-                            </p>
+                            <p className="text-xs text-slate-400 italic">{t('no_prior_entries')}</p>
                         ) : (
-                            <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="h-8 text-xs">{t('date')}</TableHead>
-                                            <TableHead className="h-8 text-xs text-right">{t('progress_h')}</TableHead>
-                                            <TableHead className="h-8 text-xs text-right">{t('used_h')}</TableHead>
-                                            <TableHead className="h-8 text-xs">{t('note_col')}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {prevLogs.map((log) => (
-                                            <TableRow key={log.id}>
-                                                <TableCell className="py-1.5 text-xs font-mono">{log.logDate}</TableCell>
-                                                <TableCell className="py-1.5 text-xs text-right">{log.progressHours}</TableCell>
-                                                <TableCell className="py-1.5 text-xs text-right">{log.usedHours}</TableCell>
-                                                <TableCell className="py-1.5 text-xs text-slate-600">
-                                                    {log.note ? (log.note.length > 40 ? log.note.slice(0, 40) + '…' : log.note) : '—'}
-                                                </TableCell>
-                                            </TableRow>
+                            <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 overflow-hidden">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="px-3 py-2 text-left font-medium text-slate-500 text-[10px] uppercase tracking-wide">{t('date')}</th>
+                                            <th className="px-3 py-2 text-right font-medium text-slate-500 text-[10px] uppercase tracking-wide">{t('progress_h')}</th>
+                                            <th className="px-3 py-2 text-right font-medium text-slate-500 text-[10px] uppercase tracking-wide">{t('used_h')}</th>
+                                            <th className="px-3 py-2 text-right font-medium text-slate-500 text-[10px] uppercase tracking-wide">{t('extra_h')}</th>
+                                            <th className="px-3 py-2 text-left font-medium text-slate-500 text-[10px] uppercase tracking-wide">{t('note_col')}</th>
+                                            <th className="px-3 py-2 w-[60px]" />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {prevLogs.map((log, i) => (
+                                            <tr
+                                                key={log.id}
+                                                className={`${i < prevLogs.length - 1 ? 'border-b border-slate-100' : ''} ${editingLogId === log.id ? 'bg-emerald-50' : ''}`}
+                                            >
+                                                <td className="px-3 py-2 font-mono text-slate-600">{log.logDate}</td>
+                                                <td className="px-3 py-2 text-right tabular-nums">{log.progressHours}</td>
+                                                <td className="px-3 py-2 text-right tabular-nums">{log.usedHours}</td>
+                                                <td className={`px-3 py-2 text-right tabular-nums ${log.lateHours > 0 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                                                    {log.lateHours > 0 ? `+${log.lateHours}` : '0'}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-600 max-w-[150px] truncate">
+                                                    {log.note || '—'}
+                                                </td>
+                                                <td className="px-2 py-1.5 text-right">
+                                                    {!log.isLocked ? (
+                                                        <div className="flex items-center gap-0.5 justify-end">
+                                                            <button
+                                                                onClick={() => startEdit(log)}
+                                                                title={t('edit_action')}
+                                                                className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                            >
+                                                                <Pencil className="h-3 w-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(log.id)}
+                                                                disabled={deleteProgress.isPending}
+                                                                title={t('delete_action')}
+                                                                className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-slate-50 text-slate-400">
+                                                            {t('locked')}
+                                                        </Badge>
+                                                    )}
+                                                </td>
+                                            </tr>
                                         ))}
-                                    </TableBody>
-                                </Table>
+                                    </tbody>
+                                </table>
                             </div>
                         )}
                     </div>
 
+                    {/* Editing banner */}
+                    {editingLogId && (
+                        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700">
+                            <Pencil className="h-3 w-3 shrink-0" />
+                            {t('editing_existing_log')}
+                            <Button size="sm" variant="ghost" className="h-5 ml-auto text-xs px-2" onClick={cancelEdit}>
+                                {t('cancel_edit')}
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Form fields */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">{t('log_date')}</label>
-                            <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} />
+                            <label className="text-xs font-medium text-slate-600">{t('log_date')}</label>
+                            <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-9 bg-white border-slate-300 shadow-sm" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">{t('progress_hours_today')}</label>
+                            <label className="text-xs font-medium text-slate-600">{t('progress_hours_today')}</label>
                             <Input
                                 type="number"
                                 min={0}
@@ -373,11 +448,12 @@ function LogProgressModal({
                                 value={progressHours}
                                 onChange={(e) => setProgress(e.target.value)}
                                 placeholder={t('up_to_hours', { hours: phase.estimatedHours })}
+                                className="h-9 bg-white border-slate-300 shadow-sm"
                             />
                             <p className="text-[10px] text-slate-400">{t('progress_hours_help')}</p>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-slate-600">{t('used_hours_today')}</label>
+                            <label className="text-xs font-medium text-slate-600">{t('used_hours_today')}</label>
                             <Input
                                 type="number"
                                 min={0}
@@ -385,44 +461,54 @@ function LogProgressModal({
                                 value={usedHours}
                                 onChange={(e) => setUsed(e.target.value)}
                                 placeholder="e.g. 8"
+                                className="h-9 bg-white border-slate-300 shadow-sm"
                             />
                             <p className="text-[10px] text-slate-400">{t('used_hours_help')}</p>
                         </div>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-xs text-slate-600">{t('note_optional')}</label>
+                        <label className="text-xs font-medium text-slate-600">{t('note_optional')}</label>
                         <Textarea
                             rows={2}
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
                             placeholder={t('note_placeholder')}
+                            className="bg-white border-slate-300 shadow-sm"
                         />
                     </div>
 
-                    <div className="border-t border-slate-200 pt-3">
-                        <div className="text-xs font-medium text-slate-700 mb-2">{t('phase_milestones_optional')}</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-600">{t('actual_start_date_label')}</label>
-                                <Input type="date" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">{t('actual_start_help')}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs text-slate-600">{t('actual_end_date_label')}</label>
-                                <Input type="date" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
-                                <p className="text-[10px] text-slate-400">{t('actual_end_help')}</p>
+                    {/* Phase milestones */}
+                    {!editingLogId && (
+                        <div className="border-t border-slate-200 pt-4">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{t('phase_milestones_optional')}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-slate-600">{t('actual_start_date_label')}</label>
+                                    <Input type="date" value={actualStart} onChange={(e) => setActualStart(e.target.value)} className="h-9 bg-white border-slate-300 shadow-sm" />
+                                    <p className="text-[10px] text-slate-400">{t('actual_start_help')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-slate-600">{t('actual_end_date_label')}</label>
+                                    <Input type="date" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} className="h-9 bg-white border-slate-300 shadow-sm" />
+                                    <p className="text-[10px] text-slate-400">{t('actual_end_help')}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
-                <DialogFooter>
-                    <Button variant="ghost" onClick={onClose} disabled={inFlight}>{t('cancel')}</Button>
-                    <Button onClick={save} disabled={inFlight || progressHours === '' || usedHours === ''}>
-                        {inFlight ? t('saving') : t('save_log')}
+                {/* Modal footer */}
+                <div className="border-t border-slate-200 bg-slate-50/50 px-6 py-3.5 flex items-center justify-end gap-2.5">
+                    <Button variant="outline" onClick={onClose} disabled={inFlight}>{t('cancel')}</Button>
+                    <Button
+                        onClick={save}
+                        disabled={inFlight || progressHours === '' || usedHours === ''}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                        {inFlight ? t('saving') : editingLogId ? t('update_log') : t('save_log')}
                     </Button>
-                </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     );
@@ -430,15 +516,16 @@ function LogProgressModal({
 
 function PhaseSubHeaders() {
     const t = useTranslations();
+    const sub = "px-2 py-2 text-left font-medium text-slate-500 text-[10px] uppercase tracking-wide whitespace-nowrap";
     return (
         <>
-            <th className="px-2 py-1.5 border-l-2 border-slate-300 text-right font-medium text-slate-600 bg-emerald-50/20">{t('col_hours_jp')}</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_assignee_jp')}</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_planned_start_jp')}</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_planned_end_jp')}</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_actual_start_jp')}</th>
-            <th className="px-2 py-1.5 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_actual_end_jp')}</th>
-            <th className="px-2 py-1.5 border-r border-slate-200 text-left font-medium text-slate-600 bg-emerald-50/20">{t('col_status_jp')}</th>
+            <th className={`${sub} border-l-2 border-slate-300 text-right`}>{t('col_hours_jp')}</th>
+            <th className={sub}>{t('col_assignee_jp')}</th>
+            <th className={sub}>{t('col_planned_start_jp')}</th>
+            <th className={sub}>{t('col_planned_end_jp')}</th>
+            <th className={sub}>{t('col_actual_start_jp')}</th>
+            <th className={sub}>{t('col_actual_end_jp')}</th>
+            <th className={`${sub} border-r border-slate-200`}>{t('col_status_jp')}</th>
         </>
     );
 }

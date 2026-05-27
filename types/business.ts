@@ -20,6 +20,7 @@ export interface Department {
     name: string;
     managerId?: string;    // FK → employees.id
     managerName?: string;  // denormalized display name (eager-loaded server-side)
+    isDeliveryEligible?: boolean; // when false, employees are excluded from the AI Team Builder idle pool
     headcount: number;     // computed server-side as employees_count
 }
 
@@ -398,6 +399,9 @@ export interface ProjectTeamAssignment {
     projectId: string;
     employeeId: string;
     employeeName?: string;
+    departmentName?: string;
+    rankName?: string;
+    rankCode?: string;
     allocatedHours: number;
     assignmentSource: 'manual' | 'ai' | 'deal_transfer';
     costPerHour?: number;
@@ -558,5 +562,36 @@ export interface MyScheduleTodayItem {
     projectId: string | null;
     projectName: string | null;
     todayLog: PhaseProgressLog | null;
+}
+
+// --- Phase Reassignment ---
+export interface ReassignmentConflict {
+    phaseAssignmentId: string;
+    phaseName: string;
+    phaseCode: string;
+    functionName: string;
+    projectName: string;
+    plannedStart: string;
+    plannedEnd: string;
+    estimatedHours: number;
+}
+
+export interface CascadeShiftPreview {
+    phaseAssignmentId: string;
+    phaseName: string;
+    functionName: string;
+    originalStart: string;
+    originalEnd: string;
+    newStart: string;
+    newEnd: string;
+}
+
+export interface ReassignmentCheck {
+    hasConflicts: boolean;
+    conflicts: ReassignmentConflict[];
+    readjustedDates: { plannedStart: string; plannedEnd: string } | null;
+    cascadePreview: CascadeShiftPreview[];
+    warnings: string[];
+    remainingHours: number;
 }
 
