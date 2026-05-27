@@ -60,6 +60,14 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+    // Server-side prompt templates live in resources/prompts/ and are read
+    // with fs.readFileSync at runtime by lib/aiTeamBuilder.ts. Next.js's
+    // automatic tracing catches the explicit `process.cwd()` + literal path
+    // case, but list it here explicitly so the directory is guaranteed to
+    // ship with `next build` output.
+    outputFileTracingIncludes: {
+        '/api/ai-team-builder': ['./resources/prompts/**/*'],
+    },
     async headers() {
         return [
             {
