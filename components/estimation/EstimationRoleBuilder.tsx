@@ -279,7 +279,7 @@ export function EstimationRoleBuilder(props: Props) {
 
                     {/* Cost roll-up. New model: labor cost basis (loaded hourly
                         × hours) is the agency's real cost; suggested price applies
-                        the BILLING_MARKUP_MULTIPLIER (×3) to labor. Derived
+                        the BILLING_MARKUP_MULTIPLIER (×2) to labor. Derived
                         margin replaces the legacy overhead%+buffer% lines. */}
                     <div className="rounded-md bg-slate-50 border border-slate-200 px-4 py-3 text-sm space-y-1">
                         <div className="flex justify-between">

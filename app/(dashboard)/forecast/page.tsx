@@ -22,7 +22,7 @@ import { useInitialBudget } from '@/lib/queries/initialBudgets';
 import { useAllSalaryHistory, type EmployeeSalaryHistoryRow } from '@/lib/queries/employeeSalaryHistory';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
-import type { Contract, Deal, Project } from '@/types/business';
+import type { Contract, Deal, GhostRole, Project } from '@/types/business';
 import toast from 'react-hot-toast';
 
 type ForecastRank = 'S' | 'A' | 'B';
@@ -54,6 +54,7 @@ type ForecastSource = {
     incomeBudget: number;
     timelineMonths: number;
     activeStart: Date;
+    ghostRoles: GhostRole[];
 };
 
 const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; labelKey: string; ranks: ForecastRank[] }> = [
@@ -87,6 +88,50 @@ function invoiceTotal(invoice: { total?: number; amount: number; tax: number }):
 
 function positiveNumber(value: number | null | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Distribute a deal's total incomeBudget across its timeline months
+ * proportionally based on the ghost-role team composition per month,
+ * weighted by company-wide rank-average costs (leader vs member).
+ *
+ * Shorter-duration roles are offset by 1 month from the project start
+ * (the typical ramp-up pattern: base team from day 1, extra resources
+ * join month 2, leave before wind-down).
+ *
+ * Falls back to flat spread when ghost roles are empty.
+ */
+function monthlyIncomeSchedule(
+    ghostRoles: GhostRole[],
+    timelineMonths: number,
+    incomeBudget: number,
+    leaderAvgCost: number,
+    memberAvgCost: number,
+): number[] {
+    if (ghostRoles.length === 0 || (leaderAvgCost <= 0 && memberAvgCost <= 0)) {
+        return new Array(timelineMonths).fill(incomeBudget / timelineMonths);
+    }
+
+    const monthlyWeight = new Array(timelineMonths).fill(0);
+
+    for (const role of ghostRoles) {
+        const roleMonths = Math.min(role.months, timelineMonths);
+        const weight = role.roleType === 'pm' ? leaderAvgCost : memberAvgCost;
+
+        if (roleMonths >= timelineMonths) {
+            for (let m = 0; m < timelineMonths; m++) monthlyWeight[m] += role.quantity * weight;
+        } else {
+            const offset = Math.min(1, timelineMonths - roleMonths);
+            for (let m = offset; m < offset + roleMonths && m < timelineMonths; m++) {
+                monthlyWeight[m] += role.quantity * weight;
+            }
+        }
+    }
+
+    const totalWeight = monthlyWeight.reduce((s, w) => s + w, 0);
+    if (totalWeight <= 0) return new Array(timelineMonths).fill(incomeBudget / timelineMonths);
+
+    return monthlyWeight.map((w) => (w / totalWeight) * incomeBudget);
 }
 
 /**
@@ -364,6 +409,7 @@ export default function ForecastPage() {
                     incomeBudget,
                     timelineMonths,
                     activeStart: forecastStartDate(deal, contract, project, monthRange[0]),
+                    ghostRoles: deal.ghostRoles ?? [],
                 };
             })
             .filter((source): source is ForecastSource => source !== null);
@@ -381,13 +427,28 @@ export default function ForecastPage() {
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
         const currentMonthStart = startOfUtcMonth(new Date());
 
-        // Today's headcount × today's salary — used for current + future
-        // months. Past months derive payroll per-month from the salary
-        // history below (with a fallback to this number when an employee
-        // has no applicable history row).
+        // Rank-average costPrices used to weight monthly income distribution
+        // for projects with variable team sizes.  "Leader" = pm capacity
+        // role in an IT/delivery dept; "Member" = all other IT engineers.
+        const itEmployees = store.employees.filter((e) =>
+            (e.status === 'Active' || e.status === 'On Leave')
+            && (e.departmentName ?? '').toLowerCase() === 'it',
+        );
+        const leaders = itEmployees.filter((e) => (e.roleName ?? '').toLowerCase().includes('leader'));
+        const members = itEmployees.filter((e) => (e.roleName ?? '').toLowerCase().includes('member'));
+
+        const overheadMultiplier = 1 + positiveNumber(store.companySettings.overheadPercentage) / 100;
+        const sellMultiplier = 1 / Math.max(0.01, positiveNumber(store.companySettings.costToBillRatio) || 0.5);
+        const leaderAvgCost = leaders.length > 0
+            ? (leaders.reduce((s, e) => s + positiveNumber(e.monthlySalary), 0) / leaders.length) * overheadMultiplier * sellMultiplier
+            : 0;
+        const memberAvgCost = members.length > 0
+            ? (members.reduce((s, e) => s + positiveNumber(e.monthlySalary), 0) / members.length) * overheadMultiplier * sellMultiplier
+            : 0;
         const currentMonthlyPayroll = store.employees
             .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
-            .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+            .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0)
+            * overheadMultiplier;
 
         // Index sparse salary-history rows by employee for cheap per-month
         // lookup. Rows are created on salary changes (not every month), so
@@ -413,7 +474,7 @@ export default function ForecastPage() {
                 const applicable = history ? applicableSalaryAt(history, monthDate) : null;
                 total += applicable ?? positiveNumber(employee.monthlySalary);
             }
-            return total;
+            return total * overheadMultiplier;
         };
 
         const monthCosts = new Map(
@@ -452,7 +513,7 @@ export default function ForecastPage() {
 
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
-            const monthlyIncome = (source.incomeBudget / source.timelineMonths) * probabilityWeight;
+            const schedule = monthlyIncomeSchedule(source.ghostRoles, source.timelineMonths, source.incomeBudget, leaderAvgCost, memberAvgCost);
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
@@ -461,7 +522,10 @@ export default function ForecastPage() {
                 const row = rowMap.get(toMonthKey(monthDate));
                 if (!row) continue;
 
-                row.income += monthlyIncome;
+                const projectMonth = (monthDate.getUTCFullYear() - source.activeStart.getUTCFullYear()) * 12
+                    + (monthDate.getUTCMonth() - source.activeStart.getUTCMonth());
+                const income = (schedule[projectMonth] ?? schedule[0] ?? 0) * probabilityWeight;
+                row.income += income;
             }
         }
 
@@ -475,7 +539,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices, salaryHistoryData]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.companySettings.overheadPercentage, store.invoices, salaryHistoryData]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);

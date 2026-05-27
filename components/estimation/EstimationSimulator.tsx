@@ -611,7 +611,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         return costRateForRole(res.roleId);
     };
 
-    // Sell rate is what we quote to the client per hour: loaded cost × 3.
+    // Sell rate is what we quote to the client per hour: loaded cost × 2.
     // Matches the "Sell / Hr" column on /organization → Employees.
     const sellRateForResource = (res: EstimationResource): number => applyBillingMarkup(costRateForResource(res));
 

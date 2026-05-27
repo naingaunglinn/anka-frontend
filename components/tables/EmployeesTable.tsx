@@ -213,7 +213,7 @@ export function EmployeesTable({ data, roles = [], timeEntries: timeEntriesProp,
         },
         {
             id: 'sellPerHour',
-            // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (3×). What we
+            // Sell = loaded cost × BILLING_MARKUP_MULTIPLIER (2×). What we
             // quote clients per hour of this employee's time.
             //
             // Only billable departments get a sell price. Non-IT staff
