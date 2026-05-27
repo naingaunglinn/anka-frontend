@@ -21,6 +21,7 @@ import { applyBillingMarkup } from '@/lib/calculations'
 
 export type EstimationRoleBuilderHandle = {
     triggerBuild: () => Promise<void>
+    clearResult: () => void
 }
 
 interface Props {
@@ -280,7 +281,10 @@ export function EstimationRoleBuilder(props: Props) {
         }
     }
 
-    useImperativeHandle(props.handleRef, () => ({ triggerBuild: handleBuild }))
+    useImperativeHandle(props.handleRef, () => ({
+        triggerBuild: handleBuild,
+        clearResult: () => setResult(null),
+    }))
 
     useEffect(() => {
         props.onLoadingChange?.(loading)
