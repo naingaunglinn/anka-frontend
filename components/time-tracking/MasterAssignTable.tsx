@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, ListTree, Search, X, Users } from 'lucide-react';
+import { Loader2, ListTree, Search, X, Users, ListFilter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
     useProjectTaskAssignments,
@@ -57,6 +57,14 @@ const STATUS_VARIANTS: Record<TaskStatus, string> = {
 
 const STATUS_VALUES: TaskStatus[] = ['未着手', '進行中', '完了'];
 
+function StatusBadge({ status }: { status: TaskStatus }) {
+    return (
+        <Badge variant="outline" className={`text-[10px] ${STATUS_VARIANTS[status]}`}>
+            {status}
+        </Badge>
+    );
+}
+
 interface Props {
     projectId: string;
 }
@@ -91,6 +99,7 @@ export function MasterAssignTable({ projectId }: Props) {
     // Phase reassignment — multi-step flow with confirmations
     const checkReassignment = useCheckReassignment(projectId);
     const reassignPhase = useReassignPhase(projectId);
+    const [pendingCellId, setPendingCellId] = useState<string | null>(null);
 
     // Step 0 state: no conflicts, simple confirmation
     const [directAssign, setDirectAssign] = useState<{
@@ -139,10 +148,12 @@ export function MasterAssignTable({ projectId }: Props) {
             if (!newAssigneeId) update(cell.id, { assigneeId: null });
             return;
         }
+        setPendingCellId(cell.id);
         checkReassignment.mutate(
             { phaseAssignmentId: cell.id, assigneeId: newAssigneeId },
             {
                 onSuccess: (result) => {
+                    setPendingCellId(null);
                     const member = team.find((m) => m.employeeId === newAssigneeId);
                     const assigneeName = member?.employeeName ?? newAssigneeId;
 
@@ -173,6 +184,7 @@ export function MasterAssignTable({ projectId }: Props) {
                         });
                     }
                 },
+                onError: () => setPendingCellId(null),
             },
         );
     };
@@ -382,27 +394,71 @@ export function MasterAssignTable({ projectId }: Props) {
                             />
                         </div>
                         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-                            <SelectTrigger className="h-9 w-[180px] text-xs bg-white border-slate-300 shadow-sm">
-                                <SelectValue placeholder="Assignee" />
+                            <SelectTrigger className="h-9 w-[200px] text-xs bg-white border-slate-300 shadow-sm">
+                                <SelectValue placeholder="Assignee">
+                                    {assigneeFilter === 'all' ? (
+                                        <span className="flex items-center gap-1.5">
+                                            <Users className="h-3.5 w-3.5 text-slate-400" />
+                                            All assignees
+                                        </span>
+                                    ) : assigneeFilter === 'unassigned' ? (
+                                        <span className="text-slate-500 italic">Unassigned</span>
+                                    ) : (
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                {(assigneeOptions.find((m) => m.id === assigneeFilter)?.name ?? '?').charAt(0).toUpperCase()}
+                                            </span>
+                                            <span className="truncate">{assigneeOptions.find((m) => m.id === assigneeFilter)?.name ?? assigneeFilter}</span>
+                                        </span>
+                                    )}
+                                </SelectValue>
                             </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All assignees</SelectItem>
-                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                            <SelectContent className="min-w-[220px]">
+                                <SelectItem value="all">
+                                    <span className="flex items-center gap-1.5">
+                                        <Users className="h-3.5 w-3.5 text-slate-400" />
+                                        All assignees
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="unassigned">
+                                    <span className="text-slate-500 italic">Unassigned</span>
+                                </SelectItem>
                                 {assigneeOptions.map((m) => (
                                     <SelectItem key={m.id} value={m.id}>
-                                        {m.name}
+                                        <span className="flex items-center gap-2">
+                                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                {(m.name ?? '?').charAt(0).toUpperCase()}
+                                            </span>
+                                            {m.name}
+                                        </span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | TaskStatus)}>
                             <SelectTrigger className="h-9 w-[160px] text-xs bg-white border-slate-300 shadow-sm">
-                                <SelectValue placeholder="Status" />
+                                <SelectValue placeholder="Status">
+                                    {statusFilter === 'all' ? (
+                                        <span className="flex items-center gap-1.5">
+                                            <ListFilter className="h-3.5 w-3.5 text-slate-400" />
+                                            All statuses
+                                        </span>
+                                    ) : (
+                                        <StatusBadge status={statusFilter} />
+                                    )}
+                                </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All statuses</SelectItem>
+                                <SelectItem value="all">
+                                    <span className="flex items-center gap-1.5">
+                                        <ListFilter className="h-3.5 w-3.5 text-slate-400" />
+                                        All statuses
+                                    </span>
+                                </SelectItem>
                                 {STATUS_VALUES.map((s) => (
-                                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                                    <SelectItem key={s} value={s}>
+                                        <StatusBadge status={s} />
+                                    </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -501,89 +557,92 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-1.5 py-1 min-w-[150px]">
+                                                        <td className="px-1.5 py-1 w-[180px]">
+                                                          <div className="relative">
+                                                            {pendingCellId === cell.id && (
+                                                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 rounded-md">
+                                                                    <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                                                </div>
+                                                            )}
                                                             <Select
                                                                 value={cell.assigneeId ?? ''}
                                                                 onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
+                                                                disabled={pendingCellId === cell.id}
                                                             >
-                                                                <SelectTrigger className="h-7 text-xs">
+                                                                <SelectTrigger className="h-8 w-full text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors overflow-hidden">
                                                                     <SelectValue placeholder={t('unassigned_short')}>
                                                                         {cell.assigneeName ? (
-                                                                            <span className="flex items-center gap-1">
-                                                                                {cell.assigneeName}
+                                                                            <span className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                    {cell.assigneeName.charAt(0).toUpperCase()}
+                                                                                </span>
+                                                                                <span className="truncate min-w-0">{cell.assigneeName}</span>
                                                                                 {cell.assigneeRankCode && (
-                                                                                    <span className="text-[9px] text-slate-400">
-                                                                                        ({cell.assigneeRankCode})
-                                                                                    </span>
+                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200 shrink-0">
+                                                                                        {cell.assigneeRankCode}
+                                                                                    </Badge>
                                                                                 )}
                                                                             </span>
-                                                                        ) : t('unassigned_short')}
+                                                                        ) : (
+                                                                            <span className="text-slate-400 italic">{t('unassigned_short')}</span>
+                                                                        )}
                                                                     </SelectValue>
                                                                 </SelectTrigger>
-                                                                <SelectContent>
+                                                                <SelectContent className="min-w-[220px]">
                                                                     {team.map((m) => (
                                                                         <SelectItem key={m.employeeId} value={m.employeeId}>
-                                                                            {m.employeeName ?? m.employeeId}
+                                                                            <span className="flex items-center gap-2">
+                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                    {(m.employeeName ?? '?').charAt(0).toUpperCase()}
+                                                                                </span>
+                                                                                <span>{m.employeeName ?? m.employeeId}</span>
+                                                                                {m.rankCode && (
+                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                                                                        {m.rankCode}
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </span>
                                                                         </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
+                                                          </div>
                                                         </td>
-                                                        <td className="px-1.5 py-1 w-[125px]">
-                                                            <Input
-                                                                type="date"
-                                                                className="h-7 text-xs px-1"
-                                                                value={cell.plannedStart ?? ''}
-                                                                onChange={(e) => update(cell.id, { plannedStart: e.target.value || null })}
-                                                            />
+                                                        <td className="px-1.5 py-1 w-[105px]">
+                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                {cell.plannedStart?.replaceAll('-', '/') ?? '—'}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-1.5 py-1 w-[125px]">
-                                                            <Input
-                                                                type="date"
-                                                                className="h-7 text-xs px-1"
-                                                                value={cell.plannedEnd ?? ''}
-                                                                onChange={(e) => update(cell.id, { plannedEnd: e.target.value || null })}
-                                                            />
+                                                        <td className="px-1.5 py-1 w-[105px]">
+                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                {cell.plannedEnd?.replaceAll('-', '/') ?? '—'}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-1.5 py-1 w-[125px]">
-                                                            <Input
-                                                                type="date"
-                                                                className="h-7 text-xs px-1"
-                                                                value={cell.actualStart ?? ''}
-                                                                onChange={(e) => update(cell.id, { actualStart: e.target.value || null })}
-                                                            />
+                                                        <td className="px-1.5 py-1 w-[105px]">
+                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                {cell.actualStart?.replaceAll('-', '/') ?? '—'}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-1.5 py-1 w-[125px]">
-                                                            <Input
-                                                                type="date"
-                                                                className="h-7 text-xs px-1"
-                                                                value={cell.actualEnd ?? ''}
-                                                                onChange={(e) => {
-                                                                    const value = e.target.value || null;
-                                                                    // Picking an actual_end means the phase is done —
-                                                                    // auto-flip status to 完了 in the same PATCH so the
-                                                                    // user doesn't have to update two cells.
-                                                                    update(cell.id, value
-                                                                        ? { actualEnd: value, status: '完了' }
-                                                                        : { actualEnd: null });
-                                                                }}
-                                                            />
+                                                        <td className="px-1.5 py-1 w-[105px]">
+                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                {cell.actualEnd?.replaceAll('-', '/') ?? '—'}
+                                                            </span>
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-slate-100 w-[110px]">
                                                             <Select
                                                                 value={cell.status}
                                                                 onValueChange={(v) => update(cell.id, { status: v as TaskStatus })}
                                                             >
-                                                                <SelectTrigger className="h-7 text-xs">
+                                                                <SelectTrigger className="h-8 text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors">
                                                                     <SelectValue>
-                                                                        <Badge variant="outline" className={STATUS_VARIANTS[cell.status]}>
-                                                                            {cell.status}
-                                                                        </Badge>
+                                                                        <StatusBadge status={cell.status} />
                                                                     </SelectValue>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     {STATUS_VALUES.map((s) => (
-                                                                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                                                                        <SelectItem key={s} value={s}>
+                                                                            <StatusBadge status={s} />
+                                                                        </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
@@ -722,7 +781,7 @@ function TeamStructureDialog({
                                             <thead>
                                                 <tr className="bg-slate-50 border-b border-slate-200">
                                                     <th className="text-left px-3 py-2 font-medium text-slate-600">{t('name')}</th>
-                                                    <th className="text-left px-3 py-2 font-medium text-slate-600">{t('rank')}</th>
+                                                    <th className="text-left px-3 py-2 font-medium text-slate-600">{t('role_rank')}</th>
                                                     <th className="text-right px-3 py-2 font-medium text-slate-600">{t('allocated_hours')}</th>
                                                     <th className="text-left px-3 py-2 font-medium text-slate-600">{t('source')}</th>
                                                 </tr>
@@ -737,7 +796,7 @@ function TeamStructureDialog({
                                                             {m.employeeName ?? m.employeeId}
                                                         </td>
                                                         <td className="px-3 py-2.5 text-slate-600">
-                                                            {m.rankName ?? '—'}
+                                                            {m.capacityRole ?? '—'}
                                                             {m.rankCode && (
                                                                 <span className="ml-1 text-[10px] text-slate-400">({m.rankCode})</span>
                                                             )}
@@ -780,11 +839,11 @@ function BlankPhaseCells() {
     return (
         <>
             <td className="px-2 py-1 border-l-2 border-slate-300 w-[60px] text-center text-slate-300">—</td>
-            <td className="px-1.5 py-1 min-w-[150px]" />
-            <td className="px-1.5 py-1 w-[125px]" />
-            <td className="px-1.5 py-1 w-[125px]" />
-            <td className="px-1.5 py-1 w-[125px]" />
-            <td className="px-1.5 py-1 w-[125px]" />
+            <td className="px-1.5 py-1 w-[180px]" />
+            <td className="px-1.5 py-1 w-[105px]" />
+            <td className="px-1.5 py-1 w-[105px]" />
+            <td className="px-1.5 py-1 w-[105px]" />
+            <td className="px-1.5 py-1 w-[105px]" />
             <td className="px-1.5 py-1 border-r border-slate-100 w-[110px]" />
         </>
     );

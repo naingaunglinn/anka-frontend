@@ -62,46 +62,55 @@ export function SimulatedDateBar() {
     }
 
     return (
-        <div className="space-y-2">
-            <div className="flex items-center gap-3">
-                <label className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                    <CalendarClock className="h-4 w-4" />
-                    Treat as today:
-                </label>
-                <Input
-                    type="date"
-                    value={simulatedDate ?? ''}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-44 h-8 text-sm"
-                />
-                {simulatedDate && (
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 gap-1 text-xs text-slate-600"
-                        onClick={onReset}
-                    >
-                        <X className="h-3 w-3" />
-                        Reset to real today
-                    </Button>
-                )}
-            </div>
+        <div className="flex items-center gap-3">
+            <label className="text-sm font-semibold text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+                <CalendarClock className="h-4 w-4" />
+                Treat as today:
+            </label>
+            <Input
+                type="date"
+                value={simulatedDate ?? ''}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-44 h-8 text-sm"
+            />
             {simulatedDate && (
-                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-center justify-between">
-                    <span>
-                        <strong>Test view:</strong> variance and health badges are computed as if today were{' '}
-                        <strong>{simulatedDate}</strong>. Real today is still the actual date — log entries you create use real today, not this override.
-                    </span>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-xs text-amber-900 hover:bg-amber-100"
-                        onClick={onReset}
-                    >
-                        Clear
-                    </Button>
-                </div>
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 text-xs text-slate-600 whitespace-nowrap"
+                    onClick={onReset}
+                >
+                    <X className="h-3 w-3" />
+                    Reset
+                </Button>
             )}
+        </div>
+    );
+}
+
+/** Convenience hook for pages that need the current asOf value (post-hydration). */
+/**
+ * Amber warning banner shown when a simulated date is active. Rendered as a
+ * separate component so pages can place it full-width below the header row
+ * instead of inside a flex child where it breaks layout.
+ */
+export function SimulatedDateBanner() {
+    const { simulatedDate, reset } = useSimulatedToday();
+    if (!simulatedDate) return null;
+    return (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-center justify-between gap-3">
+            <span>
+                <strong>Test view:</strong> variance and health badges are computed as if today were{' '}
+                <strong>{simulatedDate}</strong>. Real today is still the actual date.
+            </span>
+            <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs text-amber-900 hover:bg-amber-100 shrink-0"
+                onClick={() => reset()}
+            >
+                Clear
+            </Button>
         </div>
     );
 }

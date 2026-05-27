@@ -15,7 +15,7 @@ import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/sched
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/time-tracking/MasterAssignTable';
-import { SimulatedDateBar } from '@/components/SimulatedDateBar';
+import { SimulatedDateBar, SimulatedDateBanner } from '@/components/SimulatedDateBar';
 import { TeamPreviewDialog } from '@/components/time-tracking/TeamPreviewDialog';
 
 export default function TimeTrackingPage() {
@@ -200,6 +200,7 @@ export default function TimeTrackingPage() {
                             <SimulatedDateBar />
                         </div>
                     </div>
+                    <SimulatedDateBanner />
                     {tableProjectId ? (
                         <MasterAssignTable projectId={tableProjectId} />
                     ) : (

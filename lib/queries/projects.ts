@@ -56,6 +56,7 @@ function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
         employeeId:       row.employee_id as string,
         employeeName:     (row.employee_name as string | null) ?? undefined,
         departmentName:   (row.department_name as string | null) ?? undefined,
+        capacityRole:     (row.capacity_role as string | null) ?? undefined,
         rankName:         (row.rank_name as string | null) ?? undefined,
         rankCode:         (row.rank_code as string | null) ?? undefined,
         allocatedHours:   Number(row.allocated_hours ?? 0),

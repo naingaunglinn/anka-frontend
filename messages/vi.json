@@ -1329,6 +1329,7 @@
   "qty": "SL",
   "quantity": "Số lượng",
   "rank": "Hạng",
+  "role_rank": "Vai trò / Hạng",
   "rank_label": "Hạng {rank}",
   "rank_label_form": "Cấp bậc",
   "rank_level_hint": "(cấp {level})",

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
-import { canAccessRoute } from '@/lib/route-permissions';
+import { canAccessRoute, fallbackPathFor } from '@/lib/route-permissions';
 import { useEffect, useState } from 'react';
 import {
     LayoutDashboard,
@@ -70,7 +70,7 @@ export const Sidebar = () => {
 
     const visibleOrgRoutes = orgRoutes.filter((r) => canAccessRoute(user, r.href));
     const routes = user?.isSuperAdmin ? superAdminRoutes : visibleOrgRoutes;
-    const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : '/dashboard';
+    const homeHref = user?.isSuperAdmin ? '/admin/dashboard' : fallbackPathFor(user);
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-gradient-to-br from-white via-[#fafcfe] to-[#f0f9ff] text-[#171717] shadow-xl relative transition-all duration-300 w-full border-r border-[#e6e9ee]">

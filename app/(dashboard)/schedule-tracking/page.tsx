@@ -16,9 +16,9 @@ import {
 } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
-import { SimulatedDateBar, useAsOfParam } from '@/components/SimulatedDateBar';
-import { Search, ChevronLeft, ChevronRight, Users } from 'lucide-react';
-import type { ScheduleTrackingRow } from '@/types/business';
+import { SimulatedDateBar, SimulatedDateBanner, useAsOfParam } from '@/components/SimulatedDateBar';
+import { Search, ChevronLeft, ChevronRight, Users, ListFilter } from 'lucide-react';
+import type { ScheduleTrackingRow, ScheduleHealth } from '@/types/business';
 
 function useDebounced<T>(value: T, delay = 300): T {
     const [debounced, setDebounced] = useState(value);
@@ -93,6 +93,7 @@ export default function ScheduleTrackingPage() {
                 </div>
                 <SimulatedDateBar />
             </div>
+            <SimulatedDateBanner />
 
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-2.5 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
@@ -121,13 +122,35 @@ export default function ScheduleTrackingPage() {
                     />
                 </div>
                 <Select value={healthFilter || 'all'} onValueChange={(v) => setHealthFilter(v === 'all' ? '' : v)}>
-                    <SelectTrigger className="h-9 w-[160px] text-xs bg-white border-slate-300 shadow-sm">
-                        <SelectValue />
+                    <SelectTrigger className="h-9 w-[180px] text-xs bg-white border-slate-300 shadow-sm">
+                        <SelectValue>
+                            {healthFilter ? (
+                                <span className="flex items-center gap-1.5">
+                                    <ScheduleHealthBadge health={healthFilter as ScheduleHealth} compact />
+                                    {t(HEALTH_OPTION_KEYS.find((o) => o.value === healthFilter)?.labelKey ?? '')}
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5">
+                                    <ListFilter className="h-3.5 w-3.5 text-slate-400" />
+                                    {t('all')}
+                                </span>
+                            )}
+                        </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">{t('all')}</SelectItem>
+                        <SelectItem value="all">
+                            <span className="flex items-center gap-1.5">
+                                <ListFilter className="h-3.5 w-3.5 text-slate-400" />
+                                {t('all')}
+                            </span>
+                        </SelectItem>
                         {HEALTH_OPTION_KEYS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>
+                            <SelectItem key={o.value} value={o.value}>
+                                <span className="flex items-center gap-1.5">
+                                    <ScheduleHealthBadge health={o.value as ScheduleHealth} compact />
+                                    {t(o.labelKey)}
+                                </span>
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -161,24 +184,32 @@ export default function ScheduleTrackingPage() {
             )}
 
             {/* Data table */}
-            <Card className="shadow-sm border-[#e6e9ee] overflow-hidden">
+            <Card className="shadow-sm border-slate-200 overflow-hidden rounded-xl">
+                {meta.total ? (
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
+                        <h3 className="text-sm font-semibold text-slate-800">{t('schedule_tracking')}</h3>
+                        <span className="text-[11px] text-slate-400 tabular-nums">
+                            {t('n_of_total_phases', { shown: rows.length, total: meta.total })}
+                        </span>
+                    </div>
+                ) : null}
                 <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                    <table className="w-full text-[13px]">
                         <thead>
-                            <tr className="border-b-2 border-slate-300 bg-slate-50">
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[110px]">Function ID</th>
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Function</th>
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[130px]">Phase</th>
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[150px]">Assignee</th>
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[170px]">Planned</th>
-                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Est</th>
-                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Prog</th>
-                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Used</th>
-                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[110px]">Status</th>
-                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[100px]">Health</th>
+                            <tr className="border-b border-slate-200 bg-slate-50/80">
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Function ID</th>
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Function</th>
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Phase</th>
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Assignee</th>
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Planned</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Est</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Prog</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Used</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
+                                <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {listQuery.isLoading ? (
                                 <tr><td colSpan={10} className="py-12"><LoadingState message={t('loading_tracking_data')} /></td></tr>
                             ) : rows.length === 0 ? (
@@ -186,99 +217,124 @@ export default function ScheduleTrackingPage() {
                             ) : rows.map((row) => (
                                 <tr
                                     key={row.id}
-                                    className="border-b border-slate-100 cursor-pointer hover:bg-slate-50/80 transition-colors"
+                                    className="cursor-pointer hover:bg-indigo-50/40 transition-colors"
                                     onClick={() => setSelectedRow(row)}
                                 >
-                                    <td className="px-3 py-2.5 font-mono text-slate-400">{row.functionId ?? '—'}</td>
-                                    <td className="px-3 py-2.5 font-medium text-slate-800">{row.functionName}</td>
-                                    <td className="px-3 py-2.5">
-                                        <Badge variant="outline" className="text-[10px] font-normal">{row.phaseName}</Badge>
+                                    <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{row.functionId ?? '—'}</td>
+                                    <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{row.functionName}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <Badge variant="outline" className="text-[10px] font-medium">{row.phaseName}</Badge>
                                     </td>
-                                    <td className="px-3 py-2.5 text-slate-600">{row.assigneeName ?? <span className="text-slate-300">—</span>}</td>
-                                    <td className="px-3 py-2.5 font-mono text-slate-500">
-                                        {row.plannedStart} → {row.plannedEnd}
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {row.assigneeName ? (
+                                            <span className="inline-flex items-center gap-2">
+                                                <span className="flex items-center justify-center h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold shrink-0">
+                                                    {row.assigneeName.charAt(0).toUpperCase()}
+                                                </span>
+                                                <span className="text-slate-700">{row.assigneeName}</span>
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-300 italic">—</span>
+                                        )}
                                     </td>
-                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.estimatedHours}h</td>
-                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.variance.cumulativeProgressHours}h</td>
-                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.variance.cumulativeUsedHours}h</td>
-                                    <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${row.variance.varianceHours < 0 ? 'text-rose-600' : row.variance.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <span className="inline-flex items-center gap-1 text-[12px] tabular-nums text-slate-500">
+                                            <span className="font-mono">{row.plannedStart?.replaceAll('-', '/')}</span>
+                                            <span className="text-slate-300">→</span>
+                                            <span className="font-mono">{row.plannedEnd?.replaceAll('-', '/')}</span>
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-600 whitespace-nowrap">{row.estimatedHours}h</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-600 whitespace-nowrap">{row.variance.cumulativeProgressHours}h</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-600 whitespace-nowrap">{row.variance.cumulativeUsedHours}h</td>
+                                    <td className={`px-4 py-3 text-right tabular-nums font-semibold whitespace-nowrap ${row.variance.varianceHours < 0 ? 'text-rose-600' : row.variance.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                         {row.variance.varianceHours > 0 ? '+' : ''}{row.variance.varianceHours}h
                                     </td>
-                                    <td className="px-3 py-2.5"><ScheduleHealthBadge health={row.variance.health} /></td>
+                                    <td className="px-4 py-3 text-center whitespace-nowrap"><ScheduleHealthBadge health={row.variance.health} compact /></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </Card>
-
-            {/* Pagination */}
-            {meta.total ? (
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{t('n_of_total_phases', { shown: rows.length, total: meta.total })}</span>
-                    <div className="flex items-center gap-1.5">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            disabled={page <= 1 || listQuery.isFetching}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="px-2 text-xs font-medium text-slate-600">
+                {/* Pagination inside card */}
+                {meta.total && (meta.last_page ?? 1) > 1 ? (
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-white">
+                        <span className="text-[11px] text-slate-400">
                             {t('page_x_of_y', { current: meta.current_page ?? page, total: meta.last_page ?? 1 })}
                         </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching}
-                            onClick={() => setPage((p) => p + 1)}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                disabled={page <= 1 || listQuery.isFetching}
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching}
+                                onClick={() => setPage((p) => p + 1)}
+                            >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            ) : null}
+                ) : null}
+            </Card>
 
             {/* Per-assignee rollup */}
             {byAssignee.data && byAssignee.data.length > 0 && (
-                <Card className="shadow-sm border-[#e6e9ee] overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-                        <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                            <Users className="h-4 w-4 text-indigo-500" />
-                            {t('by_assignee')}
-                        </h2>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{t('most_behind_first')}</p>
+                <Card className="shadow-sm border-slate-200 overflow-hidden rounded-xl">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-indigo-100 shrink-0">
+                                <Users className="h-3.5 w-3.5 text-indigo-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-semibold text-slate-800">{t('by_assignee')}</h2>
+                                <p className="text-[10px] text-slate-400">{t('most_behind_first')}</p>
+                            </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 tabular-nums">{byAssignee.data.length} members</span>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
+                        <table className="w-full text-[13px]">
                             <thead>
-                                <tr className="border-b-2 border-slate-300 bg-slate-50/80">
-                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Assignee</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Estimated</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Progress</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Used</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Status</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Extra</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Health</th>
+                                <tr className="border-b border-slate-200 bg-slate-50/80">
+                                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Assignee</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Estimated</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Progress</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Used</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Extra</th>
+                                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-100">
                                 {byAssignee.data.map((a) => (
-                                    <tr key={a.assigneeId} className="border-b border-slate-100 hover:bg-slate-50/50">
-                                        <td className="px-3 py-2.5 font-medium text-slate-800">{a.assigneeName ?? a.assigneeId}</td>
-                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalEstimatedHours}h</td>
-                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalProgressHours}h</td>
-                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalUsedHours}h</td>
-                                        <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${a.varianceHours < 0 ? 'text-rose-600' : a.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    <tr key={a.assigneeId} className="hover:bg-indigo-50/40 transition-colors">
+                                        <td className="px-4 py-3">
+                                            <span className="inline-flex items-center gap-2">
+                                                <span className="flex items-center justify-center h-7 w-7 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold shrink-0">
+                                                    {(a.assigneeName ?? '?').charAt(0).toUpperCase()}
+                                                </span>
+                                                <span className="font-medium text-slate-800">{a.assigneeName ?? a.assigneeId}</span>
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{a.totalEstimatedHours}h</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{a.totalProgressHours}h</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{a.totalUsedHours}h</td>
+                                        <td className={`px-4 py-3 text-right tabular-nums font-semibold ${a.varianceHours < 0 ? 'text-rose-600' : a.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                             {a.varianceHours > 0 ? '+' : ''}{a.varianceHours}h
                                         </td>
-                                        <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${a.lateHours > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                        <td className={`px-4 py-3 text-right tabular-nums font-semibold ${a.lateHours > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                                             {a.lateHours > 0 ? `+${a.lateHours}` : a.lateHours}h
                                         </td>
-                                        <td className="px-3 py-2.5 text-right"><ScheduleHealthBadge health={a.health} /></td>
+                                        <td className="px-4 py-3 text-center"><ScheduleHealthBadge health={a.health} compact /></td>
                                     </tr>
                                 ))}
                             </tbody>

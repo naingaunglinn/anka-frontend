@@ -1329,6 +1329,7 @@
   "qty": "数量",
   "quantity": "人数",
   "rank": "ランク",
+  "role_rank": "役割 / ランク",
   "rank_label": "ランク {rank}",
   "rank_label_form": "等級",
   "rank_level_hint": "(レベル {level})",

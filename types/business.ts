@@ -384,6 +384,7 @@ export interface ProjectTeamAssignment {
     employeeId: string;
     employeeName?: string;
     departmentName?: string;
+    capacityRole?: string;
     rankName?: string;
     rankCode?: string;
     allocatedHours: number;
