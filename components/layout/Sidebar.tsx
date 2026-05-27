@@ -37,6 +37,7 @@ const orgRoutes = [
     { labelKey: 'project_pipeline',  icon: Briefcase,       href: '/project-pipeline',   color: 'text-pink-700' },
     { labelKey: 'estimation',        icon: Calculator,      href: '/estimation',         color: 'text-orange-700' },
     { labelKey: 'contracts',         icon: FileSignature,   href: '/contracts',          color: 'text-emerald-500' },
+    { labelKey: 'invoices',          icon: Receipt,         href: '/invoices',           color: 'text-cyan-600' },
     { labelKey: 'projects',          icon: FolderKanban,    href: '/projects',           color: 'text-green-700' },
     { labelKey: 'time_tracking',     icon: Clock,           href: '/time-tracking',      color: 'text-amber-500' },
     { labelKey: 'schedule_tracking', icon: Activity,        href: '/schedule-tracking',  color: 'text-rose-500' },
