@@ -230,7 +230,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [dirty, setDirty] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
     const [compareWithId, setCompareWithId] = useState<string | null>(null);
-    const [versionNotes, setVersionNotes] = useState('');
+    const versionNotesRef = useRef<HTMLInputElement>(null);
     const [showHistory, setShowHistory] = useState(false);
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
     const [sendEstimateOpen, setSendEstimateOpen] = useState(false);
@@ -560,11 +560,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 ],
                 overheads,
                 targetMargin: margin[0],
-                notes: versionNotes || undefined,
+                notes: versionNotesRef.current?.value || undefined,
             });
             setDirty(false);
             setLastSavedAt(new Date().toLocaleString());
-            setVersionNotes('');
+            if (versionNotesRef.current) versionNotesRef.current.value = '';
             toast.success(t('estimation_saved', { version: nextVer }));
         } catch {
             toast.error(t('failed_save_estimation'));
@@ -653,7 +653,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const dealBudget = store.deals.find(d => d.id === selectedDealId)?.clientBudget ?? 0;
     const expectedProfit = dealBudget > 0 ? dealBudget - totalCost : suggestedPrice - totalCost;
     const derivedMarginPct = suggestedPrice > 0
-        ? Math.round((expectedProfit / suggestedPrice) * 100)
+        ? Math.min(100, Math.max(0, Math.round((expectedProfit / suggestedPrice) * 100)))
         : 0;
 
     // Mirror the derived margin into the `margin` state so the autosave payload
@@ -1466,8 +1466,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <div className="pt-2">
                             <label className="text-xs font-medium text-slate-500 mb-1 block">{t('version_notes_optional')}</label>
                             <Input
-                                value={versionNotes}
-                                onChange={e => setVersionNotes(e.target.value)}
+                                ref={versionNotesRef}
                                 placeholder={t('placeholder_version_changes')}
                                 className="h-8 text-xs bg-white border-slate-200 text-slate-800 placeholder:text-slate-400"
                             />
