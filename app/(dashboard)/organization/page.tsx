@@ -72,6 +72,7 @@ export default function EmployeesPage() {
     // Employees filter state — keep client-side; the dataset is small.
     const [empSearchName, setEmpSearchName] = useState('');
     const [empRoleFilter, setEmpRoleFilter] = useState<string>('all');
+    const [empRankFilter, setEmpRankFilter] = useState<string>('all');
     const [empStatusFilter, setEmpStatusFilter] = useState<string>('all');
 
     // Apply the three search filters above the EmployeesTable. All client-side
@@ -81,10 +82,11 @@ export default function EmployeesPage() {
         return store.employees.filter((e) => {
             if (needle && !e.name.toLowerCase().includes(needle)) return false;
             if (empRoleFilter !== 'all' && e.role !== empRoleFilter) return false;
+            if (empRankFilter !== 'all' && e.rankId !== empRankFilter) return false;
             if (empStatusFilter !== 'all' && e.status !== empStatusFilter) return false;
             return true;
         });
-    }, [store.employees, empSearchName, empRoleFilter, empStatusFilter]);
+    }, [store.employees, empSearchName, empRoleFilter, empRankFilter, empStatusFilter]);
 
     // Departments State
     const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
@@ -522,7 +524,7 @@ export default function EmployeesPage() {
                                     className="pl-9"
                                 />
                             </div>
-                            <div className="md:w-48">
+                            <div className="md:w-44">
                                 <Select value={empRoleFilter} onValueChange={setEmpRoleFilter}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="All roles" />
@@ -535,7 +537,20 @@ export default function EmployeesPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="md:w-48">
+                            <div className="md:w-44">
+                                <Select value={empRankFilter} onValueChange={setEmpRankFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All ranks" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All ranks</SelectItem>
+                                        {ranks.map((r) => (
+                                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="md:w-44">
                                 <Select value={empStatusFilter} onValueChange={setEmpStatusFilter}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="All statuses" />
@@ -549,12 +564,12 @@ export default function EmployeesPage() {
                                 </Select>
                             </div>
                         </div>
-                        {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
+                        {(empSearchName || empRoleFilter !== 'all' || empRankFilter !== 'all' || empStatusFilter !== 'all') && (
                             <p className="mt-2 text-xs text-[#8a8a8a]">
                                 Showing {filteredEmployees.length} of {store.employees.length} employees.
                                 <button
                                     type="button"
-                                    onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpStatusFilter('all'); }}
+                                    onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpRankFilter('all'); setEmpStatusFilter('all'); }}
                                     className="ml-2 text-slate-700 underline hover:no-underline"
                                 >
                                     Clear filters
