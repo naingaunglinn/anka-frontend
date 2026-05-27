@@ -72,6 +72,9 @@ export const dealSchema = z.object({
     contactName: z.string().min(1, 'Contact name is required').max(255),
     contactEmail: z.string().min(1, 'Contact email is required').email('Please enter a valid email address'),
     contactPhone: z.string().min(1, 'Contact phone is required').max(50),
+    // Optional. Used by Invoice XLSX export's "To," block — sales reps
+    // capture it during deal entry so the eventual invoice can render it.
+    customerAddress: z.string().max(1000).optional(),
     expectedCloseDate: z.string().min(1, 'Expected start date is required'),
     leadSource: z.enum([
         'inbound', 'referral', 'cold_outreach', 'social', 'event', 'partner', 'other',

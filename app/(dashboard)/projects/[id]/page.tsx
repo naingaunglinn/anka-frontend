@@ -152,8 +152,8 @@ export default function ProjectDetailPage() {
     if (projectQuery.isLoading) {
         return (
             <div className="p-6 space-y-6">
-                <Card className="h-32 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
-                <Card className="h-64 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
+                <Card variant="plain" className="h-32 animate-pulse bg-slate-100" />
+                <Card variant="plain" className="h-64 animate-pulse bg-slate-100" />
             </div>
         );
     }
@@ -161,7 +161,7 @@ export default function ProjectDetailPage() {
     if (projectQuery.isError || !project) {
         return (
             <div className="p-6">
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
                         <p className="text-sm text-[#4a4a4a]">Could not load project.</p>
                         <div className="flex gap-2">
@@ -235,7 +235,7 @@ export default function ProjectDetailPage() {
 
             {/* ── Metadata + linked entities ─────────────────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 shadow-sm border-[#e6e9ee]">
+                <Card variant="plain" className="lg:col-span-2">
                     <CardContent className="p-6 space-y-4">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                             <MetaField icon={<Calendar className="h-4 w-4" />} label="Start date" value={project.startDate ?? '—'} />
@@ -260,7 +260,7 @@ export default function ProjectDetailPage() {
                 </Card>
 
                 {/* Burn-rate card */}
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6 space-y-4">
                         <div>
                             <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">Budget burn</p>
@@ -284,7 +284,7 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* ── Team roster ────────────────────────────────────────────── */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardContent className="p-0">
                     <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -369,7 +369,7 @@ export default function ProjectDetailPage() {
             </Card>
 
             {/* ── Recent time entries ────────────────────────────────────── */}
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardContent className="p-0">
                     <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
                         <div className="flex items-center gap-2">

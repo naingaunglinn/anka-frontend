@@ -33,7 +33,7 @@ export function AIUsageDashboard() {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-[#8a8a8a] flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-purple-500" />
@@ -48,7 +48,7 @@ export function AIUsageDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-[#8a8a8a] flex items-center gap-2">
                             <Zap className="w-4 h-4 text-amber-500" />
@@ -63,7 +63,7 @@ export function AIUsageDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-[#8a8a8a] flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-emerald-500" />

@@ -20,6 +20,7 @@ export interface Department {
     name: string;
     managerId?: string;    // FK → employees.id
     managerName?: string;  // denormalized display name (eager-loaded server-side)
+    isDeliveryEligible?: boolean; // when false, employees are excluded from the AI Team Builder idle pool
     headcount: number;     // computed server-side as employees_count
 }
 
@@ -208,6 +209,9 @@ export interface Deal {
     contactName?: string;
     contactEmail?: string;
     contactPhone?: string;
+    /** Customer postal address rendered in the Invoice XLSX "To," block.
+     *  Optional — invoices for deals without one show only the customer name. */
+    customerAddress?: string;
     estimatedValue?: number;
     winProbability?: number;
     // 4-stage pipeline (D removed in chg-009 — Dropped is now a status flag).
@@ -289,6 +293,9 @@ export interface Deal {
     /** ID of the most recent non-superseded contract draft. Used to open
      *  the draft directly from the Kanban card dropdown. */
     activeContractDraftId?: string | null;
+    /** Server timestamp of the deal's last write. Used by the Forecast page
+     *  as a "days in stage" proxy until stage_entered_at tracking lands. */
+    updatedAt?: string;
 }
 
 // --- Contracts & Billing ---
@@ -331,6 +338,19 @@ export interface Invoice {
     sentToEmail?: string;
     reminderSentCount?: number;
     notes?: string;
+    /** New Invoice menu fields (template XLSX export). */
+    memo?: string;
+    billingPeriodLabel?: string;
+    lineItems?: InvoiceLineItemSnapshot[];
+}
+
+/** Snapshot of one invoice line item, frozen at save time. */
+export interface InvoiceLineItemSnapshot {
+    kind: 'resource' | 'overhead';
+    label: string;
+    quantity: number;
+    cost: number;
+    amount: number;
 }
 
 export interface Milestone {
@@ -379,6 +399,9 @@ export interface ProjectTeamAssignment {
     projectId: string;
     employeeId: string;
     employeeName?: string;
+    departmentName?: string;
+    rankName?: string;
+    rankCode?: string;
     allocatedHours: number;
     assignmentSource: 'manual' | 'ai' | 'deal_transfer';
     costPerHour?: number;
@@ -539,5 +562,36 @@ export interface MyScheduleTodayItem {
     projectId: string | null;
     projectName: string | null;
     todayLog: PhaseProgressLog | null;
+}
+
+// --- Phase Reassignment ---
+export interface ReassignmentConflict {
+    phaseAssignmentId: string;
+    phaseName: string;
+    phaseCode: string;
+    functionName: string;
+    projectName: string;
+    plannedStart: string;
+    plannedEnd: string;
+    estimatedHours: number;
+}
+
+export interface CascadeShiftPreview {
+    phaseAssignmentId: string;
+    phaseName: string;
+    functionName: string;
+    originalStart: string;
+    originalEnd: string;
+    newStart: string;
+    newEnd: string;
+}
+
+export interface ReassignmentCheck {
+    hasConflicts: boolean;
+    conflicts: ReassignmentConflict[];
+    readjustedDates: { plannedStart: string; plannedEnd: string } | null;
+    cascadePreview: CascadeShiftPreview[];
+    warnings: string[];
+    remainingHours: number;
 }
 

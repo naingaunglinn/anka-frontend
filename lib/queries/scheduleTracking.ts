@@ -401,13 +401,17 @@ export function useLogProgress() {
 export function useUpdateProgressLog() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ id, progressHours, usedHours, note }: { id: string; progressHours?: number; usedHours?: number; note?: string | null }) => {
+        mutationFn: async ({ id, logDate, progressHours, usedHours, note }: { id: string; logDate?: string; progressHours?: number; usedHours?: number; note?: string | null }) => {
             const payload: Record<string, unknown> = {};
+            if (logDate !== undefined) payload.log_date = logDate;
             if (progressHours !== undefined) payload.progress_hours = progressHours;
             if (usedHours !== undefined) payload.used_hours = usedHours;
             if (note !== undefined) payload.note = note;
             const { data } = await api.patch(`/phase-progress-logs/${id}`, payload);
             return toLog(data.data ?? data);
+        },
+        onSuccess: () => {
+            toast.success('Progress updated');
         },
         onError: (err) => {
             toast.error(`Failed to update progress: ${normalizeError(err).message}`);

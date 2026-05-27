@@ -72,6 +72,7 @@ interface ApiDeal {
     contact_name?: string;
     contact_email?: string;
     contact_phone?: string;
+    customer_address?: string | null;
     estimated_value?: number;
     win_probability?: number;
     status?: Deal['status'];
@@ -112,6 +113,7 @@ interface ApiDeal {
     loss_reason?: string;
     has_sent_contract_draft?: boolean;
     active_contract_draft_id?: string | null;
+    updated_at?: string | null;
     ghost_roles?: ApiGhostRole[];
     hard_assignments?: ApiHardAssignment[];
     estimation_resources?: ApiEstimationResource[];
@@ -170,6 +172,9 @@ interface ApiInvoice {
     total?: number | string | null;
     status: Invoice['status'];
     paid_at?: string | null;
+    memo?: string | null;
+    billing_period_label?: string | null;
+    line_items?: Array<{ kind: 'resource' | 'overhead'; label: string; quantity: number; cost: number; amount: number }> | null;
     issued_at?: string | null;
     sent_to_email?: string | null;
     reminder_sent_count?: number;
@@ -223,6 +228,7 @@ export function toDeal(row: ApiDeal): Deal {
         contactName: row.contact_name,
         contactEmail: row.contact_email,
         contactPhone: row.contact_phone,
+        customerAddress: row.customer_address ?? undefined,
         estimatedValue: row.estimated_value,
         winProbability: row.win_probability,
         status: row.status,
@@ -263,6 +269,7 @@ export function toDeal(row: ApiDeal): Deal {
         lossReason: row.loss_reason,
         hasSentContractDraft: row.has_sent_contract_draft ?? false,
         activeContractDraftId: row.active_contract_draft_id ?? null,
+        updatedAt: row.updated_at ?? undefined,
         ghostRoles: (row.ghost_roles ?? []).map(toGhostRole),
         hardAssignments: (row.hard_assignments ?? []).map(toHardAssignment),
         estimationResources: (row.estimation_resources ?? []).map(toEstimationResource),
@@ -341,6 +348,9 @@ export function toInvoice(row: ApiInvoice): Invoice {
         sentToEmail: row.sent_to_email ?? undefined,
         reminderSentCount: row.reminder_sent_count ?? 0,
         notes: row.notes ?? undefined,
+        memo: row.memo ?? undefined,
+        billingPeriodLabel: row.billing_period_label ?? undefined,
+        lineItems: row.line_items ?? undefined,
     };
 }
 
@@ -393,6 +403,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
     if (deal.contactName !== undefined)   payload.contact_name   = deal.contactName || null;
     if (deal.contactEmail !== undefined)  payload.contact_email  = deal.contactEmail || null;
     if (deal.contactPhone !== undefined)  payload.contact_phone  = deal.contactPhone || null;
+    if (deal.customerAddress !== undefined) payload.customer_address = deal.customerAddress || null;
     if (deal.expectedCloseDate !== undefined) payload.expected_close_date = deal.expectedCloseDate || null;
     if (deal.leadSource)                  payload.lead_source    = deal.leadSource;
     if (deal.winReason !== undefined)     payload.win_reason     = deal.winReason || null;

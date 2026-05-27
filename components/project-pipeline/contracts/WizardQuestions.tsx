@@ -27,8 +27,8 @@ export function WizardQuestions({
 
     if (sectionsWithQuestions.length === 0) {
         return (
-            <Card className="border-slate-200 bg-slate-50/40">
-                <CardContent className="p-4 text-sm text-slate-600">
+            <Card className="border-[var(--color-border-default)] bg-[var(--color-bg-subtle)]/40">
+                <CardContent className="p-4 text-sm text-[var(--color-text-default)]/80">
                     This template has no structured questions — the AI fills everything from the
                     deal&apos;s Requirement Description.
                 </CardContent>
@@ -40,7 +40,7 @@ export function WizardQuestions({
         <div className="space-y-5">
             {sectionsWithQuestions.map((section) => (
                 <div key={section.key}>
-                    <h4 className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-2">
+                    <h4 className="text-[11px] uppercase tracking-wide text-[var(--color-text-muted)] font-semibold mb-2">
                         {section.title}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -71,12 +71,12 @@ function QuestionField({
     const valueOrDefault = value ?? question.default ?? '';
 
     const labelEl = (
-        <Label htmlFor={question.key} className="text-xs text-slate-700">
+        <Label htmlFor={question.key} className="text-xs text-[var(--color-text-default)]">
             {question.label}
             {question.required && <span className="text-red-500 ml-1">*</span>}
             {question.help && (
                 <span title={question.help} className="ml-1 inline-flex">
-                    <HelpCircle className="inline h-3 w-3 text-slate-400" />
+                    <HelpCircle className="inline h-3 w-3 text-[var(--color-text-subtle)]" />
                 </span>
             )}
         </Label>
@@ -124,7 +124,7 @@ function QuestionField({
                     placeholder={(question.options ?? []).join(', ')}
                     className="bg-white"
                 />
-                <p className="text-[10px] text-slate-400">Comma-separated. Options: {(question.options ?? []).join(', ')}</p>
+                <p className="text-[10px] text-[var(--color-text-subtle)]">Comma-separated. Options: {(question.options ?? []).join(', ')}</p>
             </div>
         );
     }

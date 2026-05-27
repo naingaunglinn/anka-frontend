@@ -389,7 +389,7 @@ export function AITeamBuilder(props: Props) {
                     {leadershipOverridden ? (
                         <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">manual override</Badge>
                     ) : (
-                        <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 text-[10px]">
+                        <Badge className="bg-[var(--color-ai-100)] text-[var(--color-ai-700)] hover:bg-[var(--color-ai-100)] text-[10px]">
                             <Sparkles className="h-2.5 w-2.5 mr-1" /> AI recommended
                         </Badge>
                     )}
@@ -401,7 +401,7 @@ export function AITeamBuilder(props: Props) {
                                 setLeadershipOverridden(false)
                                 setRequireLeadership(leadershipRecommendation.recommended)
                             }}
-                            className="text-[10px] text-indigo-600 hover:text-indigo-800 underline ml-auto"
+                            className="text-[10px] text-[var(--color-ai-600)] hover:text-[var(--color-ai-700)] underline ml-auto"
                             disabled={loading}
                         >
                             Reset to AI
@@ -431,7 +431,7 @@ export function AITeamBuilder(props: Props) {
                 // function — so the wrapper here keeps the no-feedback call path.
                 onClick={() => handleBuild()}
                 disabled={!canRun || loading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all duration-200"
+                className="w-full bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white shadow-md transition-all duration-200"
                 size="lg"
             >
                 {loading ? (
@@ -464,8 +464,8 @@ export function AITeamBuilder(props: Props) {
                         onAccept={props.onAccept}
                     />
                     {showFeedback && (
-                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
-                            <p className="text-sm font-medium text-indigo-800">What should be different? <span className="font-normal text-indigo-600">(optional)</span></p>
+                        <div className="rounded-lg border border-[var(--color-ai-100)] bg-[var(--color-ai-50)]/60 p-4 space-y-3">
+                            <p className="text-sm font-medium text-[var(--color-ai-700)]">What should be different? <span className="font-normal text-[var(--color-ai-600)]">(optional)</span></p>
                             <textarea
                                 className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
                                 rows={2}
@@ -478,7 +478,7 @@ export function AITeamBuilder(props: Props) {
                                     type="button"
                                     size="sm"
                                     onClick={() => handleBuild(regenerateFeedback || undefined)}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    className="bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white"
                                 >
                                     Regenerate
                                 </Button>

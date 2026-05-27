@@ -32,7 +32,7 @@ export function RequirementsChecklist({ deal, dealId, canEdit }: { deal: Deal; d
     const intakeMissing = items.filter((i) => i.group === 'intake' && !i.captured).length;
 
     return (
-        <Card className="shadow-sm border-slate-100">
+        <Card variant="plain">
             <CardHeader className="border-b bg-slate-50/50 flex flex-row items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                     <CardTitle className="text-lg flex items-center gap-2 flex-wrap">

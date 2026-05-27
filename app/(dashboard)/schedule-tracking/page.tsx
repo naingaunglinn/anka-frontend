@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { LoadingState } from '@/components/LoadingState';
 import { useProjectList } from '@/lib/queries/projects';
@@ -18,7 +17,7 @@ import {
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
 import { SimulatedDateBar, useAsOfParam } from '@/components/SimulatedDateBar';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import type { ScheduleTrackingRow } from '@/types/business';
 
 function useDebounced<T>(value: T, delay = 300): T {
@@ -40,7 +39,6 @@ export default function ScheduleTrackingPage() {
     const t = useTranslations();
     const projectsQuery = useProjectList();
     const allProjects = projectsQuery.data?.data ?? [];
-    // Hide finished projects — schedule tracking is for live work.
     const projects = useMemo(
         () => allProjects.filter((p) => p.status !== 'Completed'),
         [allProjects],
@@ -48,7 +46,7 @@ export default function ScheduleTrackingPage() {
 
     const [projectId, setProjectId]   = useState<string>('');
     const [search, setSearch]         = useState('');
-    const [healthFilter, setHealthFilter] = useState<string>(''); // '' = all
+    const [healthFilter, setHealthFilter] = useState<string>('');
     const [page, setPage]             = useState(1);
     const [selectedRow, setSelectedRow] = useState<ScheduleTrackingRow | null>(null);
     const debouncedSearch = useDebounced(search, 300);
@@ -58,7 +56,6 @@ export default function ScheduleTrackingPage() {
             setProjectId(projects[0].id);
         }
     }, [projects, projectId]);
-    // Drop a stale selection if the picked project completed since last load.
     useEffect(() => {
         if (projectId && !projects.some((p) => p.id === projectId)) {
             setProjectId(projects[0]?.id ?? '');
@@ -87,194 +84,206 @@ export default function ScheduleTrackingPage() {
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('schedule_tracking')}</h1>
-                <p className="text-[#8a8a8a] mt-1">
-                    {t('schedule_tracking_description')}
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#171717]">{t('schedule_tracking')}</h1>
+                    <p className="text-[#8a8a8a] mt-1">
+                        {t('schedule_tracking_description')}
+                    </p>
+                </div>
+                <SimulatedDateBar />
             </div>
 
-            <SimulatedDateBar />
-
             {/* Controls */}
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div className="flex flex-wrap items-end gap-3 w-full md:max-w-4xl">
-                    <div className="space-y-1 max-w-full">
-                        <label className="text-xs text-[#8a8a8a]">{t('project')}</label>
-                        <Select value={projectId} onValueChange={setProjectId}>
-                            <SelectTrigger className="w-auto max-w-[min(100%,640px)]">
-                                <SelectValue placeholder={t('pick_a_project')} />
-                            </SelectTrigger>
-                            <SelectContent className="max-w-[640px]">
-                                {projects.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                        {p.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1 flex-1 min-w-[220px]">
-                        <label className="text-xs text-[#8a8a8a]">{t('search')}</label>
-                        <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a8a8a]" />
-                            <Input
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder={t('search_phase_placeholder')}
-                                className="pl-9"
-                            />
-                        </div>
-                    </div>
-                    <div className="space-y-1 min-w-[160px]">
-                        <label className="text-xs text-[#8a8a8a]">{t('health')}</label>
-                        <Select value={healthFilter || 'all'} onValueChange={(v) => setHealthFilter(v === 'all' ? '' : v)}>
-                            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">{t('all')}</SelectItem>
-                                {HEALTH_OPTION_KEYS.map((o) => (
-                                    <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+            <div className="flex flex-wrap items-center gap-2.5 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-800 whitespace-nowrap">{t('project')}:</label>
+                    <Select value={projectId} onValueChange={setProjectId}>
+                        <SelectTrigger className="h-9 w-auto max-w-[min(100%,480px)] text-xs bg-white border-slate-300 shadow-sm">
+                            <SelectValue placeholder={t('pick_a_project')} />
+                        </SelectTrigger>
+                        <SelectContent className="max-w-[480px]">
+                            {projects.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                    {p.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
+                <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                    <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={t('search_phase_placeholder')}
+                        className="h-9 pl-8 pr-2 text-xs bg-white border-slate-300 shadow-sm"
+                    />
+                </div>
+                <Select value={healthFilter || 'all'} onValueChange={(v) => setHealthFilter(v === 'all' ? '' : v)}>
+                    <SelectTrigger className="h-9 w-[160px] text-xs bg-white border-slate-300 shadow-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{t('all')}</SelectItem>
+                        {HEALTH_OPTION_KEYS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
             {/* Project rollup strip */}
             {summary && (
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-8 gap-3 text-sm">
-                        <Stat label="Estimated" value={`${summary.totalEstimatedHours}h`} />
-                        <Stat label="Progress"  value={`${summary.totalProgressHours}h`} />
-                        <Stat label="Used"      value={`${summary.totalUsedHours}h`} />
-                        <Stat
-                            label="Progress Status"
-                            value={`${summary.varianceHours > 0 ? '+' : ''}${summary.varianceHours}h`}
-                            valueClassName={summary.varianceHours < 0 ? 'text-rose-700' : 'text-emerald-700'}
-                        />
-                        <Stat
-                            label="Extra Hours"
-                            value={`${summary.lateHours > 0 ? '+' : ''}${summary.lateHours}h`}
-                            valueClassName={summary.lateHours > 0 ? 'text-amber-700' : ''}
-                        />
-                        <div>
-                            <div className="text-[10px] uppercase text-[#8a8a8a]">{t('health')}</div>
-                            <ScheduleHealthBadge health={summary.health} />
-                            <div className="text-xs text-[#8a8a8a] mt-1">
-                                {t('phases_done_summary', { done: summary.completedCount, total: summary.phaseCount })}
-                            </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                    <StatCard label="Estimated" value={`${summary.totalEstimatedHours}h`} />
+                    <StatCard label="Progress"  value={`${summary.totalProgressHours}h`} />
+                    <StatCard label="Used"      value={`${summary.totalUsedHours}h`} />
+                    <StatCard
+                        label="Progress Status"
+                        value={`${summary.varianceHours > 0 ? '+' : ''}${summary.varianceHours}h`}
+                        valueClassName={summary.varianceHours < 0 ? 'text-rose-600' : 'text-emerald-600'}
+                    />
+                    <StatCard
+                        label="Extra Hours"
+                        value={`${summary.lateHours > 0 ? '+' : ''}${summary.lateHours}h`}
+                        valueClassName={summary.lateHours > 0 ? 'text-amber-600' : ''}
+                    />
+                    <StatCard label="Health" custom>
+                        <ScheduleHealthBadge health={summary.health} />
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                            {t('phases_done_summary', { done: summary.completedCount, total: summary.phaseCount })}
                         </div>
-                        {/* Today-only stats grouped on the right, separated from the cumulative ones by a vertical divider. */}
-                        <Stat
-                            label="Expected (today)"
-                            value={`${summary.todayExpectedHours}h`}
-                            wrapperClassName="md:border-l-2 md:border-slate-300 md:pl-4"
-                        />
-                        <Stat label="Finish Today" value={`${summary.todayProgressHours}h`} />
-                    </CardContent>
-                </Card>
+                    </StatCard>
+                    <StatCard label="Expected (today)" value={`${summary.todayExpectedHours}h`} highlight />
+                    <StatCard label="Finish Today" value={`${summary.todayProgressHours}h`} highlight />
+                </div>
             )}
 
-            {/* Data list */}
-            <Card className="shadow-sm border-[#e6e9ee]">
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader className="bg-white">
-                            <TableRow>
-                                <TableHead className="w-[120px]">Function ID</TableHead>
-                                <TableHead>Function</TableHead>
-                                <TableHead className="w-[140px]">Phase</TableHead>
-                                <TableHead className="w-[160px]">Assignee</TableHead>
-                                <TableHead className="w-[180px]">Planned</TableHead>
-                                <TableHead className="w-[80px] text-right">Est</TableHead>
-                                <TableHead className="w-[80px] text-right">Prog</TableHead>
-                                <TableHead className="w-[80px] text-right">Used</TableHead>
-                                <TableHead className="w-[120px] text-right">Progress Status</TableHead>
-                                <TableHead className="w-[120px]">Health</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
+            {/* Data table */}
+            <Card className="shadow-sm border-[#e6e9ee] overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead>
+                            <tr className="border-b-2 border-slate-300 bg-slate-50">
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[110px]">Function ID</th>
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Function</th>
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[130px]">Phase</th>
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[150px]">Assignee</th>
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[170px]">Planned</th>
+                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Est</th>
+                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Prog</th>
+                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[70px]">Used</th>
+                                <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[110px]">Status</th>
+                                <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px] w-[100px]">Health</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             {listQuery.isLoading ? (
-                                <TableRow><TableCell colSpan={10} className="py-12"><LoadingState message={t('loading_tracking_data')} /></TableCell></TableRow>
+                                <tr><td colSpan={10} className="py-12"><LoadingState message={t('loading_tracking_data')} /></td></tr>
                             ) : rows.length === 0 ? (
-                                <TableRow><TableCell colSpan={10} className="py-10 text-center text-[#8a8a8a]">{t('no_phases_match_filters')}</TableCell></TableRow>
+                                <tr><td colSpan={10} className="py-10 text-center text-slate-400">{t('no_phases_match_filters')}</td></tr>
                             ) : rows.map((row) => (
-                                <TableRow key={row.id} className="cursor-pointer hover:bg-[#fafbfc]" onClick={() => setSelectedRow(row)}>
-                                    <TableCell className="text-xs text-[#8a8a8a]">{row.functionId ?? '—'}</TableCell>
-                                    <TableCell className="font-medium">{row.functionName}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline" className="text-xs">{row.phaseName}</Badge>
-                                    </TableCell>
-                                    <TableCell>{row.assigneeName ?? <span className="text-[#8a8a8a]">—</span>}</TableCell>
-                                    <TableCell className="text-xs">
+                                <tr
+                                    key={row.id}
+                                    className="border-b border-slate-100 cursor-pointer hover:bg-slate-50/80 transition-colors"
+                                    onClick={() => setSelectedRow(row)}
+                                >
+                                    <td className="px-3 py-2.5 font-mono text-slate-400">{row.functionId ?? '—'}</td>
+                                    <td className="px-3 py-2.5 font-medium text-slate-800">{row.functionName}</td>
+                                    <td className="px-3 py-2.5">
+                                        <Badge variant="outline" className="text-[10px] font-normal">{row.phaseName}</Badge>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">{row.assigneeName ?? <span className="text-slate-300">—</span>}</td>
+                                    <td className="px-3 py-2.5 font-mono text-slate-500">
                                         {row.plannedStart} → {row.plannedEnd}
-                                    </TableCell>
-                                    <TableCell className="text-right">{row.estimatedHours}h</TableCell>
-                                    <TableCell className="text-right">{row.variance.cumulativeProgressHours}h</TableCell>
-                                    <TableCell className="text-right">{row.variance.cumulativeUsedHours}h</TableCell>
-                                    <TableCell className={`text-right font-medium ${row.variance.varianceHours < 0 ? 'text-rose-700' : row.variance.varianceHours > 0 ? 'text-emerald-700' : ''}`}>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.estimatedHours}h</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.variance.cumulativeProgressHours}h</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{row.variance.cumulativeUsedHours}h</td>
+                                    <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${row.variance.varianceHours < 0 ? 'text-rose-600' : row.variance.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                         {row.variance.varianceHours > 0 ? '+' : ''}{row.variance.varianceHours}h
-                                    </TableCell>
-                                    <TableCell><ScheduleHealthBadge health={row.variance.health} /></TableCell>
-                                </TableRow>
+                                    </td>
+                                    <td className="px-3 py-2.5"><ScheduleHealthBadge health={row.variance.health} /></td>
+                                </tr>
                             ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
+                        </tbody>
+                    </table>
+                </div>
             </Card>
 
             {/* Pagination */}
             {meta.total ? (
-                <div className="flex items-center justify-between text-sm text-[#8a8a8a]">
-                    <div>{t('n_of_total_phases', { shown: rows.length, total: meta.total })}</div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" disabled={page <= 1 || listQuery.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t('previous')}</Button>
-                        <span className="px-2">{t('page_x_of_y', { current: meta.current_page ?? page, total: meta.last_page ?? 1 })}</span>
-                        <Button variant="outline" size="sm" disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching} onClick={() => setPage((p) => p + 1)}>{t('next')}</Button>
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>{t('n_of_total_phases', { shown: rows.length, total: meta.total })}</span>
+                    <div className="flex items-center gap-1.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled={page <= 1 || listQuery.isFetching}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="px-2 text-xs font-medium text-slate-600">
+                            {t('page_x_of_y', { current: meta.current_page ?? page, total: meta.last_page ?? 1 })}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled={(meta.current_page ?? page) >= (meta.last_page ?? 1) || listQuery.isFetching}
+                            onClick={() => setPage((p) => p + 1)}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
                     </div>
                 </div>
             ) : null}
 
             {/* Per-assignee rollup */}
             {byAssignee.data && byAssignee.data.length > 0 && (
-                <Card className="shadow-sm border-[#e6e9ee]">
-                    <CardContent className="p-0">
-                        <div className="px-4 py-3 border-b border-[#e6e9ee] bg-[#fafbfc]">
-                            <h2 className="font-semibold">{t('by_assignee')}</h2>
-                            <p className="text-xs text-[#8a8a8a]">{t('most_behind_first')}</p>
-                        </div>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Assignee</TableHead>
-                                    <TableHead className="text-right">Estimated</TableHead>
-                                    <TableHead className="text-right">Progress</TableHead>
-                                    <TableHead className="text-right">Used</TableHead>
-                                    <TableHead className="text-right">Progress Status</TableHead>
-                                    <TableHead className="text-right">Extra Hours</TableHead>
-                                    <TableHead className="text-right">Health</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                <Card className="shadow-sm border-[#e6e9ee] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                        <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                            <Users className="h-4 w-4 text-indigo-500" />
+                            {t('by_assignee')}
+                        </h2>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t('most_behind_first')}</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr className="border-b-2 border-slate-300 bg-slate-50/80">
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Assignee</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Estimated</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Progress</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Used</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Status</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Extra</th>
+                                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Health</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                                 {byAssignee.data.map((a) => (
-                                    <TableRow key={a.assigneeId}>
-                                        <TableCell className="font-medium">{a.assigneeName ?? a.assigneeId}</TableCell>
-                                        <TableCell className="text-right">{a.totalEstimatedHours}h</TableCell>
-                                        <TableCell className="text-right">{a.totalProgressHours}h</TableCell>
-                                        <TableCell className="text-right">{a.totalUsedHours}h</TableCell>
-                                        <TableCell className={`text-right font-medium ${a.varianceHours < 0 ? 'text-rose-700' : a.varianceHours > 0 ? 'text-emerald-700' : ''}`}>
+                                    <tr key={a.assigneeId} className="border-b border-slate-100 hover:bg-slate-50/50">
+                                        <td className="px-3 py-2.5 font-medium text-slate-800">{a.assigneeName ?? a.assigneeId}</td>
+                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalEstimatedHours}h</td>
+                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalProgressHours}h</td>
+                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{a.totalUsedHours}h</td>
+                                        <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${a.varianceHours < 0 ? 'text-rose-600' : a.varianceHours > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                             {a.varianceHours > 0 ? '+' : ''}{a.varianceHours}h
-                                        </TableCell>
-                                        <TableCell className={`text-right font-medium ${a.lateHours > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${a.lateHours > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                                             {a.lateHours > 0 ? `+${a.lateHours}` : a.lateHours}h
-                                        </TableCell>
-                                        <TableCell className="text-right"><ScheduleHealthBadge health={a.health} /></TableCell>
-                                    </TableRow>
+                                        </td>
+                                        <td className="px-3 py-2.5 text-right"><ScheduleHealthBadge health={a.health} /></td>
+                                    </tr>
                                 ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
+                            </tbody>
+                        </table>
+                    </div>
                 </Card>
             )}
 
@@ -288,11 +297,27 @@ export default function ScheduleTrackingPage() {
     );
 }
 
-function Stat({ label, value, valueClassName = '', wrapperClassName = '' }: { label: string; value: string; valueClassName?: string; wrapperClassName?: string }) {
+function StatCard({
+    label,
+    value,
+    valueClassName = '',
+    highlight = false,
+    custom = false,
+    children,
+}: {
+    label: string;
+    value?: string;
+    valueClassName?: string;
+    highlight?: boolean;
+    custom?: boolean;
+    children?: React.ReactNode;
+}) {
     return (
-        <div className={wrapperClassName}>
-            <div className="text-[10px] uppercase text-[#8a8a8a]">{label}</div>
-            <div className={`font-medium ${valueClassName}`}>{value}</div>
+        <div className={`rounded-lg border px-3 py-2.5 ${highlight ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200 bg-white'}`}>
+            <div className="text-[10px] uppercase tracking-wider font-medium text-slate-400">{label}</div>
+            {custom ? children : (
+                <div className={`text-lg font-semibold mt-0.5 ${valueClassName || 'text-slate-800'}`}>{value}</div>
+            )}
         </div>
     );
 }

@@ -19,6 +19,7 @@ import { useProjectList } from '@/lib/queries/projects';
 import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 import { useInitialBudget } from '@/lib/queries/initialBudgets';
+import { useAllSalaryHistory, type EmployeeSalaryHistoryRow } from '@/lib/queries/employeeSalaryHistory';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
 import type { Contract, Deal, Project } from '@/types/business';
@@ -88,6 +89,27 @@ function positiveNumber(value: number | null | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/**
+ * For a sparse salary-history timeline (rows created on each change,
+ * not every month), find the row that applied at `monthStart`: the
+ * most-recent row whose target_month is on or before that date.
+ * Returns null when the employee had no history row at or before that
+ * month — caller decides the fallback (we use the employee's current
+ * monthly_salary so tenants without populated history don't get ¥0).
+ */
+function applicableSalaryAt(history: EmployeeSalaryHistoryRow[], monthStart: Date): number | null {
+    let latest: EmployeeSalaryHistoryRow | null = null;
+    for (const row of history) {
+        const rowMonth = new Date(`${row.targetMonth}T00:00:00Z`);
+        if (rowMonth.getTime() <= monthStart.getTime()) {
+            if (!latest || new Date(`${latest.targetMonth}T00:00:00Z`).getTime() < rowMonth.getTime()) {
+                latest = row;
+            }
+        }
+    }
+    return latest ? latest.monthlySalary : null;
+}
+
 function projectedDealValue(deal: Deal, contract?: Contract): number {
     const contractValue = positiveNumber(contract?.totalValue);
     if (contractValue > 0) return contractValue;
@@ -101,10 +123,11 @@ function projectedDealValue(deal: Deal, contract?: Contract): number {
 
 function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, fallback?: Date): Date {
     // Won deals: use the actual project / contract start (work is happening).
-    // Non-won deals: estimate from expectedCloseDate. We add +1 day because
-    // close-date conventionally lands the day before kickoff, so without the
-    // bump a deal whose close is Jun 30 would be plotted from June instead
-    // of the intended July project window.
+    // Non-won deals: use expectedCloseDate verbatim — the UI labels this field
+    // "Expected Start Date" and sales reps enter the kick-off day. The legacy
+    // +1 day offset (close-date conventionally lands the day before kickoff)
+    // was removed once EstimationAI's verbatim interpretation was confirmed
+    // as the intended semantic.
     //
     // `finalConfirmedAt` is intentionally NOT in the chain — it marks when
     // the estimate was locked, not when work begins. Including it caused
@@ -115,9 +138,7 @@ function forecastStartDate(deal: Deal, contract?: Contract, project?: Project, f
     }
 
     if (deal.expectedCloseDate) {
-        const closeDate = new Date(deal.expectedCloseDate);
-        const dayAfterClose = new Date(closeDate.getTime() + 24 * 60 * 60 * 1000);
-        return startOfUtcMonth(dayAfterClose);
+        return startOfUtcMonth(new Date(deal.expectedCloseDate));
     }
 
     return fallback ?? startOfUtcMonth(new Date());
@@ -273,6 +294,7 @@ export default function ForecastPage() {
     useProjectList({ per_page: 500 });
     useInvoiceList({ per_page: 1000 });
     useTimeEntryList({ per_page: 1000 });
+    const { data: salaryHistoryData = [] } = useAllSalaryHistory();
 
     const [rankScope, setRankScope] = useState<RankScope>('S');
     const [prediction, setPrediction] = useState<AIForecastResult | null>(null);
@@ -357,9 +379,43 @@ export default function ForecastPage() {
         }));
 
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
-        const monthlyPayroll = store.employees
+        const currentMonthStart = startOfUtcMonth(new Date());
+
+        // Today's headcount × today's salary — used for current + future
+        // months. Past months derive payroll per-month from the salary
+        // history below (with a fallback to this number when an employee
+        // has no applicable history row).
+        const currentMonthlyPayroll = store.employees
             .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
             .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+
+        // Index sparse salary-history rows by employee for cheap per-month
+        // lookup. Rows are created on salary changes (not every month), so
+        // applicableSalaryAt picks the most-recent row whose target_month
+        // is on or before the queried month.
+        const salaryHistoryByEmployee = new Map<string, EmployeeSalaryHistoryRow[]>();
+        for (const row of salaryHistoryData) {
+            const list = salaryHistoryByEmployee.get(row.employeeId);
+            if (list) {
+                list.push(row);
+            } else {
+                salaryHistoryByEmployee.set(row.employeeId, [row]);
+            }
+        }
+
+        // Hoisted out of the monthCosts .map() callback so we don't end up
+        // nesting filter+reduce inside a map inside the memo (SonarLint S2004).
+        const payrollForPastMonth = (monthDate: Date): number => {
+            let total = 0;
+            for (const employee of store.employees) {
+                if (employee.status !== 'Active' && employee.status !== 'On Leave') continue;
+                const history = salaryHistoryByEmployee.get(employee.id);
+                const applicable = history ? applicableSalaryAt(history, monthDate) : null;
+                total += applicable ?? positiveNumber(employee.monthlySalary);
+            }
+            return total;
+        };
+
         const monthCosts = new Map(
             monthRange.map((monthDate) => {
                 const month = monthDate.getUTCMonth() + 1;
@@ -367,9 +423,32 @@ export default function ForecastPage() {
                 const monthlyOverhead = store.globalOverheads
                     .filter((overhead) => !overhead.effectiveYear || (overhead.effectiveYear === year && overhead.effectiveMonth === month))
                     .reduce((sum, overhead) => sum + positiveNumber(overhead.monthlyCost), 0);
-                return [toMonthKey(monthDate), monthlyPayroll + monthlyOverhead] as const;
+
+                // Past months: per-employee historical salary, with a
+                // fallback to current monthly_salary when no history exists
+                // (e.g., tenants who haven't populated employee_salary_history).
+                // Current + future: today's payroll snapshot.
+                const payrollForMonth = monthDate.getTime() < currentMonthStart.getTime()
+                    ? payrollForPastMonth(monthDate)
+                    : currentMonthlyPayroll;
+
+                return [toMonthKey(monthDate), payrollForMonth + monthlyOverhead] as const;
             }),
         );
+
+        // Past months (everything before the current month) show actual
+        // cash collected from paid invoices, not the pipeline projection.
+        // Current month and future months stay on the probability-weighted
+        // pipeline projection — current month isn't done yet, so partial
+        // actuals would look misleadingly low.
+        for (const invoice of store.invoices) {
+            if (!invoice.paidAt || !invoice.paidAmount) continue;
+            const paidMonth = startOfUtcMonth(new Date(invoice.paidAt));
+            if (paidMonth >= currentMonthStart) continue;
+            const row = rowMap.get(toMonthKey(paidMonth));
+            if (!row) continue;
+            row.income += invoice.paidAmount;
+        }
 
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
@@ -377,6 +456,7 @@ export default function ForecastPage() {
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
+                if (monthDate < currentMonthStart) continue;
                 if (monthDate < source.activeStart || monthDate > activeEnd) continue;
                 const row = rowMap.get(toMonthKey(monthDate));
                 if (!row) continue;
@@ -386,7 +466,7 @@ export default function ForecastPage() {
         }
 
         return rows.map((row) => {
-            const cost = monthCosts.get(row.monthKey) ?? monthlyPayroll;
+            const cost = monthCosts.get(row.monthKey) ?? currentMonthlyPayroll;
             const profit = row.income - cost;
 
             return {
@@ -395,7 +475,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices, salaryHistoryData]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
@@ -608,13 +688,14 @@ export default function ForecastPage() {
                     negotiation: 'A',
                 };
                 const value = projectedDealValue(d, contractByDealId.get(d.id));
-                // Deal type doesn't expose created/updated timestamps; approximate
-                // daysInStage from expectedCloseDate (early proxy) — Claude uses it
-                // as a relative signal, not an exact metric.
-                const proxyStageDate = d.expectedCloseDate
-                    ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime() - 30 * 86_400_000
+                // Days-in-stage proxy: use the deal's most-recent mutation
+                // timestamp. Real stage_entered_at tracking is a future feature;
+                // updated_at is close enough (changes on any deal write) and far
+                // better than the legacy `expectedCloseDate - 30 days` fabrication.
+                const stageProxyMs = d.updatedAt
+                    ? new Date(d.updatedAt).getTime()
                     : today - 30 * 86_400_000;
-                const daysInStage = Math.max(0, Math.floor((today - proxyStageDate) / 86_400_000));
+                const daysInStage = Math.max(0, Math.floor((today - stageProxyMs) / 86_400_000));
                 const expectedClose = d.expectedCloseDate
                     ? new Date(`${d.expectedCloseDate}T00:00:00Z`).getTime()
                     : null;
@@ -803,7 +884,7 @@ export default function ForecastPage() {
 
             {hasForecastData ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <Card className="shadow-sm border-slate-100 lg:col-span-1 bg-white text-slate-900">
+                    <Card variant="plain" className="lg:col-span-1 text-slate-900">
                         <CardHeader className="pb-4 border-b border-slate-100">
                             <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
                                 <Sparkles className="h-5 w-5 text-blue-500" />
@@ -995,7 +1076,7 @@ export default function ForecastPage() {
                     </Card>
 
                     <div className="lg:col-span-2 space-y-6">
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <span>{t('forecast_chart_title')}</span>
@@ -1058,7 +1139,7 @@ export default function ForecastPage() {
                         </Card>
 
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_income_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-blue-600">
@@ -1066,7 +1147,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_cost_label', { window: forecastWindowLabel })}</p>
                                     <span className="mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight text-slate-900">
@@ -1074,7 +1155,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_profit_kpi', { window: forecastWindowLabel })}</p>
                                     <span className={`mt-auto block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -1082,7 +1163,7 @@ export default function ForecastPage() {
                                     </span>
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{t('forecast_year_end_profit_label', { year: forecastFiscalYear })}</p>
                                     {hasFiscalYearBudget ? (
@@ -1094,7 +1175,7 @@ export default function ForecastPage() {
                                     )}
                                 </CardContent>
                             </Card>
-                            <Card className="h-full min-h-[176px] shadow-sm border-slate-100">
+                            <Card variant="plain" className="h-full min-h-[176px]">
                                 <CardContent className="flex h-full flex-col p-5">
                                     <p className="min-h-[3.5rem] text-sm font-medium leading-7 text-slate-500">{targetGap.label}</p>
                                     <span className={`mt-1 block break-words text-[clamp(1.9rem,2vw,2.5rem)] font-bold leading-tight tracking-tight ${targetGap.tone}`}>
@@ -1105,7 +1186,7 @@ export default function ForecastPage() {
                             </Card>
                         </div>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <BarChart3 className="h-5 w-5 text-blue-500" />
@@ -1147,7 +1228,7 @@ export default function ForecastPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-slate-100">
+                        <Card variant="plain">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg">{t('forecast_monthly_title')}</CardTitle>
                                 <CardDescription>{t('forecast_monthly_desc')}</CardDescription>

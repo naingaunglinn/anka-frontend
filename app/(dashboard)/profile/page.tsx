@@ -155,7 +155,7 @@ export default function ProfilePage() {
                 <p className="text-[#4a4a4a] mt-1">{t('profile_description')}</p>
             </div>
 
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                         <User className="w-5 h-5 text-[#8a8a8a]" />
@@ -221,7 +221,7 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader>
                     <CardTitle className="text-lg">{t('account_details')}</CardTitle>
                     <CardDescription>{t('account_details_description')}</CardDescription>
@@ -240,7 +240,7 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-[#e6e9ee]">
+            <Card variant="plain">
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                         <Lock className="w-5 h-5 text-[#8a8a8a]" />

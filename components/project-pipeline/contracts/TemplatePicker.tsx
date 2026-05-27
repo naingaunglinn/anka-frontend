@@ -57,13 +57,13 @@ export function TemplatePicker({
                         onClick={() => onSelect(t.id)}
                         className={`text-left rounded-lg border-2 p-4 transition-all ${
                             isSelected
-                                ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
+                                ? 'border-[var(--color-ai-500)] bg-[var(--color-ai-50)]/50 shadow-sm'
                                 : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
                         }`}
                     >
                         <div className="flex items-start justify-between gap-2 mb-2">
                             <div className={`h-9 w-9 rounded-md flex items-center justify-center ${
-                                isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                isSelected ? 'bg-[var(--color-ai-100)] text-[var(--color-ai-700)]' : 'bg-slate-100 text-slate-600'
                             }`}>
                                 <Icon className="h-5 w-5" />
                             </div>

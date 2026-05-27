@@ -267,8 +267,8 @@ export default function ContractDetailPage() {
     if (contractQuery.isLoading) {
         return (
             <div className="p-6 space-y-6">
-                <Card className="h-32 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
-                <Card className="h-48 animate-pulse border-[#e6e9ee] bg-slate-100 shadow-sm" />
+                <Card variant="plain" className="h-32 animate-pulse bg-slate-100" />
+                <Card variant="plain" className="h-48 animate-pulse bg-slate-100" />
             </div>
         );
     }
@@ -276,9 +276,9 @@ export default function ContractDetailPage() {
     if (contractQuery.isError || !contract) {
         return (
             <div className="p-6">
-                <Card className="border-[#e6e9ee] shadow-sm">
+                <Card variant="plain">
                     <CardContent className="flex h-40 flex-col items-center justify-center gap-3">
-                        <p className="text-sm text-[#4a4a4a]">Could not load contract.</p>
+                        <p className="text-sm text-[var(--color-text-subtle)]">Could not load contract.</p>
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={() => router.push('/contracts')}>Back to contracts</Button>
                             <Button variant="outline" onClick={() => contractQuery.refetch()}>Retry</Button>
@@ -290,10 +290,10 @@ export default function ContractDetailPage() {
     }
 
     const statusBadgeClass = (s: Contract['status']) =>
-        s === 'Active'    ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
-        s === 'Signed'    ? 'bg-violet-50 text-violet-700 border-violet-200' :
-        s === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-        s === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+        s === 'Active'    ? 'bg-[var(--color-brand-50)] text-[var(--color-brand-700)] border-[var(--color-brand-100)]' :
+        s === 'Signed'    ? 'bg-[var(--color-info-50)] text-[var(--color-info-700)] border-[var(--color-info-100)]' :
+        s === 'Completed' ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-100)]' :
+        s === 'Cancelled' ? 'bg-[var(--color-error-50)] text-[var(--color-error-700)] border-[var(--color-error-100)]' :
                             'bg-slate-100 text-slate-700 border-slate-200';
 
     // Workflow bar steps — shared with /project-pipeline/[id]. The Deal step
@@ -329,19 +329,19 @@ export default function ContractDetailPage() {
                 <div>
                     <button
                         onClick={() => router.push('/contracts')}
-                        className="flex items-center gap-1 text-sm text-[#4a4a4a] hover:text-[#171717] mb-2"
+                        className="flex items-center gap-1 text-sm text-[var(--color-text-subtle)] hover:text-[var(--color-text-default)] mb-2"
                     >
                         <ArrowLeft className="h-4 w-4" /> {t('back_to_contracts')}
                     </button>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold tracking-tight text-[#171717]">
+                        <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {contract.contractNumber ?? contract.id.slice(0, 8)}
                         </h1>
                         <Badge variant="outline" className={statusBadgeClass(contract.status)}>
                             {CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status}
                         </Badge>
                     </div>
-                    <p className="text-[#8a8a8a] mt-1">{contract.client}</p>
+                    <p className="text-[var(--color-text-muted)] mt-1">{contract.client}</p>
                 </div>
                 <div className="flex gap-2">
                     {contract.status === 'Draft' && (
@@ -372,7 +372,7 @@ export default function ContractDetailPage() {
 
             {/* ── Contract metadata + financial summary ──────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 shadow-sm border-[#e6e9ee]">
+                <Card variant="plain" className="lg:col-span-2">
                     <CardContent className="p-6 space-y-4">
                         {/* Only deal-derived fields are shown here. Contract-
                             only fields (Payment Terms, PO #, Billing Email,
@@ -391,11 +391,11 @@ export default function ContractDetailPage() {
                             <MetaField icon={<DollarSign className="h-4 w-4" />} label={t('currency_label')} value={contract.currency ?? t('tenant_default_currency', { currency })} />
                         </div>
                         {(sourceDeal || linkedProject) && (
-                            <div className="border-t border-[#e6e9ee] pt-4 flex flex-wrap gap-3 text-sm">
+                            <div className="border-t border-[var(--color-border-default)] pt-4 flex flex-wrap gap-3 text-sm">
                                 {sourceDeal && (
                                     <button
                                         onClick={() => router.push(`/crm/${sourceDeal.id}`)}
-                                        className="inline-flex items-center gap-1 text-[#00a7f4] hover:underline"
+                                        className="inline-flex items-center gap-1 text-[var(--color-brand-500)] hover:underline"
                                     >
                                         {t('source_deal_link', { name: sourceDeal.name })} <ExternalLink className="h-3 w-3" />
                                     </button>
@@ -403,7 +403,7 @@ export default function ContractDetailPage() {
                                 {linkedProject && (
                                     <button
                                         onClick={() => router.push(`/projects/${linkedProject.id}`)}
-                                        className="inline-flex items-center gap-1 text-purple-600 hover:underline"
+                                        className="inline-flex items-center gap-1 text-[var(--color-info-700)] hover:underline"
                                     >
                                         {t('project_link', { name: linkedProject.projectNumber ?? linkedProject.name })} <ExternalLink className="h-3 w-3" />
                                     </button>
@@ -413,18 +413,18 @@ export default function ContractDetailPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6 space-y-4">
                         <div>
-                            <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">{t('contract_value')}</p>
-                            <p className="text-3xl font-bold tracking-tight text-[#171717]">{formatMoney(totalValue, currency)}</p>
+                            <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">{t('contract_value')}</p>
+                            <p className="text-3xl font-bold tracking-tight text-[var(--color-text-default)]">{formatMoney(totalValue, currency)}</p>
                         </div>
 
                         {MILESTONES_INVOICES_ENABLED ? (
                             <>
                                 {/* Money flow — what's been billed and collected */}
                                 <div>
-                                    <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Money flow</p>
+                                    <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-1">Money flow</p>
                                     <StackedBar
                                         segments={[
                                             { value: pctCashCollected,         color: 'bg-emerald-500', label: 'Cash collected' },
@@ -432,7 +432,7 @@ export default function ContractDetailPage() {
                                             { value: pctRemaining,             color: 'bg-slate-200',   label: 'Not yet invoiced' },
                                         ]}
                                     />
-                                    <div className="space-y-1 text-xs text-[#4a4a4a] pt-2">
+                                    <div className="space-y-1 text-xs text-[var(--color-text-subtle)] pt-2">
                                         <LegendRow color="bg-emerald-500" label="Cash collected"          value={formatMoney(cashCollected, currency)} />
                                         <LegendRow color="bg-amber-400"   label="Invoiced, not collected" value={formatMoney(invoicedNotCollected, currency)} />
                                         <LegendRow color="bg-slate-200"   label="Not yet invoiced"        value={formatMoney(remainingToInvoice, currency)} />
@@ -440,20 +440,20 @@ export default function ContractDetailPage() {
                                 </div>
 
                                 {/* Accrual revenue — earned, regardless of cash timing */}
-                                <div className="pt-3 border-t border-[#e6e9ee]">
-                                    <p className="text-[11px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">Revenue recognized <span className="font-normal lowercase text-[#8a8a8a]">(accrual)</span></p>
+                                <div className="pt-3 border-t border-[var(--color-border-default)]">
+                                    <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-1">Revenue recognized <span className="font-normal lowercase text-[var(--color-text-muted)]">(accrual)</span></p>
                                     <StackedBar
                                         segments={[
                                             { value: pctRecognized,    color: 'bg-violet-500', label: 'Recognized' },
                                             { value: pctNotRecognized, color: 'bg-slate-200',  label: 'Not yet earned' },
                                         ]}
                                     />
-                                    <div className="flex items-center justify-between text-xs text-[#4a4a4a] pt-2">
+                                    <div className="flex items-center justify-between text-xs text-[var(--color-text-subtle)] pt-2">
                                         <span className="inline-flex items-center gap-2">
                                             <span className="h-2 w-2 rounded-full bg-violet-500" />
                                             Σ accepted milestones
                                         </span>
-                                        <span className="font-medium text-[#171717]">{formatMoney(recognized, currency)}</span>
+                                        <span className="font-medium text-[var(--color-text-default)]">{formatMoney(recognized, currency)}</span>
                                     </div>
                                 </div>
                             </>
@@ -463,16 +463,16 @@ export default function ContractDetailPage() {
                                  * Source-of-truth for the contract draft + signed PDF is
                                  * /project-pipeline/{dealId} — link out to it instead of
                                  * duplicating that flow here. */}
-                                <div className="pt-2 border-t border-[#e6e9ee] space-y-3">
+                                <div className="pt-2 border-t border-[var(--color-border-default)] space-y-3">
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-[#8a8a8a]">{t('status')}</span>
+                                        <span className="text-[var(--color-text-muted)]">{t('status')}</span>
                                         <Badge variant="outline" className={statusBadgeClass(contract.status)}>
                                             {CONTRACT_STATUS_KEY[contract.status] ? t(CONTRACT_STATUS_KEY[contract.status]) : contract.status}
                                         </Badge>
                                     </div>
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-[#8a8a8a]">{t('signed_at')}</span>
-                                        <span className="font-medium text-[#171717]">
+                                        <span className="text-[var(--color-text-muted)]">{t('signed_at')}</span>
+                                        <span className="font-medium text-[var(--color-text-default)]">
                                             {contract.signedAt ? new Date(contract.signedAt).toLocaleDateString() : t('not_signed_yet')}
                                         </span>
                                     </div>
@@ -503,14 +503,14 @@ export default function ContractDetailPage() {
             </div>}
 
             {/* ── Milestone timeline ─────────────────────────────────────── */}
-            {MILESTONES_INVOICES_ENABLED && <Card className="shadow-sm border-[#e6e9ee]">
+            {MILESTONES_INVOICES_ENABLED && <Card variant="plain">
                 <CardContent className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-semibold text-[#171717]">Milestone timeline</p>
+                            <p className="text-sm font-semibold text-[var(--color-text-default)]">Milestone timeline</p>
                             {nextMilestone && (
-                                <p className="text-xs text-[#8a8a8a] mt-1">
-                                    Next: <span className="text-[#171717] font-medium">{nextMilestone.name}</span> due {nextMilestone.dueDate}
+                                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                                    Next: <span className="text-[var(--color-text-default)] font-medium">{nextMilestone.name}</span> due {nextMilestone.dueDate}
                                 </p>
                             )}
                         </div>
@@ -520,7 +520,7 @@ export default function ContractDetailPage() {
                     </div>
 
                     {milestones.length === 0 ? (
-                        <div className="text-center py-8 text-sm text-[#8a8a8a]">
+                        <div className="text-center py-8 text-sm text-[var(--color-text-muted)]">
                             No milestones yet. Add a milestone from the Contracts list to enable milestone-based invoicing.
                         </div>
                     ) : (
@@ -533,7 +533,7 @@ export default function ContractDetailPage() {
                                     const invoicedAgainst = linkedInvoices.reduce((s, i) => s + invoiceTotal(i), 0);
                                     const isOverdue = m.status !== 'Completed' && m.dueDate < today;
                                     return (
-                                        <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg border border-[#e6e9ee]">
+                                        <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border-default)]">
                                             <div className={`mt-1 h-2 w-2 rounded-full ${
                                                 m.status === 'Accepted' ? 'bg-emerald-600' :
                                                 m.status === 'Completed' ? 'bg-emerald-400' :
@@ -543,19 +543,19 @@ export default function ContractDetailPage() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <div className="min-w-0">
-                                                        <p className="font-medium text-[#171717] truncate">{m.name}</p>
+                                                        <p className="font-medium text-[var(--color-text-default)] truncate">{m.name}</p>
                                                         {m.acceptanceCriteria && (
-                                                            <p className="text-xs text-[#8a8a8a] mt-0.5 line-clamp-2">{m.acceptanceCriteria}</p>
+                                                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5 line-clamp-2">{m.acceptanceCriteria}</p>
                                                         )}
                                                     </div>
-                                                    <span className="text-sm font-semibold text-[#171717] flex-shrink-0">{formatMoney(m.amount, currency)}</span>
+                                                    <span className="text-sm font-semibold text-[var(--color-text-default)] flex-shrink-0">{formatMoney(m.amount, currency)}</span>
                                                 </div>
-                                                <div className="flex items-center flex-wrap gap-2 mt-1.5 text-xs text-[#8a8a8a]">
+                                                <div className="flex items-center flex-wrap gap-2 mt-1.5 text-xs text-[var(--color-text-muted)]">
                                                     <span className={isOverdue ? 'text-rose-600 font-medium' : ''}>Due {m.dueDate}</span>
                                                     <Badge variant="outline" className={
                                                         m.status === 'Accepted' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
                                                         m.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                        m.status === 'In Progress' ? 'bg-[#00a7f4]/5 text-[#0086c4] border-[#00a7f4]/20' :
+                                                        m.status === 'In Progress' ? 'bg-[#00a7f4]/5 text-[var(--color-brand-700)] border-[#00a7f4]/20' :
                                                                                      'bg-amber-50 text-amber-700 border-amber-200'
                                                     }>
                                                         {m.status}
@@ -593,14 +593,14 @@ export default function ContractDetailPage() {
 
             {/* ── Activity timeline ─────────────────────────────────────── */}
             {activityEvents.length > 0 && (
-                <Card className="shadow-sm border-[#e6e9ee]">
+                <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center gap-2 mb-4">
-                            <Activity className="h-4 w-4 text-[#8a8a8a]" />
-                            <p className="text-sm font-semibold text-[#171717]">{t('activity')}</p>
-                            <span className="text-xs text-[#8a8a8a]">— {t('last_n_events', { count: activityEvents.length })}</span>
+                            <Activity className="h-4 w-4 text-[var(--color-text-muted)]" />
+                            <p className="text-sm font-semibold text-[var(--color-text-default)]">{t('activity')}</p>
+                            <span className="text-xs text-[var(--color-text-muted)]">— {t('last_n_events', { count: activityEvents.length })}</span>
                         </div>
-                        <ol className="relative border-l border-[#e6e9ee] ml-2">
+                        <ol className="relative border-l border-[var(--color-border-default)] ml-2">
                             {activityEvents.map((ev, i) => {
                                 const iconClass =
                                     ev.icon === 'paid'     ? 'bg-emerald-100 text-emerald-700' :
@@ -620,8 +620,8 @@ export default function ContractDetailPage() {
                                             <Icon className="h-2.5 w-2.5" />
                                         </div>
                                         <div className="flex items-baseline gap-3">
-                                            <p className="text-sm text-[#171717]">{ev.label}</p>
-                                            <p className="text-xs text-[#8a8a8a] flex-shrink-0">{new Date(ev.ts).toISOString().slice(0, 10)}</p>
+                                            <p className="text-sm text-[var(--color-text-default)]">{ev.label}</p>
+                                            <p className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{new Date(ev.ts).toISOString().slice(0, 10)}</p>
                                         </div>
                                     </li>
                                 );
@@ -632,12 +632,12 @@ export default function ContractDetailPage() {
             )}
 
             {/* ── Invoice ledger ─────────────────────────────────────────── */}
-            {MILESTONES_INVOICES_ENABLED && <Card className="shadow-sm border-[#e6e9ee]">
+            {MILESTONES_INVOICES_ENABLED && <Card variant="plain">
                 <CardContent className="p-0">
-                    <div className="px-6 py-4 border-b border-[#e6e9ee] flex items-center justify-between">
+                    <div className="px-6 py-4 border-b border-[var(--color-border-default)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-semibold text-[#171717]">Invoice ledger</p>
-                            <p className="text-xs text-[#8a8a8a] mt-0.5">All invoices issued against this contract.</p>
+                            <p className="text-sm font-semibold text-[var(--color-text-default)]">Invoice ledger</p>
+                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">All invoices issued against this contract.</p>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => router.push('/contracts')}>
                             Create invoice
@@ -659,7 +659,7 @@ export default function ContractDetailPage() {
                         <TableBody>
                             {invoices.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-6 text-[#8a8a8a]">
+                                    <TableCell colSpan={8} className="text-center py-6 text-[var(--color-text-muted)]">
                                         No invoices yet. Use Create Invoice above to issue the first one.
                                     </TableCell>
                                 </TableRow>
@@ -677,7 +677,7 @@ export default function ContractDetailPage() {
                                     return (
                                         <TableRow key={inv.id}>
                                             <TableCell className="font-medium">{inv.invoiceNumber ?? inv.id.slice(0, 8)}</TableCell>
-                                            <TableCell className="text-[#4a4a4a] text-sm">{milestone?.name ?? '—'}</TableCell>
+                                            <TableCell className="text-[var(--color-text-subtle)] text-sm">{milestone?.name ?? '—'}</TableCell>
                                             <TableCell>{inv.issueDate}</TableCell>
                                             <TableCell className={isOverdue ? 'text-rose-600 font-medium' : ''}>{inv.dueDate ?? '—'}</TableCell>
                                             <TableCell>
@@ -692,11 +692,11 @@ export default function ContractDetailPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">{formatMoney(total, currency)}</TableCell>
-                                            <TableCell className="text-right text-[#4a4a4a]">
+                                            <TableCell className="text-right text-[var(--color-text-subtle)]">
                                                 {paid > 0 ? (
                                                     <span>
                                                         {formatMoney(paid, currency)}
-                                                        {paid < total && <span className="text-[#8a8a8a]"> / {formatMoney(total, currency)}</span>}
+                                                        {paid < total && <span className="text-[var(--color-text-muted)]"> / {formatMoney(total, currency)}</span>}
                                                     </span>
                                                 ) : '—'}
                                             </TableCell>
@@ -757,7 +757,7 @@ export default function ContractDetailPage() {
                             <Input type="date" value={signedDate} onChange={e => setSignedDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">{t('client_signer_name')} <span className="text-[#4a4a4a] text-xs font-normal">{t('optional')}</span></label>
+                            <label className="text-sm font-medium">{t('client_signer_name')} <span className="text-[var(--color-text-subtle)] text-xs font-normal">{t('optional')}</span></label>
                             <Input
                                 value={signedBy}
                                 onChange={e => setSignedBy(e.target.value)}
@@ -791,7 +791,7 @@ export default function ContractDetailPage() {
                             <Input type="date" value={acceptedDate} onChange={e => setAcceptedDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Accepted by <span className="text-[#4a4a4a] text-xs font-normal">(optional)</span></label>
+                            <label className="text-sm font-medium">Accepted by <span className="text-[var(--color-text-subtle)] text-xs font-normal">(optional)</span></label>
                             <Input
                                 value={acceptedByClient}
                                 onChange={e => setAcceptedByClient(e.target.value)}
@@ -840,7 +840,7 @@ export default function ContractDetailPage() {
                                 value={paymentAmount}
                                 onChange={e => setPaymentAmount(e.target.value)}
                             />
-                            <p className="text-xs text-[#8a8a8a]">
+                            <p className="text-xs text-[var(--color-text-muted)]">
                                 Enter the full remaining balance to close out the invoice, or a partial amount to leave it Partially Paid.
                             </p>
                         </div>
@@ -888,7 +888,7 @@ export default function ContractDetailPage() {
                             <Input value={editInvNotes} onChange={e => setEditInvNotes(e.target.value)} placeholder="e.g. Phase 1 delivery" />
                         </div>
                         <Button
-                            className="w-full bg-[#171717] hover:bg-[#00a7f4]"
+                            className="w-full bg-[var(--color-text-default)] hover:bg-[#00a7f4]"
                             onClick={handleSaveInvoice}
                             disabled={updateInvoice.isPending || !editInvAmount}
                         >
@@ -911,7 +911,7 @@ function ChecklistItem({ done, label }: { done: boolean; label: string }) {
             {done
                 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
                 : <div className="h-4 w-4 rounded-full border-2 border-violet-300 flex-shrink-0" />}
-            <span className={done ? 'text-[#4a4a4a] line-through' : 'text-violet-900'}>{label}</span>
+            <span className={done ? 'text-[var(--color-text-subtle)] line-through' : 'text-violet-900'}>{label}</span>
         </div>
     );
 }
@@ -919,11 +919,11 @@ function ChecklistItem({ done, label }: { done: boolean; label: string }) {
 function MetaField({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
     return (
         <div>
-            <div className="flex items-center gap-1.5 text-xs text-[#8a8a8a] mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] mb-0.5">
                 {icon}
                 <span>{label}</span>
             </div>
-            <p className="text-sm text-[#171717] truncate">{value}</p>
+            <p className="text-sm text-[var(--color-text-default)] truncate">{value}</p>
         </div>
     );
 }
@@ -947,7 +947,7 @@ function LegendRow({ color, label, value }: { color: string; label: string; valu
                 <span className={`h-2 w-2 rounded-full ${color}`} />
                 <span>{label}</span>
             </div>
-            <span className="font-medium text-[#171717]">{value}</span>
+            <span className="font-medium text-[var(--color-text-default)]">{value}</span>
         </div>
     );
 }
@@ -956,20 +956,20 @@ function Kpi({ label, value, hint, tone = 'neutral' }: { label: string; value: s
     const toneClass =
         tone === 'amber' ? 'text-amber-700' :
         tone === 'rose'  ? 'text-rose-700'  :
-                           'text-[#171717]';
+                           'text-[var(--color-text-default)]';
     const icon =
         tone === 'amber' ? <AlertTriangle className="h-4 w-4 text-amber-500" /> :
         tone === 'rose'  ? <AlertTriangle className="h-4 w-4 text-rose-500" /> :
                            null;
     return (
-        <Card className="shadow-sm border-[#e6e9ee]">
+        <Card variant="plain">
             <CardContent className="p-5">
                 <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-[#8a8a8a] uppercase tracking-wide">{label}</p>
+                    <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">{label}</p>
                     {icon}
                 </div>
                 <p className={`text-2xl font-bold tracking-tight mt-1 ${toneClass}`}>{value}</p>
-                {hint && <p className="text-xs text-[#8a8a8a] mt-1">{hint}</p>}
+                {hint && <p className="text-xs text-[var(--color-text-muted)] mt-1">{hint}</p>}
             </CardContent>
         </Card>
     );

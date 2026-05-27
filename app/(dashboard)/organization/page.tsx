@@ -72,6 +72,7 @@ export default function EmployeesPage() {
     // Employees filter state — keep client-side; the dataset is small.
     const [empSearchName, setEmpSearchName] = useState('');
     const [empRoleFilter, setEmpRoleFilter] = useState<string>('all');
+    const [empRankFilter, setEmpRankFilter] = useState<string>('all');
     const [empStatusFilter, setEmpStatusFilter] = useState<string>('all');
 
     // Apply the three search filters above the EmployeesTable. All client-side
@@ -81,10 +82,11 @@ export default function EmployeesPage() {
         return store.employees.filter((e) => {
             if (needle && !e.name.toLowerCase().includes(needle)) return false;
             if (empRoleFilter !== 'all' && e.role !== empRoleFilter) return false;
+            if (empRankFilter !== 'all' && e.rankId !== empRankFilter) return false;
             if (empStatusFilter !== 'all' && e.status !== empStatusFilter) return false;
             return true;
         });
-    }, [store.employees, empSearchName, empRoleFilter, empStatusFilter]);
+    }, [store.employees, empSearchName, empRoleFilter, empRankFilter, empStatusFilter]);
 
     // Departments State
     const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
@@ -242,11 +244,12 @@ export default function EmployeesPage() {
     const handleAddDepartment = async (data: DepartmentFormValues) => {
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.addDepartment({
-            id:          crypto.randomUUID(),
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
-            headcount:   0,
+            id:                  crypto.randomUUID(),
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
+            headcount:           0,
         });
         setIsDeptDialogOpen(false);
     };
@@ -255,9 +258,10 @@ export default function EmployeesPage() {
         if (!editingDepartment) return;
         const manager = store.employees.find(e => e.id === data.managerId);
         await store.updateDepartment(editingDepartment.id, {
-            name:        data.name,
-            managerId:   data.managerId,
-            managerName: manager?.name,
+            name:                data.name,
+            managerId:           data.managerId,
+            managerName:         manager?.name,
+            isDeliveryEligible:  data.isDeliveryEligible,
         });
         setEditingDepartment(null);
     };
@@ -423,7 +427,7 @@ export default function EmployeesPage() {
                             </DialogHeader>
                             {editingDepartment && (
                                 <DepartmentForm
-                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId }}
+                                    initialData={{ name: editingDepartment.name, managerId: editingDepartment.managerId, isDeliveryEligible: editingDepartment.isDeliveryEligible ?? true }}
                                     employees={store.employees}
                                     onSubmit={handleEditDepartment}
                                     onCancel={() => setEditingDepartment(null)}
@@ -492,7 +496,7 @@ export default function EmployeesPage() {
                                     <Plus className="w-4 h-4" /> Add Employee
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
+                            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>Add New Employee</DialogTitle>
                                     <DialogDescription>Add a new employee to the roster. Cost per hour will be automatically calculated.</DialogDescription>
@@ -520,7 +524,7 @@ export default function EmployeesPage() {
                                     className="pl-9"
                                 />
                             </div>
-                            <div className="md:w-48">
+                            <div className="md:w-44">
                                 <Select value={empRoleFilter} onValueChange={setEmpRoleFilter}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="All roles" />
@@ -533,7 +537,20 @@ export default function EmployeesPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="md:w-48">
+                            <div className="md:w-44">
+                                <Select value={empRankFilter} onValueChange={setEmpRankFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All ranks" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All ranks</SelectItem>
+                                        {ranks.map((r) => (
+                                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="md:w-44">
                                 <Select value={empStatusFilter} onValueChange={setEmpStatusFilter}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="All statuses" />
@@ -547,12 +564,12 @@ export default function EmployeesPage() {
                                 </Select>
                             </div>
                         </div>
-                        {(empSearchName || empRoleFilter !== 'all' || empStatusFilter !== 'all') && (
+                        {(empSearchName || empRoleFilter !== 'all' || empRankFilter !== 'all' || empStatusFilter !== 'all') && (
                             <p className="mt-2 text-xs text-[#8a8a8a]">
                                 Showing {filteredEmployees.length} of {store.employees.length} employees.
                                 <button
                                     type="button"
-                                    onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpStatusFilter('all'); }}
+                                    onClick={() => { setEmpSearchName(''); setEmpRoleFilter('all'); setEmpRankFilter('all'); setEmpStatusFilter('all'); }}
                                     className="ml-2 text-slate-700 underline hover:no-underline"
                                 >
                                     Clear filters
@@ -570,7 +587,7 @@ export default function EmployeesPage() {
                     />
 
                     <Dialog open={!!editingEmployee} onOpenChange={(open) => !open && setEditingEmployee(null)}>
-                        <DialogContent className="sm:max-w-[500px]">
+                        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Edit Employee</DialogTitle>
                                 <DialogDescription>Update the details for {editingEmployee?.name}.</DialogDescription>
@@ -688,7 +705,7 @@ export default function EmployeesPage() {
                 {/* SALARY STRUCTURE TAB */}
                 <TabsContent value="salary" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Salary Multipliers</CardTitle>
                                 <CardDescription>Configure taxes, benefits, and bonus %.</CardDescription>
@@ -720,7 +737,7 @@ export default function EmployeesPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-[#e6e9ee]">
+                        <Card variant="plain">
                             <CardHeader>
                                 <CardTitle>Estimation Defaults</CardTitle>
                                 <CardDescription>
