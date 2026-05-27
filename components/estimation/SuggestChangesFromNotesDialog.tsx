@@ -98,6 +98,7 @@ function applyDelta(
     baseRoles: GhostRole[],
     rolesByTitle: Map<string, string>,
     fallbackRoleId: string,
+    roleIdToCapCode: Map<string, string>,
 ): { resources: EstimationResource[]; overheads: ProjectOverhead[]; roles: GhostRole[] } {
     // Start by removing the accepted "remove" items (matched by feature_name).
     const removedFeatureNames = new Set(
@@ -155,12 +156,18 @@ function applyDelta(
         }));
 
     // ── Roles (ghost roles) — matched by role_type ──────────────────────────
+    // Ghost roles on the deal may store a UUID as roleType (mapped by the AI
+    // Team Builder). The AI delta returns capacity codes ("backend", "pm", …).
+    // Normalise to capacity code before comparing so matches succeed.
+    const normalizeRoleType = (rt: string) =>
+        (roleIdToCapCode.get(rt) ?? rt).toLowerCase().trim();
+
     const removedRoleTypes = new Set(
         delta.roles.remove
             .filter((_, i) => selection.roleRemoves[i])
             .map(r => r.roleType.toLowerCase().trim()),
     );
-    let roles = baseRoles.filter(r => !removedRoleTypes.has(r.roleType.toLowerCase().trim()));
+    let roles = baseRoles.filter(r => !removedRoleTypes.has(normalizeRoleType(r.roleType)));
 
     const roleModifies = new Map(
         delta.roles.modify
@@ -168,7 +175,7 @@ function applyDelta(
             .map(m => [m.roleType.toLowerCase().trim(), m]),
     );
     roles = roles.map(r => {
-        const m = roleModifies.get(r.roleType.toLowerCase().trim());
+        const m = roleModifies.get(normalizeRoleType(r.roleType));
         return m
             ? {
                 ...r,
@@ -209,6 +216,7 @@ export function SuggestChangesFromNotesDialog({
     onApply,
 }: SuggestChangesFromNotesDialogProps) {
     const roles = useBusinessStore(s => s.roles);
+    const employees = useBusinessStore(s => s.employees);
     const rolesByTitle = useMemo(
         () => new Map(roles.map(r => [r.title.toLowerCase().trim(), r.id])),
         [roles],
@@ -218,6 +226,21 @@ export function SuggestChangesFromNotesDialog({
         [roles],
     );
     const fallbackRoleId = roles[0]?.id ?? '';
+    // Reverse map: role UUID → capacity code. The AI Team Builder saves ghost
+    // roles with UUID roleTypes; the AI delta returns capacity codes. This map
+    // lets applyDelta normalise UUIDs back to capacity codes for matching.
+    const roleIdToCapCode = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const r of roles) {
+            const emps = employees.filter(e => e.jobRoleId === r.id && e.capacityRole);
+            for (const e of emps) {
+                if (e.capacityRole && !m.has(r.id)) {
+                    m.set(r.id, e.capacityRole);
+                }
+            }
+        }
+        return m;
+    }, [roles, employees]);
 
     const { suggest, isSuggesting, lastDelta, reset } = useGenerateAIEstimationDelta();
     const [notes, setNotes] = useState('');
@@ -272,7 +295,7 @@ export function SuggestChangesFromNotesDialog({
                 })),
                 currentOverheads.map(o => ({ name: o.name, cost: o.cost })),
                 currentRoles.map(r => ({
-                    roleType: r.roleType,
+                    roleType: roleIdToCapCode.get(r.roleType) ?? r.roleType,
                     quantity: r.quantity,
                     months: r.months,
                     minMonthlySalary: r.minMonthlySalary,
@@ -302,6 +325,7 @@ export function SuggestChangesFromNotesDialog({
                 currentRoles,
                 rolesByTitle,
                 fallbackRoleId,
+                roleIdToCapCode,
             );
             await onApply({ ...merged, contextNotes: notes.trim() });
             onOpenChange(false);
@@ -508,7 +532,8 @@ export function SuggestChangesFromNotesDialog({
                                     />
                                 ))}
                                 {delta.roles.modify.map((r, i) => {
-                                    const old = currentRoles.find(x => x.roleType.toLowerCase().trim() === r.roleType.toLowerCase().trim());
+                                    const target = r.roleType.toLowerCase().trim();
+                                    const old = currentRoles.find(x => (roleIdToCapCode.get(x.roleType) ?? x.roleType).toLowerCase().trim() === target);
                                     const newMeta = `${r.newQuantity}× · ${r.newMonths}mo · ${formatMoney(r.newMinMonthlySalary, currency)}–${formatMoney(r.newMaxMonthlySalary, currency)}/mo`;
                                     return (
                                         <DiffRow
@@ -524,7 +549,8 @@ export function SuggestChangesFromNotesDialog({
                                     );
                                 })}
                                 {delta.roles.remove.map((r, i) => {
-                                    const exists = currentRoles.some(x => x.roleType.toLowerCase().trim() === r.roleType.toLowerCase().trim());
+                                    const target = r.roleType.toLowerCase().trim();
+                                    const exists = currentRoles.some(x => (roleIdToCapCode.get(x.roleType) ?? x.roleType).toLowerCase().trim() === target);
                                     return (
                                         <DiffRow
                                             key={`role-rem-${i}`}
