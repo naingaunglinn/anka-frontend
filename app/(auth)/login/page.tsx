@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { fallbackPathFor } from '@/lib/route-permissions';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,8 +41,9 @@ function LoginFormContent() {
         try {
             await login({ email: values.email, password: values.password });
             const { useAuthStore } = await import('@/store/authStore');
-            const isSuperAdmin = useAuthStore.getState().user?.isSuperAdmin ?? false;
-            router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard');
+            const user = useAuthStore.getState().user;
+            const isSuperAdmin = user?.isSuperAdmin ?? false;
+            router.push(isSuperAdmin ? '/admin/dashboard' : fallbackPathFor(user));
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { message?: string } } };
             form.setError('email', {

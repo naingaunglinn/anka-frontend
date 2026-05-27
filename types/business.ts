@@ -406,6 +406,7 @@ export interface ProjectTeamAssignment {
     employeeId: string;
     employeeName?: string;
     departmentName?: string;
+    capacityRole?: string;
     rankName?: string;
     rankCode?: string;
     allocatedHours: number;
@@ -592,9 +593,16 @@ export interface CascadeShiftPreview {
     newEnd: string;
 }
 
+export interface ReverseConflict {
+    swapPhaseId: string;
+    swapPhaseName: string;
+    conflicts: ReassignmentConflict[];
+}
+
 export interface ReassignmentCheck {
     hasConflicts: boolean;
     conflicts: ReassignmentConflict[];
+    reverseConflicts: ReverseConflict[];
     readjustedDates: { plannedStart: string; plannedEnd: string } | null;
     cascadePreview: CascadeShiftPreview[];
     warnings: string[];

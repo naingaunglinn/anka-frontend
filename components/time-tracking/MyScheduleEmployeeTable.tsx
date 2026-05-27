@@ -141,6 +141,7 @@ export function MyScheduleEmployeeTable({ projectId, employeeId }: Props) {
                 open={!!openPhase}
                 phase={openPhase}
                 projectId={projectId}
+                effectiveToday={asOf ?? new Date().toISOString().slice(0, 10)}
                 onClose={() => setOpenPhase(null)}
             />
         </Card>
@@ -236,15 +237,17 @@ function LogProgressModal({
     open,
     phase,
     projectId,
+    effectiveToday,
     onClose,
 }: {
     open: boolean;
     phase: ProjectTaskPhaseAssignment | null;
     projectId: string;
+    effectiveToday: string;
     onClose: () => void;
 }) {
     const t = useTranslations();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = effectiveToday;
     const [logDate, setLogDate]        = useState(today);
     const [progressHours, setProgress] = useState('');
     const [usedHours, setUsed]         = useState('');
@@ -437,7 +440,7 @@ function LogProgressModal({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
                             <label className="text-xs font-medium text-slate-600">{t('log_date')}</label>
-                            <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-9 bg-white border-slate-300 shadow-sm" />
+                            <Input type="date" value={logDate} max={today} onChange={(e) => setLogDate(e.target.value)} className="h-9 bg-white border-slate-300 shadow-sm" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-medium text-slate-600">{t('progress_hours_today')}</label>

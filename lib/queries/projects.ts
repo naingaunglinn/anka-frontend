@@ -56,6 +56,7 @@ function toTeamAssignment(row: Record<string, unknown>): ProjectTeamAssignment {
         employeeId:       row.employee_id as string,
         employeeName:     (row.employee_name as string | null) ?? undefined,
         departmentName:   (row.department_name as string | null) ?? undefined,
+        capacityRole:     (row.capacity_role as string | null) ?? undefined,
         rankName:         (row.rank_name as string | null) ?? undefined,
         rankCode:         (row.rank_code as string | null) ?? undefined,
         allocatedHours:   Number(row.allocated_hours ?? 0),
@@ -627,9 +628,24 @@ export function useCheckReassignment(projectId: string) {
                 newStart:          c.new_start as string,
                 newEnd:            c.new_end as string,
             }));
+            const reverseConflicts = (d.reverse_conflicts as Record<string, unknown>[] ?? []).map((rc) => ({
+                swapPhaseId:   rc.swap_phase_id as string,
+                swapPhaseName: rc.swap_phase_name as string,
+                conflicts: (rc.conflicts as Record<string, unknown>[] ?? []).map((c) => ({
+                    phaseAssignmentId: c.phase_assignment_id as string,
+                    phaseName:         c.phase_name as string,
+                    phaseCode:         c.phase_code as string,
+                    functionName:      c.function_name as string,
+                    projectName:       c.project_name as string,
+                    plannedStart:      c.planned_start as string,
+                    plannedEnd:        c.planned_end as string,
+                    estimatedHours:    Number(c.estimated_hours ?? 0),
+                })),
+            }));
             return {
                 hasConflicts:    Boolean(d.has_conflicts),
                 conflicts,
+                reverseConflicts,
                 readjustedDates: rd ? { plannedStart: rd.planned_start as string, plannedEnd: rd.planned_end as string } : null,
                 cascadePreview:  cascade,
                 warnings:        (d.warnings as string[]) ?? [],
@@ -645,7 +661,7 @@ export function useReassignPhase(projectId: string) {
         mutationFn: async (input: {
             phaseAssignmentId: string;
             assigneeId: string;
-            mode: 'direct' | 'readjust' | 'swap';
+            mode: 'direct' | 'readjust' | 'swap' | 'assign_anyway';
             swapWithId?: string;
         }) => {
             const { data } = await api.post(
