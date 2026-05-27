@@ -65,6 +65,7 @@ const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; labelKey: string; ranks: For
 ];
 
 const DEFAULT_FORECAST_MONTH_COUNT = 6;
+const FORECAST_INCLUDED_RANK_CERTAINTY = 100;
 
 function toMonthKey(date: Date): string {
     const year = date.getUTCFullYear();
@@ -566,7 +567,7 @@ export default function ForecastPage() {
                     id: deal.id,
                     name: project?.name ?? deal.name,
                     rank,
-                    probability: STAGE_PROBABILITY[deal.status as keyof typeof STAGE_PROBABILITY] ?? 100,
+                    probability: FORECAST_INCLUDED_RANK_CERTAINTY,
                     incomeBudget,
                     timelineMonths,
                     activeStart: forecastStartDate(deal, contract, project, monthRange[0]),
@@ -660,9 +661,9 @@ export default function ForecastPage() {
 
         // Past months (everything before the current month) show actual
         // cash collected from paid invoices, not the pipeline projection.
-        // Current month and future months stay on the probability-weighted
-        // pipeline projection — current month isn't done yet, so partial
-        // actuals would look misleadingly low.
+        // Current month and future months stay on the selected-rank
+        // projection — current month isn't done yet, so partial actuals
+        // would look misleadingly low.
         for (const invoice of store.invoices) {
             if (!invoice.paidAt || !invoice.paidAmount) continue;
             const paidMonth = startOfUtcMonth(new Date(invoice.paidAt));
@@ -700,7 +701,17 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.companySettings.overheadPercentage, store.invoices, salaryHistoryData]);
+    }, [
+        forecastSources,
+        locale,
+        monthRange,
+        store.employees,
+        store.globalOverheads,
+        store.companySettings.costToBillRatio,
+        store.companySettings.overheadPercentage,
+        store.invoices,
+        salaryHistoryData,
+    ]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
