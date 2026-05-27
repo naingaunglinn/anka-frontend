@@ -1572,16 +1572,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 currentRoles={selectedDeal?.ghostRoles ?? []}
                                 currency={currency}
                                 onApply={async ({ resources: nextResources, overheads: nextOverheads, roles: nextRoles, contextNotes }) => {
-                                    // 1. Persist applied changes to the deal so the auto-saved
-                                    //    state matches what the new version snapshot will hold.
-                                    //    Cancels the pending debounced auto-save (if any) since
-                                    //    we're writing the same fields right now. Ghost roles ride
-                                    //    along on the same deal update — they live on the deal, not
-                                    //    in the estimation-version snapshot.
                                     if (autoSaveTimerRef.current) {
                                         clearTimeout(autoSaveTimerRef.current);
                                         autoSaveTimerRef.current = null;
                                     }
+                                    roleBuilderHandleRef.current?.clearResult();
                                     await updateDeal.mutateAsync({
                                         id: selectedDealId,
                                         updates: {
