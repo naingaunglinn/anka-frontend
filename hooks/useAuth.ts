@@ -144,6 +144,19 @@ export const useAuth = () => {
             login(user, token);
             setTenantContext(user);
             hasHandledError.current = false;
+            // Refresh __perms cookie from the freshly-fetched /auth/me payload so
+            // a tenant-admin role edit propagates to the edge gate on the next
+            // page load. Fire-and-forget — failure here only means the cookie
+            // lags by one /auth/me cycle.
+            fetch('/api/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token,
+                    is_super_admin: user.isSuperAdmin,
+                    permissions: user.permissions,
+                }),
+            }).catch(() => { /* best effort */ });
         }
     }, [user, login, token]);
 
@@ -165,12 +178,18 @@ export const useAuth = () => {
             const user = mapApiUser(data.user as Record<string, unknown>);
             const token = data.token as string;
 
-            // Write token + role to httpOnly cookie BEFORE updating the in-memory store
-            // so any navigation triggered by the caller sees a valid cookie in middleware.
+            // Write token + role + permissions to httpOnly cookies BEFORE updating the
+            // in-memory store so any navigation triggered by the caller sees valid cookies
+            // in Edge middleware. __perms is what enables the edge route gate — without it
+            // middleware can only block on system role, not app-role permissions.
             await fetch('/api/auth/session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, is_super_admin: user.isSuperAdmin }),
+                body: JSON.stringify({
+                    token,
+                    is_super_admin: user.isSuperAdmin,
+                    permissions: user.permissions,
+                }),
             });
 
             login(user, token);

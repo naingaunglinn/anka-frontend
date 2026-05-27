@@ -83,6 +83,12 @@ export interface Engineer {
     role: RoleType;
     monthlySalary: number;
     monthlyCapacityHours: number;
+    // Seniority — surfaced to the AI Team Builder so it can split role buckets
+    // by rank (e.g. "Backend × 2: 1 senior, 1 mid") instead of treating each
+    // capacity bucket as a uniform pool. Both fields nullable: pre-rank
+    // tenants and unranked employees pass through unchanged.
+    rankCode?: string | null;
+    rankLevel?: number | null;
 }
 
 export interface CapacityRole {
@@ -209,6 +215,9 @@ export interface Deal {
     contactName?: string;
     contactEmail?: string;
     contactPhone?: string;
+    /** Customer postal address rendered in the Invoice XLSX "To," block.
+     *  Optional — invoices for deals without one show only the customer name. */
+    customerAddress?: string;
     estimatedValue?: number;
     winProbability?: number;
     // 4-stage pipeline (D removed in chg-009 — Dropped is now a status flag).
@@ -335,6 +344,19 @@ export interface Invoice {
     sentToEmail?: string;
     reminderSentCount?: number;
     notes?: string;
+    /** New Invoice menu fields (template XLSX export). */
+    memo?: string;
+    billingPeriodLabel?: string;
+    lineItems?: InvoiceLineItemSnapshot[];
+}
+
+/** Snapshot of one invoice line item, frozen at save time. */
+export interface InvoiceLineItemSnapshot {
+    kind: 'resource' | 'overhead';
+    label: string;
+    quantity: number;
+    cost: number;
+    amount: number;
 }
 
 export interface Milestone {

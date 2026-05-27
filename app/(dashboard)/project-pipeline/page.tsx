@@ -102,7 +102,7 @@ export default function CRMPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">{t('total_pipeline_value')}</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('total_income')}</CardTitle>
                         <DollarSign className="h-4 w-4 text-[#00a7f4]" />
                     </CardHeader>
                     <CardContent>
@@ -110,14 +110,14 @@ export default function CRMPage() {
                             {formatMoneyShort(pipelineTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            {t('sum_of_all_deals')}
+                            {t('total_income_subtitle')}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">{t('weighted_revenue')}</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('win_probability_price')}</CardTitle>
                         <Target className="h-4 w-4 text-emerald-600" />
                     </CardHeader>
                     <CardContent>
@@ -125,14 +125,14 @@ export default function CRMPage() {
                             {formatMoneyShort(weightedTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            {t('value_times_win_probability')}
+                            {t('win_probability_price_subtitle')}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card variant="plain">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">{t('forecasted_yield')}</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t('win_probability_percent')}</CardTitle>
                         <TrendingUp className="h-4 w-4 text-indigo-600" />
                     </CardHeader>
                     <CardContent>
@@ -140,7 +140,7 @@ export default function CRMPage() {
                             {pipelineTotal > 0 ? ((weightedTotal / pipelineTotal) * 100).toFixed(1) : 0}%
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
-                            {t('average_pipeline_health')}
+                            {t('win_probability_percent_subtitle')}
                         </p>
                     </CardContent>
                 </Card>

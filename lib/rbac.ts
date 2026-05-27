@@ -9,11 +9,6 @@
  */
 import type { AuthUser } from '@/store/authStore';
 
-// Retained for any legacy import sites. Tenants can introduce custom role
-// names beyond these five via /tenant/roles, so type-checking against this
-// union is no longer authoritative — use permissions for gating decisions.
-export type Role = 'Admin' | 'Executive' | 'Sales' | 'Delivery' | 'HR' | string;
-
 type PermSource = string[] | Pick<AuthUser, 'permissions' | 'isSuperAdmin'> | null | undefined;
 
 function listFor(source: PermSource): string[] {

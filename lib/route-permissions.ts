@@ -30,6 +30,7 @@ export const ROUTE_PERMISSIONS: Record<string, string | 'public'> = {
     '/crm':              'view_crm',
     '/estimation':       'manage_estimation',
     '/contracts':        'view_contracts',
+    '/invoices':         'view_contracts',
     '/projects':         'view_projects',
     '/time-tracking':    'track_time',
     '/schedule-tracking':'view_schedule_tracking',

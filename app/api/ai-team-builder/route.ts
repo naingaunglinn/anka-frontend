@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage, ROLE_SYSTEM_PROMPT, buildRoleUserPrompt } from '@/lib/aiTeamBuilder'
+import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage, buildRoleSystemPrompt, buildRoleUserPrompt } from '@/lib/aiTeamBuilder'
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { formatMoney } from '@/lib/currencyServer'
 
-const CLAUDE_MODEL = 'claude-3-5-sonnet-latest'
+const CLAUDE_MODEL = 'claude-sonnet-4-6'
 
-// Pricing: Claude 3.5 Sonnet — $3.00/1M input · $15.00/1M output
+// Pricing: Claude Sonnet 4.6 — $3.00/1M input · $15.00/1M output
 const INPUT_COST_PER_TOKEN  = 3.00  / 1_000_000
 const OUTPUT_COST_PER_TOKEN = 15.00 / 1_000_000
 
@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
     // `roles` populated and `team` empty. Skip enforceSkillCoverage in role
     // mode — it's an employee-pick safety net and doesn't apply.
     const isRoleMode = input.outputMode === 'roles'
-    const systemPrompt = isRoleMode ? ROLE_SYSTEM_PROMPT : SYSTEM_PROMPT
+    const systemPrompt = isRoleMode ? buildRoleSystemPrompt(input.availableRoles, input.availableRanks, input.scopeBreakdown, input.companySettings?.defaultMonthlyCapacityHours || 160) : SYSTEM_PROMPT
     const userPrompt   = isRoleMode ? buildRoleUserPrompt(input) : buildUserPrompt(input)
 
     try {

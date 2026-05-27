@@ -1,4 +1,4 @@
-import type { Employee, Engineer, GlobalOverhead, CompanySettings, RoleType } from './business'
+import type { Employee, Engineer, GlobalOverhead, CompanySettings, RoleType, CapacityRole, Rank } from './business'
 import type { Currency } from '@/lib/currencyConfig'
 import type { ComplexityResult } from '@/lib/dealComplexity'
 
@@ -42,9 +42,38 @@ export interface AITeamBuilderInput {
     complexity?: ComplexityResult
     employees: Employee[]
     engineers: Engineer[]
+    /**
+     * Tenant's capacity roles (from /organization → Capacity Roles). When
+     * present, the role-mode prompt uses these as the allowed role buckets
+     * instead of the hardcoded frontend/backend/design/qa/pm seed list.
+     * Each engineer's `role` field must match one of these `code` values
+     * for the engineer to be considered.
+     */
+    availableRoles?: CapacityRole[]
+    /**
+     * Tenant's seniority ranks (from /organization → Ranks). When present,
+     * the role-mode prompt asks the AI to split each chosen role bucket
+     * into rank-specific rows, so a "Backend × 2" suggestion becomes
+     * "Backend Senior × 1" + "Backend Mid × 1" with rank-appropriate
+     * salary ranges. Higher `level` = more senior.
+     */
+    availableRanks?: Rank[]
+    /**
+     * Pre-existing Scope & Labor estimate aggregated by capacity-role code
+     * (the Option A anchor). When present, the role-mode prompt is told to
+     * treat these as the canonical per-bucket workload — overriding its
+     * own generic 50/30/10/7/3 distribution heuristic. The `roleCode` may
+     * be one of the tenant's capacity_role codes OR the sentinel
+     * "unmapped" for hours whose job_role didn't resolve to a capacity
+     * bucket; the AI is told to redistribute the unmapped slice.
+     */
+    scopeBreakdown?: Array<{ roleCode: string; hours: number }>
+    /** Total of scopeBreakdown — convenience; the prompt also computes this. */
+    scopeTotalHours?: number
     globalOverheads: GlobalOverhead[]
     companySettings: CompanySettings
     currency?: Currency
+    expectedCloseDate?: string
     /** employeeId → available monthly hours after subtracting load from other open deals */
     employeeAvailability?: Record<string, number>
     /** Ghost roles the user pre-defined in Cost Estimate — used as a soft team-shape constraint */
@@ -118,8 +147,17 @@ export interface SkillGapAnalysis {
  */
 export interface AISuggestedRole {
     roleType: RoleType
-    /** Display label — e.g. "Backend Engineer". */
+    /** Display label — e.g. "Backend Engineer" or "Backend Engineer (Senior)". */
     label: string
+    /**
+     * Rank code matching one of the tenant's Rank.code values (e.g.
+     * "Junior" / "Mid" / "Senior" / "Lead"). Null when ranks weren't passed
+     * in the input (backward compat) or the AI chose not to specify
+     * seniority. When present, each suggestion row represents one
+     * (role × rank) cohort — the AI splits multi-quantity buckets into
+     * one row per rank to make seniority intent explicit.
+     */
+    rankCode?: string | null
     quantity: number
     /** Months on the project. Often equals timelineMonths, but Claude may shorten for late-stage roles. */
     months: number

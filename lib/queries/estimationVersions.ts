@@ -324,6 +324,14 @@ export interface AIEstimationDelta {
         remove: Array<{ name: string; reason: string }>
         modify: Array<{ name: string; newCost: number; reason: string }>
     }
+    // roleType is a dynamic capacity-role code (frontend/backend/... or a
+    // tenant-custom code), so it's typed as string here and cast to
+    // GhostRole['roleType'] when applied.
+    roles: {
+        add: Array<{ roleType: string; quantity: number; months: number; minMonthlySalary: number; maxMonthlySalary: number; reason: string }>
+        remove: Array<{ roleType: string; reason: string }>
+        modify: Array<{ roleType: string; newQuantity: number; newMonths: number; newMinMonthlySalary: number; newMaxMonthlySalary: number; reason: string }>
+    }
     summary: string
     confidence: 'high' | 'medium' | 'low' | string
 }
@@ -331,6 +339,7 @@ export interface AIEstimationDelta {
 function mapAIDelta(raw: Record<string, unknown>): AIEstimationDelta {
     const r = (raw.resources ?? {}) as Record<string, unknown>
     const o = (raw.overheads ?? {}) as Record<string, unknown>
+    const rl = (raw.roles ?? {}) as Record<string, unknown>
     const arr = (v: unknown): Array<Record<string, unknown>> =>
         Array.isArray(v) ? (v as Array<Record<string, unknown>>) : []
     return {
@@ -367,6 +376,28 @@ function mapAIDelta(raw: Record<string, unknown>): AIEstimationDelta {
                 reason: String(x.reason ?? '').trim(),
             })),
         },
+        roles: {
+            add: arr(rl.add).map(x => ({
+                roleType: String(x.role_type ?? '').trim(),
+                quantity: Number(x.quantity ?? 1),
+                months: Number(x.months ?? 1),
+                minMonthlySalary: Number(x.min_monthly_salary ?? 0),
+                maxMonthlySalary: Number(x.max_monthly_salary ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            remove: arr(rl.remove).map(x => ({
+                roleType: String(x.role_type ?? '').trim(),
+                reason: String(x.reason ?? '').trim(),
+            })),
+            modify: arr(rl.modify).map(x => ({
+                roleType: String(x.role_type ?? '').trim(),
+                newQuantity: Number(x.new_quantity ?? 1),
+                newMonths: Number(x.new_months ?? 1),
+                newMinMonthlySalary: Number(x.new_min_monthly_salary ?? 0),
+                newMaxMonthlySalary: Number(x.new_max_monthly_salary ?? 0),
+                reason: String(x.reason ?? '').trim(),
+            })),
+        },
         summary: String(raw.summary ?? '').trim(),
         confidence: String(raw.confidence ?? 'medium'),
     }
@@ -383,6 +414,7 @@ export function useGenerateAIEstimationDelta() {
             contextNotes: string
             currentResources: Array<{ featureName: string; role?: string; hours: number }>
             currentOverheads: Array<{ name: string; cost: number }>
+            currentRoles: Array<{ roleType: string; quantity: number; months: number; minMonthlySalary: number; maxMonthlySalary: number }>
         }): Promise<AIEstimationDelta> => {
             const { data } = await api.post(
                 `/deals/${params.dealId}/estimation-versions/ai-delta`,
@@ -396,6 +428,13 @@ export function useGenerateAIEstimationDelta() {
                     current_overheads: params.currentOverheads.map(o => ({
                         name: o.name,
                         cost: o.cost,
+                    })),
+                    current_roles: params.currentRoles.map(r => ({
+                        role_type: r.roleType,
+                        quantity: r.quantity,
+                        months: r.months,
+                        min_monthly_salary: r.minMonthlySalary,
+                        max_monthly_salary: r.maxMonthlySalary,
                     })),
                 },
                 { timeout: 210_000 },
@@ -421,7 +460,8 @@ export function useGenerateAIEstimationDelta() {
             contextNotes: string,
             currentResources: Array<{ featureName: string; role?: string; hours: number }>,
             currentOverheads: Array<{ name: string; cost: number }>,
-        ) => mutation.mutateAsync({ dealId, contextNotes, currentResources, currentOverheads }),
+            currentRoles: Array<{ roleType: string; quantity: number; months: number; minMonthlySalary: number; maxMonthlySalary: number }>,
+        ) => mutation.mutateAsync({ dealId, contextNotes, currentResources, currentOverheads, currentRoles }),
         isSuggesting: mutation.isPending,
         lastDelta: mutation.data ?? null,
         error: mutation.error,
