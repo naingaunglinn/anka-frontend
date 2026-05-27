@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Line, LineChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, BarChart3, Loader2, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarDays, ChevronLeft, ChevronRight, Loader2, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { useAuthStore } from '@/store/authStore';
@@ -22,11 +22,12 @@ import { useInitialBudget } from '@/lib/queries/initialBudgets';
 import { useAllSalaryHistory, type EmployeeSalaryHistoryRow } from '@/lib/queries/employeeSalaryHistory';
 import { dealRank, STAGE_PROBABILITY } from '@/lib/dealRanks';
 import type { AIForecastInput, AIForecastResult } from '@/app/api/ai-forecast/route';
-import type { Contract, Deal, Project } from '@/types/business';
+import type { Contract, Deal, GhostRole, Project } from '@/types/business';
 import toast from 'react-hot-toast';
 
 type ForecastRank = 'S' | 'A' | 'B';
 type RankScope = 'S' | 'SA' | 'SAB';
+type ForecastRangeMode = 'default' | 'year' | 'custom';
 
 type ForecastPoint = {
     monthKey: string;
@@ -54,6 +55,7 @@ type ForecastSource = {
     incomeBudget: number;
     timelineMonths: number;
     activeStart: Date;
+    ghostRoles: GhostRole[];
 };
 
 const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; labelKey: string; ranks: ForecastRank[] }> = [
@@ -62,10 +64,20 @@ const RANK_SCOPE_OPTIONS: Array<{ value: RankScope; labelKey: string; ranks: For
     { value: 'SAB', labelKey: 'forecast_scope_sab_only', ranks: ['S', 'A', 'B'] },
 ];
 
+const DEFAULT_FORECAST_MONTH_COUNT = 6;
+
 function toMonthKey(date: Date): string {
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
+}
+
+function toMonthInputValue(date: Date): string {
+    return toMonthKey(date);
+}
+
+function toMonthInputValueFromParts(year: number, monthIndex: number): string {
+    return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
 }
 
 function startOfUtcMonth(date: Date): Date {
@@ -74,6 +86,53 @@ function startOfUtcMonth(date: Date): Date {
 
 function addUtcMonths(date: Date, months: number): Date {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+}
+
+function parseMonthInputValue(value: string): Date | null {
+    const match = /^(\d{4})-(\d{2})$/.exec(value);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const monthIndex = Number(match[2]) - 1;
+
+    if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) return null;
+    if (monthIndex < 0 || monthIndex > 11) return null;
+
+    return new Date(Date.UTC(year, monthIndex, 1));
+}
+
+function formatMonthInputValue(value: string, locale: string): string {
+    const date = parseMonthInputValue(value);
+    if (!date) return value;
+    return date.toLocaleString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+function isMonthValueBefore(value: string, minimumValue: string): boolean {
+    const date = parseMonthInputValue(value);
+    const minimumDate = parseMonthInputValue(minimumValue);
+    if (!date || !minimumDate) return false;
+    return date < minimumDate;
+}
+
+function buildInclusiveMonthRange(start: Date, end: Date): Date[] {
+    const range: Date[] = [];
+    const normalizedStart = startOfUtcMonth(start);
+    const normalizedEnd = startOfUtcMonth(end);
+
+    for (
+        let cursor = normalizedStart;
+        cursor <= normalizedEnd && range.length < 60;
+        cursor = addUtcMonths(cursor, 1)
+    ) {
+        range.push(cursor);
+    }
+
+    return range.length > 0 ? range : [normalizedStart];
+}
+
+function buildCurrentYearRange(today = new Date()): Date[] {
+    const janFirst = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+    return Array.from({ length: 12 }, (_, index) => addUtcMonths(janFirst, index));
 }
 
 function average(values: number[]): number {
@@ -87,6 +146,50 @@ function invoiceTotal(invoice: { total?: number; amount: number; tax: number }):
 
 function positiveNumber(value: number | null | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Distribute a deal's total incomeBudget across its timeline months
+ * proportionally based on the ghost-role team composition per month,
+ * weighted by company-wide rank-average costs (leader vs member).
+ *
+ * Shorter-duration roles are offset by 1 month from the project start
+ * (the typical ramp-up pattern: base team from day 1, extra resources
+ * join month 2, leave before wind-down).
+ *
+ * Falls back to flat spread when ghost roles are empty.
+ */
+function monthlyIncomeSchedule(
+    ghostRoles: GhostRole[],
+    timelineMonths: number,
+    incomeBudget: number,
+    leaderAvgCost: number,
+    memberAvgCost: number,
+): number[] {
+    if (ghostRoles.length === 0 || (leaderAvgCost <= 0 && memberAvgCost <= 0)) {
+        return new Array(timelineMonths).fill(incomeBudget / timelineMonths);
+    }
+
+    const monthlyWeight = new Array(timelineMonths).fill(0);
+
+    for (const role of ghostRoles) {
+        const roleMonths = Math.min(role.months, timelineMonths);
+        const weight = role.roleType === 'pm' ? leaderAvgCost : memberAvgCost;
+
+        if (roleMonths >= timelineMonths) {
+            for (let m = 0; m < timelineMonths; m++) monthlyWeight[m] += role.quantity * weight;
+        } else {
+            const offset = Math.min(1, timelineMonths - roleMonths);
+            for (let m = offset; m < offset + roleMonths && m < timelineMonths; m++) {
+                monthlyWeight[m] += role.quantity * weight;
+            }
+        }
+    }
+
+    const totalWeight = monthlyWeight.reduce((s, w) => s + w, 0);
+    if (totalWeight <= 0) return new Array(timelineMonths).fill(incomeBudget / timelineMonths);
+
+    return monthlyWeight.map((w) => (w / totalWeight) * incomeBudget);
 }
 
 /**
@@ -262,6 +365,80 @@ function ForecastChartLegend(props: { readonly costLabel: string; readonly incom
     );
 }
 
+function MonthGridSelector(props: {
+    readonly label: string;
+    readonly locale: string;
+    readonly value: string;
+    readonly viewYear: number;
+    readonly minimumValue?: string;
+    readonly onChange: (value: string) => void;
+    readonly onViewYearChange: (year: number) => void;
+}) {
+    return (
+        <section className="rounded-md border border-sky-200 bg-sky-100/70 p-3 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold text-sky-800">{props.label}</p>
+                    <div className="mt-1 flex min-h-8 items-center gap-2 rounded-md border border-sky-200 bg-white/80 px-2 text-sm font-semibold text-slate-900">
+                        <CalendarDays className="h-4 w-4 shrink-0 text-sky-600" />
+                        <span className="truncate">{formatMonthInputValue(props.value, props.locale)}</span>
+                    </div>
+                </div>
+                <div className="flex items-center rounded-md border border-sky-200 bg-white/70 p-0.5 text-slate-700">
+                    <button
+                        type="button"
+                        aria-label={`${props.label} previous year`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-sm hover:bg-sky-100"
+                        onClick={() => props.onViewYearChange(props.viewYear - 1)}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="min-w-12 text-center text-xs font-bold text-slate-800">{props.viewYear}</span>
+                    <button
+                        type="button"
+                        aria-label={`${props.label} next year`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-sm hover:bg-sky-100"
+                        onClick={() => props.onViewYearChange(props.viewYear + 1)}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-1.5">
+                {Array.from({ length: 12 }, (_, monthIndex) => {
+                    const candidateValue = toMonthInputValueFromParts(props.viewYear, monthIndex);
+                    const monthLabel = new Date(Date.UTC(props.viewYear, monthIndex, 1)).toLocaleString(
+                        props.locale,
+                        { month: 'short', timeZone: 'UTC' },
+                    );
+                    const isSelected = candidateValue === props.value;
+                    const isDisabled = props.minimumValue ? isMonthValueBefore(candidateValue, props.minimumValue) : false;
+
+                    return (
+                        <button
+                            key={candidateValue}
+                            type="button"
+                            aria-pressed={isSelected}
+                            disabled={isDisabled}
+                            className={[
+                                'h-8 rounded-md border text-xs font-semibold transition-colors',
+                                isSelected
+                                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                    : 'border-sky-200 bg-white/80 text-slate-700 hover:border-sky-400 hover:bg-white',
+                                isDisabled ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-100' : '',
+                            ].join(' ')}
+                            onClick={() => props.onChange(candidateValue)}
+                        >
+                            {monthLabel}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
 function ForecastTooltipContent(props: { readonly active?: boolean; readonly payload?: ForecastTooltipEntry[]; readonly currency: Currency }) {
     const point = props.payload?.[0]?.payload;
     if (!props.active || !point) return null;
@@ -297,6 +474,14 @@ export default function ForecastPage() {
     const { data: salaryHistoryData = [] } = useAllSalaryHistory();
 
     const [rankScope, setRankScope] = useState<RankScope>('S');
+    const [rangeMode, setRangeMode] = useState<ForecastRangeMode>('default');
+    const [fromMonth, setFromMonth] = useState(() => toMonthInputValue(startOfUtcMonth(new Date())));
+    const [toMonth, setToMonth] = useState(() => {
+        const defaultStart = startOfUtcMonth(new Date());
+        return toMonthInputValue(addUtcMonths(defaultStart, DEFAULT_FORECAST_MONTH_COUNT - 1));
+    });
+    const [fromPickerYear, setFromPickerYear] = useState(() => startOfUtcMonth(new Date()).getUTCFullYear());
+    const [toPickerYear, setToPickerYear] = useState(() => addUtcMonths(startOfUtcMonth(new Date()), DEFAULT_FORECAST_MONTH_COUNT - 1).getUTCFullYear());
     const [prediction, setPrediction] = useState<AIForecastResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [summaryAttempt, setSummaryAttempt] = useState(0);
@@ -304,19 +489,40 @@ export default function ForecastPage() {
     useEffect(() => {
         setPrediction(null);
         setSummaryAttempt(0);
-    }, [locale]);
+    }, [locale, rangeMode, fromMonth, toMonth]);
 
     const monthRange = useMemo(() => {
-        // Full fiscal year — Jan through Dec of the current year, 12 months.
-        const year = new Date().getUTCFullYear();
-        const janFirst = new Date(Date.UTC(year, 0, 1));
-        return Array.from({ length: 12 }, (_, index) => addUtcMonths(janFirst, index));
-    }, []);
+        const defaultStart = startOfUtcMonth(new Date());
+
+        if (rangeMode === 'year') {
+            return buildCurrentYearRange();
+        }
+
+        if (rangeMode === 'custom') {
+            const start = parseMonthInputValue(fromMonth) ?? defaultStart;
+            const parsedEnd = parseMonthInputValue(toMonth);
+            const end = parsedEnd && parsedEnd >= start ? parsedEnd : start;
+
+            return buildInclusiveMonthRange(start, end);
+        }
+
+        return buildInclusiveMonthRange(defaultStart, addUtcMonths(defaultStart, DEFAULT_FORECAST_MONTH_COUNT - 1));
+    }, [rangeMode, fromMonth, toMonth]);
 
     const forecastWindowLabel = useMemo(() => {
+        if (rangeMode === 'default') return t('forecast_next_6_months');
+        if (rangeMode === 'year') return t('forecast_current_year_window');
+        if (rangeMode === 'custom') {
+            const startMonth = monthRange[0];
+            const endMonth = monthRange.at(-1) ?? startMonth;
+            const startLabel = startMonth.toLocaleString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+            const endLabel = endMonth.toLocaleString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+            if (startLabel === endLabel) return startLabel;
+            return t('forecast_custom_range_label', { start: startLabel, end: endLabel });
+        }
         if (monthRange.length <= 1) return t('forecast_current_month');
         return t('forecast_window_label', { count: monthRange.length });
-    }, [monthRange, t]);
+    }, [locale, monthRange, rangeMode, t]);
 
     // Process ①.3 / ⑧: the year of the first displayed month is the fiscal year
     // we're forecasting against. If the user has declared a budget for that
@@ -364,6 +570,7 @@ export default function ForecastPage() {
                     incomeBudget,
                     timelineMonths,
                     activeStart: forecastStartDate(deal, contract, project, monthRange[0]),
+                    ghostRoles: deal.ghostRoles ?? [],
                 };
             })
             .filter((source): source is ForecastSource => source !== null);
@@ -381,13 +588,28 @@ export default function ForecastPage() {
         const rowMap = new Map(rows.map((row) => [row.monthKey, row]));
         const currentMonthStart = startOfUtcMonth(new Date());
 
-        // Today's headcount × today's salary — used for current + future
-        // months. Past months derive payroll per-month from the salary
-        // history below (with a fallback to this number when an employee
-        // has no applicable history row).
+        // Rank-average costPrices used to weight monthly income distribution
+        // for projects with variable team sizes.  "Leader" = pm capacity
+        // role in an IT/delivery dept; "Member" = all other IT engineers.
+        const itEmployees = store.employees.filter((e) =>
+            (e.status === 'Active' || e.status === 'On Leave')
+            && (e.departmentName ?? '').toLowerCase() === 'it',
+        );
+        const leaders = itEmployees.filter((e) => (e.roleName ?? '').toLowerCase().includes('leader'));
+        const members = itEmployees.filter((e) => (e.roleName ?? '').toLowerCase().includes('member'));
+
+        const overheadMultiplier = 1 + positiveNumber(store.companySettings.overheadPercentage) / 100;
+        const sellMultiplier = 1 / Math.max(0.01, positiveNumber(store.companySettings.costToBillRatio) || 0.5);
+        const leaderAvgCost = leaders.length > 0
+            ? (leaders.reduce((s, e) => s + positiveNumber(e.monthlySalary), 0) / leaders.length) * overheadMultiplier * sellMultiplier
+            : 0;
+        const memberAvgCost = members.length > 0
+            ? (members.reduce((s, e) => s + positiveNumber(e.monthlySalary), 0) / members.length) * overheadMultiplier * sellMultiplier
+            : 0;
         const currentMonthlyPayroll = store.employees
             .filter((employee) => employee.status === 'Active' || employee.status === 'On Leave')
-            .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0);
+            .reduce((sum, employee) => sum + positiveNumber(employee.monthlySalary), 0)
+            * overheadMultiplier;
 
         // Index sparse salary-history rows by employee for cheap per-month
         // lookup. Rows are created on salary changes (not every month), so
@@ -413,7 +635,7 @@ export default function ForecastPage() {
                 const applicable = history ? applicableSalaryAt(history, monthDate) : null;
                 total += applicable ?? positiveNumber(employee.monthlySalary);
             }
-            return total;
+            return total * overheadMultiplier;
         };
 
         const monthCosts = new Map(
@@ -452,7 +674,7 @@ export default function ForecastPage() {
 
         for (const source of forecastSources) {
             const probabilityWeight = source.probability / 100;
-            const monthlyIncome = (source.incomeBudget / source.timelineMonths) * probabilityWeight;
+            const schedule = monthlyIncomeSchedule(source.ghostRoles, source.timelineMonths, source.incomeBudget, leaderAvgCost, memberAvgCost);
             const activeEnd = addUtcMonths(source.activeStart, source.timelineMonths - 1);
 
             for (const monthDate of monthRange) {
@@ -461,7 +683,10 @@ export default function ForecastPage() {
                 const row = rowMap.get(toMonthKey(monthDate));
                 if (!row) continue;
 
-                row.income += monthlyIncome;
+                const projectMonth = (monthDate.getUTCFullYear() - source.activeStart.getUTCFullYear()) * 12
+                    + (monthDate.getUTCMonth() - source.activeStart.getUTCMonth());
+                const income = (schedule[projectMonth] ?? schedule[0] ?? 0) * probabilityWeight;
+                row.income += income;
             }
         }
 
@@ -475,7 +700,7 @@ export default function ForecastPage() {
                 profit,
             };
         });
-    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.invoices, salaryHistoryData]);
+    }, [forecastSources, locale, monthRange, store.employees, store.globalOverheads, store.companySettings.overheadPercentage, store.invoices, salaryHistoryData]);
 
     const totals = useMemo(() => {
         const income = chartData.reduce((sum, item) => sum + item.income, 0);
@@ -570,6 +795,23 @@ export default function ForecastPage() {
     const hasIncomeSources = forecastSources.length > 0;
     const finalForecastMonth = chartData.at(-1);
     const finalForecastMonthProfit = finalForecastMonth?.profit ?? 0;
+
+    function handleFromMonthChange(nextMonth: string) {
+        setFromMonth(nextMonth);
+        const nextDate = parseMonthInputValue(nextMonth);
+        if (nextDate) setFromPickerYear(nextDate.getUTCFullYear());
+
+        if (isMonthValueBefore(toMonth, nextMonth)) {
+            setToMonth(nextMonth);
+            if (nextDate) setToPickerYear(nextDate.getUTCFullYear());
+        }
+    }
+
+    function handleToMonthChange(nextMonth: string) {
+        setToMonth(nextMonth);
+        const nextDate = parseMonthInputValue(nextMonth);
+        if (nextDate) setToPickerYear(nextDate.getUTCFullYear());
+    }
 
     const trailingUtilization = useMemo(() => {
         const ninetyDaysAgoMs = Date.now() - 90 * 86_400_000;
@@ -862,23 +1104,79 @@ export default function ForecastPage() {
                         {t('forecast_page_desc', { month: totals.comparisonMonthLabel })}
                     </p>
                 </div>
-                <div className="inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
-                    {RANK_SCOPE_OPTIONS.map((option) => (
-                        <Button
-                            key={option.value}
-                            type="button"
-                            size="sm"
-                            variant={rankScope === option.value ? 'default' : 'ghost'}
-                            className={rankScope === option.value ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-600'}
-                            onClick={() => {
-                                setRankScope(option.value);
-                                setPrediction(null);
-                                setSummaryAttempt(0);
-                            }}
-                        >
-                            {t(option.labelKey as Parameters<typeof t>[0])}
-                        </Button>
-                    ))}
+                <div className="flex flex-col gap-3 lg:items-end">
+                    <div className="inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                        {RANK_SCOPE_OPTIONS.map((option) => (
+                            <Button
+                                key={option.value}
+                                type="button"
+                                size="sm"
+                                variant={rankScope === option.value ? 'default' : 'ghost'}
+                                className={rankScope === option.value ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-600'}
+                                onClick={() => {
+                                    setRankScope(option.value);
+                                    setPrediction(null);
+                                    setSummaryAttempt(0);
+                                }}
+                            >
+                                {t(option.labelKey as Parameters<typeof t>[0])}
+                            </Button>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-col gap-2 lg:items-end">
+                        <div className="flex flex-wrap justify-end gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={rangeMode === 'default' ? 'default' : 'ghost'}
+                                className={rangeMode === 'default' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'text-slate-600'}
+                                onClick={() => setRangeMode('default')}
+                            >
+                                {t('forecast_next_6_months')}
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={rangeMode === 'year' ? 'default' : 'ghost'}
+                                className={rangeMode === 'year' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'text-slate-600'}
+                                onClick={() => setRangeMode('year')}
+                            >
+                                {t('forecast_current_year')}
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={rangeMode === 'custom' ? 'default' : 'ghost'}
+                                className={rangeMode === 'custom' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'text-slate-600'}
+                                onClick={() => setRangeMode('custom')}
+                            >
+                                {t('forecast_specific_date_range')}
+                            </Button>
+                        </div>
+
+                        {rangeMode === 'custom' ? (
+                            <div className="grid w-full grid-cols-1 gap-3 rounded-md border border-sky-300 bg-gradient-to-br from-sky-50 to-cyan-50 p-3 shadow-[0_16px_34px_rgba(14,165,233,0.18)] sm:w-[640px] sm:grid-cols-2">
+                                <MonthGridSelector
+                                    label={t('forecast_from_month')}
+                                    locale={locale}
+                                    value={fromMonth}
+                                    viewYear={fromPickerYear}
+                                    onChange={handleFromMonthChange}
+                                    onViewYearChange={setFromPickerYear}
+                                />
+                                <MonthGridSelector
+                                    label={t('forecast_to_month')}
+                                    locale={locale}
+                                    value={toMonth}
+                                    viewYear={toPickerYear}
+                                    minimumValue={fromMonth}
+                                    onChange={handleToMonthChange}
+                                    onViewYearChange={setToPickerYear}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             </div>
 
@@ -1079,7 +1377,7 @@ export default function ForecastPage() {
                         <Card variant="plain">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <span>{t('forecast_chart_title')}</span>
+                                    <span>{t('forecast_chart_title', { window: forecastWindowLabel })}</span>
                                     {finalForecastMonthProfit < 0 ? (
                                         <span className="text-rose-500 flex items-center gap-1 text-sm"><TrendingDown className="h-4 w-4" /> {t('forecast_chart_loss', { month: totals.comparisonMonthLabel })}</span>
                                     ) : (

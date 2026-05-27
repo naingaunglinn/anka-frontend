@@ -2,11 +2,14 @@
 
 import { useEffect, useImperativeHandle, useMemo, useState, type ReactNode, type RefObject } from 'react'
 import { useTranslations } from 'next-intl'
+import { useQuery } from '@tanstack/react-query'
 import { useBusinessStore } from '@/store/businessStore'
 import { useTenantStore } from '@/store/tenantStore'
 import { useTenantCurrency } from '@/hooks/useTenantCurrency'
 import { toUSD, fromUSD } from '@/lib/currencyConverter'
 import { computeDealComplexity } from '@/lib/dealComplexity'
+import { fetchCapacityRoles } from '@/lib/queries/organization'
+import { useRanks } from '@/lib/queries/ranks'
 import type { AITeamBuilderInput, AITeamBuilderResult, AISuggestedRole } from '@/types/aiTeamBuilder'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, Sparkles, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatMoney } from '@/lib/currency'
-import { applyBillingMarkup, BILLING_MARKUP_MULTIPLIER } from '@/lib/calculations'
+import { applyBillingMarkup } from '@/lib/calculations'
 
 export type EstimationRoleBuilderHandle = {
     triggerBuild: () => Promise<void>
@@ -28,6 +31,7 @@ interface Props {
     timelineMonths: number
     workloadHours: number
     workloadDescription: string
+    expectedCloseDate?: string
     /** Called when the user accepts the AI suggestion. The caller writes the roles to deal.ghostRoles. */
     onAccept: (roles: AISuggestedRole[]) => void | Promise<void>
     /** Rendered to the right of the Build AI Team button — used to host the sibling "Generate with AI" action. */
@@ -51,22 +55,120 @@ export function EstimationRoleBuilder(props: Props) {
     const [result, setResult] = useState<AITeamBuilderResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingStep, setLoadingStep] = useState(0)
-    const [accepting, setAccepting] = useState(false)
+
 
     const engineers       = useBusinessStore(s => s.engineers)
     const employees       = useBusinessStore(s => s.employees)
+    const departments     = useBusinessStore(s => s.departments)
+    const jobRoles        = useBusinessStore(s => s.roles)
+    const deals           = useBusinessStore(s => s.deals)
     const globalOverheads = useBusinessStore(s => s.globalOverheads)
     const companySettings = useBusinessStore(s => s.companySettings)
     const activeTenantId  = useTenantStore(s => s.activeTenantId)
     const currency        = useTenantCurrency()
     const exchangeRates   = useTenantStore(s => s.currentTenant?.exchangeRates)
 
+    // Tenant's capacity roles drive the dynamic prompt — without them, the
+    // prompt falls back to the seeded frontend/backend/design/qa/pm list.
+    const { data: capacityRoles = [] } = useQuery({
+        queryKey: ['capacity-roles'],
+        queryFn: fetchCapacityRoles,
+        staleTime: 5 * 60 * 1000,
+    })
+    // Tenant's seniority ranks (Junior / Mid / Senior / Lead defaults). The
+    // role-mode prompt splits each capacity bucket by rank so the AI can pick
+    // a sensible seniority mix instead of treating every backend as identical.
+    const { data: ranks = [] } = useRanks()
+
+    // Departments flagged is_delivery_eligible=false (Sales/HR/Finance/etc.)
+    // host employees whose salaries would skew the cost picture if included
+    // in the AI's bracket data. Filter them out before USD-normalising.
+    const deliveryEligibleDeptIds = useMemo(
+        () => new Set(
+            departments
+                .filter(d => d.isDeliveryEligible !== false)
+                .map(d => d.id),
+        ),
+        [departments],
+    )
+    const deliveryEngineers = useMemo(() => {
+        const employeeById = new Map(employees.map(e => [e.id, e] as const))
+        const rankById     = new Map(ranks.map(r => [r.id, r] as const))
+        return engineers
+            .filter(eng => {
+                const emp = employeeById.get(eng.id)
+                if (!emp || !emp.departmentId) return false
+                return deliveryEligibleDeptIds.has(emp.departmentId)
+            })
+            .map(eng => {
+                const emp = employeeById.get(eng.id)
+                const rank = emp?.rankId ? rankById.get(emp.rankId) ?? null : null
+                return {
+                    ...eng,
+                    rankCode:  rank?.code  ?? emp?.rankCode ?? null,
+                    rankLevel: rank?.level ?? null,
+                }
+            })
+    }, [engineers, employees, deliveryEligibleDeptIds, ranks])
+
+    // Option A — anchor the Roles prompt to the Scope & Labor totals.
+    // Aggregates the deal's existing estimation_resources into per-capacity-role
+    // hours and feeds them into the prompt as the canonical workload split.
+    // job_role → capacity_role mapping uses (1) most-common capacity_role across
+    // employees holding that job_role, then (2) keyword match on the job_role
+    // title as a fallback. Anything that doesn't resolve goes into "unmapped"
+    // for the AI to redistribute proportionally.
+    const scopeBreakdown = useMemo(() => {
+        const deal = deals.find(d => d.id === props.dealId)
+        const resources = deal?.estimationResources ?? []
+        if (resources.length === 0) return undefined
+
+        const jobRoleToCapacity = new Map<string, string>()
+        for (const role of jobRoles) {
+            const empsWithRole = employees.filter(e => e.jobRoleId === role.id && e.capacityRole)
+            if (empsWithRole.length > 0) {
+                const counts: Record<string, number> = {}
+                for (const e of empsWithRole) {
+                    const c = e.capacityRole as string
+                    counts[c] = (counts[c] ?? 0) + 1
+                }
+                const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+                jobRoleToCapacity.set(role.id, top)
+                continue
+            }
+            // Keyword fallback: e.g. "Backend Engineer" → "backend"
+            const title = (role.title || '').toLowerCase()
+            const match = capacityRoles.find(cr => title.includes(cr.code.toLowerCase()))
+            if (match) jobRoleToCapacity.set(role.id, match.code)
+        }
+
+        const totals: Record<string, number> = {}
+        let unmapped = 0
+        for (const res of resources) {
+            const cap = jobRoleToCapacity.get(res.roleId)
+            const h   = Number(res.hours) || 0
+            if (cap) totals[cap] = (totals[cap] ?? 0) + h
+            else     unmapped += h
+        }
+
+        const rows = Object.entries(totals).map(([roleCode, hours]) => ({ roleCode, hours }))
+        if (unmapped > 0) rows.push({ roleCode: 'unmapped', hours: unmapped })
+        return rows.length > 0 ? rows : undefined
+    }, [deals, props.dealId, jobRoles, employees, capacityRoles])
+
+    const scopeTotalHours = useMemo(
+        () => (scopeBreakdown ?? []).reduce((sum, r) => sum + r.hours, 0),
+        [scopeBreakdown],
+    )
+
     const budget = Number(props.clientBudget) || 0
     const months = Number(props.timelineMonths) || 0
-    const hours  = Number(props.workloadHours)  || 0
+    // Scope total takes precedence over the prop — keeps the two AI surfaces
+    // aligned. Prop is used only when there's no scope to anchor to.
+    const hours  = scopeTotalHours > 0 ? scopeTotalHours : (Number(props.workloadHours) || 0)
     // Workload hours intentionally NOT in the gate — the AI estimates it
     // from the description, budget, and timeline when the deal hasn't set
-    // one yet. See ROLE_SYSTEM_PROMPT's "Workload hours" section.
+    // one yet. See buildRoleSystemPrompt's "Workload hours" section.
     const canRun = budget > 0 && months > 0
 
     const complexity = useMemo(
@@ -91,7 +193,7 @@ export function EstimationRoleBuilder(props: Props) {
         // employees array because role mode doesn't pick people; the prompt
         // reads `engineers` (salary brackets) only.
         const usdBudget = toUSD(budget, currency, exchangeRates)
-        const usdEngineers = engineers.map(e => ({
+        const usdEngineers = deliveryEngineers.map(e => ({
             ...e,
             monthlySalary: toUSD(e.monthlySalary, currency, exchangeRates),
         }))
@@ -118,9 +220,14 @@ export function EstimationRoleBuilder(props: Props) {
             // employees is required by the type but unused by the role prompt.
             employees:           employees,
             engineers:           usdEngineers,
+            availableRoles:      capacityRoles,
+            availableRanks:      ranks,
+            scopeBreakdown:      scopeBreakdown,
+            scopeTotalHours:     scopeTotalHours > 0 ? scopeTotalHours : undefined,
             globalOverheads:     usdOverheads,
             companySettings:     usdSettings,
             currency:            'USD',
+            expectedCloseDate:   props.expectedCloseDate,
         }
 
         try {
@@ -153,8 +260,17 @@ export function EstimationRoleBuilder(props: Props) {
                     estimatedCost:    fromUSD(r.estimatedCost,    currency, exchangeRates),
                 })),
             }
-            setResult(inTenantCurrency)
-            toast.success(t('role_mix_ready'))
+            const filtered: AITeamBuilderResult = {
+                ...inTenantCurrency,
+                roles: (inTenantCurrency.roles ?? []).filter(r => (r.allocatedHours ?? 0) > 0),
+            }
+            setResult(filtered)
+            if (filtered.roles && filtered.roles.length > 0) {
+                await props.onAccept(filtered.roles)
+                toast.success(t('roles_saved_to_deal'))
+            } else {
+                toast(t('could_not_build_role_mix'))
+            }
         } catch (err) {
             console.error('AI role builder failed:', err)
             toast.error(err instanceof Error ? err.message : t('could_not_build_role_mix'))
@@ -171,21 +287,6 @@ export function EstimationRoleBuilder(props: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading])
 
-    async function handleAccept() {
-        if (!result?.roles?.length) return
-        setAccepting(true)
-        try {
-            await props.onAccept(result.roles)
-            // Clear the AI panel so the role table, cost summary, reasoning
-            // narrative, warnings, Accept / Regenerate buttons all disappear
-            // after a successful save. The deal now owns the roles; rendering
-            // the AI suggestion again would be noise.
-            setResult(null)
-        } finally {
-            setAccepting(false)
-        }
-    }
-
     return (
         <div className="space-y-4">
             {canRun && (
@@ -194,6 +295,9 @@ export function EstimationRoleBuilder(props: Props) {
                     <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
                         {complexity.band} · {complexity.score}/10
                     </Badge>
+                    {scopeTotalHours > 0 && (
+                        <span className="text-emerald-600">{t('roles_anchored_to_scope', { hours: scopeTotalHours })}</span>
+                    )}
                 </div>
             )}
 
@@ -232,9 +336,6 @@ export function EstimationRoleBuilder(props: Props) {
 
             {result?.roles && result.roles.length > 0 && (
                 <div className="space-y-3">
-                    {/* AI-estimated total hours — shown when the deal didn't
-                        carry a workloadHours value. Lets the user sanity-check
-                        the assumption behind the role allocations below. */}
                     {hours === 0 && result.estimatedTotalHours && result.estimatedTotalHours > 0 && (
                         <div className="rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-900 flex items-center gap-2">
                             <Sparkles className="h-3.5 w-3.5 shrink-0" />
@@ -251,7 +352,6 @@ export function EstimationRoleBuilder(props: Props) {
                                     <TableHead className="text-right">{t('qty')}</TableHead>
                                     <TableHead className="text-right">{t('months_col')}</TableHead>
                                     <TableHead className="text-right">{t('hours_col')}</TableHead>
-                                    <TableHead className="text-right">{t('monthly_salary_range')}</TableHead>
                                     <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -264,10 +364,7 @@ export function EstimationRoleBuilder(props: Props) {
                                         </TableCell>
                                         <TableCell className="text-right">{r.quantity}</TableCell>
                                         <TableCell className="text-right">{r.months}</TableCell>
-                                        <TableCell className="text-right">{r.allocatedHours.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right tabular-nums">
-                                            {formatMoney(r.minMonthlySalary, currency)} – {formatMoney(r.maxMonthlySalary, currency)}
-                                        </TableCell>
+                                        <TableCell className="text-right">{(r.quantity * r.months * (companySettings.defaultMonthlyCapacityHours || 160)).toLocaleString()}</TableCell>
                                         <TableCell className="text-right tabular-nums font-medium">
                                             {formatMoney(r.estimatedCost, currency)}
                                         </TableCell>
@@ -276,19 +373,14 @@ export function EstimationRoleBuilder(props: Props) {
                             </TableBody>
                         </Table>
                     </div>
-
                     {/* Cost roll-up. New model: labor cost basis (loaded hourly
                         × hours) is the agency's real cost; suggested price applies
-                        the BILLING_MARKUP_MULTIPLIER (×3) to labor. Derived
+                        the BILLING_MARKUP_MULTIPLIER (×2) to labor. Derived
                         margin replaces the legacy overhead%+buffer% lines. */}
                     <div className="rounded-md bg-slate-50 border border-slate-200 px-4 py-3 text-sm space-y-1">
                         <div className="flex justify-between">
-                            <span className="text-[#4a4a4a]">Labor Cost (Basis)</span>
+                            <span className="text-[#4a4a4a]">Total Estimated Cost</span>
                             <span className="tabular-nums">{formatMoney(result.baseLaborCost, currency)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-[#4a4a4a]">Labor Sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost)</span>
-                            <span className="tabular-nums">{formatMoney(applyBillingMarkup(result.baseLaborCost), currency)}</span>
                         </div>
                         <div className="flex justify-between border-t border-slate-200 pt-1 mt-1 font-medium">
                             <span>Suggested Price</span>
@@ -298,10 +390,12 @@ export function EstimationRoleBuilder(props: Props) {
                             <span className="text-[#4a4a4a]">{t('client_budget_label')}</span>
                             <span className="tabular-nums">{formatMoney(budget, currency)}</span>
                         </div>
-                        <div className={`flex justify-between text-xs font-medium ${result.isFeasible ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            <span>{result.feasibilityNote}</span>
-                            <span className="tabular-nums">{t('margin_pct_short', { pct: result.profitMarginPercent.toFixed(1) })}</span>
-                        </div>
+                        {budget > 0 && applyBillingMarkup(result.baseLaborCost) > budget && (
+                            <div className="flex justify-between text-xs font-medium text-emerald-700 border-t border-slate-200 pt-1 mt-1">
+                                <span>Exceed Client Budget</span>
+                                <span className="tabular-nums">+{formatMoney(applyBillingMarkup(result.baseLaborCost) - budget, currency)}</span>
+                            </div>
+                        )}
                     </div>
 
                     {result.aiReasoning && (
@@ -318,25 +412,6 @@ export function EstimationRoleBuilder(props: Props) {
                             ))}
                         </div>
                     )}
-
-                    <div className="flex gap-2 pt-1">
-                        <Button
-                            type="button"
-                            onClick={handleAccept}
-                            disabled={accepting}
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                            {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('accept_roles')}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleBuild}
-                            disabled={loading}
-                        >
-                            {t('regenerate')}
-                        </Button>
-                    </div>
                 </div>
             )}
         </div>

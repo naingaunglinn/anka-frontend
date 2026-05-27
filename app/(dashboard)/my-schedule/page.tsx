@@ -8,7 +8,7 @@ import { LoadingState } from '@/components/LoadingState';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectList } from '@/lib/queries/projects';
 import { MyScheduleEmployeeTable } from '@/components/time-tracking/MyScheduleEmployeeTable';
-import { SimulatedDateBar } from '@/components/SimulatedDateBar';
+import { SimulatedDateBar, SimulatedDateBanner } from '@/components/SimulatedDateBar';
 import { AlertTriangle } from 'lucide-react';
 
 export default function MySchedulePage() {
@@ -47,6 +47,7 @@ export default function MySchedulePage() {
                 </div>
                 <SimulatedDateBar />
             </div>
+            <SimulatedDateBanner />
 
             {!employeeId && (
                 <div className="flex items-center gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">

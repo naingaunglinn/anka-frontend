@@ -1,6 +1,53 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { AITeamBuilderInput, AITeamBuilderResult, AITeamMember, AITeamBuilderEmployeeContext } from '@/types/aiTeamBuilder'
+import type { CapacityRole, Rank } from '@/types/business'
 import { CURRENCY_CONFIG } from '@/lib/currencyConfig'
 import { applySellMarkup, applyBillingMarkup } from '@/lib/calculations'
+
+// Mirrors anka-api's resources/prompts/* convention — keeps prompt copy out
+// of TS code so it can be edited / reviewed without recompiling.
+const ROLE_SYSTEM_PROMPT_TEMPLATE_PATH = 'resources/prompts/role_system.txt'
+
+// Read once per server process. Templates don't change at runtime; the
+// substitution below is what's per-request. Throws at first call if the
+// file is missing — fail fast in dev rather than silently sending the AI
+// an empty prompt.
+let roleSystemTemplateCache: string | null = null
+function loadRoleSystemTemplate(): string {
+    if (roleSystemTemplateCache !== null) return roleSystemTemplateCache
+    const path = join(process.cwd(), ROLE_SYSTEM_PROMPT_TEMPLATE_PATH)
+    roleSystemTemplateCache = readFileSync(path, 'utf8')
+    return roleSystemTemplateCache
+}
+
+// Backward-compatible default: matches the original seeded buckets so the
+// prompt still works when the caller did not pass `availableRoles` (e.g.
+// pre-migration tenants, tests, demo mode).
+const DEFAULT_CAPACITY_ROLES: CapacityRole[] = [
+    { id: 'frontend', code: 'frontend', name: 'Frontend / UI engineering' },
+    { id: 'backend',  code: 'backend',  name: 'Backend / API / database / server engineering' },
+    { id: 'design',   code: 'design',   name: 'Product design, UX/UI, brand' },
+    { id: 'qa',       code: 'qa',       name: 'Test engineering, QA automation' },
+    { id: 'pm',       code: 'pm',       name: 'Project management / product management (software)' },
+]
+
+function resolveRoles(roles?: CapacityRole[]): CapacityRole[] {
+    return (roles && roles.length > 0) ? roles : DEFAULT_CAPACITY_ROLES
+}
+
+// Sentinel rank used as a fallback when the tenant has not configured ranks
+// at all. Lets the prompt's "by rank" logic degrade to "lump everyone into
+// 'unranked'" so the output schema is still well-formed.
+const UNRANKED: Rank = { id: 'unranked', code: 'Unranked', name: 'Unranked', level: 0 }
+
+function resolveRanks(ranks?: Rank[]): Rank[] {
+    if (!ranks || ranks.length === 0) return [UNRANKED]
+    // Sort high → low so the prompt reads top-down by seniority. Stable enough
+    // that the AI's reasoning about "use Lead for architecture, Junior for
+    // routine" maps to the order it sees the brackets.
+    return [...ranks].sort((a, b) => b.level - a.level)
+}
 
 // ── Role-mode prompt (outputMode === 'roles') ──────────────────────────────
 //
@@ -10,42 +57,46 @@ import { applySellMarkup, applyBillingMarkup } from '@/lib/calculations'
 // ghostRoles, and the scope estimator below then costs the project from
 // those buckets.
 
-export const ROLE_SYSTEM_PROMPT = `Context: You are helping a digital agency size and cost a software project at the ROLE level. You are NOT picking specific people — you are suggesting how many of each role bucket the project needs and what the going salary range is for each bucket.
+export function buildRoleSystemPrompt(
+    availableRoles?: CapacityRole[],
+    availableRanks?: Rank[],
+    scopeBreakdown?: Array<{ roleCode: string; hours: number }>,
+    hoursPerMonth = 160,
+): string {
+    const roles = resolveRoles(availableRoles)
+    const ranks = resolveRanks(availableRanks)
 
-IMPORTANT: All monetary values in this prompt are in USD. The system normalised everything to USD upstream — do NOT convert.
+    const substitutions: Record<string, string> = {
+        '{{BUCKET_COUNT}}':           String(roles.length),
+        '{{BUCKET_PLURAL}}':          roles.length === 1 ? '' : 's',
+        '{{BUCKET_LIST}}':            roles.map(r => `  - **${r.code}** — ${r.name}`).join('\n'),
+        '{{CODE_UNION}}':             roles.map(r => `"${r.code}"`).join('|'),
+        '{{ALL_CODES}}':              roles.map(r => r.code).join(' / '),
+        '{{RANK_COUNT}}':             String(ranks.length),
+        '{{RANK_PLURAL}}':            ranks.length === 1 ? '' : 's',
+        '{{RANK_LIST}}':              ranks.map(r => `  - **${r.code}** — level ${r.level}${r.name && r.name !== r.code ? ` (${r.name})` : ''}`).join('\n'),
+        '{{RANK_CODE_UNION}}':        ranks.map(r => `"${r.code}"`).join('|'),
+        '{{TOP_RANK_CODE}}':          ranks[0].code,
+        '{{LOW_RANK_CODE}}':          ranks[ranks.length - 1].code,
+        '{{SCOPE_BREAKDOWN_BLOCK}}':  buildScopeBreakdownBlock(scopeBreakdown),
+        '{{HOURS_PER_MONTH}}':        String(hoursPerMonth || 160),
+    }
 
-The tenant's role buckets are constrained to these five:
-  - **frontend** — Frontend / UI engineering
-  - **backend** — Backend / API / database / server engineering
-  - **design** — Product design, UX/UI, brand
-  - **qa** — Test engineering, QA automation
-  - **pm** — Project management / product management (software)
+    let out = loadRoleSystemTemplate()
+    for (const [token, value] of Object.entries(substitutions)) {
+        out = out.replaceAll(token, value)
+    }
+    return out
+}
 
-Choose a subset of these buckets for the project. DO NOT invent new buckets.
-
-**STEP 1 — Lock in \`totalWorkloadHours\` BEFORE designing the team.**
-
-This is the anchor for every downstream decision. Establish it FIRST.
-  - **If the brief gives a real number** (≥ 1): use it exactly. Echo it in \`estimatedTotalHours\`.
-  - **If "Total Workload: 0 hours" or "not specified"**: estimate from the project description, complexity score, and timeline. Underestimating the workload produces undersized teams that miss deadlines — when uncertain, lean higher rather than lower. Sanity-check: workload × avg loaded hourly rate × 3 (sell markup) should be ≤ client budget. If the budget is impossibly tight at any realistic effort, propose the lowest defensible workload and flag the budget-feasibility issue in \`warnings\`.
-
-Treat \`totalWorkloadHours\` as a hard input to Step 2 — do NOT pick a team shape and then back-fit hours.
-
-**STEP 2 — Size the team to COVER the workload.**
-
-For each role bucket, compute **capacity_hours = quantity × months × 160**.
-Across the project, **total_capacity = Σ capacity_hours over all roles**.
-
-**HARD RULE — coverage:** \`total_capacity ≥ totalWorkloadHours\`. A team that cannot physically deliver the workload in the given timeline is invalid.
-
-**TARGET BAND:** \`totalWorkloadHours ≤ total_capacity ≤ totalWorkloadHours × 1.15\` — cover the workload with at most 15% slack. Don't pad more than that; you'll quote too high.
-
-If your first draft of roles has \`total_capacity < totalWorkloadHours\`, iterate in this order:
-  1. Increase \`months\` on buckets whose work spans the whole timeline (typically pm, backend). \`months\` is capped at \`timelineMonths\`.
-  2. If every relevant bucket is already at \`months = timelineMonths\`, increase \`quantity\` on the heaviest bucket (the one with the largest \`allocatedHours\`).
-  3. If every bucket is already quantity ≥ 2 and you're still short, add a missing bucket consistent with the project's nature (e.g. a second backend, or qa if you'd dropped it).
-
-**Distribution guidance — how to split \`totalWorkloadHours\` across buckets.**
+// When the deal has an existing Scope & Labor estimate, return a block that
+// pins the per-bucket workload to those exact hours (Option A — single source
+// of truth between the two AI surfaces). Otherwise return the legacy
+// distribution heuristic so the prompt still works for deals without a scope.
+function buildScopeBreakdownBlock(scope?: Array<{ roleCode: string; hours: number }>): string {
+    const realRows = (scope ?? []).filter(r => r.hours > 0)
+    if (realRows.length === 0) {
+        return `**Distribution guidance — how to split \`totalWorkloadHours\` across buckets.**
 For a typical full-stack web/mobile project, allocate roughly:
   - ~50% backend
   - ~30% frontend
@@ -53,110 +104,56 @@ For a typical full-stack web/mobile project, allocate roughly:
   - ~7% pm
   - ~3% design
 
-Adjust these weights based on signals in the description (e.g., heavy AI/ML → more backend; design-led product → more design; SaaS dashboard → more frontend). The weights should still sum to ~100% across the buckets you actually chose.
-
-Each bucket's \`allocatedHours\` = its share of \`totalWorkloadHours\` per the weights above. The bucket's \`quantity × months × 160\` must be ≥ its own \`allocatedHours\`.
-
-For each chosen bucket, output:
-  - roleType (one of the five above)
-  - label (human-readable, e.g. "Backend Engineer")
-  - quantity (integer ≥ 1)
-  - months (integer ≤ project timeline; shorter when the role only contributes in late stages)
-  - allocatedHours (TOTAL hours for this bucket across all quantity slots over the role's months — equals the bucket's share of \`totalWorkloadHours\` per the distribution guidance above. The sum of \`allocatedHours\` across all roles MUST equal \`totalWorkloadHours\` — not "roughly", exactly. The bucket's \`quantity × months × 160\` MUST be ≥ its own \`allocatedHours\`.)
-  - minMonthlySalary / maxMonthlySalary — pulled from the engineers (salary brackets) list provided. Pick a bracket that fits the seniority you're suggesting; min/max can span more than one bracket if you want a range. **Never invent salary numbers outside the bracket list — use what the tenant has.**
-  - estimatedCost (quantity × months × ((min+max)/2))
-  - reasoning (1-2 sentences justifying the bucket + quantity + seniority)
-
-**Team-shape rules — apply the complexity band first:**
-  - easy (score ≤ 2.5): aim for **2 role buckets** total — 1 hands-on bucket matching the project + 1 leadership-flavoured bucket (e.g. backend + design, or pm + frontend).
-  - medium (2.6–5.5): **3-4 buckets** covering main workstreams + 1 PM if coordination signals are clear.
-  - hard (> 5.5): **5 buckets** typically (all of frontend / backend / design / qa / pm).
-
-**Quantity guidance:** for software projects, default to 1 per bucket. Raise to quantity ≥ 2 whenever the bucket's \`allocatedHours\` exceeds \`timelineMonths × 160\` for a single person, OR whenever Step 2's iteration loop tells you to. Two backend engineers for 1500h over 3 months is a typical example.
-
-**STEP 3 — Self-check BEFORE returning the JSON.**
-
-Compute these and put them in your output:
-  - \`totalCapacityHours\` = Σ (quantity × months × 160) across all roles
-  - \`coverageRatio\` = totalCapacityHours / totalWorkloadHours, rounded to 2 decimals
-
-Then verify:
-  - If \`coverageRatio < 1.00\`: you have VIOLATED the HARD RULE. Go back to Step 2, iterate, recompute. Do not return undersized teams.
-  - If \`coverageRatio > 1.15\`: you have over-padded. Reduce months or quantity on the lightest-loaded bucket until you're inside the band.
-  - If \`1.00 ≤ coverageRatio ≤ 1.15\`: you're good — return the JSON.
-
-Also append a line to \`aiReasoning\` stating: "Coverage: total_capacity = {X}h vs totalWorkloadHours = {Y}h (ratio {Z})".
-
-**Cost & Pricing Model — read carefully, this REPLACES the old overhead+buffer math.**
-
-The agency uses a fixed pricing rule:
-  - **Loaded monthly salary** = raw monthly salary × 1.15 (raw + 15% absorbed company overhead). Use this as the cost basis.
-  - **Sell rate** = Loaded cost × 3 (what we bill the client for that labor).
-
-**Cost rules:**
-  - rawAvgMonthlySalary = (min + max) / 2 — pulled straight from the bracket.
-  - loadedAvgMonthlySalary = rawAvgMonthlySalary × 1.15
-  - **baseLaborCost = sum over roles of (quantity × months × loadedAvgMonthlySalary)** — the agency's labor cost basis.
-  - overheadCost = 0  (the 15% is already absorbed into Loaded cost above; do NOT add it twice)
-  - bufferCost = 0   (margin comes from the 3× sell markup, not a buffer line)
-  - totalEstimatedCost = baseLaborCost  (cost basis, NOT the quoted price)
-  - **suggestedQuote = baseLaborCost × 3** — the price we'd quote the client.
-  - estimatedGrossProfit = suggestedQuote − totalEstimatedCost
-  - profitMarginPercent = (estimatedGrossProfit / suggestedQuote) × 100   (under this fixed model this is always ~66.7%)
-  - isFeasible = **suggestedQuote ≤ clientBudget**  (compare the QUOTE to the budget, not the cost basis)
-  - feasibilityNote: if feasible say "Quote ($X) fits client budget"; else state how much the QUOTE exceeds the budget by
-  - aiReasoning: 2–4 sentences on the role mix, seniority choices, and how the **quoted price** stacks up to budget
-  - warnings: budget overage on the quote, missing critical bucket the project description implies but you couldn't fit
-
-Note: each role's \`estimatedCost\` field stays at the cost-basis level: quantity × months × loadedAvgMonthlySalary. Do NOT multiply per-role estimatedCost by 3.
-
-**Output schema (return ONLY this JSON, no prose):**
-{
-  "roles": [
-    { "roleType": "frontend"|"backend"|"design"|"qa"|"pm",
-      "label": string,
-      "quantity": number,
-      "months": number,
-      "allocatedHours": number,
-      "minMonthlySalary": number,
-      "maxMonthlySalary": number,
-      "estimatedCost": number,
-      "reasoning": string
+Adjust these weights based on signals in the description (e.g., heavy AI/ML → more backend; design-led product → more design; SaaS dashboard → more frontend). The weights should still sum to ~100% across the buckets you actually chose.`
     }
-  ],
-  "team": [],
-  "estimatedTotalHours": number,
-  "totalCapacityHours": number,
-  "coverageRatio": number,
-  "baseLaborCost": number,
-  "overheadCost": number,
-  "bufferCost": number,
-  "totalEstimatedCost": number,
-  "estimatedGrossProfit": number,
-  "profitMarginPercent": number,
-  "isFeasible": boolean,
-  "feasibilityNote": string,
-  "aiReasoning": string,
-  "warnings": string[]
+
+    const mapped   = realRows.filter(r => r.roleCode !== 'unmapped')
+    const unmapped = realRows.find(r => r.roleCode === 'unmapped')?.hours ?? 0
+    const total    = realRows.reduce((s, r) => s + r.hours, 0)
+
+    const lines = mapped.map(r => `  - ${r.roleCode}: ${r.hours} hours`).join('\n')
+    const unmappedLine = unmapped > 0
+        ? `\n\n(unmapped: ${unmapped} hours — distribute proportionally across the buckets above)`
+        : ''
+
+    return `**Pre-existing Scope estimate — use this as the canonical workload distribution.**
+
+The deal already has a Scope & Labor estimate from the "Generate with AI" pass. The per-capacity-role hour totals below are the EXACT targets — do NOT redistribute according to the generic 50/30/10/7/3 heuristic. Each cohort row's \`allocatedHours\` for a given \`roleType\` must sum to the target hours for that bucket:
+
+${lines}${unmappedLine}
+
+Total: ${total} hours (this MUST equal \`totalWorkloadHours\` — use it as the anchor for Step 1).
+
+If a bucket above has 0 hours, do not include it in the output. If you split a bucket by rank (e.g. backend → Senior + Mid), the rank rows' \`allocatedHours\` for that bucket must still sum to the target.`
 }
 
-\`team\` MUST be an empty array — role mode does not pick employees. The frontend renders \`roles\` only.`
-
 export function buildRoleUserPrompt(input: AITeamBuilderInput): string {
-    // Brackets, grouped by role bucket. Claude reads this to pick min/max for each
-    // suggested role. Empty bucket = no bracket exists for that role; Claude can
-    // either skip the bucket or warn about the missing bracket.
-    const brackets: Record<string, Array<{ name: string; monthlySalary: number; capacityHours: number }>> = {
-        frontend: [], backend: [], design: [], qa: [], pm: [],
+    const roles = resolveRoles(input.availableRoles)
+    const ranks = resolveRanks(input.availableRanks)
+    const rankCodes = new Set(ranks.map(r => r.code))
+
+    // Brackets, grouped by the tenant's actual (capacity-role × rank) pair so
+    // the AI sees per-seniority salary ranges instead of one blended pool.
+    // Engineers are pre-filtered by delivery-eligibility upstream
+    // (departments.is_delivery_eligible) so non-IT staff don't pollute the
+    // cost picture. An empty cohort = no engineers at that seniority; Claude
+    // can either skip the cohort or warn.
+    type Bucket = Record<string, Array<{ name: string; monthlySalary: number; capacityHours: number }>>
+    const brackets: Record<string, Bucket> = {}
+    for (const r of roles) {
+        brackets[r.code] = {}
+        for (const rk of ranks) brackets[r.code][rk.code] = []
     }
     for (const e of input.engineers) {
-        if (brackets[e.role]) {
-            brackets[e.role].push({
-                name: e.name,
-                monthlySalary: e.monthlySalary,
-                capacityHours: e.monthlyCapacityHours,
-            })
-        }
+        const roleBucket = brackets[e.role]
+        if (!roleBucket) continue
+        const engineerRank = (e.rankCode && rankCodes.has(e.rankCode)) ? e.rankCode : UNRANKED.code
+        const rankBucket = roleBucket[engineerRank] ?? (roleBucket[engineerRank] = [])
+        rankBucket.push({
+            name: e.name,
+            monthlySalary: e.monthlySalary,
+            capacityHours: e.monthlyCapacityHours,
+        })
     }
 
     const complexitySection = input.complexity
@@ -178,11 +175,16 @@ Computed band: **${input.complexity.band}** (score ${input.complexity.score} / 1
         ? `Total Workload: ${input.workloadHours} hours`
         : `Total Workload: not specified — estimate this yourself and return it as \`estimatedTotalHours\``
 
+    const deadlineLine = input.expectedCloseDate
+        ? `Expected End Date: ${input.expectedCloseDate} — months MUST NOT extend past this date.`
+        : ''
+
     return `## Project Brief
 
 ${dealHeader}Currency: USD
 Budget: $${input.clientBudget.toLocaleString()}
 Timeline: ${input.timelineMonths} months
+${deadlineLine}
 ${workloadLine}
 
 Project Description:

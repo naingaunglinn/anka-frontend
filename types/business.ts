@@ -83,6 +83,12 @@ export interface Engineer {
     role: RoleType;
     monthlySalary: number;
     monthlyCapacityHours: number;
+    // Seniority — surfaced to the AI Team Builder so it can split role buckets
+    // by rank (e.g. "Backend × 2: 1 senior, 1 mid") instead of treating each
+    // capacity bucket as a uniform pool. Both fields nullable: pre-rank
+    // tenants and unranked employees pass through unchanged.
+    rankCode?: string | null;
+    rankLevel?: number | null;
 }
 
 export interface CapacityRole {
@@ -400,6 +406,7 @@ export interface ProjectTeamAssignment {
     employeeId: string;
     employeeName?: string;
     departmentName?: string;
+    capacityRole?: string;
     rankName?: string;
     rankCode?: string;
     allocatedHours: number;
@@ -586,9 +593,16 @@ export interface CascadeShiftPreview {
     newEnd: string;
 }
 
+export interface ReverseConflict {
+    swapPhaseId: string;
+    swapPhaseName: string;
+    conflicts: ReassignmentConflict[];
+}
+
 export interface ReassignmentCheck {
     hasConflicts: boolean;
     conflicts: ReassignmentConflict[];
+    reverseConflicts: ReverseConflict[];
     readjustedDates: { plannedStart: string; plannedEnd: string } | null;
     cascadePreview: CascadeShiftPreview[];
     warnings: string[];

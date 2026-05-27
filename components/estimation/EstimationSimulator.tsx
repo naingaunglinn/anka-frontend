@@ -30,7 +30,6 @@ import { SendEstimateDialog } from '@/components/estimation/SendEstimateDialog';
 import { SuggestChangesFromNotesDialog } from '@/components/estimation/SuggestChangesFromNotesDialog';
 import { MessageSquareText } from 'lucide-react';
 import { useDealList, useDealMutations } from '@/lib/queries/deals';
-import { dealRank } from '@/lib/dealRanks';
 import type { AISuggestedRole } from '@/types/aiTeamBuilder';
 import type { GhostRole } from '@/types/business';
 import {
@@ -201,6 +200,23 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const qc = useQueryClient();
     const currency = useTenantCurrency();
     const symbol = useCurrencySymbol();
+    const eligibleDeptIds = new Set(
+        store.departments.filter(d => d.isDeliveryEligible).map(d => d.id),
+    );
+    const deliveryRoles = store.roles.filter(r => r.departmentId && eligibleDeptIds.has(r.departmentId));
+    // Map capacity-role codes (e.g. "backend") → delivery role ID so existing
+    // ghost roles saved with capacity codes can display/match correctly.
+    const capCodeToRoleId = new Map<string, string>();
+    for (const dr of deliveryRoles) {
+        const emps = store.employees.filter(e => e.jobRoleId === dr.id && e.capacityRole);
+        for (const e of emps) {
+            if (e.capacityRole && !capCodeToRoleId.has(e.capacityRole)) {
+                capCodeToRoleId.set(e.capacityRole, dr.id);
+            }
+        }
+    }
+    const resolveRoleType = (rt: string) => capCodeToRoleId.get(rt) ?? rt;
+    const resolveRoleLabel = (rt: string) => deliveryRoles.find(r => r.id === resolveRoleType(rt))?.title ?? rt;
     const { updateDeal } = useDealMutations();
 
     // Self-fetch the deal list so the Target Deal picker is populated even
@@ -214,7 +230,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [dirty, setDirty] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
     const [compareWithId, setCompareWithId] = useState<string | null>(null);
-    const [versionNotes, setVersionNotes] = useState('');
+    const versionNotesRef = useRef<HTMLInputElement>(null);
     const [showHistory, setShowHistory] = useState(false);
     const [contractReadyOpen, setContractReadyOpen] = useState(false);
     const [sendEstimateOpen, setSendEstimateOpen] = useState(false);
@@ -544,11 +560,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 ],
                 overheads,
                 targetMargin: margin[0],
-                notes: versionNotes || undefined,
+                notes: versionNotesRef.current?.value || undefined,
             });
             setDirty(false);
             setLastSavedAt(new Date().toLocaleString());
-            setVersionNotes('');
+            if (versionNotesRef.current) versionNotesRef.current.value = '';
             toast.success(t('estimation_saved', { version: nextVer }));
         } catch {
             toast.error(t('failed_save_estimation'));
@@ -611,7 +627,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         return costRateForRole(res.roleId);
     };
 
-    // Sell rate is what we quote to the client per hour: loaded cost × 3.
+    // Sell rate is what we quote to the client per hour: loaded cost × 2.
     // Matches the "Sell / Hr" column on /organization → Employees.
     const sellRateForResource = (res: EstimationResource): number => applyBillingMarkup(costRateForResource(res));
 
@@ -634,9 +650,10 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     // derived output of (price − cost) / price, persisted to target_margin
     // for backwards compatibility with deal/version reports.
     const suggestedPrice = laborSell + projectOverheadTotal;
-    const expectedProfit = suggestedPrice - totalCost;
+    const dealBudget = store.deals.find(d => d.id === selectedDealId)?.clientBudget ?? 0;
+    const expectedProfit = dealBudget > 0 ? dealBudget - totalCost : suggestedPrice - totalCost;
     const derivedMarginPct = suggestedPrice > 0
-        ? Math.round((expectedProfit / suggestedPrice) * 100)
+        ? Math.min(100, Math.max(0, Math.round((expectedProfit / suggestedPrice) * 100)))
         : 0;
 
     // Mirror the derived margin into the `margin` state so the autosave payload
@@ -707,6 +724,46 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     // quote, instead of discovering it later when the client pushes back.
     const selectedDeal = store.deals.find(d => d.id === selectedDealId);
     const clientBudget = selectedDeal?.clientBudget ?? 0;
+
+    // ── Project Roles inline editor ───────────────────────────────────────
+    // Each helper writes the full ghostRoles array via updateDeal.mutateAsync
+    // because the deal endpoint takes the whole array on update (no per-row
+    // route). Optimistic feedback is handled by the mutation hook itself.
+    const updateGhostRoleAt = (i: number, patch: Partial<GhostRole>) => {
+        if (!selectedDeal) return;
+        const next = (selectedDeal.ghostRoles ?? []).map((r, idx) => idx === i ? { ...r, ...patch } : r);
+        void updateDeal.mutateAsync({ id: selectedDeal.id, updates: { ghostRoles: next } })
+            .catch((err) => { console.error('Failed to update ghost role:', err); toast.error(t('could_not_save_roles')); });
+    };
+    const removeGhostRoleAt = (i: number) => {
+        if (!selectedDeal) return;
+        const next = (selectedDeal.ghostRoles ?? []).filter((_, idx) => idx !== i);
+        void updateDeal.mutateAsync({ id: selectedDeal.id, updates: { ghostRoles: next } })
+            .catch((err) => { console.error('Failed to remove ghost role:', err); toast.error(t('could_not_save_roles')); });
+    };
+    const addGhostRole = (role: Omit<GhostRole, 'id'>) => {
+        if (!selectedDeal) return;
+        const next = [...(selectedDeal.ghostRoles ?? []), { id: '', ...role }];
+        void updateDeal.mutateAsync({ id: selectedDeal.id, updates: { ghostRoles: next } })
+            .catch((err) => { console.error('Failed to add ghost role:', err); toast.error(t('could_not_save_roles')); });
+    };
+
+    // Add-Role form state. Reset after each successful add.
+    const [newRoleType, setNewRoleType] = useState<string>('');
+    const [newRoleQty, setNewRoleQty] = useState<string>('1');
+    const [newRoleMonths, setNewRoleMonths] = useState<string>('');
+    const [newRoleHours, setNewRoleHours] = useState<string>('');
+    const handleAddProjectRole = () => {
+        if (!newRoleType || !newRoleMonths) return;
+        addGhostRole({
+            roleType: newRoleType as GhostRole['roleType'],
+            quantity: Math.max(1, Number(newRoleQty) || 1),
+            months:   Math.max(1, Number(newRoleMonths) || 1),
+            minMonthlySalary: 0,
+            maxMonthlySalary: 0,
+        });
+        setNewRoleType(''); setNewRoleQty('1'); setNewRoleMonths(''); setNewRoleHours('');
+    };
     const BUDGET_TOLERANCE = 1.05;
     const exceedsBudget = clientBudget > 0 && suggestedPrice > clientBudget * BUDGET_TOLERANCE;
     const budgetOverage = exceedsBudget ? suggestedPrice - clientBudget : 0;
@@ -729,7 +786,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <SelectValue placeholder={t('select_deal_from_crm')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {store.deals.map(deal => (
+                                    {store.deals.filter(d => d.status === 'lead' || d.status === 'qualified').map(deal => (
                                         <SelectItem key={deal.id} value={deal.id}>
                                             {deal.name} ({deal.client || t('no_client')})
                                         </SelectItem>
@@ -884,57 +941,9 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 )}
 
                 {selectedDeal && (() => {
-                    const hasRoles = (selectedDeal.ghostRoles?.length ?? 0) > 0;
                     const hasScope = resources.length > 0;
                     const canBuild = (selectedDeal.clientBudget ?? 0) > 0 && (selectedDeal.timelineMonths ?? 0) > 0;
-                    type SmartMode = 'build' | 'scope' | 'notes';
-                    const mode: SmartMode = !hasRoles ? 'build' : !hasScope ? 'scope' : 'notes';
-                    // Rank C (lead) and B (qualified) — sales still refining
-                    // scope. When roles already exist and the smart progression
-                    // has moved to scope/notes mode, still expose a secondary
-                    // "Rebuild AI Team" button so sales can re-trigger the
-                    // role builder after a workload update without dropping
-                    // the deal back to C. Hidden once the deal hits A
-                    // (negotiation) — the team is contractually locked.
-                    const rank = dealRank(selectedDeal);
-                    const allowSecondaryRebuild =
-                        (rank === 'C' || rank === 'B') && hasRoles && mode !== 'build';
                     const smartBusy = isBuildingTeam || isGeneratingAi;
-
-                    const smartConfig: Record<SmartMode, {
-                        label: string;
-                        icon: 'sparkles' | 'message';
-                        title: string;
-                        disabled: boolean;
-                        className: string;
-                        onClick: () => void;
-                    }> = {
-                        build: {
-                            label: isBuildingTeam ? t('building_ellipsis') : t('build_ai_team_estimate'),
-                            icon: 'sparkles',
-                            title: t('ai_assistant_build_title'),
-                            disabled: !canBuild || smartBusy,
-                            className: 'bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white shadow-md',
-                            onClick: () => { void roleBuilderHandleRef.current?.triggerBuild(); },
-                        },
-                        scope: {
-                            label: isGeneratingAi ? t('generating_with_ai') : t('generate_scope_from_deal'),
-                            icon: 'sparkles',
-                            title: t('ai_assistant_scope_title'),
-                            disabled: smartBusy,
-                            className: 'bg-violet-600 hover:bg-violet-700 text-white',
-                            onClick: () => { void handleGenerateAi(); },
-                        },
-                        notes: {
-                            label: t('refine_scope_from_notes'),
-                            icon: 'message',
-                            title: t('ai_assistant_notes_title'),
-                            disabled: smartBusy,
-                            className: 'bg-amber-600 hover:bg-amber-700 text-white',
-                            onClick: () => setSuggestFromNotesOpen(true),
-                        },
-                    };
-                    const cfg = smartConfig[mode];
 
                     return (
                     <Card variant="plain">
@@ -951,42 +960,43 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <div className="space-y-4">
                                 <Button
                                     type="button"
-                                    onClick={cfg.onClick}
-                                    disabled={cfg.disabled}
-                                    className={`w-full gap-2 disabled:opacity-60 transition-all duration-200 ${cfg.className}`}
+                                    onClick={() => {
+                                        void handleGenerateAi();
+                                        void roleBuilderHandleRef.current?.triggerBuild();
+                                    }}
+                                    disabled={smartBusy}
+                                    className="w-full gap-2 disabled:opacity-60 transition-all duration-200 bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white shadow-md"
                                     size="lg"
-                                    title={cfg.title}
                                 >
                                     {smartBusy ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : cfg.icon === 'sparkles' ? (
-                                        <Sparkles className="h-4 w-4" />
                                     ) : (
-                                        <MessageSquareText className="h-4 w-4" />
+                                        <Sparkles className="h-4 w-4" />
                                     )}
-                                    {cfg.label}
+                                    {smartBusy ? t('generating_with_ai') : t('generate_all_estimation')}
                                 </Button>
-                                {mode === 'build' && !canBuild && (
+                                {!canBuild && (
                                     <p className="text-xs text-[var(--color-text-subtle)] text-center">
                                         {t('set_budget_timeline_hint')}
                                     </p>
                                 )}
-                                {allowSecondaryRebuild && (
+                                {canBuild && !hasScope && (
+                                    <p className="text-xs text-amber-600 text-center">
+                                        {t('roles_scope_missing_hint')}
+                                    </p>
+                                )}
+                                {hasScope && (
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => { void roleBuilderHandleRef.current?.triggerBuild(); }}
-                                        disabled={!canBuild || smartBusy}
-                                        className="w-full gap-2 border-[var(--color-ai-100)] text-[var(--color-ai-700)] hover:bg-[var(--color-ai-50)] disabled:opacity-60"
+                                        onClick={() => setSuggestFromNotesOpen(true)}
+                                        disabled={smartBusy}
+                                        className="w-full gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 disabled:opacity-60"
                                         size="sm"
-                                        title={t('ai_assistant_build_title')}
+                                        title={t('ai_assistant_notes_title')}
                                     >
-                                        {isBuildingTeam ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Sparkles className="h-4 w-4" />
-                                        )}
-                                        {isBuildingTeam ? t('building_ellipsis') : t('build_ai_team_estimate')}
+                                        <MessageSquareText className="h-4 w-4" />
+                                        {t('refine_scope_from_notes')}
                                     </Button>
                                 )}
                                 <EstimationRoleBuilder
@@ -997,16 +1007,25 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     timelineMonths={selectedDeal.timelineMonths ?? 0}
                                     workloadHours={selectedDeal.workloadHours ?? 0}
                                     workloadDescription={selectedDeal.workloadDescription ?? ''}
+                                    expectedCloseDate={selectedDeal.expectedCloseDate}
                                     hideBuildButton
                                     handleRef={roleBuilderHandleRef}
                                     onLoadingChange={setIsBuildingTeam}
                                     onAccept={async (roles: AISuggestedRole[]) => {
-                                        // Map AI's role suggestions onto the deal's ghost-role shape.
-                                        // The ghost-role IDs are server-assigned on persist, so we
-                                        // intentionally omit `id` here — the mapper drops empty ids.
+                                        // Map capacity role code → most common delivery role ID
+                                        // among employees with that capacity role.
+                                        const capToRoleId = new Map<string, string>();
+                                        for (const dr of deliveryRoles) {
+                                            const emps = store.employees.filter(e => e.jobRoleId === dr.id && e.capacityRole);
+                                            for (const e of emps) {
+                                                if (e.capacityRole && !capToRoleId.has(e.capacityRole)) {
+                                                    capToRoleId.set(e.capacityRole, dr.id);
+                                                }
+                                            }
+                                        }
                                         const ghostRoles: GhostRole[] = roles.map(r => ({
                                             id: '',
-                                            roleType: r.roleType,
+                                            roleType: (capToRoleId.get(r.roleType) ?? r.roleType) as GhostRole['roleType'],
                                             quantity: r.quantity,
                                             months: r.months,
                                             minMonthlySalary: r.minMonthlySalary,
@@ -1030,63 +1049,29 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     );
                 })()}
 
-                {selectedDeal && (selectedDeal.ghostRoles?.length ?? 0) > 0 && (
-                    <Card variant="plain">
-                        <CardHeader className="pb-4 border-b">
-                            <CardTitle className="text-lg">{t('project_roles')}</CardTitle>
-                            <CardDescription>
-                                {t('project_roles_desc')}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="bg-slate-50">
-                                        <TableHead>{t('role')}</TableHead>
-                                        <TableHead className="text-right">{t('qty')}</TableHead>
-                                        <TableHead className="text-right">{t('months_col')}</TableHead>
-                                        <TableHead className="text-right">{t('monthly_salary_range')}</TableHead>
-                                        <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {(selectedDeal.ghostRoles ?? []).map((gr, i) => {
-                                        const avg = ((gr.minMonthlySalary ?? 0) + (gr.maxMonthlySalary ?? 0)) / 2
-                                        const total = gr.quantity * gr.months * avg
-                                        const labelByRoleType: Record<string, string> = {
-                                            frontend: t('role_type_frontend'),
-                                            backend: t('role_type_backend'),
-                                            design: t('role_type_design'),
-                                            qa: t('role_type_qa'),
-                                            pm: t('role_type_pm'),
-                                        }
-                                        return (
-                                            <TableRow key={gr.id || `gr-${i}`}>
-                                                <TableCell>
-                                                    <div className="font-medium text-[var(--color-text-default)]">{labelByRoleType[gr.roleType] ?? gr.roleType}</div>
-                                                    <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{gr.roleType}</div>
-                                                </TableCell>
-                                                <TableCell className="text-right">{gr.quantity}</TableCell>
-                                                <TableCell className="text-right">{gr.months}</TableCell>
-                                                <TableCell className="text-right tabular-nums">
-                                                    {formatMoney(gr.minMonthlySalary, currency)} – {formatMoney(gr.maxMonthlySalary, currency)}
-                                                </TableCell>
-                                                <TableCell className="text-right tabular-nums font-medium">
-                                                    {formatMoney(total, currency)}
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                )}
-
                 <Card variant="plain" className={!selectedDealId ? 'opacity-50 pointer-events-none' : ''}>
                     <CardHeader className="pb-4 border-b">
-                        <CardTitle className="text-lg">{t('project_scope_labor')}</CardTitle>
-                        <CardDescription>{t('project_scope_desc')}</CardDescription>
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                                <CardTitle className="text-lg">{t('project_scope_labor')}</CardTitle>
+                                <CardDescription>{t('project_scope_desc')}</CardDescription>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void handleGenerateAi()}
+                                disabled={!selectedDealId || isGeneratingAi}
+                                className="h-8 gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-60"
+                                title={t('ai_assistant_scope_title')}
+                            >
+                                {isGeneratingAi ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                )}
+                                {isGeneratingAi ? t('generating_with_ai') : t('generate_with_ai')}
+                            </Button>
+                        </div>
                     </CardHeader>
                     {aiDraft && (
                         <AIDraftReviewPanel
@@ -1162,10 +1147,196 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                     </CardContent>
                 </Card>
 
+                {selectedDeal && (
+                    <Card variant="plain">
+                        <CardHeader className="pb-4 border-b">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-lg">{t('project_roles')}</CardTitle>
+                                    <CardDescription>
+                                        {t('project_roles_desc')}
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => { void roleBuilderHandleRef.current?.triggerBuild(); }}
+                                    disabled={isBuildingTeam}
+                                    className="h-8 gap-1.5 shrink-0 bg-[var(--color-ai-600)] hover:bg-[var(--color-ai-700)] text-white disabled:opacity-60"
+                                    title={t('ai_assistant_build_title')}
+                                >
+                                    {isBuildingTeam ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                    )}
+                                    {isBuildingTeam ? t('building_ellipsis') : t('generate_with_ai')}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-slate-50">
+                                        <TableHead>{t('role')}</TableHead>
+                                        <TableHead className="text-right">{t('qty')}</TableHead>
+                                        <TableHead className="text-right">{t('months_col')}</TableHead>
+                                        <TableHead className="text-right">{t('hours_col')}</TableHead>
+                                        <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
+                                        <TableHead className="w-[50px]"></TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {(selectedDeal.ghostRoles ?? []).map((gr, i) => {
+                                        const avg = ((gr.minMonthlySalary ?? 0) + (gr.maxMonthlySalary ?? 0)) / 2
+                                        const rawCost = gr.quantity * gr.months * avg
+                                        const total = applyBillingMarkup(applySellMarkup(rawCost))
+                                        const roleKey = gr.id || `gr-${i}`
+                                        return (
+                                            <TableRow key={roleKey}>
+                                                <TableCell className="min-w-[180px]">
+                                                    <Select
+                                                        value={resolveRoleType(gr.roleType)}
+                                                        onValueChange={(v) => updateGhostRoleAt(i, { roleType: v as GhostRole['roleType'] })}
+                                                    >
+                                                        <SelectTrigger className="h-8 bg-white">
+                                                            <SelectValue>
+                                                                {resolveRoleLabel(gr.roleType)}
+                                                            </SelectValue>
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {deliveryRoles.map(r => (
+                                                                <SelectItem key={r.id} value={r.id}>
+                                                                    {r.title}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Input
+                                                        key={`q-${roleKey}-${gr.quantity}`}
+                                                        type="number"
+                                                        min={1}
+                                                        defaultValue={gr.quantity}
+                                                        onBlur={(e) => {
+                                                            const v = Math.max(1, Number(e.currentTarget.value) || 1)
+                                                            if (v !== gr.quantity) updateGhostRoleAt(i, { quantity: v })
+                                                        }}
+                                                        className="h-8 w-20 ml-auto text-right bg-white"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Input
+                                                        key={`m-${roleKey}-${gr.months}`}
+                                                        type="number"
+                                                        min={1}
+                                                        defaultValue={gr.months}
+                                                        onBlur={(e) => {
+                                                            const v = Math.max(1, Number(e.currentTarget.value) || 1)
+                                                            if (v !== gr.months) updateGhostRoleAt(i, { months: v })
+                                                        }}
+                                                        className="h-8 w-20 ml-auto text-right bg-white"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Input
+                                                        key={`h-${roleKey}-${gr.quantity}-${gr.months}`}
+                                                        type="number"
+                                                        min={0}
+                                                        defaultValue={gr.quantity * gr.months * (store.companySettings.defaultMonthlyCapacityHours || 160)}
+                                                        onBlur={(e) => {
+                                                            const h = Math.max(0, Number(e.currentTarget.value) || 0)
+                                                            const hpm = store.companySettings.defaultMonthlyCapacityHours || 160
+                                                            const newMonths = gr.quantity > 0 ? Math.max(1, Math.ceil(h / (gr.quantity * hpm))) : 1
+                                                            if (newMonths !== gr.months) updateGhostRoleAt(i, { months: newMonths })
+                                                        }}
+                                                        className="h-8 w-24 ml-auto text-right tabular-nums bg-white"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums font-medium">
+                                                    {formatMoney(total, currency)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                                        onClick={() => removeGhostRoleAt(i)}
+                                                        title={t('remove')}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+
+                            <div className="p-4 bg-slate-50 border-t flex gap-3 items-end flex-wrap">
+                                <div className="flex-1 min-w-[180px] space-y-1">
+                                    <label className="text-xs font-medium text-slate-500">{t('role')}</label>
+                                    <Select value={newRoleType} onValueChange={setNewRoleType}>
+                                        <SelectTrigger className="h-9 bg-white">
+                                            <SelectValue placeholder={t('select_role_short')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {deliveryRoles.map(r => (
+                                                <SelectItem key={r.id} value={r.id}>
+                                                    {r.title}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="w-[80px] space-y-1">
+                                    <label className="text-xs font-medium text-slate-500">{t('qty')}</label>
+                                    <Input type="number" min={1} value={newRoleQty} onChange={e => setNewRoleQty(e.target.value)} className="h-9 bg-white text-right" />
+                                </div>
+                                <div className="w-[90px] space-y-1">
+                                    <label className="text-xs font-medium text-slate-500">{t('months_col')}</label>
+                                    <Input type="number" min={1} value={newRoleMonths} onChange={e => setNewRoleMonths(e.target.value)} placeholder="0" className="h-9 bg-white text-right" />
+                                </div>
+                                <div className="w-[100px] space-y-1">
+                                    <label className="text-xs font-medium text-slate-500">{t('hours_col')}</label>
+                                    <Input type="number" min={0} value={newRoleHours} onChange={e => setNewRoleHours(e.target.value)} placeholder="0" className="h-9 bg-white text-right tabular-nums" />
+                                </div>
+                                <Button
+                                    onClick={handleAddProjectRole}
+                                    disabled={!newRoleType || !newRoleMonths}
+                                    className="h-9 bg-[var(--color-text-default)] gap-2"
+                                >
+                                    <Plus className="h-4 w-4" /> {t('add_role')}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <Card variant="plain" className={!selectedDealId ? 'opacity-50 pointer-events-none' : ''}>
                     <CardHeader className="pb-4 border-b">
-                        <CardTitle className="text-lg">{t('project_specific_overhead')}</CardTitle>
-                        <CardDescription>{t('project_overhead_desc')}</CardDescription>
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                                <CardTitle className="text-lg">{t('project_specific_overhead')}</CardTitle>
+                                <CardDescription>{t('project_overhead_desc')}</CardDescription>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void handleGenerateAi()}
+                                disabled={!selectedDealId || isGeneratingAi}
+                                className="h-8 gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-60"
+                                title={t('ai_assistant_scope_title')}
+                            >
+                                {isGeneratingAi ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                )}
+                                {isGeneratingAi ? t('generating_with_ai') : t('generate_with_ai')}
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
@@ -1238,7 +1409,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     className="text-slate-500"
                                     title={`Sum of hours × Sell Rate (loaded cost × ${BILLING_MARKUP_MULTIPLIER}). What we bill the client for labor.`}
                                 >
-                                    Labor (Sell)
+                                    Suggested Amount
                                 </span>
                                 <span className="font-medium text-slate-800">{formatMoney(laborSell, currency)}</span>
                             </div>
@@ -1247,7 +1418,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     className="text-slate-500"
                                     title={`Sum of hours × Cost / Hr (raw salary + ${LABOR_OVERHEAD_PERCENTAGE}% absorbed overhead). What labor costs the agency.`}
                                 >
-                                    Labor Cost (Basis)
+                                    Total Estimate Cost
                                 </span>
                                 <span className="font-medium text-slate-800">{formatMoney(laborCostBasis, currency)}</span>
                             </div>
@@ -1295,8 +1466,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                         <div className="pt-2">
                             <label className="text-xs font-medium text-slate-500 mb-1 block">{t('version_notes_optional')}</label>
                             <Input
-                                value={versionNotes}
-                                onChange={e => setVersionNotes(e.target.value)}
+                                ref={versionNotesRef}
                                 placeholder={t('placeholder_version_changes')}
                                 className="h-8 text-xs bg-white border-slate-200 text-slate-800 placeholder:text-slate-400"
                             />
@@ -1399,12 +1569,15 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 dealId={selectedDealId}
                                 currentResources={resources}
                                 currentOverheads={overheads}
+                                currentRoles={selectedDeal?.ghostRoles ?? []}
                                 currency={currency}
-                                onApply={async ({ resources: nextResources, overheads: nextOverheads, contextNotes }) => {
+                                onApply={async ({ resources: nextResources, overheads: nextOverheads, roles: nextRoles, contextNotes }) => {
                                     // 1. Persist applied changes to the deal so the auto-saved
                                     //    state matches what the new version snapshot will hold.
                                     //    Cancels the pending debounced auto-save (if any) since
-                                    //    we're writing the same fields right now.
+                                    //    we're writing the same fields right now. Ghost roles ride
+                                    //    along on the same deal update — they live on the deal, not
+                                    //    in the estimation-version snapshot.
                                     if (autoSaveTimerRef.current) {
                                         clearTimeout(autoSaveTimerRef.current);
                                         autoSaveTimerRef.current = null;
@@ -1414,6 +1587,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         updates: {
                                             estimationResources: nextResources,
                                             projectOverheads: nextOverheads,
+                                            ghostRoles: nextRoles,
                                             targetMargin: margin[0],
                                         },
                                     });

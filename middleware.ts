@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { canAccessRoute, fallbackPathFor } from '@/lib/route-permissions';
 
 // Routes only org users can access.
 const ORG_PREFIXES = [
@@ -20,8 +21,12 @@ export function middleware(request: NextRequest) {
 
     const token = request.cookies.get('__session')?.value;
     const role = request.cookies.get('__role')?.value; // 'super_admin' | 'member' | undefined
+    const permsCookie = request.cookies.get('__perms')?.value ?? '';
     const isSuperAdmin = role === 'super_admin';
     const isAuthenticated = !!token;
+    // __perms is comma-separated. Empty string → empty list. "all" is a wildcard
+    // (super admins and the default Admin role both carry it).
+    const permissions = permsCookie ? permsCookie.split(',').filter(Boolean) : [];
 
     // ── Unauthenticated ────────────────────────────────────────────────────
     if (!isAuthenticated) {
@@ -55,6 +60,18 @@ export function middleware(request: NextRequest) {
     const isSuperAdminRoute = SUPER_ADMIN_PREFIXES.some((p) => path.startsWith(p));
     if (isSuperAdminRoute) {
         return NextResponse.redirect(new URL('/dashboard', request.nextUrl));
+    }
+
+    // App-role permission gate. Without __perms (legacy cookie not yet refreshed
+    // post-login from an older session) fall through to client-side gating —
+    // failing closed at the edge would log the user out of pages they have
+    // valid in-memory access to. Once __perms is populated by the next
+    // /auth/me cycle, the edge gate kicks in.
+    if (permsCookie) {
+        const user = { permissions, isSuperAdmin: false };
+        if (!canAccessRoute(user, path)) {
+            return NextResponse.redirect(new URL(fallbackPathFor(user), request.nextUrl));
+        }
     }
 
     return NextResponse.next();

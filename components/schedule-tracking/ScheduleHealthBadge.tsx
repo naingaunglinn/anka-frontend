@@ -12,7 +12,7 @@ const STYLES: Record<ScheduleHealth, string> = {
 const LABELS: Record<ScheduleHealth, string> = {
     on_track: 'On Track',
     at_risk:  'At Risk',
-    slipping: 'Slipping',
+    slipping: 'Behind',
 };
 
 export function ScheduleHealthBadge({
