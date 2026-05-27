@@ -377,8 +377,8 @@ export default function ProjectDetailPage() {
                             <p className="text-sm font-semibold text-[#171717]">Recent time entries</p>
                             <span className="text-xs text-[#8a8a8a]">— last {recentEntries.length} of {timeEntries.length}</span>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => router.push('/time-tracking')}>
-                            Open Time Tracking
+                        <Button variant="outline" size="sm" onClick={() => router.push('/team-assignment')}>
+                            Open Team Assignment
                         </Button>
                     </div>
                     {recentEntries.length === 0 ? (

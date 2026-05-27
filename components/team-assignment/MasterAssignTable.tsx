@@ -21,7 +21,7 @@ import { useScheduleTrackingList } from '@/lib/queries/scheduleTracking';
 import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHealthBadge';
 import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
-import { DirectAssignDialog, ConflictConfirmDialog, SwapWarningDialog } from '@/components/time-tracking/ReassignConflictDialog';
+import { DirectAssignDialog, ConflictConfirmDialog, SwapWarningDialog } from '@/components/team-assignment/ReassignConflictDialog';
 import type {
     ProjectTaskPhaseAssignment,
     ReassignmentCheck,
