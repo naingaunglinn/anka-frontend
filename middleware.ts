@@ -5,7 +5,7 @@ import { canAccessRoute, fallbackPathFor } from '@/lib/route-permissions';
 // Routes only org users can access.
 const ORG_PREFIXES = [
     '/crm', '/organization', '/estimation', '/contracts',
-    '/projects', '/time-tracking', '/schedule-tracking', '/my-schedule',
+    '/projects', '/team-assignment', '/schedule-tracking', '/my-schedule',
     '/financial', '/forecast', '/dashboard',
     '/profile',
 ];
@@ -85,7 +85,7 @@ export const config = {
         '/estimation/:path*',
         '/contracts/:path*',
         '/projects/:path*',
-        '/time-tracking/:path*',
+        '/team-assignment/:path*',
         '/schedule-tracking/:path*',
         '/my-schedule/:path*',
         '/financial/:path*',

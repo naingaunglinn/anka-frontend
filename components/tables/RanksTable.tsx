@@ -47,9 +47,9 @@ interface RanksTableProps {
  * full taxonomy here.
  */
 function levelBadgeClass(level: number): string {
-    if (level >= 40) return 'bg-purple-100 text-purple-700 hover:bg-purple-100';
-    if (level >= 30) return 'bg-blue-100 text-blue-700 hover:bg-blue-100';
-    if (level >= 20) return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100';
+    if (level >= 4) return 'bg-purple-100 text-purple-700 hover:bg-purple-100';
+    if (level >= 3) return 'bg-blue-100 text-blue-700 hover:bg-blue-100';
+    if (level >= 2) return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100';
     return 'bg-slate-100 text-slate-700 hover:bg-slate-100';
 }
 
@@ -76,6 +76,15 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
             },
         },
         {
+            accessorKey: 'code',
+            header: t('position_code'),
+            cell: ({ row }) => (
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700">
+                    {row.getValue('code')}
+                </code>
+            ),
+        },
+        {
             accessorKey: 'name',
             header: ({ column }) => (
                 <Button
@@ -83,20 +92,11 @@ export function RanksTable({ data, onEdit, onDelete }: RanksTableProps) {
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                     className="-ml-4 h-8 px-4"
                 >
-                    {t('name')}
+                    {t('position_name')}
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
             cell: ({ row }) => <div className="font-medium text-slate-900">{row.getValue('name')}</div>,
-        },
-        {
-            accessorKey: 'code',
-            header: t('code_col'),
-            cell: ({ row }) => (
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700">
-                    {row.getValue('code')}
-                </code>
-            ),
         },
         {
             id: 'actions',

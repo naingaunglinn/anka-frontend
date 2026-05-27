@@ -26,7 +26,7 @@ import { useContractDrafts } from '@/lib/queries/contractDrafts';
 import { Sparkles } from 'lucide-react';
 import { RequirementsChecklist, formatOtSummary } from '@/components/project-pipeline/RequirementsChecklist';
 import { WorkflowBar, type WorkflowStep } from '@/components/project-pipeline/WorkflowBar';
-import { calculateOverhead, calculateRiskBuffer, applySellMarkup } from '@/lib/calculations';
+import { applySellMarkup, applyBillingMarkup } from '@/lib/calculations';
 import type { EstimationResource } from '@/types/business';
 
 // Stage colors (label is resolved via translation: t(STAGE_LABEL_KEY[stage])).
@@ -97,18 +97,19 @@ export default function DealDetailPage() {
         }, 0);
     }, [dealToEdit]);
 
-    // Live financial rollup driven by what the Estimation page persists onto the
-    // deal: estimation_resources × per-role cost rate, plus deal_overheads, plus
-    // company overhead %, plus risk buffer %. Mirrors EstimationSimulator's
-    // costRateForResource → laborCost → companyOverhead → buffer → total math
-    // so the Financial Summary card always agrees with the simulator. The
-    // legacy deal.{base_labor_cost, overhead_cost, buffer_cost, total_estimated_cost,
-    // estimated_gross_profit} columns are no longer read by this page.
+    // Live financial rollup — mirrors EstimationSimulator exactly so both pages
+    // show the same numbers. Formula: laborCost = Σ hours × costRate (sellMarkup
+    // applied), laborSell = laborCost × billingMarkup (3×), totalProjectCost =
+    // laborCost + projectOverheadTotal, suggestedPrice = laborSell +
+    // projectOverheadTotal, expectedProfit = (clientBudget || suggestedPrice) -
+    // totalProjectCost. No company-wide overhead % or risk buffer here —
+    // Estimation doesn't compute those, so adding them on Deal Detail produced
+    // numbers that disagreed across the two pages.
     const estimationRollup = useMemo(() => {
         const resources = dealToEdit?.estimationResources ?? [];
         const overheads = dealToEdit?.projectOverheads ?? [];
         const clientBudget = dealToEdit?.clientBudget ?? 0;
-        const { overheadPercentage, bufferPercentage, costToBillRatio, fallbackHourlyCost } = store.companySettings;
+        const { costToBillRatio, fallbackHourlyCost } = store.companySettings;
 
         const costRateForRole = (roleId: string): number => {
             const rates = store.employees
@@ -137,17 +138,22 @@ export default function DealDetailPage() {
             }
             return costRateForRole(res.roleId);
         };
+        const sellRateForResource = (res: EstimationResource): number =>
+            applyBillingMarkup(costRateForResource(res));
 
         const laborCost = resources.reduce((sum, r) => sum + r.hours * costRateForResource(r), 0);
-        const companyOverheadCost = calculateOverhead(laborCost, overheadPercentage || 0);
+        const laborSell = resources.reduce((sum, r) => sum + r.hours * sellRateForResource(r), 0);
         const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-        const overheadCost = companyOverheadCost + projectOverheadTotal;
-        const bufferCost = calculateRiskBuffer(laborCost, overheadCost, bufferPercentage || 0);
-        const totalEstimatedCost = laborCost + overheadCost + bufferCost;
-        const estimatedGrossProfit = clientBudget - totalEstimatedCost;
-        const marginPct = clientBudget > 0 ? (estimatedGrossProfit / clientBudget) * 100 : undefined;
+        const totalProjectCost = laborCost + projectOverheadTotal;
+        const suggestedPrice = laborSell + projectOverheadTotal;
+        const expectedProfit = clientBudget > 0
+            ? clientBudget - totalProjectCost
+            : suggestedPrice - totalProjectCost;
+        const marginPct = suggestedPrice > 0
+            ? (expectedProfit / suggestedPrice) * 100
+            : undefined;
 
-        return { laborCost, overheadCost, bufferCost, totalEstimatedCost, estimatedGrossProfit, marginPct };
+        return { laborCost, projectOverheadTotal, totalProjectCost, suggestedPrice, expectedProfit, marginPct };
     }, [dealToEdit, store.companySettings, store.employees, store.roles]);
 
     if (dealQuery.isLoading) {
@@ -306,42 +312,42 @@ export default function DealDetailPage() {
             {/* Workflow status bar */}
             <WorkflowBar steps={workflowSteps} />
 
-            {/* KPI cards — hidden on C leads where there's no estimation yet,
-                so an all-zero "Est. Total Cost / Gross Profit" strip doesn't
-                show. Same gate as the right-rail Financial Summary card. */}
+            {/* KPI cards — hidden on C leads where there's no estimation yet.
+                Same gate as the right-rail Financial Summary card. Numbers
+                match the Estimation page exactly (same formulas). */}
             {hasFinancials && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">{t('client_budget')}</p>
+                            <p className="text-sm font-medium text-slate-500">{t('suggested_price')}</p>
                             <DollarSign className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
-                            {formatMoney(dealToEdit.clientBudget ?? 0, currency)}
+                            {formatMoney(estimationRollup.suggestedPrice, currency)}
                         </div>
                     </CardContent>
                 </Card>
                 <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">{t('est_total_cost')}</p>
+                            <p className="text-sm font-medium text-slate-500">{t('total_project_cost')}</p>
                             <TrendingUp className="h-4 w-4 text-slate-400" />
                         </div>
                         <div className="mt-1 text-2xl font-bold text-slate-900">
-                            {formatMoney(estimationRollup.totalEstimatedCost, currency)}
+                            {formatMoney(estimationRollup.totalProjectCost, currency)}
                         </div>
                     </CardContent>
                 </Card>
                 <Card variant="plain">
                     <CardContent className="p-5">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-500">{t('gross_profit')}</p>
+                            <p className="text-sm font-medium text-slate-500">{t('expected_profit')}</p>
                             <DollarSign className="h-4 w-4 text-blue-500" />
                         </div>
                         <div className="mt-1 text-2xl font-bold">
                             <span className={marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}>
-                                {formatMoney(estimationRollup.estimatedGrossProfit, currency)}
+                                {formatMoney(estimationRollup.expectedProfit, currency)}
                             </span>
                             {marginPct !== undefined && (
                                 <span className={`ml-2 text-sm font-semibold ${getMarginColor(marginPct)}`}>
@@ -548,32 +554,28 @@ export default function DealDetailPage() {
                             <CardContent className="pt-5 space-y-4">
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('client_budget')}</span>
-                                        <span className="font-medium text-slate-700">{formatMoney(dealToEdit.clientBudget ?? 0, currency)}</span>
+                                        <span className="text-slate-500">{t('suggested_price')}</span>
+                                        <span className="font-medium text-slate-700">{formatMoney(estimationRollup.suggestedPrice, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-slate-500">{t('base_labor_cost')}</span>
                                         <span className="font-medium text-slate-700">{formatMoney(estimationRollup.laborCost, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('overhead')}</span>
-                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.overheadCost, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('risk_buffer')}</span>
-                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.bufferCost, currency)}</span>
+                                        <span className="text-slate-500">{t('project_overhead')}</span>
+                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.projectOverheadTotal, currency)}</span>
                                     </div>
                                 </div>
                                 <div className="border-t border-slate-100 pt-4">
                                     <div className="flex justify-between font-bold text-slate-800 mb-2">
-                                        <span>{t('est_total_cost')}</span>
-                                        <span>{formatMoney(estimationRollup.totalEstimatedCost, currency)}</span>
+                                        <span>{t('total_project_cost')}</span>
+                                        <span>{formatMoney(estimationRollup.totalProjectCost, currency)}</span>
                                     </div>
                                     <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                        <span className="font-bold text-slate-800">{t('gross_profit')}</span>
+                                        <span className="font-bold text-slate-800">{t('expected_profit')}</span>
                                         <div className="flex flex-col items-end">
                                             <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
-                                                {formatMoney(estimationRollup.estimatedGrossProfit, currency)}
+                                                {formatMoney(estimationRollup.expectedProfit, currency)}
                                             </span>
                                             {marginPct !== undefined && (
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>
