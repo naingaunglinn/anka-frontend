@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Briefcase, Sparkles, FastForward } from 'lucide-react';
+import { Clock, Briefcase, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -312,15 +312,6 @@ function AutoAssignProjectRow({
                 </p>
             </div>
             <div className="flex flex-wrap gap-2">
-                <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs h-8 opacity-40 cursor-not-allowed"
-                    disabled
-                >
-                    <FastForward className="h-3.5 w-3.5" />
-                    Assign tasks with AI
-                </Button>
                 <Button
                     size="sm"
                     className="gap-1.5 text-xs h-8 bg-[#171717] opacity-40 cursor-not-allowed"
