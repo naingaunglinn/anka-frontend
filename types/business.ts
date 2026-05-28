@@ -443,6 +443,7 @@ export interface ProjectTaskPhaseAssignment {
     assignmentSource: 'ai' | 'manual';
     plannedStart: string | null;
     plannedEnd: string | null;
+    plannedDatesEditedAt: string | null;
     actualStart: string | null;
     actualEnd: string | null;
     status: TaskStatus;
