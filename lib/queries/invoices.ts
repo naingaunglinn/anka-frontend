@@ -129,29 +129,25 @@ export function useInvoiceMutations() {
     });
 
     /**
-     * Email the invoice to the client. Default recipient is the contract's
-     * billing_email; pass `to` to override (e.g. when chasing a CC). First
-     * call sets `issued_at` and promotes Draft → Pending; subsequent calls
-     * increment `reminder_sent_count`.
+     * Mark the invoice as issued. Sets `issued_at` (idempotent) and promotes
+     * Draft → Pending. No email is sent — invoices are delivered to clients
+     * out of band (XLSX export, printed copy, etc.).
      */
-    const sendInvoice = useMutation({
-        mutationFn: async ({ id, to }: { id: string; to?: string }) => {
-            const { data } = await api.post(`/invoices/${id}/send`, to ? { to } : {});
+    const markIssuedInvoice = useMutation({
+        mutationFn: async (id: string) => {
+            const { data } = await api.post(`/invoices/${id}/mark-issued`);
             return toInvoice(data.data ?? data);
         },
         onSuccess: (inv) => {
-            const isReminder = (inv.reminderSentCount ?? 0) > 0;
-            toast.success(isReminder
-                ? `Reminder sent to ${inv.sentToEmail}.`
-                : `Invoice ${inv.invoiceNumber ?? ''} sent to ${inv.sentToEmail}.`);
+            toast.success(`Invoice ${inv.invoiceNumber ?? ''} marked as issued.`);
         },
         onError: (err) => {
-            toast.error(`Failed to send invoice: ${normalizeError(err).message}`);
+            toast.error(`Failed to mark invoice as issued: ${normalizeError(err).message}`);
         },
         onSettled: () => queryClient.invalidateQueries({ queryKey: invoiceKeys.all }),
     });
 
-    return { createInvoice, updateInvoice, payInvoice, deleteInvoice, sendInvoice };
+    return { createInvoice, updateInvoice, payInvoice, deleteInvoice, markIssuedInvoice };
 }
 
 // ── New Invoice menu (template XLSX export) ──────────────────────────────────

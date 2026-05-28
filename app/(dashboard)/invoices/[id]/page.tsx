@@ -4,7 +4,7 @@ import { use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, FileDown, Loader2, Mail, CreditCard } from 'lucide-react';
+import { ArrowLeft, FileDown, Loader2, CheckCircle2, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +35,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     const { data: invoice, isLoading } = useInvoiceDetail(id);
     const { data: contractsData } = useContractList({ per_page: 500 });
     const { data: projectsData } = useProjectList({ per_page: 500 });
-    const { sendInvoice, payInvoice } = useInvoiceMutations();
+    const { markIssuedInvoice, payInvoice } = useInvoiceMutations();
 
     const contract = invoice && contractsData?.data.find((c) => c.id === invoice.contractId);
     const project = invoice && projectsData?.data.find((p) => p.contractId === invoice.contractId);
@@ -177,7 +177,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                             <Row label="Due date" value={invoice.dueDate ?? '—'} />
                             <Row label="Period" value={invoice.billingPeriodLabel ?? '—'} />
                             {invoice.memo && <Row label="Memo" value={invoice.memo} />}
-                            {invoice.sentToEmail && <Row label="Sent to" value={invoice.sentToEmail} />}
                         </CardContent>
                     </Card>
 
@@ -189,12 +188,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => sendInvoice.mutate({ id: invoice.id })}
-                                disabled={sendInvoice.isPending || invoice.status === 'Paid' || invoice.status === 'Cancelled'}
+                                onClick={() => markIssuedInvoice.mutate(invoice.id)}
+                                disabled={markIssuedInvoice.isPending || !!invoice.issuedAt || invoice.status === 'Paid' || invoice.status === 'Cancelled'}
                                 className="w-full gap-2 justify-start"
                             >
-                                <Mail className="h-3.5 w-3.5" />
-                                {sendInvoice.isPending ? 'Sending…' : (invoice.issuedAt ? 'Resend invoice' : 'Send to client')}
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                {markIssuedInvoice.isPending ? 'Marking…' : (invoice.issuedAt ? 'Issued' : 'Mark as issued')}
                             </Button>
                             <Button
                                 variant="outline"
