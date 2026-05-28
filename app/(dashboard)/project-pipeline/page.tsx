@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DollarSign, Search, Target, TrendingUp, Plus, X, EyeOff, Eye } from 'lucide-react';
 
 import { useDealList } from '@/lib/queries/deals';
-import { formatMoneyShort } from '@/lib/currency';
+import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { PermissionGuard } from '@/components/PermissionGuard';
@@ -107,7 +107,7 @@ export default function CRMPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatMoneyShort(pipelineTotal, currency)}
+                            {formatMoney(pipelineTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
                             {t('total_income_subtitle')}
@@ -122,7 +122,7 @@ export default function CRMPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatMoneyShort(weightedTotal, currency)}
+                            {formatMoney(weightedTotal, currency)}
                         </div>
                         <p className="text-xs text-[#4a4a4a] mt-1">
                             {t('win_probability_price_subtitle')}
