@@ -5,12 +5,13 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Briefcase, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Clock, Briefcase, Sparkles, AlertTriangle, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { normalizeError } from '@/lib/errorHandler';
-import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
+import { useProjectList, useProjectTeam, useProjectTaskAssignments, projectKeys } from '@/lib/queries/projects';
 import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
@@ -53,6 +54,11 @@ export default function TimeTrackingPage() {
     // AI Task Assignment — preview/confirm flow (per-project loading flag)
     const [autoAssignLoading, setAutoAssignLoading] = useState<string | null>(null);
     const [teamPreviewProjectId, setTeamPreviewProjectId] = useState<string | null>(null);
+    const [destructiveConfirm, setDestructiveConfirm] = useState<{
+        projectId: string;
+        manualEdits: number;
+        editedDates: number;
+    } | null>(null);
 
     const teamPreviewProjectName = teamPreviewProjectId
         ? projects.find((p) => p.id === teamPreviewProjectId)?.name
@@ -64,6 +70,35 @@ export default function TimeTrackingPage() {
         // The actual /assign-tasks call fires AFTER the user confirms via
         // `runAssignTasks` below.
         setTeamPreviewProjectId(projectId);
+    }
+
+    // Re-running assign-tasks deletes ProjectTaskAssignment rows (FK cascades
+    // to phase assignments and progress logs). If the user has manually edited
+    // anything on this project, warn them before we wipe it. Read straight from
+    // the React Query cache so there's no extra network call.
+    function inspectDestructiveImpact(projectId: string) {
+        const cached = queryClient.getQueryData<{ data?: Array<{ phases?: Array<{ assignmentSource?: string; plannedDatesEditedAt?: string | null }> }> }>(
+            projectKeys.taskAssignments(projectId),
+        );
+        const tasks = cached?.data ?? [];
+        let manualEdits = 0;
+        let editedDates = 0;
+        for (const t of tasks) {
+            for (const p of (t.phases ?? [])) {
+                if (p.assignmentSource === 'manual') manualEdits++;
+                if (p.plannedDatesEditedAt) editedDates++;
+            }
+        }
+        return { manualEdits, editedDates };
+    }
+
+    function maybeConfirmThenAssign(projectId: string) {
+        const impact = inspectDestructiveImpact(projectId);
+        if (impact.manualEdits === 0 && impact.editedDates === 0) {
+            runAssignTasks(projectId);
+            return;
+        }
+        setDestructiveConfirm({ projectId, ...impact });
     }
 
     async function runAssignTasks(projectId: string) {
@@ -222,10 +257,48 @@ export default function TimeTrackingPage() {
                     if (teamPreviewProjectId) {
                         const id = teamPreviewProjectId;
                         setTeamPreviewProjectId(null);
-                        runAssignTasks(id);
+                        maybeConfirmThenAssign(id);
                     }
                 }}
             />
+
+            <Dialog open={!!destructiveConfirm} onOpenChange={(open) => !open && setDestructiveConfirm(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
+                            This will discard manual edits
+                        </DialogTitle>
+                        <DialogDescription className="pt-2 space-y-2 text-sm text-slate-600">
+                            <span className="block">Re-running task assignment deletes and rebuilds this project's phase rows. You will lose:</span>
+                            <span className="block">
+                                {destructiveConfirm?.manualEdits ? (
+                                    <span className="block">• <strong>{destructiveConfirm.manualEdits}</strong> manually re-assigned phase{destructiveConfirm.manualEdits === 1 ? '' : 's'}</span>
+                                ) : null}
+                                {destructiveConfirm?.editedDates ? (
+                                    <span className="block">• <strong>{destructiveConfirm.editedDates}</strong> phase{destructiveConfirm.editedDates === 1 ? '' : 's'} with manually edited planned dates</span>
+                                ) : null}
+                                <span className="block mt-2 text-amber-700">All phase progress logs for this project will also be deleted.</span>
+                            </span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2 mt-2">
+                        <Button variant="outline" onClick={() => setDestructiveConfirm(null)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                const id = destructiveConfirm?.projectId;
+                                setDestructiveConfirm(null);
+                                if (id) runAssignTasks(id);
+                            }}
+                        >
+                            Discard and re-assign
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -294,8 +367,12 @@ function AutoAssignProjectRow({
 }) {
     const t = useTranslations();
     const teamQuery = useProjectTeam(project.id);
+    const taskQuery = useProjectTaskAssignments(project.id);
     const teamCount = teamQuery.data?.length ?? 0;
     const hasTeam = teamCount > 0;
+    const taskCount = taskQuery.data?.data?.length ?? 0;
+    const hasTasks = taskCount > 0;
+    const isFullyAssigned = hasTeam && hasTasks;
     const isBusy = autoAssignLoading === project.id;
 
     return (
@@ -314,10 +391,15 @@ function AutoAssignProjectRow({
             <div className="flex flex-wrap gap-2">
                 <Button
                     size="sm"
-                    className="gap-1.5 text-xs h-8 bg-[#171717] opacity-40 cursor-not-allowed"
-                    disabled
+                    className="gap-1.5 text-xs h-8 bg-[#171717] hover:bg-[#2a2a2a] text-white"
+                    disabled={isBusy}
+                    onClick={() => onAutoAssign(project.id)}
                 >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    {isBusy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                    )}
                     AI team build + assign tasks
                 </Button>
             </div>

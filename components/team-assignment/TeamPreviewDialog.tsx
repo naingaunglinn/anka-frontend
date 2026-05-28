@@ -6,10 +6,9 @@ import toast from 'react-hot-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, Plus, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Sparkles, Users } from 'lucide-react';
 import {
     usePlanTeamPreview,
     useConfirmTeamPlan,
@@ -40,22 +39,6 @@ const RANK_MATCH_VARIANTS: Record<TeamPlanProposed['rankMatch'], string> = {
 
 const MANUAL_BADGE_CLASS = 'bg-indigo-50 text-indigo-700 border-indigo-200';
 
-/** Sentinel value for "no specific ghost role" in the Add-row dropdown. */
-const NO_ROLE_VALUE = '__no_role__';
-
-interface AdditionRow {
-    /** null = "no specific role" (backend gives 1-month workable_hours fallback) */
-    ghostRoleId: string | null;
-    /** empty string = not yet picked */
-    employeeId: string;
-    /**
-     * User-supplied allocated hours for this addition. null = "use the
-     * computed default" (workable_hours × ghost_role.months). When the
-     * user types into the Allocated (h) field, this captures the value
-     * verbatim; clearing the field reverts to the default.
-     */
-    allocatedHours: number | null;
-}
 
 export function TeamPreviewDialog({ open, onClose, projectId, projectName, onConfirmed }: Props) {
     const t = useTranslations();
@@ -78,10 +61,6 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
     // when the user accepts a Regenerate (since the AI baseline is gone).
     const [overrides, setOverrides] = useState<Record<number, string>>({});
 
-    // Net-new manual rows the user added beyond what AI proposed. Each row
-    // carries an optional ghost_role_id so allocated_hours can be computed
-    // from ghost_role.months × workable_hours server-side.
-    const [additions, setAdditions] = useState<AdditionRow[]>([]);
 
     useEffect(() => {
         if (!open || !projectId) {
@@ -89,14 +68,13 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
             setExcludedIds([]);
             setRegenerateCount(0);
             setOverrides({});
-            setAdditions([]);
+
             return;
         }
         setPreview(null);
         setExcludedIds([]);
         setRegenerateCount(0);
         setOverrides({});
-        setAdditions([]);
         planPreview.mutate(undefined, {
             onSuccess: (p) => setPreview(p),
         });
@@ -119,7 +97,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
     const unfilled = useMemo(() => preview?.unfilled ?? [], [preview?.unfilled]);
     const rolesToFill = useMemo(() => preview?.rolesToFill ?? [], [preview?.rolesToFill]);
     const nothingToDo =
-        preview && proposed.length === 0 && unfilled.length === 0 && additions.length === 0;
+        preview && proposed.length === 0 && unfilled.length === 0;
 
     // Employees that are already "spoken for" in this dialog session. Used to
     // filter the dropdown options so the user can't pick the same person in
@@ -134,11 +112,8 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
             const eid = overrides[i] ?? p.employeeId;
             if (eid) set.add(eid);
         });
-        for (const a of additions) {
-            if (a.employeeId) set.add(a.employeeId);
-        }
         return set;
-    }, [kept, proposed, overrides, additions]);
+    }, [kept, proposed, overrides]);
 
     // Build the dropdown pool for a given row, EXCLUDING ids chosen elsewhere
     // but INCLUDING the row's own current pick (so the trigger still resolves
@@ -149,7 +124,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
         );
     };
 
-    const hasManualEdits = Object.keys(overrides).length > 0 || additions.length > 0;
+    const hasManualEdits = Object.keys(overrides).length > 0;
 
     const handleRegenerate = () => {
         if (!projectId || !preview) return;
@@ -162,7 +137,6 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
         );
         setExcludedIds(newExclusions);
         setOverrides({});
-        setAdditions([]);
         planPreview.mutate(
             { excludeEmployeeIds: newExclusions },
             {
@@ -177,39 +151,18 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
     const handleConfirm = () => {
         if (!projectId || !preview) return;
 
-        // ghostRoleId is REQUIRED downstream for the proposed rows — confirmTeamPlan
-        // uses it to look up ghost_role.months and compute allocated_hours via
-        // engagementAvailableHours(emp, project, months). Manual additions can
-        // optionally omit it (sentinel "no role" → backend falls back to 1-month
-        // workable_hours, which is fine for ad-hoc roster additions).
-        const proposedPicks = proposed.map((p, i) => ({
-            employeeId:  overrides[i] ?? p.employeeId,
-            ghostRoleId: p.ghostRoleId,
+        const picks = proposed.map((p, i) => ({
+            employeeId:        overrides[i] ?? p.employeeId,
+            ghostRoleId:       p.ghostRoleId ?? undefined,
+            slotId:            p.slotId ?? undefined,
+            allocatedHours:    p.allocatedHours,
+            monthlyAllocation: p.monthlyAllocation ?? undefined,
+            teamStartDate:     p.teamStartDate ?? undefined,
         }));
-        const additionPicks = additions
-            .filter((a) => a.employeeId)
-            .map((a) => {
-                // If the user typed a value into the Allocated (h) input we
-                // ship it verbatim; otherwise we omit allocated_hours so the
-                // backend recomputes workable_hours × ghost_role.months.
-                const emp = availableById.get(a.employeeId);
-                const role = a.ghostRoleId
-                    ? rolesToFill.find((r) => r.ghostRoleId === a.ghostRoleId)
-                    : undefined;
-                const computed = emp ? Math.round(emp.workableHours * (role?.months ?? 1)) : 0;
-                const hours = a.allocatedHours ?? computed;
-                return {
-                    employeeId:  a.employeeId,
-                    ghostRoleId: a.ghostRoleId ?? undefined,
-                    allocatedHours: hours,
-                };
-            });
-        const picks = [...proposedPicks, ...additionPicks];
 
         confirmTeam.mutate(picks, {
             onSuccess: (res) => {
-                const manualCount =
-                    Object.keys(overrides).length + additions.filter((a) => a.employeeId).length;
+                const manualCount = Object.keys(overrides).length;
                 const baseMsg = res.inserted > 0
                     ? t(res.inserted === 1 ? 'team_confirmed_singular' : 'team_confirmed_plural', { count: res.inserted })
                     : t('allocations_refreshed');
@@ -231,23 +184,9 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
         });
     };
 
-    const addRow = () => {
-        setAdditions((prev) => [...prev, { ghostRoleId: null, employeeId: '', allocatedHours: null }]);
-    };
-
-    const updateAddition = (idx: number, patch: Partial<AdditionRow>) => {
-        setAdditions((prev) => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
-    };
-
-    const removeAddition = (idx: number) => {
-        setAdditions((prev) => prev.filter((_, i) => i !== idx));
-    };
-
     const loading = planPreview.isPending && !preview;
     const busy = planPreview.isPending || confirmTeam.isPending;
     const idlePoolReady = !availableQuery.isLoading;
-    const canAddMore =
-        idlePoolReady && availableEmployees.some((e) => !chosenIds.has(e.employeeId));
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
@@ -326,7 +265,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                             </section>
                         )}
 
-                        {(proposed.length > 0 || additions.length > 0) && (
+                        {proposed.length > 0 && (
                             <section>
                                 <div className="mb-2 flex items-center justify-between">
                                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -365,7 +304,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                                 const currentValue = overrideId ?? p.employeeId;
                                                 const pool = poolFor(currentValue);
                                                 return (
-                                                    <TableRow key={`${p.ghostRoleId}-${i}`}>
+                                                    <TableRow key={`${p.slotId ?? p.ghostRoleId}-${i}`}>
                                                         <TableCell className="whitespace-nowrap">
                                                             <div className="font-medium">{p.roleType}</div>
                                                             {p.neededRank && (
@@ -443,122 +382,8 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                                 );
                                             })}
 
-                                            {additions.map((a, i) => {
-                                                const emp = a.employeeId ? availableById.get(a.employeeId) : undefined;
-                                                const role = a.ghostRoleId
-                                                    ? rolesToFill.find((r: TeamPlanRoleToFill) => r.ghostRoleId === a.ghostRoleId)
-                                                    : undefined;
-                                                const months = role?.months ?? 1;
-                                                const computedHours = emp ? Math.round(emp.workableHours * months) : 0;
-                                                const pool = poolFor(a.employeeId || undefined);
-                                                return (
-                                                    <TableRow key={`addition-${i}`} className="bg-indigo-50/30">
-                                                        <TableCell className="whitespace-nowrap">
-                                                            <Select
-                                                                value={a.ghostRoleId ?? NO_ROLE_VALUE}
-                                                                onValueChange={(v) =>
-                                                                    updateAddition(i, { ghostRoleId: v === NO_ROLE_VALUE ? null : v })
-                                                                }
-                                                                disabled={busy}
-                                                            >
-                                                                <SelectTrigger className="h-8 min-w-[160px] text-xs">
-                                                                    <SelectValue placeholder={t('pick_ghost_role')} />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value={NO_ROLE_VALUE}>{t('pick_no_specific_role')}</SelectItem>
-                                                                    {rolesToFill.map((r) => (
-                                                                        <SelectItem key={r.ghostRoleId} value={r.ghostRoleId}>
-                                                                            {r.roleType}
-                                                                            {r.rankCode && (
-                                                                                <span className="ml-1 text-[10px] text-slate-400">({r.rankCode})</span>
-                                                                            )}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            <Select
-                                                                value={a.employeeId || ''}
-                                                                onValueChange={(v) => updateAddition(i, { employeeId: v })}
-                                                                disabled={busy || !idlePoolReady}
-                                                            >
-                                                                <SelectTrigger className="h-8 min-w-[220px] text-xs">
-                                                                    <SelectValue placeholder={t('replace_with_idle_employee')} />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {pool.length === 0 ? (
-                                                                        <div className="px-2 py-3 text-xs text-slate-400">
-                                                                            {t('no_idle_employees')}
-                                                                        </div>
-                                                                    ) : (
-                                                                        pool.map((e) => (
-                                                                            <SelectItem key={e.employeeId} value={e.employeeId}>
-                                                                                <span>
-                                                                                    {e.name}
-                                                                                    {e.rankCode && (
-                                                                                        <span className="ml-1 text-[10px] text-slate-400">({e.rankCode})</span>
-                                                                                    )}
-                                                                                </span>
-                                                                            </SelectItem>
-                                                                        ))
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{emp?.rankCode ?? '—'}</TableCell>
-                                                        <TableCell className="text-right tabular-nums whitespace-nowrap">
-                                                            <Input
-                                                                type="number"
-                                                                min={0}
-                                                                step={1}
-                                                                value={a.allocatedHours ?? (computedHours || '')}
-                                                                placeholder={computedHours ? String(computedHours) : '—'}
-                                                                disabled={busy || !a.employeeId}
-                                                                onChange={(e) => {
-                                                                    const raw = e.target.value;
-                                                                    updateAddition(i, {
-                                                                        allocatedHours: raw === '' ? null : Math.max(0, Number(raw)),
-                                                                    });
-                                                                }}
-                                                                className="h-8 w-24 text-right text-xs tabular-nums"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            <Badge variant="outline" className={`text-xs ${MANUAL_BADGE_CLASS}`}>
-                                                                {t('manual_pick')}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-7 w-7 p-0 text-rose-600"
-                                                                onClick={() => removeAddition(i)}
-                                                                disabled={busy}
-                                                                title={t('remove')}
-                                                            >
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
                                         </TableBody>
                                     </Table>
-                                </div>
-                                <div className="mt-2">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={addRow}
-                                        disabled={busy || !canAddMore}
-                                        className="gap-1.5"
-                                        title={canAddMore ? undefined : t('no_idle_employees')}
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                        {t('add_employee')}
-                                    </Button>
                                 </div>
                             </section>
                         )}
@@ -571,7 +396,7 @@ export function TeamPreviewDialog({ open, onClose, projectId, projectName, onCon
                                     </div>
                                     <ul className="space-y-1 text-sm text-amber-900">
                                         {unfilled.map((u, i) => (
-                                            <li key={`${u.ghostRoleId}-${i}`}>• {u.reason}</li>
+                                            <li key={`${u.slotId ?? u.ghostRoleId}-${i}`}>• {u.reason}</li>
                                         ))}
                                     </ul>
                                 </div>

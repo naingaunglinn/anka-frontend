@@ -35,6 +35,7 @@ function toPhaseAssignment(row: Record<string, unknown>): ProjectTaskPhaseAssign
         assignmentSource:   (row.assignment_source as ProjectTaskPhaseAssignment['assignmentSource']) ?? 'ai',
         plannedStart:       (row.planned_start as string | null) ?? null,
         plannedEnd:         (row.planned_end as string | null) ?? null,
+        plannedDatesEditedAt: (row.planned_dates_edited_at as string | null) ?? null,
         actualStart:        (row.actual_start as string | null) ?? null,
         actualEnd:          (row.actual_end as string | null) ?? null,
         status:             (row.status as ProjectTaskPhaseAssignment['status']) ?? '未着手',
@@ -156,15 +157,19 @@ export interface TeamPlanKept {
     capacityRole: string | null;
     /** Ghost-role this kept member was paired with at preview time. */
     ghostRoleId: string | null;
+    slotId: string | null;
     /** Engagement months from the matched ghost role; 0 when unmatched. */
     months: number;
+    monthlyAllocation: number[] | null;
+    teamStartDate: string | null;
     allocatedHours: number;
     /** True when no ghost role of matching role_type was available to pair against. */
     unmatched: boolean;
 }
 
 export interface TeamPlanProposed {
-    ghostRoleId: string;
+    ghostRoleId: string | null;
+    slotId: string | null;
     employeeId: string;
     employeeName: string | null;
     employeeRank: string | null;
@@ -173,6 +178,8 @@ export interface TeamPlanProposed {
     neededRank: string | null;
     /** Engagement months for this pick (= ghost_role.months). */
     months: number;
+    monthlyAllocation: number[] | null;
+    teamStartDate: string | null;
     /** Picked employee's monthly_salary — used for cost-envelope display. */
     monthlySalary: number;
     allocatedHours: number;
@@ -197,12 +204,14 @@ export interface TeamPlanCapacityRow {
 }
 
 export interface TeamPlanUnfilled {
-    ghostRoleId: string;
+    ghostRoleId: string | null;
+    slotId: string | null;
     reason: string;
 }
 
 export interface TeamPlanRoleToFill {
-    ghostRoleId: string;
+    ghostRoleId: string | null;
+    slotId: string | null;
     roleType: string;
     rankCode: string | null;
     rankName: string | null;
@@ -242,31 +251,37 @@ export interface TeamPlanPreview {
 
 function toTeamPlanKept(row: Record<string, unknown>): TeamPlanKept {
     return {
-        employeeId:     row.employee_id as string,
-        name:           (row.name as string | null) ?? null,
-        rankCode:       (row.rank_code as string | null) ?? null,
-        rankName:       (row.rank_name as string | null) ?? null,
-        capacityRole:   (row.capacity_role as string | null) ?? null,
-        ghostRoleId:    (row.ghost_role_id as string | null) ?? null,
-        months:         Number(row.months ?? 0),
-        allocatedHours: Number(row.allocated_hours ?? 0),
-        unmatched:      Boolean(row.unmatched ?? false),
+        employeeId:        row.employee_id as string,
+        name:              (row.name as string | null) ?? null,
+        rankCode:          (row.rank_code as string | null) ?? null,
+        rankName:          (row.rank_name as string | null) ?? null,
+        capacityRole:      (row.capacity_role as string | null) ?? null,
+        ghostRoleId:       (row.ghost_role_id as string | null) ?? null,
+        slotId:            (row.slot_id as string | null) ?? null,
+        months:            Number(row.months ?? 0),
+        monthlyAllocation: (row.monthly_allocation as number[] | null) ?? null,
+        teamStartDate:     (row.team_start_date as string | null) ?? null,
+        allocatedHours:    Number(row.allocated_hours ?? 0),
+        unmatched:         Boolean(row.unmatched ?? false),
     };
 }
 
 function toTeamPlanProposed(row: Record<string, unknown>): TeamPlanProposed {
     return {
-        ghostRoleId:    row.ghost_role_id as string,
-        employeeId:     row.employee_id as string,
-        employeeName:   (row.employee_name as string | null) ?? null,
-        employeeRank:   (row.employee_rank as string | null) ?? null,
-        capacityRole:   (row.capacity_role as string | null) ?? null,
-        roleType:       (row.role_type as string) ?? '',
-        neededRank:     (row.needed_rank as string | null) ?? null,
-        months:         Number(row.months ?? 0),
-        monthlySalary:  Number(row.monthly_salary ?? 0),
-        allocatedHours: Number(row.allocated_hours ?? 0),
-        rankMatch:      (row.rank_match as TeamPlanProposed['rankMatch']) ?? 'exact',
+        ghostRoleId:       (row.ghost_role_id as string | null) ?? null,
+        slotId:            (row.slot_id as string | null) ?? null,
+        employeeId:        row.employee_id as string,
+        employeeName:      (row.employee_name as string | null) ?? null,
+        employeeRank:      (row.employee_rank as string | null) ?? null,
+        capacityRole:      (row.capacity_role as string | null) ?? null,
+        roleType:          (row.role_type as string) ?? '',
+        neededRank:        (row.needed_rank as string | null) ?? null,
+        months:            Number(row.months ?? 0),
+        monthlyAllocation: (row.monthly_allocation as number[] | null) ?? null,
+        teamStartDate:     (row.team_start_date as string | null) ?? null,
+        monthlySalary:     Number(row.monthly_salary ?? 0),
+        allocatedHours:    Number(row.allocated_hours ?? 0),
+        rankMatch:         (row.rank_match as TeamPlanProposed['rankMatch']) ?? 'exact',
     };
 }
 
@@ -286,7 +301,8 @@ function toCapacityRow(row: Record<string, unknown>): TeamPlanCapacityRow {
 
 function toTeamPlanRoleToFill(row: Record<string, unknown>): TeamPlanRoleToFill {
     return {
-        ghostRoleId:    row.ghost_role_id as string,
+        ghostRoleId:    (row.ghost_role_id as string | null) ?? null,
+        slotId:         (row.slot_id as string | null) ?? null,
         roleType:       (row.role_type as string) ?? '',
         rankCode:       (row.rank_code as string | null) ?? null,
         rankName:       (row.rank_name as string | null) ?? null,
@@ -321,7 +337,8 @@ export function usePlanTeamPreview(projectId: string) {
                 kept:        ((data.kept ?? []) as Record<string, unknown>[]).map(toTeamPlanKept),
                 proposed:    ((data.proposed ?? []) as Record<string, unknown>[]).map(toTeamPlanProposed),
                 unfilled:    ((data.unfilled ?? []) as Record<string, unknown>[]).map((u) => ({
-                    ghostRoleId: u.ghost_role_id as string,
+                    ghostRoleId: (u.ghost_role_id as string | null) ?? null,
+                    slotId:      (u.slot_id as string | null) ?? null,
                     reason:      (u.reason as string) ?? '',
                 })),
                 rolesToFill: ((data.roles_to_fill ?? []) as Record<string, unknown>[]).map(toTeamPlanRoleToFill),
@@ -351,7 +368,10 @@ export function usePlanTeamPreview(projectId: string) {
 export interface ConfirmTeamPick {
     employeeId: string;
     ghostRoleId?: string;
+    slotId?: string;
     allocatedHours?: number;
+    monthlyAllocation?: number[];
+    teamStartDate?: string;
 }
 
 export function useConfirmTeamPlan(projectId: string) {
@@ -360,12 +380,13 @@ export function useConfirmTeamPlan(projectId: string) {
         mutationFn: async (picks: ConfirmTeamPick[]) => {
             const { data } = await api.post(`/projects/${projectId}/confirm-team`, {
                 picks: picks.map((p) => ({
-                    employee_id:   p.employeeId,
-                    ghost_role_id: p.ghostRoleId,
-                    // Only include when explicitly set — otherwise the backend
-                    // falls back to workable_hours × ghost_role.months.
+                    employee_id:        p.employeeId,
+                    ghost_role_id:      p.ghostRoleId,
+                    slot_id:            p.slotId,
                     ...(p.allocatedHours !== undefined ? { allocated_hours: p.allocatedHours } : {}),
+                    ...(p.monthlyAllocation ? { monthly_allocation: p.monthlyAllocation } : {}),
                 })),
+                ...(picks[0]?.teamStartDate ? { team_start_date: picks[0].teamStartDate } : {}),
             });
             return data as { inserted: number; data: unknown };
         },
@@ -595,7 +616,34 @@ export function useProjectTaskMutations(projectId: string) {
         onSettled: invalidate,
     });
 
-    return { assignTasks, updatePhaseAssignment };
+    const updatePhasePlannedDates = useMutation({
+        mutationFn: async ({ phaseAssignmentId, plannedStart, plannedEnd }: {
+            phaseAssignmentId: string;
+            plannedStart: string;
+            plannedEnd: string;
+        }) => {
+            const { data } = await api.patch(
+                `/projects/${projectId}/task-phase-assignments/${phaseAssignmentId}/planned-dates`,
+                { planned_start: plannedStart, planned_end: plannedEnd },
+            );
+            return {
+                cascadedCount: Array.isArray(data.cascaded_phases) ? data.cascaded_phases.length : 0,
+                warnings: Array.isArray(data.warnings) ? (data.warnings as string[]) : [],
+            };
+        },
+        onSuccess: ({ cascadedCount, warnings }) => {
+            if (cascadedCount > 0) {
+                toast.success(`Phase shifted. ${cascadedCount} downstream phase${cascadedCount === 1 ? '' : 's'} auto-adjusted.`);
+            } else {
+                toast.success('Planned dates updated.');
+            }
+            warnings.forEach((w) => toast.error(w));
+        },
+        onError: (err) => toast.error(`Update failed: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    return { assignTasks, updatePhaseAssignment, updatePhasePlannedDates };
 }
 
 // ── Phase Reassignment ──────────────────────────────────────────────────────
