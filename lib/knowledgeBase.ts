@@ -259,6 +259,141 @@ Phase 2 Auto-Assign: POST /projects/{id}/auto-assign uses AI to assign team to w
 - Authentication: Laravel Sanctum with Bearer tokens
 - AI features fire-and-forget log to /api/ai-usage for cost tracking`,
     },
+    {
+        id: 'financials-pnl',
+        category: 'Financials',
+        source: 'Financials & P&L',
+        content: `ANKA Financial P&L (Profit & Loss):
+- Revenue: Sum of all paid invoices on a contract
+- Direct Labor Cost: Approved time entries × employee hourly rate (from job role)
+- Overhead Cost: overhead_percentage (from company settings) × base labor
+- Buffer Cost: buffer_percentage × base labor (contingency reserve)
+- Employer Tax & Benefits: employer_tax_percentage + benefits_percentage × salary
+- Gross Profit: Revenue − Direct Labor − Overhead − Buffer
+- Gross Margin %: (Gross Profit / Revenue) × 100
+- Net Profit = Revenue − all costs (labor + overhead + employer tax + benefits)
+- P&L updates in real-time as time entries are approved
+- Estimated vs Actual comparison: budget from deal estimation vs actual approved hours
+- At-Risk projects: consumed_hours approaching budget_hours triggers status change`,
+    },
+    {
+        id: 'ai-forecast',
+        category: 'AI',
+        source: 'AI Forecast',
+        content: `AI Forecast module gives executives forward-looking risk intelligence:
+
+3 Forward Numbers (quantified risks):
+- Utilization Drop: % of revenue at risk from idle staff next period
+- Delayed Deals: Pipeline cash (in currency, rounded to nearest 25k) at risk of slipping
+- New Hires: Recommended headcount additions based on pipeline load
+
+3 Alert Categories:
+- Project Alerts: Bleeding projects — margin erosion, overtime, budget overrun, timeline slippage, scope creep
+- People Alerts: Overloaded staff, skill gaps, single-point-of-failure employees (only person with a skill)
+- Pipeline Alerts: Stalled deals, revenue cliffs, high-value opportunities at risk
+
+How to use:
+1. Open the Forecast module from the sidebar
+2. AI generates fresh alerts from your live data using Claude
+3. Click Regenerate to get a new analysis (avoids repeating same alerts)
+Admin and Executive roles can view forecast. Runs on demand — not automatic.`,
+    },
+    {
+        id: 'capacity-utilization',
+        category: 'Organization',
+        source: 'Capacity & Utilization',
+        content: `Capacity and Utilization in ANKA:
+- Capacity Pool: Employees grouped by capacity_role (e.g., Senior Developer, UX Designer, QA)
+- workable_hours: Each employee's monthly available hours (configured in their profile)
+- Utilization Rate = (Allocated Hours on Active Projects / workable_hours) × 100%
+- Soft Booking: AI-suggested allocation, pending PM confirmation
+- Hard Assignment: Confirmed allocation — counts against capacity
+- Overloaded: Employee allocated > 100% of workable_hours — burnout risk
+- Under-utilized: Employee has capacity but no active project assignments — idle payroll cost
+
+Healthy utilization target: 70–85%
+Below 70% = revenue leakage from idle payroll
+Above 90% = delivery risk, quality risk, employee burnout
+
+The AI Forecast alerts on both extremes. Capacity gaps shown in the AI Team Builder when building deal teams.`,
+    },
+    {
+        id: 'roles-permissions',
+        category: 'Architecture',
+        source: 'Roles & Permissions',
+        content: `ANKA has two independent role dimensions:
+
+System-level roles:
+- Super Admin: Manages all tenants at /tenant. Cannot access any org routes.
+- Regular User: Accesses their own tenant's ANKA instance.
+
+App-level roles (org RBAC) — defined in lib/rbac.ts:
+- Admin: Full access to all modules including Organization settings, overheads, company settings
+- Executive: Read access to all modules + financial data + AI forecasting + P&L
+- Sales: CRM deals, estimation, AI team builder, contracts (read)
+- Delivery: Projects, time tracking, team assignments, auto-assign
+- HR: Organization, employees, departments, roles, skills, capacity planning
+
+PermissionGuard behavior: Restricted elements are VISIBLE but DISABLED with tooltip explaining why — never hidden. This lets all users see what features exist even without access.
+
+Use hasPermission(role, permission) to check access programmatically.`,
+    },
+    {
+        id: 'dashboard-modules',
+        category: 'Architecture',
+        source: 'Dashboard Overview',
+        content: `ANKA Dashboard Modules (accessible from sidebar):
+- CRM: Kanban pipeline board — drag deals across stages. Create, edit, win, or lose deals.
+- Estimation: Embedded inside Deal detail page — ghost roles, AI Team Builder, cost breakdown
+- Contracts: Contract list + invoice management + milestone billing
+- Projects: Project cards with budget vs actual hours, team assignments, status tracking
+- Time Tracking: Log hours, submit for approval, approve/reject entries as manager
+- Financial: P&L view, revenue recognized, cost breakdown, margin analysis
+- Forecast: AI-powered executive alerts — utilization risk, pipeline risk, people risk
+- Organization: Employees, departments, roles, skills, overheads, company settings
+
+Navigation is role-gated. Sales users see CRM + Contracts.
+Delivery users see Projects + Time Tracking. Executives and Admins see everything.
+Super Admins only see the Tenant management panel — no org data access.`,
+    },
+    {
+        id: 'invoicing-milestones',
+        category: 'Contracts',
+        source: 'Invoicing & Milestones',
+        content: `Invoicing in ANKA:
+- Invoices belong to Contracts (not Projects directly)
+- Invoice fields: amount, due_date, paid_date, status (Draft / Sent / Paid / Overdue)
+- invoices.total is a PostgreSQL GENERATED column — never set manually from code
+- Revenue Recognized = sum of paid invoices on a contract
+- Milestones group related invoices for structured billing (e.g., "Phase 1 Delivery = 30% of contract value")
+- Overdue: invoice is past due_date and not yet paid
+- Outstanding receivables = contract total_value − revenue_recognized
+
+Invoice status flow: Draft → Sent → Paid (or Overdue if due_date passes unpaid)
+
+To create an invoice: open Contract detail → Invoices tab → Add Invoice. Fill amount, due date, and optionally link to a milestone.`,
+    },
+    {
+        id: 'deal-stages-workflow',
+        category: 'CRM',
+        source: 'Deal Stages & Workflow',
+        content: `Deal pipeline stages in ANKA CRM:
+lead → opportunity → inquiry → proposal → contract → won / lost
+
+Key actions per stage:
+- lead/opportunity: Capture client info, initial scope, estimated budget
+- inquiry/proposal: Add estimation — ghost roles, workload hours, AI Team Builder
+- contract: Deal is verbally agreed, awaiting formal win
+- won: Click "Win Deal" → triggers win_deal() stored procedure atomically:
+  1. Creates a Contract (gets client + total_value from deal)
+  2. Creates a Project (gets name, client, budget_hours from deal)
+  3. Copies deal_hard_assignments to project_team_assignments
+  4. Deal status locked — cannot be edited after winning
+- lost: Add loss reason, moves to Lost column for reporting
+
+Drag-and-drop moves deals between stages on the Kanban board.
+Only Admin and Sales roles can create/edit/win deals.`,
+    },
 ]
 
 export function findRelevantChunksByQuery(chunks: KnowledgeChunk[], query: string, topK = 5): KnowledgeChunk[] {
