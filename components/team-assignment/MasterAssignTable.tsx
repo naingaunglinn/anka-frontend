@@ -22,6 +22,10 @@ import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHeal
 import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
 import { DirectAssignDialog, ConflictConfirmDialog, SwapWarningDialog } from '@/components/team-assignment/ReassignConflictDialog';
+import { WorkingDayPicker } from '@/components/ui/working-day-picker';
+import { useHolidays, expandHolidaysForYear } from '@/lib/queries/holidays';
+import { useAuthStore } from '@/store/authStore';
+import { hasPermission } from '@/lib/rbac';
 import type {
     ProjectTaskPhaseAssignment,
     ReassignmentCheck,
@@ -73,7 +77,23 @@ export function MasterAssignTable({ projectId }: Props) {
     const t = useTranslations();
     const tasksQuery = useProjectTaskAssignments(projectId);
     const teamQuery = useProjectTeam(projectId);
-    const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
+    const { updatePhaseAssignment, updatePhasePlannedDates } = useProjectTaskMutations(projectId);
+    const holidaysQuery = useHolidays();
+    const currentYear = new Date().getFullYear();
+    const holidaysThisYear = useMemo(
+        () => expandHolidaysForYear(holidaysQuery.data ?? [], currentYear),
+        [holidaysQuery.data, currentYear],
+    );
+    const holidaysNextYear = useMemo(
+        () => expandHolidaysForYear(holidaysQuery.data ?? [], currentYear + 1),
+        [holidaysQuery.data, currentYear],
+    );
+    const holidaysMap = useMemo(
+        () => ({ ...holidaysThisYear, ...holidaysNextYear }),
+        [holidaysThisYear, holidaysNextYear],
+    );
+    const authUser = useAuthStore((s) => s.user);
+    const canEditDates = hasPermission(authUser, 'manage_projects');
     // Pull all schedule-tracking rows for this project so each phase cell can
     // show its variance/health badge. Large per_page to avoid pagination here.
     // `as_of` threads the simulated-today override through so badges recompute
@@ -352,6 +372,10 @@ export function MasterAssignTable({ projectId }: Props) {
         updatePhaseAssignment.mutate({ phaseAssignmentId, updates });
     };
 
+    const savePlannedDates = (phaseAssignmentId: string, plannedStart: string, plannedEnd: string) => {
+        updatePhasePlannedDates.mutate({ phaseAssignmentId, plannedStart, plannedEnd });
+    };
+
     return (
         <Card className="shadow-sm border-[#e6e9ee]">
             <div className="px-6 space-y-6">
@@ -609,14 +633,57 @@ export function MasterAssignTable({ projectId }: Props) {
                                                           </div>
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
-                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
-                                                                {cell.plannedStart?.replaceAll('-', '/') ?? '—'}
-                                                            </span>
+                                                            {canEditDates ? (
+                                                                <span className="inline-flex items-center gap-1">
+                                                                    <WorkingDayPicker
+                                                                        value={cell.plannedStart}
+                                                                        holidays={holidaysMap}
+                                                                        max={cell.plannedEnd}
+                                                                        disabled={updatePhasePlannedDates.isPending}
+                                                                        placeholder="—"
+                                                                        onChange={(next) => {
+                                                                            if (!cell.plannedEnd) {
+                                                                                savePlannedDates(cell.id, next, next);
+                                                                            } else if (next > cell.plannedEnd) {
+                                                                                savePlannedDates(cell.id, next, next);
+                                                                            } else {
+                                                                                savePlannedDates(cell.id, next, cell.plannedEnd);
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    {cell.plannedDatesEditedAt && (
+                                                                        <span
+                                                                            className="text-amber-500 text-[11px] cursor-help"
+                                                                            title={`Planned dates edited ${cell.plannedDatesEditedAt.slice(0, 10)} — variance is computed against current planned dates.`}
+                                                                        >
+                                                                            ⚠
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                    {cell.plannedStart?.replaceAll('-', '/') ?? '—'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
-                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
-                                                                {cell.plannedEnd?.replaceAll('-', '/') ?? '—'}
-                                                            </span>
+                                                            {canEditDates ? (
+                                                                <WorkingDayPicker
+                                                                    value={cell.plannedEnd}
+                                                                    holidays={holidaysMap}
+                                                                    min={cell.plannedStart}
+                                                                    disabled={updatePhasePlannedDates.isPending || !cell.plannedStart}
+                                                                    placeholder="—"
+                                                                    onChange={(next) => {
+                                                                        if (!cell.plannedStart) return;
+                                                                        savePlannedDates(cell.id, cell.plannedStart, next);
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                    {cell.plannedEnd?.replaceAll('-', '/') ?? '—'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
                                                             <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">

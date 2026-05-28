@@ -35,6 +35,7 @@ function toPhaseAssignment(row: Record<string, unknown>): ProjectTaskPhaseAssign
         assignmentSource:   (row.assignment_source as ProjectTaskPhaseAssignment['assignmentSource']) ?? 'ai',
         plannedStart:       (row.planned_start as string | null) ?? null,
         plannedEnd:         (row.planned_end as string | null) ?? null,
+        plannedDatesEditedAt: (row.planned_dates_edited_at as string | null) ?? null,
         actualStart:        (row.actual_start as string | null) ?? null,
         actualEnd:          (row.actual_end as string | null) ?? null,
         status:             (row.status as ProjectTaskPhaseAssignment['status']) ?? '未着手',
@@ -615,7 +616,34 @@ export function useProjectTaskMutations(projectId: string) {
         onSettled: invalidate,
     });
 
-    return { assignTasks, updatePhaseAssignment };
+    const updatePhasePlannedDates = useMutation({
+        mutationFn: async ({ phaseAssignmentId, plannedStart, plannedEnd }: {
+            phaseAssignmentId: string;
+            plannedStart: string;
+            plannedEnd: string;
+        }) => {
+            const { data } = await api.patch(
+                `/projects/${projectId}/task-phase-assignments/${phaseAssignmentId}/planned-dates`,
+                { planned_start: plannedStart, planned_end: plannedEnd },
+            );
+            return {
+                cascadedCount: Array.isArray(data.cascaded_phases) ? data.cascaded_phases.length : 0,
+                warnings: Array.isArray(data.warnings) ? (data.warnings as string[]) : [],
+            };
+        },
+        onSuccess: ({ cascadedCount, warnings }) => {
+            if (cascadedCount > 0) {
+                toast.success(`Phase shifted. ${cascadedCount} downstream phase${cascadedCount === 1 ? '' : 's'} auto-adjusted.`);
+            } else {
+                toast.success('Planned dates updated.');
+            }
+            warnings.forEach((w) => toast.error(w));
+        },
+        onError: (err) => toast.error(`Update failed: ${normalizeError(err).message}`),
+        onSettled: invalidate,
+    });
+
+    return { assignTasks, updatePhaseAssignment, updatePhasePlannedDates };
 }
 
 // ── Phase Reassignment ──────────────────────────────────────────────────────
