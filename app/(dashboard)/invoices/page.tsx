@@ -1,19 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, FileDown, Loader2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInvoiceList, downloadInvoiceXlsx } from '@/lib/queries/invoices';
 import { useContractList } from '@/lib/queries/contracts';
 import { useProjectList } from '@/lib/queries/projects';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
 import { formatMoney } from '@/lib/currency';
 import toast from 'react-hot-toast';
+
+const ALL = '__all__';
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
  * Invoice list view — entry point for the new Invoice menu. Shows every
@@ -53,7 +57,37 @@ export default function InvoicesListPage() {
         return map;
     }, [projectsData]);
 
-    const invoices = invoicesData?.data ?? [];
+    const allInvoices = invoicesData?.data ?? [];
+
+    // Period filter — derived from each invoice's issueDate. Years come from
+    // the actual data so the dropdown doesn't list empty options.
+    const [yearFilter, setYearFilter] = useState<string>(ALL);
+    const [monthFilter, setMonthFilter] = useState<string>(ALL);
+
+    const yearOptions = useMemo(() => {
+        const years = new Set<number>();
+        for (const inv of allInvoices) {
+            if (inv.issueDate) years.add(new Date(inv.issueDate).getFullYear());
+        }
+        return Array.from(years).sort((a, b) => b - a);
+    }, [allInvoices]);
+
+    const invoices = useMemo(() => {
+        if (yearFilter === ALL && monthFilter === ALL) return allInvoices;
+        return allInvoices.filter((inv) => {
+            if (!inv.issueDate) return false;
+            const d = new Date(inv.issueDate);
+            if (yearFilter !== ALL && d.getFullYear() !== Number(yearFilter)) return false;
+            if (monthFilter !== ALL && d.getMonth() !== Number(monthFilter)) return false;
+            return true;
+        });
+    }, [allInvoices, yearFilter, monthFilter]);
+
+    const hasFilter = yearFilter !== ALL || monthFilter !== ALL;
+    const clearFilters = () => {
+        setYearFilter(ALL);
+        setMonthFilter(ALL);
+    };
 
     const handleExport = async (invoiceId: string, invoiceNumber?: string) => {
         try {
@@ -82,8 +116,38 @@ export default function InvoicesListPage() {
             </div>
 
             <Card variant="plain">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
                     <CardTitle className="text-base">All invoices</CardTitle>
+                    <div className="flex items-center gap-2 text-sm">
+                        <span className="text-slate-500">Period:</span>
+                        <Select value={yearFilter} onValueChange={setYearFilter}>
+                            <SelectTrigger className="w-28 bg-white h-8">
+                                <SelectValue placeholder="Year" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ALL}>All years</SelectItem>
+                                {yearOptions.map((y) => (
+                                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={monthFilter} onValueChange={setMonthFilter}>
+                            <SelectTrigger className="w-32 bg-white h-8">
+                                <SelectValue placeholder="Month" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ALL}>All months</SelectItem>
+                                {MONTH_LABELS.map((m, i) => (
+                                    <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {hasFilter && (
+                            <Button size="sm" variant="ghost" onClick={clearFilters} className="text-xs h-8">
+                                Clear
+                            </Button>
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     {isLoading ? (
@@ -92,7 +156,9 @@ export default function InvoicesListPage() {
                         </div>
                     ) : invoices.length === 0 ? (
                         <p className="p-6 text-sm text-slate-500">
-                            No invoices yet. Create one from a won project to get started.
+                            {hasFilter
+                                ? 'No invoices match the selected period.'
+                                : 'No invoices yet. Create one from a won project to get started.'}
                         </p>
                     ) : (
                         <Table>
