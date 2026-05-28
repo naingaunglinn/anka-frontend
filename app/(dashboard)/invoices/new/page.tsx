@@ -53,12 +53,15 @@ export default function NewInvoicePage() {
     const preselectedProjectId = searchParams.get('project') ?? '';
 
     const [projectId, setProjectId] = useState<string>(preselectedProjectId);
-    const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-    const [dueDate, setDueDate] = useState<string>(() => {
-        // Default: +7 days from today (matches the locked monthly/7-day payment policy)
+    // Both dates are server-set on save and not user-editable. Initialise to
+    // today + end-of-month so the read-only preview reflects what the backend
+    // will actually persist.
+    const [issueDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+    const [dueDate] = useState<string>(() => {
         const d = new Date();
-        d.setDate(d.getDate() + 7);
-        return d.toISOString().slice(0, 10);
+        // End of current month: day 0 of next month = last day of current month
+        const eom = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        return eom.toISOString().slice(0, 10);
     });
     const [memo, setMemo] = useState<string>('Thank you for your order');
     const [lines, setLines] = useState<InvoiceLineItem[]>([]);
@@ -264,7 +267,8 @@ export default function NewInvoicePage() {
                                         <TableCell className="text-right">
                                             <Input
                                                 type="number"
-                                                step="0.01"
+                                                step="0.5"
+                                                min="0"
                                                 value={line.quantity}
                                                 onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
                                                 className="bg-white text-right"
@@ -323,12 +327,12 @@ export default function NewInvoicePage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label>Issue date</Label>
-                        <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+                        <Label className="text-slate-500">Issue date</Label>
+                        <p className="text-sm font-medium text-slate-800">{issueDate} <span className="text-xs text-slate-400">(today)</span></p>
                     </div>
                     <div className="space-y-1.5">
-                        <Label>Payment deadline</Label>
-                        <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                        <Label className="text-slate-500">Payment deadline</Label>
+                        <p className="text-sm font-medium text-slate-800">{dueDate} <span className="text-xs text-slate-400">(end of month)</span></p>
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                         <Label>Memo</Label>
