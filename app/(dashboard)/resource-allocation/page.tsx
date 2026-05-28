@@ -62,6 +62,19 @@ export default function ResourceAllocationPage() {
         });
     }, [employees, search, roleFilter, deptFilter]);
 
+    const monthlyTotals = useMemo(() => {
+        const totals = Array.from({ length: 12 }, () => ({ operate: 0, available: 0 }));
+        for (const emp of filtered) {
+            for (const m of emp.months) {
+                const idx = m.month - 1;
+                if (idx < 0 || idx > 11) continue;
+                totals[idx].operate += m.operate;
+                totals[idx].available += m.available;
+            }
+        }
+        return totals;
+    }, [filtered]);
+
     const summary = useMemo(() => {
         if (filtered.length === 0) {
             return { headcount: 0, avgUtilization: 0, totalBench: 0, overAllocationAlerts: 0 };
@@ -133,7 +146,7 @@ export default function ResourceAllocationPage() {
                                         : 'text-muted-foreground hover:text-foreground'
                                 }`}
                             >
-                                {mode === 'both' ? 'Show Both' : mode === 'operate' ? 'Operating' : 'Available'}
+                                {mode === 'both' ? 'Show Both' : mode === 'operate' ? 'Operating' : 'Non-Operating'}
                             </button>
                         ))}
                     </div>
@@ -141,13 +154,18 @@ export default function ResourceAllocationPage() {
                     {/* Legend */}
                     <div className="flex items-center gap-3 text-xs font-semibold bg-muted/50 px-3 py-2 rounded-xl border whitespace-nowrap">
                         <div className={`flex items-center gap-1.5 transition-opacity ${viewMode === 'available' ? 'opacity-20' : ''}`}>
-                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                            <span className="text-muted-foreground">Operate</span>
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                            <span className="text-muted-foreground">Operating</span>
                         </div>
                         <div className="h-3.5 w-px bg-border" />
                         <div className={`flex items-center gap-1.5 transition-opacity ${viewMode === 'operate' ? 'opacity-20' : ''}`}>
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                            <span className="text-muted-foreground">Available</span>
+                            <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                            <span className="text-muted-foreground">Non-Operating</span>
+                        </div>
+                        <div className="h-3.5 w-px bg-border" />
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+                            <span className="text-muted-foreground">Over-Allocated</span>
                         </div>
                     </div>
                 </div>
@@ -155,14 +173,37 @@ export default function ResourceAllocationPage() {
 
             {/* KPI cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <KpiCard icon={Users} iconBg="bg-indigo-50 text-indigo-600" label="Active Headcount" value={String(summary.headcount)} />
-                <KpiCard icon={BarChart3} iconBg="bg-amber-50 text-amber-600" label="Avg Utilization" value={`${summary.avgUtilization}%`} />
-                <KpiCard icon={Clock} iconBg="bg-emerald-50 text-emerald-600" label="Total Bench (FTE)" value={String(summary.totalBench)} />
+                <KpiCard
+                    icon={Users}
+                    iconBg="bg-indigo-50 text-indigo-600"
+                    label="Active Headcount"
+                    value={String(summary.headcount)}
+                    unit="people"
+                    hint="Employees in scope"
+                />
+                <KpiCard
+                    icon={BarChart3}
+                    iconBg="bg-emerald-50 text-emerald-600"
+                    label="Avg Utilization"
+                    value={String(summary.avgUtilization)}
+                    unit="%"
+                    hint="Mean operating across all months"
+                />
+                <KpiCard
+                    icon={Clock}
+                    iconBg="bg-amber-50 text-amber-600"
+                    label="Total Bench"
+                    value={String(summary.totalBench)}
+                    unit="FTE-months"
+                    hint="Person-months of unassigned capacity"
+                />
                 <KpiCard
                     icon={AlertTriangle}
                     iconBg="bg-rose-50 text-rose-600"
-                    label="Over-Allocation Alerts"
+                    label="Over-Allocation"
                     value={String(summary.overAllocationAlerts)}
+                    unit="alerts"
+                    hint="Cells where operating > 1.0"
                     valueClass={summary.overAllocationAlerts > 0 ? 'text-rose-600' : undefined}
                 />
             </div>
@@ -238,6 +279,43 @@ export default function ResourceAllocationPage() {
                                     <EmployeeRow key={emp.id} emp={emp} viewMode={viewMode} />
                                 ))}
                             </tbody>
+                            <tfoot>
+                                <tr className="bg-muted/40 border-t-2 text-xs font-bold">
+                                    <td className="px-4 py-3 whitespace-nowrap sticky left-0 bg-muted/40 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 uppercase tracking-wider">
+                                        Monthly Total
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap border-r text-muted-foreground uppercase tracking-wider">
+                                        {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
+                                    </td>
+                                    {monthlyTotals.map((t, i) => {
+                                        const showOp = viewMode === 'both' || viewMode === 'operate';
+                                        const showAv = viewMode === 'both' || viewMode === 'available';
+                                        const isOver = t.operate > filtered.length;
+                                        const opColor = isOver
+                                            ? 'text-rose-600'
+                                            : t.operate > 0
+                                                ? 'text-emerald-600'
+                                                : 'text-muted-foreground/40';
+                                        const avColor = t.available > 0 ? 'text-amber-600' : 'text-muted-foreground/40';
+                                        return (
+                                            <td key={i} className="px-3 py-3 align-middle text-center">
+                                                <div className="flex flex-col gap-0.5 items-center">
+                                                    {showOp && (
+                                                        <span className={`${opColor} text-[11px] leading-tight`}>
+                                                            Op: {t.operate.toFixed(1)}
+                                                        </span>
+                                                    )}
+                                                    {showAv && (
+                                                        <span className={`${avColor} text-[11px] leading-tight`}>
+                                                            N-op: {t.available.toFixed(1)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 )}
@@ -251,22 +329,40 @@ function KpiCard({
     iconBg,
     label,
     value,
+    unit,
+    hint,
     valueClass,
 }: {
     icon: React.ElementType;
     iconBg: string;
     label: string;
     value: string;
+    unit?: string;
+    hint?: string;
     valueClass?: string;
 }) {
     return (
-        <Card className="p-4 flex items-center justify-between">
-            <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-                <h3 className={`text-2xl font-bold mt-1 ${valueClass ?? ''}`}>{value}</h3>
+        <Card className="p-5 flex flex-col justify-between gap-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between gap-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                    {label}
+                </p>
+                <div className={`p-2 rounded-lg ${iconBg} shrink-0`}>
+                    <Icon className="h-4 w-4" />
+                </div>
             </div>
-            <div className={`p-2.5 rounded-xl ${iconBg}`}>
-                <Icon className="h-5 w-5" />
+            <div className="space-y-1">
+                <div className="flex items-baseline gap-1.5">
+                    <h3 className={`text-3xl font-bold leading-none tracking-tight ${valueClass ?? ''}`}>
+                        {value}
+                    </h3>
+                    {unit && (
+                        <span className="text-xs font-medium text-muted-foreground">{unit}</span>
+                    )}
+                </div>
+                {hint && (
+                    <p className="text-[11px] text-muted-foreground leading-snug">{hint}</p>
+                )}
             </div>
         </Card>
     );
@@ -311,9 +407,9 @@ function MonthCell({
     const avPct = showAv ? Math.min((m.available / total) * 100, 100) : 0;
 
     const isOver = m.operate > 1.0;
-    const opColor = isOver ? 'text-rose-600 font-extrabold' : m.operate > 0 ? 'text-indigo-600 font-bold' : 'text-muted-foreground/40';
-    const avColor = m.available > 0 ? 'text-emerald-500 font-bold' : 'text-muted-foreground/40';
-    const barColor = isOver ? 'bg-rose-500' : 'bg-indigo-600';
+    const opColor = isOver ? 'text-rose-600 font-extrabold' : m.operate > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/40';
+    const avColor = m.available > 0 ? 'text-amber-600 font-bold' : 'text-muted-foreground/40';
+    const barColor = isOver ? 'bg-rose-400' : 'bg-emerald-500';
 
     return (
         <td className="px-3 py-3 align-middle">
@@ -323,12 +419,12 @@ function MonthCell({
                         {showOp ? `Op: ${m.operate.toFixed(1)}` : ' '}
                     </span>
                     <span className={`${avColor} transition-all`}>
-                        {showAv ? `Av: ${m.available.toFixed(1)}` : ' '}
+                        {showAv ? `N-op: ${m.available.toFixed(1)}` : ' '}
                     </span>
                 </div>
                 <div className="w-full h-1.5 bg-muted rounded-full flex overflow-hidden">
                     <div className={`${barColor} h-full transition-all duration-300`} style={{ width: `${opPct}%` }} />
-                    <div className="bg-emerald-400 h-full transition-all duration-300" style={{ width: `${avPct}%` }} />
+                    <div className="bg-amber-400 h-full transition-all duration-300" style={{ width: `${avPct}%` }} />
                 </div>
             </div>
         </td>
