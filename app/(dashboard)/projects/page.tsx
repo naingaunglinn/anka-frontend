@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,6 +14,7 @@ import { useContractList } from '@/lib/queries/contracts';
 import { useDealList } from '@/lib/queries/deals';
 
 export default function ProjectsPage() {
+    const t = useTranslations();
     const router = useRouter();
     const projectsQuery  = useProjectList();
     const contractsQuery = useContractList();
@@ -46,7 +48,7 @@ export default function ProjectsPage() {
                 <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[#8a8a8a]">Total Budgeted Hours</p>
+                            <p className="text-sm font-medium text-[#8a8a8a]">{t('total_estimate_hours')}</p>
                             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div className="mt-2 flex items-baseline gap-2">
@@ -87,11 +89,11 @@ export default function ProjectsPage() {
                         <TableRow>
                             <TableHead>Project</TableHead>
                             <TableHead>Client</TableHead>
-                            <TableHead>Contract</TableHead>
-                            <TableHead>Kickoff</TableHead>
+                            <TableHead>{t('contract_no')}</TableHead>
+                            <TableHead>{t('start_date')}</TableHead>
                             <TableHead>Team</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Budget Hours</TableHead>
+                            <TableHead className="text-right">{t('estimate')}</TableHead>
                             <TableHead className="text-right">Consumed</TableHead>
                             <TableHead className="w-[180px]">Burn Rate</TableHead>
                             <TableHead className="w-[50px]"></TableHead>

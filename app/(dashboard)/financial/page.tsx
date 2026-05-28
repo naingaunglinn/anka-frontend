@@ -7,12 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, AlertTriangle, DollarSign, Info, TrendingDown, TrendingUp } from 'lucide-react';
-import { ResponsiveContainer, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { Download, AlertTriangle, DollarSign, Info, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTenantStore, type Currency } from '@/store/tenantStore';
-import { formatMoney, formatMoneyShort } from '@/lib/currency';
+import { formatMoney } from '@/lib/currency';
 import { useInvoiceList } from '@/lib/queries/invoices';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
@@ -282,7 +281,6 @@ export default function FinancialPage() {
     const store = useBusinessStore();
     const { activeTenantId, currentTenant, tenants } = useTenantStore();
     const currency = (currentTenant?.currency as Currency) ?? tenants.find((tenant) => tenant.id === activeTenantId)?.currency ?? 'MMK';
-    const taxRate = currentTenant?.taxRate ?? 0.20;
     const today = useMemo(() => new Date(), []);
 
     useInvoiceList();
@@ -405,8 +403,8 @@ export default function FinancialPage() {
 
         pnlData.forEach((month) => {
             totalRev += month.revenue;
-            totalCost += month.directLabor + month.overhead;
-            totalProfit += month.operatingProfit;
+            totalCost += month.directLabor;
+            totalProfit += month.grossProfit;
         });
 
         const overallMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
@@ -571,14 +569,11 @@ export default function FinancialPage() {
 
     const projectSummary = useMemo(() => {
         const totals = projectProfitRows.reduce((acc, row) => {
-            acc.planProfit += row.planProfit;
-            acc.planProfitToDate += row.planProfitToDate;
             acc.actualProfit += row.actualProfit;
-            acc.variance += row.variance;
             acc.atRisk += row.health === 'At Risk' ? 1 : 0;
             acc.watch += row.health === 'Watch' ? 1 : 0;
             return acc;
-        }, { planProfit: 0, planProfitToDate: 0, actualProfit: 0, variance: 0, atRisk: 0, watch: 0 });
+        }, { actualProfit: 0, atRisk: 0, watch: 0 });
 
         return {
             ...totals,
@@ -586,21 +581,14 @@ export default function FinancialPage() {
         };
     }, [projectProfitRows]);
 
-    const companyChartData = useMemo(() => ([
-        { name: 'Plan To Date', amount: projectSummary.planProfitToDate },
-        { name: 'Actual Profit', amount: projectSummary.actualProfit },
-    ]), [projectSummary.actualProfit, projectSummary.planProfitToDate]);
-
     const handleCsvExport = () => {
-        const headers = ['Month', 'Revenue', 'Direct Labor', 'Overhead', 'Gross Profit', 'Operating Profit', 'Net Profit'];
+        const headers = ['Month', 'Revenue', 'Cost', 'Gross Profit', 'Margin %'];
         const rows = pnlData.map((row) => [
             row.month,
             row.revenue,
             row.directLabor,
-            row.overhead,
             row.grossProfit,
-            row.operatingProfit,
-            row.netProfit,
+            row.revenue > 0 ? ((row.grossProfit / row.revenue) * 100).toFixed(1) : '0.0',
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,'
@@ -651,7 +639,7 @@ export default function FinancialPage() {
                     </Button>
                 </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2">
                 <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -662,32 +650,6 @@ export default function FinancialPage() {
                             {formatMoney(projectSummary.actualProfit, currency)}
                         </div>
                         <p className="mt-2 text-xs text-[var(--color-text-muted)]">{projectSummary.statusLabel}</p>
-                    </CardContent>
-                </Card>
-
-                <Card variant="plain">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('company_plan_profit_to_date')}</p>
-                            <TrendingUp className="h-4 w-4 text-[var(--color-brand-500)]" />
-                        </div>
-                        <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
-                            {formatMoney(projectSummary.planProfitToDate, currency)}
-                        </div>
-                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{t('baseline_based_on_planned_time')}</p>
-                    </CardContent>
-                </Card>
-
-                <Card variant="plain">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('profit_variance')}</p>
-                            <TrendingDown className={`h-4 w-4 ${projectSummary.variance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
-                        </div>
-                        <div className={`mt-2 text-3xl font-bold tracking-tight ${projectSummary.variance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {formatMoney(projectSummary.variance, currency)}
-                        </div>
-                        <p className="mt-2 text-xs text-[var(--color-text-muted)]">{t('actual_minus_plan_helper')}</p>
                     </CardContent>
                 </Card>
 
@@ -706,53 +668,28 @@ export default function FinancialPage() {
                 </Card>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[1.2fr,1fr]">
-                <section className="rounded-lg border border-[var(--color-border-default)] bg-white">
-                    <div className="border-b px-6 py-4">
-                        <h2 className="text-lg font-semibold text-[var(--color-text-default)]">{t('company_profit_snapshot')}</h2>
-                        <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('company_profit_snapshot_subtitle')}</p>
-                    </div>
-                    <div className="h-[280px] px-4 py-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={companyChartData} margin={{ top: 10, right: 10, left: 16, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                                <YAxis
-                                    tickLine={false}
-                                    axisLine={false}
-                                    width={88}
-                                    tickFormatter={(value) => formatMoneyShort(Number(value ?? 0), currency)}
-                                />
-                                <Tooltip formatter={(value) => formatMoney(Number(value ?? 0), currency)} />
-                                <Bar dataKey="amount" radius={[6, 6, 0, 0]} fill="#00a7f4" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </section>
-
-                <Card className="border-[#00a7f4]/20 bg-[#00a7f4]/[0.03] shadow-sm">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-2 text-base text-[var(--color-text-default)]">
-                            <Info className="h-4 w-4 text-[var(--color-brand-500)]" />
-                            {t('profit_logic')}
-                        </CardTitle>
-                        <CardDescription className="text-[var(--color-text-muted)]">
-                            {t('profit_logic_desc')}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 pt-0 text-sm text-[var(--color-text-subtle)]">
-                        <p>
-                            <span className="font-semibold text-[var(--color-text-default)]">{t('plan_profit')}</span> {t('plan_profit_explain')}
-                        </p>
-                        <p>
-                            <span className="font-semibold text-[var(--color-text-default)]">{t('actual_profit')}</span> {t('actual_profit_explain')}
-                        </p>
-                        <p>
-                            <span className="font-semibold text-[var(--color-text-default)]">{t('overtime_impact_label')}</span> {t('overtime_impact_explain')}
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
+            <Card className="border-[#00a7f4]/20 bg-[#00a7f4]/[0.03] shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base text-[var(--color-text-default)]">
+                        <Info className="h-4 w-4 text-[var(--color-brand-500)]" />
+                        {t('profit_logic')}
+                    </CardTitle>
+                    <CardDescription className="text-[var(--color-text-muted)]">
+                        {t('profit_logic_desc')}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0 text-sm text-[var(--color-text-subtle)]">
+                    <p>
+                        <span className="font-semibold text-[var(--color-text-default)]">{t('plan_profit')}</span> {t('plan_profit_explain')}
+                    </p>
+                    <p>
+                        <span className="font-semibold text-[var(--color-text-default)]">{t('actual_profit')}</span> {t('actual_profit_explain')}
+                    </p>
+                    <p>
+                        <span className="font-semibold text-[var(--color-text-default)]">{t('overtime_impact_label')}</span> {t('overtime_impact_explain')}
+                    </p>
+                </CardContent>
+            </Card>
 
             <section className="rounded-lg border border-[var(--color-border-default)] bg-white">
                 <div className="border-b px-6 py-4">
@@ -766,9 +703,7 @@ export default function FinancialPage() {
                                 <TableHead className="py-4">{t('project')}</TableHead>
                                 <TableHead className="py-4">{t('rank')}</TableHead>
                                 <TableHead className="text-right py-4">{t('plan_profit_col')}</TableHead>
-                                <TableHead className="text-right py-4">{t('plan_profit_to_date_col')}</TableHead>
                                 <TableHead className="text-right py-4">{t('actual_profit_col')}</TableHead>
-                                <TableHead className="text-right py-4">{t('variance_col')}</TableHead>
                                 <TableHead className="text-right py-4">{t('ot_impact_col')}</TableHead>
                                 <TableHead className="text-right py-4">{t('progress')}</TableHead>
                                 <TableHead className="py-4">{t('status')}</TableHead>
@@ -791,12 +726,8 @@ export default function FinancialPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right py-4">{formatMoney(row.planProfit, currency)}</TableCell>
-                                    <TableCell className="text-right py-4">{formatMoney(row.planProfitToDate, currency)}</TableCell>
                                     <TableCell className={`text-right py-4 font-semibold ${row.actualProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                         {formatMoney(row.actualProfit, currency)}
-                                    </TableCell>
-                                    <TableCell className={`text-right py-4 font-semibold ${row.variance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        {formatMoney(row.variance, currency)}
                                     </TableCell>
                                     <TableCell className={`text-right py-4 ${row.overtimeImpact < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
                                         {formatMoney(row.overtimeImpact, currency)}
@@ -822,7 +753,7 @@ export default function FinancialPage() {
                             ))}
                             {projectProfitRows.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="py-8 text-center text-[var(--color-text-muted)]">
+                                    <TableCell colSpan={7} className="py-8 text-center text-[var(--color-text-muted)]">
                                         {t('no_project_profit_data')}
                                     </TableCell>
                                 </TableRow>
@@ -908,7 +839,7 @@ export default function FinancialPage() {
                 </div>
             </section>
 
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-3">
                 <Card variant="plain">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -929,18 +860,6 @@ export default function FinancialPage() {
                         </div>
                         <div className="mt-2 text-3xl font-bold tracking-tight text-[var(--color-text-default)]">
                             {formatMoney(monthlySummary.totalCost, currency)}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card variant="plain">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-[var(--color-text-muted)]">{t('operating_profit_label')}</p>
-                            <TrendingUp className="h-4 w-4 text-emerald-500" />
-                        </div>
-                        <div className={`mt-2 text-3xl font-bold tracking-tight ${monthlySummary.totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {formatMoney(monthlySummary.totalProfit, currency)}
                         </div>
                     </CardContent>
                 </Card>
@@ -985,15 +904,9 @@ export default function FinancialPage() {
                             </p>
                         </div>
                         <div>
-                            <span className="font-semibold text-[var(--color-text-default)]">{t('global_overhead_label')}</span>
-                            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                                {t('global_overhead_desc')}
-                            </p>
-                        </div>
-                        <div>
                             <span className="font-semibold text-[var(--color-text-default)]">{t('net_margin')}</span>
                             <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                                {t('net_margin_desc', { rate: (taxRate * 100).toFixed(0) })}
+                                {t('net_margin_desc')}
                             </p>
                         </div>
                     </div>
@@ -1009,26 +922,22 @@ export default function FinancialPage() {
                     <Table>
                         <TableHeader className="bg-white">
                             <TableRow>
-                                <TableHead className="py-4">{t('month')}</TableHead>
+                                <TableHead className="py-4">{t('target_month')}</TableHead>
                                 <TableHead className="text-right py-4">{t('recognized_revenue')}</TableHead>
                                 <TableHead className="text-right py-4">{t('direct_labor')}</TableHead>
                                 <TableHead className="text-right py-4">{t('gross_profit_col')}</TableHead>
-                                <TableHead className="text-right py-4">{t('global_overhead_col')}</TableHead>
-                                <TableHead className="text-right py-4">{t('op_profit_col')}</TableHead>
                                 <TableHead className="text-right py-4">{t('net_margin_pct')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {pnlData.map((row, index) => {
-                                const margin = row.revenue > 0 ? (row.netProfit / row.revenue) * 100 : 0;
+                                const margin = row.revenue > 0 ? (row.grossProfit / row.revenue) * 100 : 0;
                                 return (
                                     <TableRow key={index} className="hover:bg-slate-50/50">
                                         <TableCell className="py-4 font-semibold text-[var(--color-text-default)]">{row.month}</TableCell>
                                         <TableCell className="py-4 text-right text-[var(--color-text-subtle)]">{formatMoney(row.revenue, currency)}</TableCell>
-                                        <TableCell className="py-4 text-right text-rose-600">-{formatMoney(row.directLabor, currency)}</TableCell>
+                                        <TableCell className="py-4 text-right text-[var(--color-text-subtle)]">{formatMoney(row.directLabor, currency)}</TableCell>
                                         <TableCell className="py-4 text-right font-medium text-[var(--color-text-default)]">{formatMoney(row.grossProfit, currency)}</TableCell>
-                                        <TableCell className="py-4 text-right text-rose-600">-{formatMoney(row.overhead, currency)}</TableCell>
-                                        <TableCell className="py-4 text-right font-bold text-[var(--color-text-default)]">{formatMoney(row.operatingProfit, currency)}</TableCell>
                                         <TableCell className="py-4 text-right">
                                             <Badge
                                                 variant="outline"
@@ -1048,7 +957,7 @@ export default function FinancialPage() {
                             })}
                             {pnlData.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="py-8 text-center text-[var(--color-text-muted)]">
+                                    <TableCell colSpan={5} className="py-8 text-center text-[var(--color-text-muted)]">
                                         {t('no_financial_data_pnl')}
                                     </TableCell>
                                 </TableRow>

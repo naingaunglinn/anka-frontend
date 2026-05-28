@@ -32,7 +32,7 @@ export const ROUTE_PERMISSIONS: Record<string, string | 'public'> = {
     '/contracts':        'view_contracts',
     '/invoices':         'view_contracts',
     '/projects':         'view_projects',
-    '/time-tracking':    'track_time',
+    '/team-assignment':  'track_time',
     '/schedule-tracking':'view_schedule_tracking',
     '/resource-allocation': 'view_employees',
     '/financial':        'view_reports',
