@@ -14,6 +14,9 @@ import { normalizeError } from '@/lib/errorHandler';
 import { useProjectList, useProjectTeam, useProjectTaskAssignments, projectKeys } from '@/lib/queries/projects';
 import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAuthStore } from '@/store/authStore';
+import { hasPermission } from '@/lib/rbac';
 import type { Project } from '@/types/business';
 import { MasterAssignTable } from '@/components/team-assignment/MasterAssignTable';
 import { SimulatedDateBar, SimulatedDateBanner } from '@/components/SimulatedDateBar';
@@ -374,6 +377,24 @@ function AutoAssignProjectRow({
     const hasTasks = taskCount > 0;
     const isFullyAssigned = hasTeam && hasTasks;
     const isBusy = autoAssignLoading === project.id;
+    const authUser = useAuthStore((s) => s.user);
+    const canEditTeam = hasPermission(authUser, 'manage_projects');
+
+    const aiButton = (
+        <Button
+            size="sm"
+            className="gap-1.5 text-xs h-8 bg-[#171717] hover:bg-[#2a2a2a] text-white"
+            disabled={isBusy || !canEditTeam}
+            onClick={() => onAutoAssign(project.id)}
+        >
+            {isBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+            )}
+            AI team build + assign tasks
+        </Button>
+    );
 
     return (
         <div className="flex flex-wrap justify-between item-center rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 space-y-2">
@@ -389,19 +410,14 @@ function AutoAssignProjectRow({
                 </p>
             </div>
             <div className="flex flex-wrap gap-2">
-                <Button
-                    size="sm"
-                    className="gap-1.5 text-xs h-8 bg-[#171717] hover:bg-[#2a2a2a] text-white"
-                    disabled={isBusy}
-                    onClick={() => onAutoAssign(project.id)}
-                >
-                    {isBusy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
-                    )}
-                    AI team build + assign tasks
-                </Button>
+                {canEditTeam ? aiButton : (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span tabIndex={0}>{aiButton}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('requires_manage_projects_permission')}</TooltipContent>
+                    </Tooltip>
+                )}
             </div>
         </div>
     );

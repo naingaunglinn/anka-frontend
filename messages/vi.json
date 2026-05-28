@@ -1455,6 +1455,7 @@
   "replace_with_idle_employee": "Chọn một nhân viên rảnh",
   "requirement_description": "Mô tả yêu cầu",
   "requirement_placeholder": "Khách hàng cần gì? Stack công nghệ, phạm vi, sản phẩm bàn giao, tích hợp, yêu cầu giờ làm việc đặc biệt, phạm vi kiểm thử…",
+  "requires_manage_projects_permission": "Yêu cầu quyền quản lý dự án",
   "resolve_todo_warning": "Giải quyết các dấu {todo} (hoặc bổ sung câu trả lời wizard và tạo lại) trước khi gửi cho khách.",
   "resources_and_overheads": "{r} tài nguyên · {o} chi phí chung",
   "restore": "Khôi phục",

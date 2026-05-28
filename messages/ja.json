@@ -1455,6 +1455,7 @@
   "replace_with_idle_employee": "アサイン可能な従業員を選択",
   "requirement_description": "要件記述",
   "requirement_placeholder": "顧客は何が必要ですか？技術スタック、スコープ、成果物、統合、特別な勤務時間要件、テストスコープ…",
+  "requires_manage_projects_permission": "プロジェクト管理権限が必要です",
   "resolve_todo_warning": "{todo} マーカーを解決 (またはウィザード回答を追加して再生成) してから顧客に送信してください。",
   "resources_and_overheads": "リソース {r} · オーバーヘッド {o}",
   "restore": "復元",
