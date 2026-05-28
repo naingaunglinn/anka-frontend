@@ -29,7 +29,7 @@ export interface EstimationVersionDetail extends EstimationVersion {
         feature_name?: string; featureName?: string
         hours: number
     }>
-    overheads: Array<{ name: string; cost: number }>
+    overheads: Array<{ name: string; cost: number; months?: number }>
 }
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ export function useEstimationVersionMutations() {
                 | { roleId: string; featureName: string; hours: number; employeeId?: string | null }
                 | Record<string, unknown>
             >
-            overheads: Array<{ name: string; cost: number }>
+            overheads: Array<{ name: string; cost: number; months?: number }>
             targetMargin: number
             notes?: string
             /** Meeting minutes / chat that informed this version. Frozen
@@ -199,6 +199,7 @@ export interface AIEstimationDraft {
     projectOverheads?: Array<{
         name: string
         cost: number
+        months?: number
         reason?: string
     }>
     reasoning: string
@@ -256,6 +257,7 @@ function mapAIDraft(raw: Record<string, unknown>): AIEstimationDraft {
                 .map(o => ({
                     name: String(o.name ?? '').trim(),
                     cost: Number(o.cost ?? 0),
+                    months: Math.max(1, Number(o.months ?? 1)),
                     reason: typeof o.reason === 'string' ? o.reason : undefined,
                 }))
                 .filter(o => o.name.length > 0 && o.cost > 0)
