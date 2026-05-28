@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Clock, Briefcase, Sparkles, AlertTriangle } from 'lucide-react';
+import { Clock, Briefcase, Sparkles, AlertTriangle, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -391,10 +391,15 @@ function AutoAssignProjectRow({
             <div className="flex flex-wrap gap-2">
                 <Button
                     size="sm"
-                    className="gap-1.5 text-xs h-8 bg-[#171717] opacity-40 cursor-not-allowed"
-                    disabled
+                    className="gap-1.5 text-xs h-8 bg-[#171717] hover:bg-[#2a2a2a] text-white"
+                    disabled={isBusy}
+                    onClick={() => onAutoAssign(project.id)}
                 >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    {isBusy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                    )}
                     AI team build + assign tasks
                 </Button>
             </div>
