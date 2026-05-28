@@ -153,6 +153,7 @@ function applyDelta(
             id: `ai-delta-ovh-${crypto.randomUUID()}`,
             name: a.name,
             cost: a.cost,
+            months: 1,
         }));
 
     // ── Roles (ghost roles) — matched by role_type ──────────────────────────

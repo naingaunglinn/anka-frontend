@@ -63,6 +63,7 @@ interface ApiProjectOverhead {
     id: string;
     name: string;
     cost: number;
+    months?: number;
 }
 
 interface ApiDeal {
@@ -176,8 +177,6 @@ interface ApiInvoice {
     billing_period_label?: string | null;
     line_items?: Array<{ kind: 'resource' | 'overhead'; label: string; quantity: number; cost: number; amount: number }> | null;
     issued_at?: string | null;
-    sent_to_email?: string | null;
-    reminder_sent_count?: number;
     notes?: string | null;
 }
 
@@ -217,6 +216,7 @@ function toProjectOverhead(row: ApiProjectOverhead): ProjectOverhead {
         id: row.id,
         name: row.name,
         cost: row.cost,
+        months: row.months ?? 1,
     };
 }
 
@@ -345,8 +345,6 @@ export function toInvoice(row: ApiInvoice): Invoice {
         status: isOverdue ? 'Overdue' : row.status,
         paidAt: row.paid_at ?? undefined,
         issuedAt: row.issued_at ?? undefined,
-        sentToEmail: row.sent_to_email ?? undefined,
-        reminderSentCount: row.reminder_sent_count ?? 0,
         notes: row.notes ?? undefined,
         memo: row.memo ?? undefined,
         billingPeriodLabel: row.billing_period_label ?? undefined,
@@ -463,6 +461,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
         payload.deal_overheads = deal.projectOverheads.map((overhead) => ({
             name: overhead.name,
             cost: overhead.cost,
+            months: overhead.months,
         }));
     }
     return payload;

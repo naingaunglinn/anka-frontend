@@ -44,7 +44,7 @@ export default function ContractDetailPage() {
     const projectsQuery = useProjectList();
     const dealsQuery = useDealList();
     const { updateContract } = useContractMutations();
-    const { payInvoice, updateInvoice, sendInvoice } = useInvoiceMutations();
+    const { payInvoice, updateInvoice, markIssuedInvoice } = useInvoiceMutations();
     const { acceptMilestone } = useMilestoneMutations();
 
     const contract = contractQuery.data;
@@ -141,7 +141,7 @@ export default function ContractDetailPage() {
             });
             invoices.forEach(inv => {
                 const num = inv.invoiceNumber ?? inv.id.slice(0, 8);
-                if (inv.issuedAt) events.push({ ts: inv.issuedAt, icon: 'issued', label: `Invoice ${num} issued to ${inv.sentToEmail ?? 'client'}` });
+                if (inv.issuedAt) events.push({ ts: inv.issuedAt, icon: 'issued', label: `Invoice ${num} marked as issued` });
                 if (inv.paidAt)   events.push({ ts: inv.paidAt,   icon: 'paid',   label: `Invoice ${num} paid in full` });
             });
         }
@@ -702,17 +702,17 @@ export default function ContractDetailPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="inline-flex gap-1">
-                                                    {(inv.status === 'Draft' || inv.status === 'Pending' || inv.status === 'Overdue') && (
+                                                    {inv.status === 'Draft' && !inv.issuedAt && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
                                                             className="gap-1.5"
-                                                            onClick={() => sendInvoice.mutate({ id: inv.id })}
-                                                            disabled={sendInvoice.isPending || (!contract.billingEmail && !inv.sentToEmail)}
-                                                            title={!contract.billingEmail && !inv.sentToEmail ? 'Add a billing email on the contract first' : (inv.issuedAt ? 'Send reminder' : 'Send to client')}
+                                                            onClick={() => markIssuedInvoice.mutate(inv.id)}
+                                                            disabled={markIssuedInvoice.isPending}
+                                                            title="Mark this invoice as issued"
                                                         >
-                                                            <Send className="h-3.5 w-3.5" />
-                                                            {inv.issuedAt ? 'Send reminder' : 'Send'}
+                                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                                            Mark issued
                                                         </Button>
                                                     )}
                                                     {canPay && (

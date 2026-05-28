@@ -153,6 +153,7 @@ export interface ProjectOverhead {
     id: string;
     name: string;
     cost: number;
+    months: number;
 }
 
 export interface GhostRole {
@@ -341,8 +342,6 @@ export interface Invoice {
     status: 'Draft' | 'Pending' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Cancelled';
     paidAt?: string;
     issuedAt?: string;
-    sentToEmail?: string;
-    reminderSentCount?: number;
     notes?: string;
     /** New Invoice menu fields (template XLSX export). */
     memo?: string;
