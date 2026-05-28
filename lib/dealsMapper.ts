@@ -63,6 +63,7 @@ interface ApiProjectOverhead {
     id: string;
     name: string;
     cost: number;
+    months?: number;
 }
 
 interface ApiDeal {
@@ -217,6 +218,7 @@ function toProjectOverhead(row: ApiProjectOverhead): ProjectOverhead {
         id: row.id,
         name: row.name,
         cost: row.cost,
+        months: row.months ?? 1,
     };
 }
 
@@ -463,6 +465,7 @@ export function dealToApiPayload(deal: Partial<Deal>): Record<string, unknown> {
         payload.deal_overheads = deal.projectOverheads.map((overhead) => ({
             name: overhead.name,
             cost: overhead.cost,
+            months: overhead.months,
         }));
     }
     return payload;

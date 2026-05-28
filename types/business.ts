@@ -153,6 +153,7 @@ export interface ProjectOverhead {
     id: string;
     name: string;
     cost: number;
+    months: number;
 }
 
 export interface GhostRole {

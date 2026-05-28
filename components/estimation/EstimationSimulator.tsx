@@ -269,6 +269,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
     const [newHours, setNewHours] = useState('');
     const [newOverheadName, setNewOverheadName] = useState('');
     const [newOverheadCost, setNewOverheadCost] = useState('');
+    const [newOverheadMonths, setNewOverheadMonths] = useState('1');
 
     // Tracks which deal we've populated local state from so the load-effect
     // doesn't clobber in-progress edits when store.deals updates in place
@@ -382,10 +383,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         setOverheads([...overheads, {
             id: crypto.randomUUID(),
             name: newOverheadName,
-            cost: Number(newOverheadCost)
+            cost: Number(newOverheadCost),
+            months: Math.max(1, Number(newOverheadMonths) || 1),
         }]);
         setNewOverheadName('');
         setNewOverheadCost('');
+        setNewOverheadMonths('1');
         setDirty(true);
     };
 
@@ -460,6 +463,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                 id: `ai-ovh-${Date.now()}-${i}`,
                 name: o.name,
                 cost: Math.round(o.cost),
+                months: Math.max(1, Number((o as { months?: number }).months ?? 1)),
             }));
 
             // Persist immediately to the deal columns. On success we'll mirror
@@ -643,12 +647,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
         0,
     );
 
-    const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-    const totalCost = laborCostBasis + projectOverheadTotal;
-
-    // Price is fixed by the 3× rule; no margin slider input. Margin is the
-    // derived output of (price − cost) / price, persisted to target_margin
-    // for backwards compatibility with deal/version reports.
+    // Cost is per-month; months is how long the line runs. Sell Price for one
+    // overhead = cost × months. Total = sum of sell prices.
+    const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost * (o.months || 1), 0);
+    // Overheads are pass-through: client reimburses what we paid out. So they
+    // flow into the price the client pays, but are NOT subtracted in cost.
+    const totalCost = laborCostBasis;
     const suggestedPrice = laborSell + projectOverheadTotal;
     const dealBudget = store.deals.find(d => d.id === selectedDealId)?.clientBudget ?? 0;
     const expectedProfit = dealBudget > 0 ? dealBudget - totalCost : suggestedPrice - totalCost;
@@ -670,7 +674,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             .map(x => `${x.roleId}|${x.featureName}|${x.hours}`)
             .sort().join(',');
         const o = overheads
-            .map(x => `${x.name}|${x.cost}`)
+            .map(x => `${x.name}|${x.cost}|${x.months}`)
             .sort().join(',');
         return `${margin[0]}::${r}::${o}`;
     })();
@@ -681,7 +685,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
             .map(x => `${x.roleId ?? x.role_id ?? ''}|${x.featureName ?? x.feature_name ?? ''}|${x.hours ?? 0}`)
             .sort().join(',');
         const o = (latestVersionDetail.overheads ?? [])
-            .map(x => `${x.name ?? ''}|${x.cost ?? 0}`)
+            .map(x => `${x.name ?? ''}|${x.cost ?? 0}|${x.months ?? 1}`)
             .sort().join(',');
         return `${latestVersionDetail.targetMargin}::${r}::${o}`;
     })();
@@ -1087,7 +1091,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                     <TableHead>Role</TableHead>
                                     <TableHead className="text-right">Sell Rate / Hr</TableHead>
                                     <TableHead className="text-right">Hours</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Sell Price</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -1182,7 +1186,7 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                         <TableHead className="text-right">{t('qty')}</TableHead>
                                         <TableHead className="text-right">{t('months_col')}</TableHead>
                                         <TableHead className="text-right">{t('hours_col')}</TableHead>
-                                        <TableHead className="text-right">{t('estimated_cost_col')}</TableHead>
+                                        <TableHead className="text-right">Sell Price</TableHead>
                                         <TableHead className="w-[50px]"></TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -1343,25 +1347,30 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
                                     <TableHead>{t('overhead_cat_desc')}</TableHead>
-                                    <TableHead className="text-right">{t('project_cost_col')}</TableHead>
+                                    <TableHead className="text-right">Months</TableHead>
+                                    <TableHead className="text-right">Sell Price</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {overheads.map((ov) => (
-                                    <TableRow key={ov.id}>
-                                        <TableCell className="font-medium">{ov.name}</TableCell>
-                                        <TableCell className="text-right font-medium text-rose-600">{formatMoney(ov.cost, currency)}</TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemoveOverhead(ov.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {overheads.map((ov) => {
+                                    const months = ov.months || 1;
+                                    return (
+                                        <TableRow key={ov.id}>
+                                            <TableCell className="font-medium">{ov.name}</TableCell>
+                                            <TableCell className="text-right text-slate-700">{months}</TableCell>
+                                            <TableCell className="text-right font-medium text-rose-600">{formatMoney(ov.cost * months, currency)}</TableCell>
+                                            <TableCell>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleRemoveOverhead(ov.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                                 {overheads.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">{t('no_specific_overheads')}</TableCell>
+                                        <TableCell colSpan={4} className="text-center text-muted-foreground py-6">{t('no_specific_overheads')}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -1373,8 +1382,12 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <Input value={newOverheadName} onChange={e => setNewOverheadName(e.target.value)} placeholder={t('placeholder_security_audit')} className="h-9 bg-white" />
                             </div>
                             <div className="w-[150px] space-y-1">
-                                <label className="text-xs font-medium text-slate-500">{t('cost_with_symbol', { symbol })}</label>
+                                <label className="text-xs font-medium text-slate-500">Cost / month ({symbol})</label>
                                 <Input type="number" min="0" value={newOverheadCost} onChange={e => setNewOverheadCost(e.target.value)} placeholder="0" className="h-9 bg-white" />
+                            </div>
+                            <div className="w-[100px] space-y-1">
+                                <label className="text-xs font-medium text-slate-500">Months</label>
+                                <Input type="number" min="1" step="1" value={newOverheadMonths} onChange={e => setNewOverheadMonths(e.target.value)} placeholder="1" className="h-9 bg-white" />
                             </div>
                             <Button onClick={handleAddOverhead} className="h-9 bg-[var(--color-text-default)] gap-2">
                                 <Plus className="h-4 w-4" /> {t('add')}
@@ -1392,27 +1405,11 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                             Margin Summary
                         </CardTitle>
                         <CardDescription className="text-muted-foreground">
-                            Price = labor sell ({BILLING_MARKUP_MULTIPLIER}× loaded cost) + overheads at cost. Margin is derived.
+                            Suggested Price = {BILLING_MARKUP_MULTIPLIER}× labor (loaded cost) + overheads (client reimburses). Expected Profit = client budget (or price, if none) − labor cost.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-slate-700">Derived Margin</span>
-                                <span className="text-2xl font-bold text-emerald-500">{derivedMarginPct}%</span>
-                            </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100 space-y-4">
-                            <div className="flex justify-between items-center text-sm">
-                                <span
-                                    className="text-slate-500"
-                                    title={`Sum of hours × Sell Rate (loaded cost × ${BILLING_MARKUP_MULTIPLIER}). What we bill the client for labor.`}
-                                >
-                                    Suggested Amount
-                                </span>
-                                <span className="font-medium text-slate-800">{formatMoney(laborSell, currency)}</span>
-                            </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span
                                     className="text-slate-500"
@@ -1423,12 +1420,13 @@ export function EstimationSimulator({ initialDealId = '' }: EstimationSimulatorP
                                 <span className="font-medium text-slate-800">{formatMoney(laborCostBasis, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">{t('project_overhead')}</span>
-                                <span className="font-medium text-rose-500">{formatMoney(projectOverheadTotal, currency)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm font-semibold border-t border-slate-100 pt-2">
-                                <span className="text-slate-700">{t('total_project_cost')}</span>
-                                <span className="text-slate-800">{formatMoney(totalCost, currency)}</span>
+                                <span
+                                    className="text-slate-500"
+                                    title="Pass-through to client — purchased on the client's behalf and reimbursed in the price. Not subtracted from profit."
+                                >
+                                    Project Overhead <span className="text-xs text-slate-400">(reimbursed)</span>
+                                </span>
+                                <span className="font-medium text-slate-800">{formatMoney(projectOverheadTotal, currency)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">{t('expected_profit')}</span>

@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useBusinessStore } from '@/store/businessStore';
 import { Deal } from '@/types/business';
 import { useDealMutations } from '@/lib/queries/deals';
-import { formatMoneyShort } from '@/lib/currency';
+import { formatMoney } from '@/lib/currency';
 import { useTenantCurrency } from '@/hooks/useTenantCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -296,13 +296,13 @@ export function KanbanBoard({
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('est_cost_short')}</span>
                                                         <span className="text-sm font-semibold text-[#4a4a4a]">
-                                                            {formatMoneyShort(estimatedCost, currency)}
+                                                            {formatMoney(estimatedCost, currency)}
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('gross_profit_short')}</span>
                                                         <span className={`text-sm font-bold ${marginColorClass}`}>
-                                                            {formatMoneyShort(grossProfit, currency)}
+                                                            {formatMoney(grossProfit, currency)}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -311,7 +311,7 @@ export function KanbanBoard({
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] text-[#4a4a4a] uppercase font-semibold tracking-wider">{t('budget_short')}</span>
                                                         <span className="text-sm font-bold text-slate-800">
-                                                            {formatMoneyShort(budget, currency)}
+                                                            {formatMoney(budget, currency)}
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-col items-end">

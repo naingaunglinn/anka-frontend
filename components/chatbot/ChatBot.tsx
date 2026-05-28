@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { MessageCircle, X, Send, ChevronDown, Bot, Loader2 } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
-import toast from 'react-hot-toast'
 
 interface ChatMessage {
     role: 'user' | 'assistant'
@@ -20,18 +19,78 @@ interface Props {
     className?: string
 }
 
+const SUGGESTED_QUESTIONS = [
+    { label: 'Win a deal', question: 'What exactly happens when I win a deal?' },
+    { label: 'P&L breakdown', question: 'How does ANKA calculate P&L and gross margin?' },
+    { label: 'AI Team Builder', question: 'How does the AI Team Builder pick the right employees?' },
+    { label: 'Utilization risk', question: 'What is utilization rate and why does it matter for revenue?' },
+    { label: 'AI Forecast alerts', question: 'What kind of risks does the AI Forecast module detect?' },
+    { label: 'Approve time entries', question: 'How do I approve time entries and how does it affect project costs?' },
+    { label: 'Project at risk', question: 'What does "At Risk" status mean for a project and how do I fix it?' },
+    { label: 'Contracts & invoices', question: 'How do contracts, milestones, and invoices connect in ANKA?' },
+]
+
+function renderInline(text: string): React.ReactNode[] {
+    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/)
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i}>{part.slice(2, -2)}</strong>
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+            return <code key={i} className="bg-slate-200 dark:bg-slate-700 px-1 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>
+        }
+        return part
+    })
+}
+
+function renderMessage(content: string): React.ReactNode {
+    const blocks = content.split(/\n\n+/)
+    return blocks.map((block, bi) => {
+        const lines = block.split('\n').filter(l => l.trim())
+        if (lines.length === 0) return null
+
+        const isBullet = lines.every(l => /^[-•*]\s/.test(l.trim()))
+        const isNumbered = lines.every(l => /^\d+\.\s/.test(l.trim()))
+
+        if (isBullet) {
+            return (
+                <ul key={bi} className="list-disc list-inside space-y-0.5 my-1">
+                    {lines.map((l, li) => (
+                        <li key={li}>{renderInline(l.replace(/^[-•*]\s/, ''))}</li>
+                    ))}
+                </ul>
+            )
+        }
+        if (isNumbered) {
+            return (
+                <ol key={bi} className="list-decimal list-inside space-y-0.5 my-1">
+                    {lines.map((l, li) => (
+                        <li key={li}>{renderInline(l.replace(/^\d+\.\s/, ''))}</li>
+                    ))}
+                </ol>
+            )
+        }
+        return (
+            <p key={bi} className="whitespace-pre-wrap">
+                {renderInline(block)}
+            </p>
+        )
+    })
+}
+
 /**
  * Keep the trigger button within the visible viewport so it can never be
  * dragged out of reach. Falls back to (0, 0) when called during SSR — the
  * client-side init effect re-sets it once `window` is available.
  */
-function clampToViewport(x: number, y: number): { x: number; y: number } {
+function clampToViewport(x: number, y: number, safeLeftInset = SAFE_EDGE_GAP): { x: number; y: number } {
     if (typeof window === 'undefined') return { x: 0, y: 0 }
-    const maxX = Math.max(0, window.innerWidth - BUTTON_SIZE)
-    const maxY = Math.max(0, window.innerHeight - BUTTON_SIZE)
+    const minX = Math.min(safeLeftInset, Math.max(0, window.innerWidth - BUTTON_SIZE))
+    const maxX = Math.max(minX, window.innerWidth - BUTTON_SIZE - SAFE_EDGE_GAP)
+    const maxY = Math.max(SAFE_EDGE_GAP, window.innerHeight - BUTTON_SIZE - SAFE_EDGE_GAP)
     return {
-        x: Math.max(0, Math.min(x, maxX)),
-        y: Math.max(0, Math.min(y, maxY)),
+        x: Math.max(minX, Math.min(x, maxX)),
+        y: Math.max(SAFE_EDGE_GAP, Math.min(y, maxY)),
     }
 }
 
@@ -41,11 +100,21 @@ const PANEL_HEIGHT = 540
 const PANEL_GAP = 12
 const POSITION_STORAGE_KEY = 'anka:chatbot:position'
 const DRAG_THRESHOLD_PX = 5
+const DESKTOP_BREAKPOINT_PX = 768
+const SIDEBAR_WIDTH = 256
+const SIDEBAR_COLLAPSED_WIDTH = 80
+const SAFE_EDGE_GAP = 8
+
+function getSafeLeftInset(isSidebarCollapsed: boolean): number {
+    if (typeof window === 'undefined' || window.innerWidth < DESKTOP_BREAKPOINT_PX) return SAFE_EDGE_GAP
+    return (isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH) + SAFE_EDGE_GAP
+}
 
 export function ChatBot({ className }: Props) {
     const t = useTranslations()
     const isOpen = useUIStore(s => s.chatbotOpen)
     const toggleChatbot = useUIStore(s => s.toggleChatbot)
+    const isSidebarCollapsed = useUIStore(s => s.isSidebarCollapsed)
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
@@ -63,12 +132,13 @@ export function ChatBot({ className }: Props) {
     // Initialise position client-side: prefer saved coords, else bottom-right.
     useEffect(() => {
         if (typeof window === 'undefined') return
+        const safeLeftInset = getSafeLeftInset(isSidebarCollapsed)
         const saved = window.localStorage.getItem(POSITION_STORAGE_KEY)
         if (saved) {
             try {
                 const parsed = JSON.parse(saved) as { x: number; y: number }
                 if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-                    setPosition(clampToViewport(parsed.x, parsed.y))
+                    setPosition(clampToViewport(parsed.x, parsed.y, safeLeftInset))
                     return
                 }
             } catch { /* fall through to default */ }
@@ -77,17 +147,17 @@ export function ChatBot({ className }: Props) {
             x: window.innerWidth - BUTTON_SIZE - 24,
             y: window.innerHeight - BUTTON_SIZE - 24,
         })
-    }, [])
+    }, [isSidebarCollapsed])
 
     // Keep the button inside the viewport when the window resizes.
     useEffect(() => {
         if (typeof window === 'undefined') return
         function onResize() {
-            setPosition(prev => prev ? clampToViewport(prev.x, prev.y) : prev)
+            setPosition(prev => prev ? clampToViewport(prev.x, prev.y, getSafeLeftInset(isSidebarCollapsed)) : prev)
         }
         window.addEventListener('resize', onResize)
         return () => window.removeEventListener('resize', onResize)
-    }, [])
+    }, [isSidebarCollapsed])
 
     // While dragging, track mouse/touch movement on the window.
     useEffect(() => {
@@ -101,7 +171,7 @@ export function ChatBot({ className }: Props) {
             }
             const nextX = clientX - dragOffsetRef.current.x
             const nextY = clientY - dragOffsetRef.current.y
-            setPosition(clampToViewport(nextX, nextY))
+            setPosition(clampToViewport(nextX, nextY, getSafeLeftInset(isSidebarCollapsed)))
         }
 
         function onMouseMove(e: MouseEvent) { move(e.clientX, e.clientY) }
@@ -133,7 +203,7 @@ export function ChatBot({ className }: Props) {
             window.removeEventListener('touchmove', onTouchMove)
             window.removeEventListener('touchend', onEnd)
         }
-    }, [dragging])
+    }, [dragging, isSidebarCollapsed])
 
     function handleDragStart(clientX: number, clientY: number, rect: DOMRect) {
         dragOffsetRef.current = { x: clientX - rect.left, y: clientY - rect.top }
@@ -199,7 +269,7 @@ export function ChatBot({ className }: Props) {
                 content: data.answer ?? data.response ?? 'No response received.',
                 sources: data.sources ?? [],
             }])
-        } catch (err) {
+        } catch {
             // Never show an error during a demo — show a graceful fallback in-chat
             const fallbackAnswer = `I'm here to help with ANKA! You can ask me about:
 
@@ -287,10 +357,22 @@ What would you like to know?`
 
                     <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
                         {messages.length === 0 && (
-                            <div className="text-center py-6 text-slate-500">
-                                <Bot className="h-8 w-8 mx-auto mb-2 text-[var(--color-ai-500)]/60" />
-                                <p className="text-sm">{t('ask_me_anything')}</p>
-                                <p className="text-xs mt-1">{t('chatbot_examples')}</p>
+                            <div className="py-4 text-slate-500">
+                                <div className="text-center mb-4">
+                                    <Bot className="h-8 w-8 mx-auto mb-2 text-[var(--color-ai-500)]/60" />
+                                    <p className="text-sm">{t('ask_me_anything')}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {SUGGESTED_QUESTIONS.map((q, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => { setInput(q.question); }}
+                                            className="text-xs px-2.5 py-1 rounded-full border border-[var(--color-ai-200)] bg-[var(--color-ai-50)] text-[var(--color-ai-700)] hover:bg-[var(--color-ai-100)] transition-colors cursor-pointer"
+                                        >
+                                            {q.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
@@ -301,7 +383,9 @@ What would you like to know?`
                                         ? 'bg-[var(--color-ai-600)] text-white'
                                         : 'bg-slate-100 text-slate-800'
                                 }`}>
-                                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                                    <div className="space-y-1">
+                                        {msg.role === 'assistant' ? renderMessage(msg.content) : <p>{msg.content}</p>}
+                                    </div>
                                     {msg.sources && msg.sources.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-2">
                                             {msg.sources.map((s, j) => (

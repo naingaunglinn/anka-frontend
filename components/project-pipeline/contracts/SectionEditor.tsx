@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { RenderedSection } from '@/lib/queries/contractDrafts';
+import { sectionAnchorId } from './TodoChecklist';
 
 /**
  * One section's editor card. Shows title + status chips + a textarea
@@ -55,7 +56,10 @@ export function SectionEditor({
     const todoCount = (content.match(/\{\{TODO/g) ?? []).length;
 
     return (
-        <Card className={section.has_todo && !dirty ? 'border-amber-200' : 'border-slate-200'}>
+        <Card
+            id={sectionAnchorId(section.key)}
+            className={`scroll-mt-4 ${section.has_todo && !dirty ? 'border-amber-200' : 'border-slate-200'}`}
+        >
             <CardHeader className="pb-3 flex flex-row items-start gap-3 justify-between">
                 <div className="min-w-0 flex-1">
                     <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
