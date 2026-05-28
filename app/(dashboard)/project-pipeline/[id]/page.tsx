@@ -181,9 +181,9 @@ export default function DealDetailPage() {
     const isClosed   = isWon || isLost;
 
     const marginPct = estimationRollup.marginPct;
-    // B-and-above gate for the Financial Summary right-rail card. Ranks: lead=C,
-    // qualified=B, negotiation=A, won=S. C leads have no estimation yet → showing
-    // an all-zero card is noise, so hide it entirely.
+    // B-and-above gate for the KPI tile row. Ranks: lead=C, qualified=B,
+    // negotiation=A, won=S. C leads have no estimation yet → all-zero tiles
+    // would be noise, so hide them entirely.
     const hasFinancials = stage === 'qualified' || stage === 'negotiation' || stage === 'won';
 
     const getMarginColor = (m: number) => {
@@ -313,8 +313,7 @@ export default function DealDetailPage() {
             <WorkflowBar steps={workflowSteps} />
 
             {/* KPI cards — hidden on C leads where there's no estimation yet.
-                Same gate as the right-rail Financial Summary card. Numbers
-                match the Estimation page exactly (same formulas). */}
+                Numbers match the Estimation page exactly (same formulas). */}
             {hasFinancials && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card variant="plain">
@@ -371,8 +370,7 @@ export default function DealDetailPage() {
             </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 space-y-6">
+            <div className="space-y-6">
                     {/* Deal Overview */}
                     <Card variant="plain">
                         <CardHeader className="border-b bg-slate-50/50">
@@ -541,54 +539,6 @@ export default function DealDetailPage() {
                             </CardContent>
                         </Card>
                     )}
-                </div>
-
-                {/* Sidebar */}
-                <div className="space-y-6">
-                    {hasFinancials && (
-                        <Card variant="plain" className="sticky top-6">
-                            <CardHeader className="bg-slate-50/80 pb-4 border-b border-slate-100">
-                                <CardTitle className="text-lg">{t('financial_summary')}</CardTitle>
-                                <CardDescription>{t('live_from_estimation')}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="pt-5 space-y-4">
-                                <div className="space-y-3">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('suggested_price')}</span>
-                                        <span className="font-medium text-slate-700">{formatMoney(estimationRollup.suggestedPrice, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('base_labor_cost')}</span>
-                                        <span className="font-medium text-slate-700">{formatMoney(estimationRollup.laborCost, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-500">{t('project_overhead')}</span>
-                                        <span className="font-medium text-red-500/80">-{formatMoney(estimationRollup.projectOverheadTotal, currency)}</span>
-                                    </div>
-                                </div>
-                                <div className="border-t border-slate-100 pt-4">
-                                    <div className="flex justify-between font-bold text-slate-800 mb-2">
-                                        <span>{t('total_project_cost')}</span>
-                                        <span>{formatMoney(estimationRollup.totalProjectCost, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                        <span className="font-bold text-slate-800">{t('expected_profit')}</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className={`font-bold text-lg ${marginPct !== undefined ? getMarginColor(marginPct) : 'text-slate-900'}`}>
-                                                {formatMoney(estimationRollup.expectedProfit, currency)}
-                                            </span>
-                                            {marginPct !== undefined && (
-                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${getMarginColor(marginPct)}`}>
-                                                    {t('margin_pct_label', { pct: marginPct.toFixed(1) })}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
             </div>
 
             {/* Delete Dialog */}
