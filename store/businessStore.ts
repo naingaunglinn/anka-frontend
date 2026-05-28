@@ -17,7 +17,7 @@ import {
     RoleType,
     Skill,
 } from "../types/business";
-import { calculateSoftBookedHours } from "../lib/calculations";
+import { applySellMarkup, calculateSoftBookedHours } from "../lib/calculations";
 import {
     insertDepartment, updateDepartmentDB, deleteDepartmentDB,
     insertRole, updateRoleDB, deleteRoleDB,
@@ -756,21 +756,14 @@ export const useBusinessStore = create<BusinessState>()(
                     if (!monthly[month]) monthly[month] = { revenue: 0, directLabor: 0, overhead: 0 };
                 });
 
-                // Salaried direct labor: every month carries the full payroll of currently
-                // Active + On Leave staff. Schema has no contractor flag, so all employees
-                // are salaried. Historical months reflect today's headcount — hire/termination
-                // history is not yet tracked.
-                //
-                // Uses RAW monthlySalary (basic + allowance), NOT the loaded ×1.15 cost
-                // used on /organization + /estimation. The 15% absorbed-overhead markup
-                // is a quoting concept (covers shared costs already booked into
-                // globalOverheads); adding it to directLabor here would double-count.
-                const monthlyPayroll = state.employees
+                // Match Organization > Employees "Cost Price":
+                // monthly salary plus the absorbed labor overhead markup.
+                const monthlyCostPrice = state.employees
                     .filter(e => e.status === 'Active' || e.status === 'On Leave')
-                    .reduce((sum, e) => sum + e.monthlySalary, 0);
+                    .reduce((sum, e) => sum + applySellMarkup(e.monthlySalary), 0);
 
                 Object.keys(monthly).forEach(m => {
-                    monthly[m].directLabor = monthlyPayroll;
+                    monthly[m].directLabor = monthlyCostPrice;
                 });
 
                 // For each P&L month, sum overheads that either have no period (always-on)
