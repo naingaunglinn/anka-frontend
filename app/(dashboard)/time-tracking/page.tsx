@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { normalizeError } from '@/lib/errorHandler';
-import { useProjectList, useProjectTeam, projectKeys } from '@/lib/queries/projects';
+import { useProjectList, useProjectTeam, useProjectTaskAssignments, projectKeys } from '@/lib/queries/projects';
 import { scheduleTrackingKeys, useProgressLogSummary } from '@/lib/queries/scheduleTracking';
 import { useTimeEntryList } from '@/lib/queries/timeEntries';
 import type { Project } from '@/types/business';
@@ -294,8 +294,12 @@ function AutoAssignProjectRow({
 }) {
     const t = useTranslations();
     const teamQuery = useProjectTeam(project.id);
+    const taskQuery = useProjectTaskAssignments(project.id);
     const teamCount = teamQuery.data?.length ?? 0;
     const hasTeam = teamCount > 0;
+    const taskCount = taskQuery.data?.data?.length ?? 0;
+    const hasTasks = taskCount > 0;
+    const isFullyAssigned = hasTeam && hasTasks;
     const isBusy = autoAssignLoading === project.id;
 
     return (
@@ -315,16 +319,18 @@ function AutoAssignProjectRow({
                 <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 text-xs h-8 opacity-40 cursor-not-allowed"
-                    disabled
+                    className={`gap-1.5 text-xs h-8${hasTasks ? ' opacity-40 cursor-not-allowed' : ''}`}
+                    disabled={!hasTeam || hasTasks || isBusy}
+                    onClick={() => onAssignTasksOnly(project.id)}
                 >
                     <FastForward className="h-3.5 w-3.5" />
                     Assign tasks with AI
                 </Button>
                 <Button
                     size="sm"
-                    className="gap-1.5 text-xs h-8 bg-[#171717] opacity-40 cursor-not-allowed"
-                    disabled
+                    className={`gap-1.5 text-xs h-8 bg-[#171717]${isFullyAssigned ? ' opacity-40 cursor-not-allowed' : ''}`}
+                    disabled={isFullyAssigned || isBusy}
+                    onClick={() => onAutoAssign(project.id)}
                 >
                     <Sparkles className="h-3.5 w-3.5" />
                     AI team build + assign tasks

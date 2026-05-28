@@ -28,6 +28,7 @@ import {
     BrainCircuit,
     ScrollText,
     KeyRound,
+    LayoutGrid,
 } from 'lucide-react';
 
 // labelKey resolves against messages/{locale}.json at render time.
@@ -42,6 +43,7 @@ const orgRoutes = [
     { labelKey: 'time_tracking',     icon: Clock,           href: '/time-tracking',      color: 'text-amber-500' },
     { labelKey: 'schedule_tracking', icon: Activity,        href: '/schedule-tracking',  color: 'text-rose-500' },
     { labelKey: 'my_schedule',       icon: CalendarCheck,   href: '/my-schedule',        color: 'text-emerald-500' },
+    { labelKey: 'resource_allocation', icon: LayoutGrid,     href: '/resource-allocation', color: 'text-teal-500' },
     { labelKey: 'financials',        icon: PieChart,        href: '/financial',          color: 'text-[#0086c4]' },
     { labelKey: 'forecast',          icon: LineChart,       href: '/forecast',           color: 'text-indigo-500' },
     { labelKey: 'tenant_settings',   icon: Building2,       href: '/tenant',             color: 'text-violet-500' },
