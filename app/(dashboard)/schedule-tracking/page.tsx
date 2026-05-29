@@ -206,8 +206,8 @@ export default function ScheduleTrackingPage() {
                                 <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Planned Value">PV</th>
                                 <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Earned Value">EV</th>
                                 <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Actual Cost">AC</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
-                                <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">± Conditions</th>
+                                <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -321,9 +321,9 @@ export default function ScheduleTrackingPage() {
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Estimated</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Progress</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Used</th>
-                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">± Conditions</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Extra</th>
-                                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
+                                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
