@@ -588,48 +588,68 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                     <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
                                                                 </div>
                                                             )}
-                                                            <Select
-                                                                value={cell.assigneeId ?? ''}
-                                                                onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
-                                                                disabled={pendingCellId === cell.id}
-                                                            >
-                                                                <SelectTrigger className="h-8 w-full text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors overflow-hidden">
-                                                                    <SelectValue placeholder={t('unassigned_short')}>
-                                                                        {cell.assigneeName ? (
-                                                                            <span className="flex items-center gap-1.5 overflow-hidden min-w-0">
-                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
-                                                                                    {cell.assigneeName.charAt(0).toUpperCase()}
+                                                            {canEditDates ? (
+                                                                <Select
+                                                                    value={cell.assigneeId ?? ''}
+                                                                    onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
+                                                                    disabled={pendingCellId === cell.id}
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-full text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors overflow-hidden">
+                                                                        <SelectValue placeholder={t('unassigned_short')}>
+                                                                            {cell.assigneeName ? (
+                                                                                <span className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                        {cell.assigneeName.charAt(0).toUpperCase()}
+                                                                                    </span>
+                                                                                    <span className="truncate min-w-0">{cell.assigneeName}</span>
+                                                                                    {cell.assigneeRankCode && (
+                                                                                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200 shrink-0">
+                                                                                            {cell.assigneeRankCode}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                 </span>
-                                                                                <span className="truncate min-w-0">{cell.assigneeName}</span>
-                                                                                {cell.assigneeRankCode && (
-                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200 shrink-0">
-                                                                                        {cell.assigneeRankCode}
-                                                                                    </Badge>
-                                                                                )}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-slate-400 italic">{t('unassigned_short')}</span>
-                                                                        )}
-                                                                    </SelectValue>
-                                                                </SelectTrigger>
-                                                                <SelectContent className="min-w-[220px]">
-                                                                    {team.map((m) => (
-                                                                        <SelectItem key={m.employeeId} value={m.employeeId}>
-                                                                            <span className="flex items-center gap-2">
-                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
-                                                                                    {(m.employeeName ?? '?').charAt(0).toUpperCase()}
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic">{t('unassigned_short')}</span>
+                                                                            )}
+                                                                        </SelectValue>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent className="min-w-[220px]">
+                                                                        {team.map((m) => (
+                                                                            <SelectItem key={m.employeeId} value={m.employeeId}>
+                                                                                <span className="flex items-center gap-2">
+                                                                                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                        {(m.employeeName ?? '?').charAt(0).toUpperCase()}
+                                                                                    </span>
+                                                                                    <span>{m.employeeName ?? m.employeeId}</span>
+                                                                                    {m.rankCode && (
+                                                                                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                                                                            {m.rankCode}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                 </span>
-                                                                                <span>{m.employeeName ?? m.employeeId}</span>
-                                                                                {m.rankCode && (
-                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
-                                                                                        {m.rankCode}
-                                                                                    </Badge>
-                                                                                )}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-700">
+                                                                    {cell.assigneeName ? (
+                                                                        <>
+                                                                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                {cell.assigneeName.charAt(0).toUpperCase()}
                                                                             </span>
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
+                                                                            <span className="truncate min-w-0">{cell.assigneeName}</span>
+                                                                            {cell.assigneeRankCode && (
+                                                                                <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                                                                    {cell.assigneeRankCode}
+                                                                                </Badge>
+                                                                            )}
+                                                                        </>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 italic">{t('unassigned_short')}</span>
+                                                                    )}
+                                                                </span>
+                                                            )}
                                                           </div>
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">

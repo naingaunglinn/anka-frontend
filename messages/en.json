@@ -1456,6 +1456,7 @@
   "replace_with_idle_employee": "Pick an idle employee",
   "requirement_description": "Requirement Description",
   "requirement_placeholder": "What does the customer need? Tech stack, scope, deliverables, integrations, special working-hours requirements, testing scope...",
+  "requires_manage_projects_permission": "Requires project-management permission",
   "resolve_todo_warning": "Resolve the {todo} markers (or supply more wizard answers and regenerate) before sending to the customer.",
   "resources_and_overheads": "{r} resources · {o} overheads",
   "restore": "Restore",
