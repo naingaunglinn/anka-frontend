@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
-const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL ?? 'deepseek-v4-pro';
+
+// OpenCode Zen Go's proxy translates Anthropic Messages → underlying provider
+// (DeepSeek, etc.) and rejects the plain-string `content` shorthand even
+// though the real Anthropic API accepts it. Always send the canonical
+// multipart form.
+const asText = (text: string) => [{ type: 'text' as const, text }];
 
 // Pricing: Claude Haiku 4.5 — $1.00/1M input · $5.00/1M output
 const INPUT_COST_PER_TOKEN  = 1.00 / 1_000_000;
@@ -457,7 +463,7 @@ export async function POST(req: NextRequest) {
             temperature: input.regenerateCount && input.regenerateCount > 0 ? 0.7 : 0.4,
             system:      buildSystemPrompt(outputLocale),
             messages: [
-                { role: 'user', content: buildUserPrompt(input, outputLocale) },
+                { role: 'user', content: asText(buildUserPrompt(input, outputLocale)) },
             ],
         });
 

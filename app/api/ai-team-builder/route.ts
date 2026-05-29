@@ -4,7 +4,13 @@ import { SYSTEM_PROMPT, buildUserPrompt, enforceSkillCoverage, buildRoleSystemPr
 import type { AITeamBuilderInput, AITeamBuilderResult } from '@/types/aiTeamBuilder'
 import { formatMoney } from '@/lib/currencyServer'
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6'
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL ?? 'deepseek-v4-pro'
+
+// OpenCode Zen Go's proxy translates Anthropic Messages → underlying provider
+// (DeepSeek, etc.) and rejects the plain-string `content` shorthand even
+// though the real Anthropic API accepts it. Always send the canonical
+// multipart form.
+const asText = (text: string) => [{ type: 'text' as const, text }]
 
 // Pricing: Claude Sonnet 4.6 — $3.00/1M input · $15.00/1M output
 const INPUT_COST_PER_TOKEN  = 3.00  / 1_000_000
@@ -379,8 +385,8 @@ export async function POST(req: NextRequest) {
             temperature: 0.2,
             system:     systemPrompt,
             messages: [
-                { role: 'user', content: userPrompt },
-                { role: 'assistant', content: '{' },
+                { role: 'user', content: asText(userPrompt) },
+                { role: 'assistant', content: asText('{') },
             ],
         })
 
@@ -455,9 +461,9 @@ export async function POST(req: NextRequest) {
                         temperature: 0.2,
                         system: systemPrompt,
                         messages: [
-                            { role: 'user', content: userPrompt },
-                            { role: 'assistant', content: clean },
-                            { role: 'user', content:
+                            { role: 'user', content: asText(userPrompt) },
+                            { role: 'assistant', content: asText(clean) },
+                            { role: 'user', content: asText(
                                 `Your suggested team is undersized and violates the HARD RULE in Step 2. ` +
                                 `Coverage check: Σ(quantity × months × 160) = ${coverage.capacity}h but totalWorkloadHours = ${coverage.workload}h ` +
                                 `(coverage ratio ${coverage.ratio}, must be ≥ 1.00). ` +
@@ -466,8 +472,8 @@ export async function POST(req: NextRequest) {
                                 `(2) then increase quantity on the heaviest bucket, ` +
                                 `(3) add a missing bucket only if every existing bucket is already at quantity ≥ 2 and months = timelineMonths. ` +
                                 `Target band is [1.00, 1.15]. Return ONLY the revised JSON object (no markdown fences, no commentary).`,
-                            },
-                            { role: 'assistant', content: '{' },
+                            ) },
+                            { role: 'assistant', content: asText('{') },
                         ],
                     })
                     const retryRawText = retryMessage.content[0]?.type === 'text' ? retryMessage.content[0].text : ''
