@@ -99,12 +99,12 @@ export default function DealDetailPage() {
 
     // Live financial rollup — mirrors EstimationSimulator exactly so both pages
     // show the same numbers. Formula: laborCost = Σ hours × costRate (sellMarkup
-    // applied), laborSell = laborCost × billingMarkup (3×), totalProjectCost =
-    // laborCost + projectOverheadTotal, suggestedPrice = laborSell +
-    // projectOverheadTotal, expectedProfit = (clientBudget || suggestedPrice) -
-    // totalProjectCost. No company-wide overhead % or risk buffer here —
-    // Estimation doesn't compute those, so adding them on Deal Detail produced
-    // numbers that disagreed across the two pages.
+    // applied), laborSell = laborCost × billingMarkup (2×). Overheads are
+    // pass-through (client reimburses), so they flow into Suggested Price but
+    // are NOT subtracted from profit and are not counted as agency cost.
+    // totalProjectCost = laborCost (labor only — matches Estimation's "Total
+    // Estimate Cost"), suggestedPrice = laborSell + projectOverheadTotal,
+    // expectedProfit = (clientBudget || suggestedPrice) − laborCost.
     const estimationRollup = useMemo(() => {
         const resources = dealToEdit?.estimationResources ?? [];
         const overheads = dealToEdit?.projectOverheads ?? [];
@@ -143,12 +143,12 @@ export default function DealDetailPage() {
 
         const laborCost = resources.reduce((sum, r) => sum + r.hours * costRateForResource(r), 0);
         const laborSell = resources.reduce((sum, r) => sum + r.hours * sellRateForResource(r), 0);
-        const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost, 0);
-        const totalProjectCost = laborCost + projectOverheadTotal;
+        const projectOverheadTotal = overheads.reduce((sum, o) => sum + o.cost * (o.months || 1), 0);
+        const totalProjectCost = laborCost;
         const suggestedPrice = laborSell + projectOverheadTotal;
         const expectedProfit = clientBudget > 0
-            ? clientBudget - totalProjectCost
-            : suggestedPrice - totalProjectCost;
+            ? clientBudget - laborCost
+            : suggestedPrice - laborCost;
         const marginPct = suggestedPrice > 0
             ? (expectedProfit / suggestedPrice) * 100
             : undefined;

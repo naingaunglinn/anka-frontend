@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { KNOWLEDGE_BASE, type KnowledgeChunk } from '@/lib/knowledgeBase'
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6'
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL ?? 'deepseek-v4-pro'
+
+// OpenCode Zen Go's proxy translates Anthropic Messages → underlying provider
+// (DeepSeek, etc.) and rejects the plain-string `content` shorthand even
+// though the real Anthropic API accepts it. Always send the canonical
+// multipart form.
+const asText = (text: string) => [{ type: 'text' as const, text }]
 
 const SYSTEM_PROMPT = `You are the ANKA Assistant — an intelligent AI advisor built into ANKA, a B2B SaaS platform for IT agency management.
 
@@ -142,7 +148,8 @@ function generateDemoAnswer(question: string): { answer: string; sources: { titl
 }
 
 export async function POST(req: NextRequest) {
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    const apiKey  = process.env.ANTHROPIC_API_KEY
+    const baseURL = process.env.ANTHROPIC_BASE_URL
 
     let body: ChatRequest
     try {
@@ -188,13 +195,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ...demo, model: 'demo-mode' })
     }
 
-    const client = new Anthropic({ apiKey })
+    const client = new Anthropic({ apiKey, baseURL })
     const contextPrompt = buildContextPrompt(body.question)
 
     try {
         const historyMessages = (body.history ?? []).slice(-6).map(m => ({
             role: m.role as 'user' | 'assistant',
-            content: m.content,
+            content: asText(m.content),
         }))
 
         const message = await client.messages.create({
@@ -210,7 +217,7 @@ export async function POST(req: NextRequest) {
             ],
             messages: [
                 ...historyMessages,
-                { role: 'user', content: contextPrompt },
+                { role: 'user', content: asText(contextPrompt) },
             ],
         })
 
