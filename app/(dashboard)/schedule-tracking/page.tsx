@@ -202,18 +202,19 @@ export default function ScheduleTrackingPage() {
                                 <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Phase</th>
                                 <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Assignee</th>
                                 <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Planned</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Est</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Prog</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Used</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
-                                <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
+                                <th className="px-4 py-3 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Actual</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Planned Value">PV</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Earned Value">EV</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap" title="Actual Cost">AC</th>
+                                <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">± Conditions</th>
+                                <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {listQuery.isLoading ? (
-                                <tr><td colSpan={10} className="py-12"><LoadingState message={t('loading_tracking_data')} /></td></tr>
+                                <tr><td colSpan={11} className="py-12"><LoadingState message={t('loading_tracking_data')} /></td></tr>
                             ) : rows.length === 0 ? (
-                                <tr><td colSpan={10} className="py-10 text-center text-slate-400">{t('no_phases_match_filters')}</td></tr>
+                                <tr><td colSpan={11} className="py-10 text-center text-slate-400">{t('no_phases_match_filters')}</td></tr>
                             ) : rows.map((row) => (
                                 <tr
                                     key={row.id}
@@ -243,6 +244,17 @@ export default function ScheduleTrackingPage() {
                                             <span className="text-slate-300">→</span>
                                             <span className="font-mono">{row.plannedEnd?.replaceAll('-', '/')}</span>
                                         </span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {row.actualStart || row.actualEnd ? (
+                                            <span className="inline-flex items-center gap-1 text-[12px] tabular-nums text-slate-500">
+                                                <span className="font-mono">{row.actualStart?.replaceAll('-', '/') ?? '—'}</span>
+                                                <span className="text-slate-300">→</span>
+                                                <span className="font-mono">{row.actualEnd?.replaceAll('-', '/') ?? '—'}</span>
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-300 italic">—</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-right tabular-nums text-slate-600 whitespace-nowrap">{row.estimatedHours}h</td>
                                     <td className="px-4 py-3 text-right tabular-nums text-slate-600 whitespace-nowrap">{row.variance.cumulativeProgressHours}h</td>
@@ -309,9 +321,9 @@ export default function ScheduleTrackingPage() {
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Estimated</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Progress</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Used</th>
-                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Variance</th>
+                                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">± Conditions</th>
                                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Extra</th>
-                                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Health</th>
+                                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">

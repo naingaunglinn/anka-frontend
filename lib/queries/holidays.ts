@@ -45,6 +45,25 @@ export function useHolidays() {
     });
 }
 
+/**
+ * Expands the holiday list into a `YYYY-MM-DD => name` map for the requested
+ * year. Recurring holidays match every year, so MM-DD is projected onto the
+ * caller's year before the map is keyed.
+ */
+export function expandHolidaysForYear(holidays: Holiday[], year: number): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const h of holidays) {
+        if (!h.date) continue;
+        if (h.isRecurring) {
+            const md = h.date.slice(5); // MM-DD
+            map[`${year}-${md}`] = h.name;
+        } else if (h.date.startsWith(`${year}-`)) {
+            map[h.date] = h.name;
+        }
+    }
+    return map;
+}
+
 export function useHolidayMutations() {
     const queryClient = useQueryClient();
     const invalidate = () => {

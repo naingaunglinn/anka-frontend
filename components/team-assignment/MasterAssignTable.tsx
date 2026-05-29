@@ -22,6 +22,10 @@ import { ScheduleHealthBadge } from '@/components/schedule-tracking/ScheduleHeal
 import { useAsOfParam } from '@/components/SimulatedDateBar';
 import { PhaseDrillDownDrawer } from '@/components/schedule-tracking/PhaseDrillDownDrawer';
 import { DirectAssignDialog, ConflictConfirmDialog, SwapWarningDialog } from '@/components/team-assignment/ReassignConflictDialog';
+import { WorkingDayPicker } from '@/components/ui/working-day-picker';
+import { useHolidays, expandHolidaysForYear } from '@/lib/queries/holidays';
+import { useAuthStore } from '@/store/authStore';
+import { hasPermission } from '@/lib/rbac';
 import type {
     ProjectTaskPhaseAssignment,
     ReassignmentCheck,
@@ -73,7 +77,23 @@ export function MasterAssignTable({ projectId }: Props) {
     const t = useTranslations();
     const tasksQuery = useProjectTaskAssignments(projectId);
     const teamQuery = useProjectTeam(projectId);
-    const { updatePhaseAssignment } = useProjectTaskMutations(projectId);
+    const { updatePhaseAssignment, updatePhasePlannedDates } = useProjectTaskMutations(projectId);
+    const holidaysQuery = useHolidays();
+    const currentYear = new Date().getFullYear();
+    const holidaysThisYear = useMemo(
+        () => expandHolidaysForYear(holidaysQuery.data ?? [], currentYear),
+        [holidaysQuery.data, currentYear],
+    );
+    const holidaysNextYear = useMemo(
+        () => expandHolidaysForYear(holidaysQuery.data ?? [], currentYear + 1),
+        [holidaysQuery.data, currentYear],
+    );
+    const holidaysMap = useMemo(
+        () => ({ ...holidaysThisYear, ...holidaysNextYear }),
+        [holidaysThisYear, holidaysNextYear],
+    );
+    const authUser = useAuthStore((s) => s.user);
+    const canEditDates = hasPermission(authUser, 'manage_projects');
     // Pull all schedule-tracking rows for this project so each phase cell can
     // show its variance/health badge. Large per_page to avoid pagination here.
     // `as_of` threads the simulated-today override through so badges recompute
@@ -352,6 +372,10 @@ export function MasterAssignTable({ projectId }: Props) {
         updatePhaseAssignment.mutate({ phaseAssignmentId, updates });
     };
 
+    const savePlannedDates = (phaseAssignmentId: string, plannedStart: string, plannedEnd: string) => {
+        updatePhasePlannedDates.mutate({ phaseAssignmentId, plannedStart, plannedEnd });
+    };
+
     return (
         <Card className="shadow-sm border-[#e6e9ee]">
             <div className="px-6 space-y-6">
@@ -564,59 +588,122 @@ export function MasterAssignTable({ projectId }: Props) {
                                                                     <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
                                                                 </div>
                                                             )}
-                                                            <Select
-                                                                value={cell.assigneeId ?? ''}
-                                                                onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
-                                                                disabled={pendingCellId === cell.id}
-                                                            >
-                                                                <SelectTrigger className="h-8 w-full text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors overflow-hidden">
-                                                                    <SelectValue placeholder={t('unassigned_short')}>
-                                                                        {cell.assigneeName ? (
-                                                                            <span className="flex items-center gap-1.5 overflow-hidden min-w-0">
-                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
-                                                                                    {cell.assigneeName.charAt(0).toUpperCase()}
+                                                            {canEditDates ? (
+                                                                <Select
+                                                                    value={cell.assigneeId ?? ''}
+                                                                    onValueChange={(v) => handleAssigneeChange(cell, v || null, task.functionName)}
+                                                                    disabled={pendingCellId === cell.id}
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-full text-xs bg-white border-slate-200 shadow-sm hover:border-slate-300 transition-colors overflow-hidden">
+                                                                        <SelectValue placeholder={t('unassigned_short')}>
+                                                                            {cell.assigneeName ? (
+                                                                                <span className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                        {cell.assigneeName.charAt(0).toUpperCase()}
+                                                                                    </span>
+                                                                                    <span className="truncate min-w-0">{cell.assigneeName}</span>
+                                                                                    {cell.assigneeRankCode && (
+                                                                                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200 shrink-0">
+                                                                                            {cell.assigneeRankCode}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                 </span>
-                                                                                <span className="truncate min-w-0">{cell.assigneeName}</span>
-                                                                                {cell.assigneeRankCode && (
-                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200 shrink-0">
-                                                                                        {cell.assigneeRankCode}
-                                                                                    </Badge>
-                                                                                )}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-slate-400 italic">{t('unassigned_short')}</span>
-                                                                        )}
-                                                                    </SelectValue>
-                                                                </SelectTrigger>
-                                                                <SelectContent className="min-w-[220px]">
-                                                                    {team.map((m) => (
-                                                                        <SelectItem key={m.employeeId} value={m.employeeId}>
-                                                                            <span className="flex items-center gap-2">
-                                                                                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
-                                                                                    {(m.employeeName ?? '?').charAt(0).toUpperCase()}
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic">{t('unassigned_short')}</span>
+                                                                            )}
+                                                                        </SelectValue>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent className="min-w-[220px]">
+                                                                        {team.map((m) => (
+                                                                            <SelectItem key={m.employeeId} value={m.employeeId}>
+                                                                                <span className="flex items-center gap-2">
+                                                                                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                        {(m.employeeName ?? '?').charAt(0).toUpperCase()}
+                                                                                    </span>
+                                                                                    <span>{m.employeeName ?? m.employeeId}</span>
+                                                                                    {m.rankCode && (
+                                                                                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                                                                            {m.rankCode}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                 </span>
-                                                                                <span>{m.employeeName ?? m.employeeId}</span>
-                                                                                {m.rankCode && (
-                                                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
-                                                                                        {m.rankCode}
-                                                                                    </Badge>
-                                                                                )}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-slate-700">
+                                                                    {cell.assigneeName ? (
+                                                                        <>
+                                                                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0">
+                                                                                {cell.assigneeName.charAt(0).toUpperCase()}
                                                                             </span>
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
+                                                                            <span className="truncate min-w-0">{cell.assigneeName}</span>
+                                                                            {cell.assigneeRankCode && (
+                                                                                <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                                                                    {cell.assigneeRankCode}
+                                                                                </Badge>
+                                                                            )}
+                                                                        </>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 italic">{t('unassigned_short')}</span>
+                                                                    )}
+                                                                </span>
+                                                            )}
                                                           </div>
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
-                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
-                                                                {cell.plannedStart?.replaceAll('-', '/') ?? '—'}
-                                                            </span>
+                                                            {canEditDates ? (
+                                                                <span className="inline-flex items-center gap-1">
+                                                                    <WorkingDayPicker
+                                                                        value={cell.plannedStart}
+                                                                        holidays={holidaysMap}
+                                                                        max={cell.plannedEnd}
+                                                                        disabled={updatePhasePlannedDates.isPending}
+                                                                        placeholder="—"
+                                                                        onChange={(next) => {
+                                                                            if (!cell.plannedEnd) {
+                                                                                savePlannedDates(cell.id, next, next);
+                                                                            } else if (next > cell.plannedEnd) {
+                                                                                savePlannedDates(cell.id, next, next);
+                                                                            } else {
+                                                                                savePlannedDates(cell.id, next, cell.plannedEnd);
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    {cell.plannedDatesEditedAt && (
+                                                                        <span
+                                                                            className="text-amber-500 text-[11px] cursor-help"
+                                                                            title={`Planned dates edited ${cell.plannedDatesEditedAt.slice(0, 10)} — variance is computed against current planned dates.`}
+                                                                        >
+                                                                            ⚠
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                    {cell.plannedStart?.replaceAll('-', '/') ?? '—'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
-                                                            <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
-                                                                {cell.plannedEnd?.replaceAll('-', '/') ?? '—'}
-                                                            </span>
+                                                            {canEditDates ? (
+                                                                <WorkingDayPicker
+                                                                    value={cell.plannedEnd}
+                                                                    holidays={holidaysMap}
+                                                                    min={cell.plannedStart}
+                                                                    disabled={updatePhasePlannedDates.isPending || !cell.plannedStart}
+                                                                    placeholder="—"
+                                                                    onChange={(next) => {
+                                                                        if (!cell.plannedStart) return;
+                                                                        savePlannedDates(cell.id, cell.plannedStart, next);
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
+                                                                    {cell.plannedEnd?.replaceAll('-', '/') ?? '—'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-1.5 py-1 w-[105px]">
                                                             <span className="inline-block h-7 leading-7 text-xs text-slate-700 tabular-nums">
